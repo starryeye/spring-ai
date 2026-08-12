@@ -75,7 +75,8 @@ curl -N -X POST http://localhost:8080/api/chat \
 | 툴이 등록되지 않음 | mcp-server 기동 로그의 필터링 경고 — 반환 타입이 `Mono`/`Flux` 인가 |
 | agent가 툴을 못 찾음 | mcp-server가 먼저 떠 있는가, `streamable-http.connections.product.url` 이 맞는가 |
 | 기동 시 `ChatModel` 빈 모호성 | `spring.ai.model.chat` 이 활성 프로파일에서 하나로 지정되었는가 |
-| 답변에 실제 숫자가 없음 | 툴이 호출되지 않은 것 — mcp-server 로그에 호출 흔적이 있는가 |
+| 답변에 실제 숫자가 없음 | 툴이 호출되지 않은 것 — mcp-server 로그에 `ProductTools` 의 `searchProducts 호출` / `getStock 호출` 이 찍히는가. 안 찍히면 agent 쪽 `defaultTools(provider)` 배선부터 본다 |
+| 툴이 항상 "조회할 수 없습니다" 를 반환 | mcp-server 로그의 `ProductTools ... 실패` ERROR 스택트레이스 — 대개 product-service 가 안 떠 있거나 `product-service.base-url` 이 틀렸다 |
 
 ## 검증 상태
 
