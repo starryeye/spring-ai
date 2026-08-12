@@ -172,8 +172,10 @@ spring:
 class ChatController {
     private final ChatClient chatClient;
 
-    ChatController(ChatClient.Builder builder) {
-        this.chatClient = builder.build();
+    ChatController(ChatClient.Builder builder, ObjectProvider<ToolCallbackProvider> tools) {
+        ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
+        tools.ifAvailable(configured::defaultTools);
+        this.chatClient = configured.build();
     }
 
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -183,7 +185,9 @@ class ChatController {
 }
 ```
 
-MCP 툴은 `ToolCallbackProvider` 를 통해 자동 등록되므로 agent에는 툴 코드가 없다.
+MCP 클라이언트 자동설정은 `ToolCallbackProvider` 빈을 만들어주지만, 그 빈이 `ChatClient` 에
+자동으로 붙지는 않는다. 애플리케이션이 직접 `ChatClient.Builder.defaultTools(provider)` 로
+꽂아야 LLM이 툴 정의를 받는다. 그래서 agent에는 툴 *구현* 코드는 없어도 툴 *배선* 코드는 있다.
 
 프로바이더 전환:
 
