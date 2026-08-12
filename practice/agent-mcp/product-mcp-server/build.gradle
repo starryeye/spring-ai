@@ -26,6 +26,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webclient'
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webflux'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webclient-test'
 	testImplementation 'io.projectreactor:reactor-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
