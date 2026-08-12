@@ -18,10 +18,26 @@ Spring AI 2.0의 **agent + MCP** 최소 예제.
 
 API 키는 사용할 프로바이더 것만 있으면 된다.
 
+키를 주는 방법은 두 가지다. 활성 프로파일 쪽 키만 있으면 된다.
+
+**방법 1 — 파일 (권장).** `product-agent/secrets.yml` 에 넣는다. 이 파일은 `.gitignore` 에
+등록되어 있어 커밋되지 않는다.
+
+```bash
+cd product-agent
+cp secrets.yml.example secrets.yml
+# secrets.yml 을 열어 키를 채운다
+```
+
+**방법 2 — 환경변수.** 둘 다 있으면 환경변수가 파일보다 우선한다.
+
 ```bash
 export OPENAI_API_KEY='...'        # 또는
 export ANTHROPIC_API_KEY='...'
 ```
+
+> ⚠️ 키가 없어도 **애플리케이션은 기동된다.** 누락은 기동 시점이 아니라 첫 채팅 요청 시점에
+> 드러난다. `/api/chat` 이 인증 오류를 내면 키부터 확인할 것.
 
 터미널 3개에서 순서대로:
 

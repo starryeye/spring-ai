@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: product-agent
+  # API 키는 secrets.yml (git 무시) 에 두거나 환경변수로 준다.
+  # optional: 이므로 파일이 없어도 기동에 지장이 없고, 환경변수가 파일보다 우선한다.
+  config:
+    import: "optional:file:./secrets.yml"
   ai:
     model:
       chat: openai          # 기본 프로바이더. 프로파일에서 덮어쓴다.
