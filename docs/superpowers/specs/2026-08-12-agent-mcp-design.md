@@ -48,10 +48,15 @@ spring-ai/
 
 ## 공통 기술 스택
 
-- Java 21
-- Spring Boot 4.1.x
+- Java 21 (Gradle toolchain)
+- Spring Boot 4.1.0 / Gradle 9.5.1 wrapper
 - `org.springframework.ai:spring-ai-bom:2.0.0`
 - 저장소는 Maven Central만 (milestone 저장소 불필요)
+- 세 프로젝트 모두 Spring Initializr(`start.spring.io/starter.zip`)로 생성한다.
+  `webflux` 가 포함되면 Spring AI 의존성이 자동으로 **webflux 변형**으로 해석되고
+  `spring-ai-bom:2.0.0` 이 함께 구성되므로 build.gradle 을 손으로 쓸 일이 없다.
+- Spring Boot 4 에서 테스트 스타터가 분리되었다 — WebFlux 프로젝트는
+  `spring-boot-starter-test` 가 아니라 **`spring-boot-starter-webflux-test`** 를 쓴다.
 - 리액티브 스택 (WebFlux) — Spring AI 2.0이 MCP 서버/클라이언트 모두 WebFlux 변형을 제공하고,
   `ChatClient.stream()` 이 `Flux` 를 반환하므로 전 구간을 리액티브로 통일한다.
 
@@ -101,6 +106,11 @@ GET /api/products/{id}/stock    → Mono<StockResponse>
 `description` 이 LLM의 툴 선택 근거이므로 이 프로젝트의 핵심 학습 지점이다.
 학습 과제로 description을 의도적으로 부실하게 바꿔 LLM이 툴을 고르지 않는 것을 관찰한다.
 
+> **제약**: `type: ASYNC` 서버는 `Mono` / `Flux` / `Publisher` 반환만 툴로 등록하고,
+> 비리액티브 반환 타입은 경고 로그만 남기고 **조용히 제외한다**. 따라서 이 프로젝트의
+> `@McpTool` 메서드는 예외 없이 리액티브 타입을 반환해야 한다. 툴이 등록되지 않는
+> 증상이 보이면 기동 로그의 필터링 경고를 먼저 확인한다.
+
 ### 3. product-agent (:8080)
 
 - 의존성:
@@ -124,7 +134,8 @@ spring:
       client:
         streamable-http:
           connections:
-            product: { url: "http://localhost:8082" }
+            product:
+              url: "http://localhost:8082"   # base URL, endpoint 는 기본 /mcp
 ```
 
 ```yaml
@@ -136,8 +147,7 @@ spring:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY}
       chat:
-        options:
-          model: claude-opus-5
+        model: claude-opus-5
 ```
 
 ```yaml
@@ -149,9 +159,11 @@ spring:
     openai:
       api-key: ${OPENAI_API_KEY}
       chat:
-        options:
-          model: gpt-5-mini
+        model: gpt-5-mini
 ```
+
+> Spring AI 2.0 에서 옵션 속성이 평탄화되었다 — 1.x 의 `spring.ai.<provider>.chat.options.model`
+> 이 아니라 **`spring.ai.<provider>.chat.model`** 이다. api-key 는 `spring.ai.<provider>.api-key`.
 
 컨트롤러:
 
@@ -218,15 +230,18 @@ MCP 툴은 `ToolCallbackProvider` 를 통해 자동 등록되므로 agent에는 
 3. `product-agent` 기동 (:8080, 프로파일 지정)
 4. `POST /api/chat` 에 `"노트북 재고 있어?"` 같은 질문
 
-## 구현 시 확인이 필요한 항목
+## 확인 완료된 항목
 
-설계 판단에는 영향이 없지만, 코드 작성 시점에 공식 문서로 확인해야 하는 값들:
+계획 작성 전에 공식 문서와 Initializr 메타데이터로 검증한 값들:
 
-- `spring.ai.mcp.client.streamable-http.connections.<name>.url` 정확한 속성 경로
-  (문서 예시에는 `sse.connections` 형태가 나와 있어 STREAMABLE 전송의 키 이름 확인 필요)
-- Spring Boot 4.1의 구체 패치 버전과 Gradle 플러그인 버전
-- OpenAI / Anthropic 각 프로바이더의 현재 권장 모델 ID
-- `@McpTool` 메서드가 `Flux` / `Mono` 반환을 직접 지원하는지, 아니면 블로킹 타입이 필요한지
+| 항목 | 확인 결과 |
+|---|---|
+| MCP 클라이언트 속성 경로 | `spring.ai.mcp.client.streamable-http.connections.<name>.url` (base URL) / `.endpoint` (기본 `/mcp`) |
+| Spring Boot | 4.1.0 (2026-06-10 릴리스), Gradle 플러그인 `4.1.0`, `io.spring.dependency-management` `1.1.7`, wrapper Gradle 9.5.1 |
+| 모델 ID | OpenAI 기본값 `gpt-5-mini` / Anthropic 기본값은 `claude-haiku-4-5` 이나 본 프로젝트는 `claude-opus-5` 를 명시 |
+| 옵션 속성 경로 | `spring.ai.<provider>.chat.model` (2.0에서 `chat.options.*` → `chat.*` 평탄화) |
+| `@McpTool` 반환 타입 | ASYNC 서버는 `Mono`/`Flux`/`Publisher` 만 등록, 비리액티브 타입은 경고 후 제외 |
+| Initializr 파라미터 | `bootVersion=4.1.0` (메타데이터의 `4.1.0.RELEASE` 를 그대로 넘기면 500) |
 
 ## 참고
 
