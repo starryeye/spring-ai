@@ -1,0 +1,18 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: product-mcp-server
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE   # 2.0 권장 전송 (SSE 는 deprecated)
+        type: ASYNC            # 리액티브 — @McpTool 은 Mono/Flux 만 등록된다
+
+product-service:
+  base-url: http://localhost:8081
+
+logging:
+  level:
+    org.springframework.ai.mcp: INFO
