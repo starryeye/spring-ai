@@ -92,7 +92,8 @@ curl -N -X POST http://localhost:8080/api/chat \
 | 기동 실패 | `logs/<서비스명>.log` — run.sh 가 실패 시 마지막 20줄을 보여준다 |
 | 답변에 재고 숫자가 없다 | `logs/product-mcp-server.log` 에 호출 기록이 있는지 |
 | 포트가 이미 사용 중 | `./stop.sh` 후 재실행 |
-| 로컬 모델이 느리다 | 정상이다. qwen3:8b 기준 수십 초 걸린다 |
+| 로컬 모델이 느리다 | 정상이다. qwen3:8b + `think: low` 기준 30~100초 |
+| 더 빠르게 하고 싶다 | `application-ollama.yml` 의 `think: low` → `false` (5초대. 단, 복잡한 질문에서 오답 가능) |
 
 로컬 모델은 툴 선택 정확도가 프론티어 모델보다 낮다. 툴을 안 부르는 일이 반복되면
 `product-agent/src/main/resources/application-ollama.yml` 의 모델을 바꿔보거나,

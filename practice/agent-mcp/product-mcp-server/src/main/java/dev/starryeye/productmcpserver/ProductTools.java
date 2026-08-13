@@ -22,15 +22,17 @@ public class ProductTools {
 
     @McpTool(
             name = "searchProducts",
-            description = "상품명이나 카테고리 키워드로 판매 중인 상품을 검색한다. "
-                    + "사용자가 특정 상품이 있는지 묻거나 상품 목록을 요청할 때 사용한다. "
+            description = "판매 중인 상품을 검색한다. "
                     + "각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. "
-                    + "키워드를 생략하면 판매 중인 상품 전체를 반환하므로, "
-                    + "사용자가 특정 상품을 지목하지 않고 전체 목록을 물으면 키워드 없이 호출한다."
+                    + "키워드는 상품명과 카테고리명에만 부분일치로 적용된다. "
+                    + "따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 "
+                    + "(예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 "
+                    + "그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다."
     )
     public Mono<String> searchProducts(
-            @McpToolParam(description = "검색 키워드. 상품명 일부 또는 카테고리명. "
-                    + "생략하면 전체 상품을 반환한다.", required = false)
+            @McpToolParam(description = "상품명 또는 카테고리명의 일부. "
+                    + "가격·재고 같은 조건이나 문장을 넣으면 안 된다. "
+                    + "특정 상품을 지목하지 않는 질문이면 생략한다.", required = false)
             String keyword) {
 
         log.info("searchProducts 호출 (keyword={})", keyword);
