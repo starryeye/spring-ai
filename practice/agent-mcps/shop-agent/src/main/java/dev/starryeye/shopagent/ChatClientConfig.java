@@ -10,6 +10,12 @@ import org.springframework.context.annotation.Configuration;
  * MCP 서버가 둘이어도 이 코드는 그대로다.
  * 자동설정은 클라이언트 수와 무관하게 {@link ToolCallbackProvider} 빈을 <b>하나</b>만 만들고,
  * 그 안에 모든 서버의 툴을 합쳐 담는다.
+ * <p>
+ * {@code ObjectProvider.ifAvailable} 은 후보가 <b>둘 이상</b>이면
+ * {@code NoUniqueBeanDefinitionException} 을 던진다({@code getIfAvailable} 과 달리 조용히
+ * 넘어가지 않는다). 로컬 {@code @Tool} 기반 {@link ToolCallbackProvider} 를 추가로 등록하면
+ * 이 빈 생성이 즉시 실패한다 — 현재 배선 형태는 {@code ChatClientToolWiringTest} 가 고정하고
+ * 있으므로 동작은 바꾸지 않는다.
  */
 @Configuration
 public class ChatClientConfig {
