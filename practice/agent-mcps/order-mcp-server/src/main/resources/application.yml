@@ -1,0 +1,11 @@
+server:
+  port: 8092
+
+spring:
+  application:
+    name: order-mcp-server
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE
+        type: ASYNC
