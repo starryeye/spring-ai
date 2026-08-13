@@ -1,0 +1,12 @@
+spring:
+  ai:
+    model:
+      chat: ollama
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: qwen3:8b
+        temperature: 0.1
+        # qwen3 는 thinking 모델이다. 미지정이면 수 분간 생성하다 툴을 놓치고,
+        # false 는 빠르지만 툴 설명을 제대로 따르지 못한다. low 가 균형점이다.
+        think: low
