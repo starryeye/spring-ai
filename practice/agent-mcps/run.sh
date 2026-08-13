@@ -70,7 +70,7 @@ start_app() {
 
   if lsof -ti:"$port" >/dev/null 2>&1; then
     warn "$dir: 포트 $port 사용 중이라 건너뛴다 (./stop.sh 로 먼저 정리할 것)."
-    return 0
+    return 1
   fi
 
   info "$dir 기동 중 (:$port)..."
@@ -86,10 +86,15 @@ start_app() {
   die "$dir 기동 시간 초과. $log 확인."
 }
 
-start_app product-mcp-server 8091 'Started ProductMcpServerApplication'
-start_app order-mcp-server   8092 'Started OrderMcpServerApplication'
-start_app shop-agent         8090 'Started ShopAgentApplication' \
-          --args="--spring.profiles.active=$PROFILE --shop.tool-filter=$FILTER"
+start_app product-mcp-server 8091 'Started ProductMcpServerApplication' || true
+start_app order-mcp-server   8092 'Started OrderMcpServerApplication' || true
+
+# shop-agent 는 반드시 이번에 이 필터 모드로 새로 떠야 한다 — 이미 떠 있는 걸 건너뛰면
+# 아래 배너의 "필터: $FILTER" 가 실제로 실행 중인(어쩌면 다른) 모드와 어긋나 거짓말을 하게 된다.
+if ! start_app shop-agent 8090 'Started ShopAgentApplication' \
+          --args="--spring.profiles.active=$PROFILE --shop.tool-filter=$FILTER"; then
+  die "shop-agent 가 이미 실행 중이라 필터 '$FILTER' 를 적용하지 못했다. ./stop.sh 로 먼저 정리한 뒤 다시 실행할 것."
+fi
 
 cat <<EOF
 
