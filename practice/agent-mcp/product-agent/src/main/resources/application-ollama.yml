@@ -1,0 +1,13 @@
+spring:
+  ai:
+    model:
+      chat: ollama
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: qwen3:8b
+        # 툴 콜링에는 낮은 온도가 유리하다. 로컬 모델은 온도가 높으면
+        # 툴을 부르지 않고 답을 지어내는 경향이 커진다.
+        temperature: 0.1
+# 모델은 미리 받아둬야 한다 (자동 pull 안 함 — init.pull-model-strategy 기본값이 never):
+#   ollama pull qwen3:8b

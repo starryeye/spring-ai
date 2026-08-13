@@ -57,15 +57,32 @@ curl -N -X POST http://localhost:8080/api/chat \
 
 ## 프로바이더 전환
 
-두 모델 스타터가 모두 클래스패스에 있고, `spring.ai.model.chat` 속성이 활성 자동설정을 고른다.
+세 모델 스타터가 모두 클래스패스에 있고, `spring.ai.model.chat` 속성이 활성 자동설정을 고른다.
 프로파일만 바꾸면 된다:
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=anthropic'
+./gradlew bootRun --args='--spring.profiles.active=ollama'      # 로컬, 무료
+./gradlew bootRun --args='--spring.profiles.active=openai'      # 키 필요
+./gradlew bootRun --args='--spring.profiles.active=anthropic'   # 키 필요
 ```
 
 활성 `ChatModel` 빈이 항상 하나뿐이므로 자동설정된 `ChatClient.Builder` 를 그대로 쓴다.
 `@Qualifier` 나 별도 설정 클래스가 필요 없다.
+
+> `spring.ai.model.chat` 은 **채팅 자동설정만** 고른다. 클래스패스에 있는 스타터의
+> 음성·임베딩·이미지 자동설정은 따로 살아 있어서, 해당 프로바이더 키가 없으면 기동이 실패한다.
+> 그래서 `application.yml` 에서 나머지 모델 타입을 전부 `none` 으로 꺼둔다.
+
+### Ollama (키 없이 실행)
+
+```bash
+brew install ollama
+ollama serve &            # 상시 실행을 원하면 brew services start ollama
+ollama pull qwen3:8b
+./gradlew bootRun --args='--spring.profiles.active=ollama'
+```
+
+로컬 모델은 툴 선택 정확도가 프론티어 모델보다 낮다. 온도를 낮게(`0.1`) 둔 이유가 그것이다.
 
 ## 학습 포인트
 
@@ -83,6 +100,15 @@ curl -N -X POST http://localhost:8080/api/chat \
 5. **툴 실패는 예외가 아니라 대화의 일부다.**
    `product-service` 를 내린 채 질문해보면, 툴이 설명 문장을 반환하고
    LLM이 그것을 사용자에게 전달하는 흐름을 볼 수 있다.
+6. **`ChatClient.stream()` 은 Flux 를 만들기 전에 블로킹한다.**
+   `.stream()` 이 `AsyncMcpToolCallbackProvider.getToolCallbacks()` 를 호출하는데 그 안이
+   `Mono.block()` 이다. WebFlux 컨트롤러에서 그냥 호출하면 이벤트 루프 스레드가 블로킹되어
+   `IllegalStateException` 으로 500 이 난다. 블로킹이 체인 *안*이 아니라 체인을 *만드는 시점*에
+   있으므로 완성된 Flux 에 `subscribeOn` 을 붙여도 소용없다 — `.stream()` 호출 자체를
+   `Mono.fromCallable(...).subscribeOn(boundedElastic())` 으로 감싸야 한다.
+7. **단위 테스트로는 3·6번을 잡을 수 없다.**
+   둘 다 세 프로세스를 실제로 띄워 모델에게 질문했을 때만 드러났다.
+   3번은 "툴 없이 그럴듯한 답변"이라 겉으로는 정상으로 보이기까지 한다.
 
 ## 트러블슈팅
 
@@ -96,8 +122,16 @@ curl -N -X POST http://localhost:8080/api/chat \
 
 ## 검증 상태
 
-세 프로젝트 모두 단위 테스트(`./gradlew test`)는 통과했다.
-그러나 세 프로세스를 동시에 띄워 실제 모델이 MCP 툴(`searchProducts`, `getStock`)을
-호출하는 종단 시나리오는 아직 수행하지 않았다 — 이 환경에 `OPENAI_API_KEY`,
-`ANTHROPIC_API_KEY` 가 모두 설정되어 있지 않기 때문이다.
-API 키가 준비되면 위 브리프의 Step 1~5를 그대로 따라 검증한다.
+세 프로젝트 단위 테스트 통과, **종단 검증 완료** (2026-08-13, `ollama` 프로파일 / `qwen3:8b`).
+
+확인한 것:
+
+- `"노트북 재고 있어?"` → 모델이 `searchProducts` 를 호출하고 실제 재고(p1 7개, p2 23개)로 답변.
+  `product-mcp-server` 로그에 `searchProducts 호출 (keyword=노트북)` 기록됨.
+- `"무선 기계식 키보드 살 수 있어?"` → 재고 0 상품을 품절로 정확히 응답.
+
+OpenAI / Anthropic 프로파일은 API 키가 없어 종단 실행을 하지 못했다. 다만 세 프로파일이
+공유하는 경로(MCP 연결, 툴 콜백 배선, 스트리밍)는 위에서 검증되었으므로, 남은 차이는
+모델 호출부뿐이다.
+
+종단 검증에서만 드러난 결함 두 건은 아래 **학습 포인트**에 정리했다.

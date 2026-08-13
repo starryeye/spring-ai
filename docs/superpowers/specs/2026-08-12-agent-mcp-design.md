@@ -224,6 +224,33 @@ MCP 클라이언트 자동설정은 `ToolCallbackProvider` 빈을 만들어주�
 - **MCP 서버 미기동**: agent 기동은 성공하되 툴 목록이 비어 LLM이 일반 답변만 하게 된다.
   이 상태를 로그로 식별할 수 있어야 한다.
 
+## 종단 검증에서만 드러난 것 (2026-08-13)
+
+단위 테스트가 전부 통과하고 최종 코드 리뷰까지 마친 뒤, 실제 세 프로세스를 띄워
+`ollama` 프로파일로 질문했을 때 비로소 드러난 결함 두 건이다.
+
+1. **`spring.ai.model.chat` 은 채팅 자동설정만 통제한다.**
+   클래스패스에 있는 스타터의 음성/임베딩/이미지 자동설정은 별개로 살아 있어서,
+   `chat: ollama` 로 두어도 OpenAI 의 `OpenAiAudioSpeechAutoConfiguration` 이 기동되며
+   API 키를 요구해 애플리케이션이 뜨지 않는다.
+   → `application.yml` 에서 `audio.speech`, `audio.transcription`, `embedding`, `image`,
+   `moderation` 을 모두 `none` 으로 끈다. **anthropic 프로파일에도 있던 잠복 결함이었다**
+   (OpenAI 키 없이는 기동 불가).
+
+2. **`ChatClient.stream()` 은 Flux 생성 전에 블로킹한다.**
+   `.stream()` → `DefaultChatClientUtils.toChatClientRequest` →
+   `AsyncMcpToolCallbackProvider.getToolCallbacks()` 안에 `Mono.block()` 이 있다.
+   WebFlux 컨트롤러 메서드는 이벤트 루프 스레드에서 실행되므로 그대로는
+   `IllegalStateException: block() ... not supported in thread reactor-http-nio-N` 이 난다.
+   블로킹 지점이 체인 *안*이 아니라 체인을 *만드는 시점*이라 완성된 Flux 에
+   `subscribeOn` 을 붙이는 것으로는 해결되지 않는다.
+   → `.stream()` 호출 자체를 `Mono.fromCallable(...).subscribeOn(boundedElastic())`
+   으로 감싸고 `flatMapMany` 로 편다.
+
+   최종 리뷰는 "`ToolCallingAdvisor` 가 `boundedElastic` 으로 감싸므로 스트리밍 경로는
+   안전하다"고 판단했으나, 실측 결과 그 가정은 틀렸다. 문제의 블로킹은 툴 *실행* 이 아니라
+   툴 *목록 조회* 에 있었다.
+
 ## 테스트
 
 - **product-service**: `WebTestClient` 로 각 엔드포인트 검증

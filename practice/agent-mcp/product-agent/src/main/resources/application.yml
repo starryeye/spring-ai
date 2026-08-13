@@ -11,6 +11,16 @@ spring:
   ai:
     model:
       chat: openai          # 기본 프로바이더. 프로파일에서 덮어쓴다.
+      # spring.ai.model.chat 은 '채팅' 자동설정만 고른다. 클래스패스에 있는
+      # 스타터의 음성/임베딩/이미지 자동설정은 별개로 살아 있어서, 해당
+      # 프로바이더의 API 키가 없으면 기동이 실패한다.
+      # 이 프로젝트는 채팅만 쓰므로 나머지를 전부 끈다.
+      audio:
+        speech: none
+        transcription: none
+      embedding: none
+      image: none
+      moderation: none
     mcp:
       client:
         enabled: true
