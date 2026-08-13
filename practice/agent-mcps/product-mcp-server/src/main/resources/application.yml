@@ -1,0 +1,11 @@
+server:
+  port: 8091
+
+spring:
+  application:
+    name: product-mcp-server
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE   # 2.0 권장 전송 (SSE 는 deprecated)
+        type: ASYNC            # @McpTool 은 Mono/Flux 만 등록된다
