@@ -24,7 +24,11 @@ MCP 서버가 하나뿐이라 다루지 못한 주제가 둘 남았다:
   서버를 추가/제거하면 기존 툴 이름이 바뀔 수 있다. (`McpToolNamePrefixGenerator` 로 교체 가능)
 - 확장점은 `McpToolFilter` — `BiPredicate<McpConnectionInfo, McpSchema.Tool>` 이며
   빈으로 등록하면 자동설정이 주워간다. 접두사가 붙기 **전** 원본 이름으로 판단한다.
-- `getToolCallbacks()` 는 요청마다 호출된다. 즉 필터도 매 요청 평가된다.
+- `getToolCallbacks()` 결과는 캐시된다. `AsyncMcpToolCallbackProvider` 는 `volatile invalidateCache`
+  플래그로 캐시를 지키며, 서버의 `tools/list_changed` 알림(`McpToolsChangedEvent`)이 올 때만
+  캐시를 무효화하고 다시 조회·필터링한다. (최초 확인 당시 "요청마다 호출된다"고 잘못 적었던 것을
+  이후 리뷰에서 jar 를 역어셈블해 정정했다 — `getToolCallbacks()` 바이트코드에 `invalidateCache` 플래그
+  분기가 있고, `true` 일 때만 `listTools().block()` 을 다시 부른다.)
 
 ## 목표
 

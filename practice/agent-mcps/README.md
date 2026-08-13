@@ -78,8 +78,9 @@ MCP 자동설정은 클라이언트 수와 무관하게 `ToolCallbackProvider` �
 3. **툴 이름 충돌 시 `alt_1_` 접두사가 붙는다.** 서버 이름이 아니라 충돌 순번이다.
    두 서버의 툴 이름을 같게 바꿔보면 관찰할 수 있다.
    규칙을 바꾸려면 `McpToolNamePrefixGenerator` 빈을 등록한다.
-4. **`getToolCallbacks()` 는 요청마다 호출된다.** 즉 필터도 매 요청 평가되고,
-   MCP 서버에 툴 목록을 매번 물어본다.
+4. **결과는 캐시된다.** `AsyncMcpToolCallbackProvider` 는 `volatile invalidateCache` 플래그로
+   캐시를 지키며, 서버의 `tools/list_changed` 알림(`McpToolsChangedEvent`)이 올 때만
+   캐시를 무효화하고 다시 조회·필터링한다. 요청마다 매번 다시 묻는 게 아니다.
 
 ## 해볼 것
 
