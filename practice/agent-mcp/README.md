@@ -16,44 +16,28 @@ Spring AI 2.0의 **agent + MCP** 최소 예제.
 
 ## 실행
 
-API 키는 사용할 프로바이더 것만 있으면 된다.
+**→ [QUICKSTART.md](QUICKSTART.md)** 를 볼 것. 요약하면 `./run.sh` 하나면 된다
+(Java 21 탐색, ollama 기동, 모델 확인, 세 서버 순차 기동까지 처리한다).
+수동으로 띄우고 싶으면 각 프로젝트에서 `./gradlew bootRun` 을 순서대로 실행하면 된다 —
+`product-service` → `product-mcp-server` → `product-agent`.
 
-키를 주는 방법은 두 가지다. 활성 프로파일 쪽 키만 있으면 된다.
+### API 키 공급 경로
 
-**방법 1 — 파일 (권장).** `product-agent/secrets.yml` 에 넣는다. 이 파일은 `.gitignore` 에
-등록되어 있어 커밋되지 않는다.
+`ollama` 프로파일은 키가 필요 없다. OpenAI/Anthropic 을 쓸 때만 해당한다.
 
-```bash
-cd product-agent
-cp secrets.yml.example secrets.yml
-# secrets.yml 을 열어 키를 채운다
-```
-
-**방법 2 — 환경변수.** 둘 다 있으면 환경변수가 파일보다 우선한다.
+**파일 (권장).** `product-agent/secrets.yml` — `.gitignore` 에 등록되어 커밋되지 않는다.
+`application.yml` 의 `spring.config.import: "optional:file:./secrets.yml"` 가 읽고,
+프로파일 yml 의 `${OPENAI_API_KEY}` 가 그 값으로 해석된다.
 
 ```bash
-export OPENAI_API_KEY='...'        # 또는
-export ANTHROPIC_API_KEY='...'
+cp product-agent/secrets.yml.example product-agent/secrets.yml
 ```
+
+**환경변수.** 같은 이름으로 export 하면 된다. **둘 다 있으면 환경변수가 파일보다 우선한다**
+(환경변수가 config 파일보다 높은 우선순위를 갖는 Spring Boot 규칙).
 
 > ⚠️ 키가 없어도 **애플리케이션은 기동된다.** 누락은 기동 시점이 아니라 첫 채팅 요청 시점에
 > 드러난다. `/api/chat` 이 인증 오류를 내면 키부터 확인할 것.
-
-터미널 3개에서 순서대로:
-
-```bash
-cd product-service     && ./gradlew bootRun
-cd product-mcp-server  && ./gradlew bootRun
-cd product-agent       && ./gradlew bootRun --args='--spring.profiles.active=openai'
-```
-
-질문:
-
-```bash
-curl -N -X POST http://localhost:8080/api/chat \
-  -H 'Content-Type: text/plain' \
-  -d '노트북 재고 있어?'
-```
 
 ## 프로바이더 전환
 
