@@ -104,9 +104,14 @@ chatClient.prompt().user(message).stream().content()
 
 `auth-server` → `shop-mcp-server` → `shop-agent`.
 
-MCP 서버의 JWT 디코더는 `NimbusJwtDecoder.withIssuerLocation()` 이라 메타데이터를 **지연 조회**한다.
-따라서 auth-server 없이도 **기동은 되고**, 토큰 없는 401 테스트도 독립 실행된다. 실제 토큰 검증
-시점에만 auth-server 가 필요하다.
+> **정정 (Task 2 실측):** 이 자리에 원래 "JWT 디코더가 지연 조회라 auth-server 없이도
+> 기동된다"고 적었는데 **틀렸다.** `NimbusJwtDecoder.withIssuerLocation(issuer).build()` 의
+> `.build()` 가 issuer 메타데이터를 즉시 HTTP 로 가져온다. `SecurityFilterChain` 빈을 만드는
+> 시점에 일어나므로, auth-server 가 떠 있지 않으면 `shop-mcp-server` 는 `ConnectException` 으로
+> **기동 자체가 실패하고 `@SpringBootTest` 도 실패한다.**
+>
+> 결론(auth-server 를 먼저 띄운다)은 그대로지만 이유가 다르다. 그리고 부수 효과가 하나 있다 —
+> **`shop-mcp-server` 의 테스트를 돌리려면 auth-server 가 먼저 떠 있어야 한다.**
 
 ---
 
@@ -745,8 +750,23 @@ Expected: 이 시점에는 아직 통과해야 정상이다 (설정이 이미 �
 **중요:** `토큰_없이_MCP_엔드포인트를_호출하면_401이다` 가 통과하는 것이 실제 보안 때문인지
 확인하려면, `application.yml` 의 `issuer-uri` 줄을 잠시 주석 처리하고 다시 실행한다.
 
-Expected (주석 처리 상태): 401 테스트가 **실패**한다 (200 또는 다른 코드).
-이것이 "이 줄이 없으면 무방비로 열린다"는 것의 증거다. 확인 후 주석을 되돌린다.
+> **정정 (실측):** 여기에 "401 테스트가 실패한다 (200 또는 다른 코드)"고 적었는데 **틀렸다.**
+> `spring-boot-starter-security` 가 클래스패스에 있으면 `issuer-uri` 를 지워도 Boot 기본
+> 보안(HTTP Basic + 무작위 비밀번호)이 대신 활성화되어 **여전히 401 을 준다.**
+> 즉 상태 코드만 보는 테스트는 MCP 보안 모듈이 통째로 빠져도 초록이다.
+>
+> 실제로 갈라지는 신호는 `WWW-Authenticate` 스킴이다:
+>
+> | 상태 | `WWW-Authenticate` |
+> |---|---|
+> | 모듈 활성 | `Bearer resource_metadata=...` |
+> | `issuer-uri` 없음 (Boot 기본 보안) | `Basic realm="Realm"` |
+>
+> 그래서 401 테스트는 **헤더가 `Bearer` 로 시작하는지까지 검사한다.** 이 실험은 그 강화된
+> 테스트가 실제로 빨간불이 되는지를 확인하는 절차다. 확인 후 주석을 되돌린다.
+>
+> "설정 한 줄을 빼면 무방비로 열린다"가 아니라 **"의도와 다른 보안으로 조용히 바뀐다"** 가
+> 진짜 관측 결과다 — 더 나쁜 종류의 실패다. 겉으로는 잠겨 보이기 때문이다.
 
 - [ ] **Step 8: 툴 단위 테스트 작성**
 
