@@ -1,0 +1,35 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.starryeye'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// mcp-authorization-server-spring-boot 가 spring-boot-security-oauth2-authorization-server 와
+	// mcp-authorization-server(코어) 를 전이 의존으로 끌어온다.
+	implementation 'org.springaicommunity:mcp-authorization-server-spring-boot:0.1.14'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	// spring-boot-starter-test 는 웹 슬라이스에 대해 알지 못하므로 Boot 4.1 모듈 분리 이후
+	// AutoConfigureMockMvc 를 쓰려면 이 모듈을 명시적으로 추가해야 한다.
+	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

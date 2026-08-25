@@ -1,0 +1,31 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: auth-server
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: http://localhost:9000
+        client:
+          shop-agent:
+            registration:
+              client-id: shop-agent
+              client-secret: "{noop}shop-agent-secret"
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - authorization_code
+                - refresh_token
+              redirect-uris:
+                - http://localhost:8100/login/oauth2/code/authserver
+              scopes:
+                - openid
+                - profile
+            # 학습용이므로 동의 화면을 건너뛴다. 켜두면 로그인 후 화면이 하나 더 뜬다.
+            require-authorization-consent: false
+
+logging:
+  level:
+    org.springframework.security: INFO
