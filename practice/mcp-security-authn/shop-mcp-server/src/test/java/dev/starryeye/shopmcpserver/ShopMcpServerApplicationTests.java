@@ -12,8 +12,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -44,6 +46,16 @@ class ShopMcpServerApplicationTests {
 	 * 세션에 CSRF 토큰을 미리 채워 두므로, 토큰 없는 요청이 인증 이전에 CsrfFilter 에서
 	 * 403 으로 걸린다 — 이 테스트가 검증하려는 "인증 여부"와 무관한 차단이다.
 	 * {@code csrf()} 로 그 우연한 차단을 제거해야 실제 운영 동작(401)과 일치하는 결과를 본다.
+	 *
+	 * <p><b>{@code WWW-Authenticate} 헤더까지 검증하는 이유:</b> 상태 코드 401 만으로는
+	 * "이 MCP 보안 모듈이 실제로 동작해서 막은 것"인지, 아니면 단순히 {@code spring-boot-starter-security}
+	 * 가 기본으로 켜주는 Basic 인증(무작위 생성 비밀번호)이 대신 막은 것인지 구분할 수 없다 —
+	 * 둘 다 401 을 반환한다. 실제로 {@code issuer-uri} 설정을 지워도 이 상태 코드 검증만으로는
+	 * 통과해 버린다 (검증됨). 두 경우를 가르는 신호는 인증 스킴이다: 이 모듈이 살아있으면
+	 * {@code WWW-Authenticate: Bearer resource_metadata=...} 를, Boot 기본 보안으로 대체되면
+	 * {@code WWW-Authenticate: Basic realm=...} 를 반환한다. 따라서 스킴이 {@code Bearer} 로
+	 * 시작하는지까지 검증해야 이 테스트가 "MCP OAuth2 보호가 실제로 연결되어 있다"는 것을
+	 * 증명한다.
 	 */
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {
@@ -53,7 +65,8 @@ class ShopMcpServerApplicationTests {
 						.content("""
 								{"jsonrpc":"2.0","id":1,"method":"tools/list"}
 								"""))
-				.andExpect(status().isUnauthorized());
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate", startsWith("Bearer")));
 	}
 
 	@Test
