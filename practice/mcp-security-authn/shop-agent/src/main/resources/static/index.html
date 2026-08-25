@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>shop-agent</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }
+        #q { width: 100%; padding: 8px; font-size: 15px; box-sizing: border-box; }
+        button { margin-top: 8px; padding: 8px 16px; font-size: 15px; }
+        pre { background: #f4f4f4; padding: 12px; white-space: pre-wrap; min-height: 4em; }
+    </style>
+</head>
+<body>
+<h1>shop-agent</h1>
+<p>로그인한 사용자를 대신해 MCP 서버의 툴을 호출합니다. 예: <code>노트북 재고 있어?</code></p>
+<input id="q" placeholder="질문을 입력하세요" autofocus>
+<button id="send">보내기</button>
+<pre id="out"></pre>
+<script>
+    const out = document.getElementById('out');
+    const send = document.getElementById('send');
+    const q = document.getElementById('q');
+
+    async function ask() {
+        const message = q.value.trim();
+        if (!message) return;
+        send.disabled = true;
+        out.textContent = '생각 중... (로컬 모델은 30~100초 걸립니다)';
+        try {
+            const res = await fetch('/api/chat', {method: 'POST', body: message});
+            if (!res.ok) {
+                out.textContent = '오류: HTTP ' + res.status;
+                return;
+            }
+            out.textContent = '';
+            const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+            for (;;) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                out.textContent += value;
+            }
+        } catch (e) {
+            out.textContent = '오류: ' + e;
+        } finally {
+            send.disabled = false;
+        }
+    }
+
+    send.addEventListener('click', ask);
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+</script>
+</body>
+</html>

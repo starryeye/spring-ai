@@ -1,0 +1,61 @@
+server:
+  port: 8100
+
+spring:
+  application:
+    name: shop-agent
+  ai:
+    model:
+      chat: ollama
+      # chat 외의 모델 자동설정을 끄지 않으면 다른 스타터가 API 키를 요구해 기동이 실패한다.
+      audio:
+        speech: none
+        transcription: none
+      embedding: none
+      image: none
+      moderation: none
+    ollama:
+      chat:
+        model: qwen3:8b
+        temperature: 0.1
+        # 미지정이면 수 분이 걸리고, false 면 툴 설명을 못 따른다.
+        think: low
+    mcp:
+      client:
+        enabled: true
+        # SYNC 여야 한다. ASYNC 면 mcp-client-security 자동설정이 통째로 사라져
+        # 토큰이 안 붙고, 증상은 조용한 401 뿐이다.
+        type: SYNC
+        # 기본값 true 면 McpClientAutoConfiguration 이 빈 생성 시점에 McpSyncClient.initialize()
+        # 를 즉시 호출한다. 이 시점은 요청 스레드가 아니라 앱 기동 시점이라 인증 정보가 없고,
+        # MCP 서버는 무조건 401 을 주므로 컨텍스트 초기화 자체가 실패해 앱이 뜨지 않는다.
+        # false 로 두면 초기화(핸드셰이크)가 실제 첫 사용 시점(로그인한 사용자의 요청 처리 중,
+        # LifecycleInitializer.withInitialization 경유)까지 지연된다.
+        initialized: false
+        streamable-http:
+          connections:
+            shop:
+              url: "http://localhost:8101"
+  security:
+    oauth2:
+      client:
+        registration:
+          # 등록은 정확히 하나여야 한다. 둘 이상이면 transport 커스터마이저가
+          # WARN 한 줄 남기고 아무 것도 하지 않는다.
+          authserver:
+            client-id: shop-agent
+            client-secret: shop-agent-secret
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+        provider:
+          authserver:
+            issuer-uri: http://localhost:9000
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    # 토큰이 안 붙는 증상은 DEBUG 로만 보인다. 켜 둔다.
+    org.springaicommunity.mcp.security: DEBUG
