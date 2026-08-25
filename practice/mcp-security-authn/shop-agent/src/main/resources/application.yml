@@ -1,5 +1,15 @@
 server:
   port: 8100
+  servlet:
+    session:
+      cookie:
+        # 쿠키는 호스트명에만 스코프되고 포트를 구분하지 않는다(RFC 6265).
+        # auth-server(:9000)와 이 앱이 모두 localhost 를 공유하므로 기본
+        # 이름(JSESSIONID)을 그대로 쓰면 서로의 세션 쿠키를 덮어써서 OAuth2
+        # 리다이렉트 왕복 중 저장해 둔 authorization request 를 잃어버린다
+        # (종단 검증에서 로그인이 매번 실패하는 것으로 실제 관측됨).
+        # 앱마다 다른 쿠키 이름을 준다.
+        name: SHOPAGENTSESSIONID
 
 spring:
   application:
