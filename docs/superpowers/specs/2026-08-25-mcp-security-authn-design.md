@@ -112,9 +112,20 @@ practice/mcp-security-authn/
 의존성: `mcp-authorization-server-spring-boot`, `oauth2-authorization-server`, `webmvc`
 
 - 사용자 하나를 in-memory 로 둔다 (`user` / `password`). 학습용이므로 그 이상 필요 없다.
-- MCP 클라이언트는 **동적 클라이언트 등록(DCR)** 으로 스스로 등록한다 — 수동 클라이언트 설정을 줄인다.
-- 동의 화면은 뜨지 않을 것으로 본다. 모듈에 `McpNoScopeClientConsentNotRequired` 가 있고,
-  이 practice 는 스코프를 요청하지 않는다. 실측으로 확인한다.
+- 클라이언트는 **사전 등록**한다 (`spring.security.oauth2.authorizationserver.client.*`).
+
+> **정정 (계획 수립 중 소스 실측):** 처음에는 DCR(동적 클라이언트 등록)로 잡았고
+> 근거를 "수동 클라이언트 설정을 줄인다"라고 적었는데, **그 근거가 틀렸다.**
+> 사용자가 브라우저로 로그인하려면 `oauth2Login` 이 필요하고, 거기에는
+> `spring.security.oauth2.client.registration.*` 항목이 **어차피 하나 있어야 한다.**
+> 그러므로 DCR 은 수동 설정을 없애 주는 게 아니라 그 위에 **덧붙는** 절차다.
+> 게다가 사전 등록 한 개로 가면 로그인에서 받은 바로 그 토큰이 MCP 호출에 그대로 쓰여서,
+> "사용자를 대신해 호출한다"는 이 practice 의 주제가 더 선명하게 드러난다.
+> DCR 은 후속 practice 로 미룬다.
+
+- 동의 화면은 `require-authorization-consent: false` 로 명시적으로 끈다.
+  (`McpNoScopeClientConsentNotRequired` 에 기대는 것보다 확실하다 — 로그인에 `openid`
+  스코프가 필요하므로 "스코프 없음" 조건이 성립하지 않는다.)
 
 ### 2. shop-mcp-server (:8101)
 
@@ -223,18 +234,41 @@ LLM 실호출은 테스트하지 않는다.
 
 단 **`Mono` 반환 제약은 여기서 뒤집힌다** (위 servlet 표 참조).
 
-## 미확인 위험 — 1번 태스크로 먼저 실측한다
+## 해소된 위험 — 인증 컨텍스트 전달
 
-`authorization_code` 로 받은 토큰은 **사용자 세션**에 묶인다. 그런데 MCP 툴 호출은 LLM 이 결정해서
-일어나므로, 그 시점에 사용자의 `Authentication` 이 살아 있어야 토큰을 붙일 수 있다.
+**처음 이 스펙을 쓸 때 미확인 위험으로 남겨 1번 태스크의 실측 대상으로 잡았던 항목이다.
+계획을 쓰면서 라이브러리 소스로 해소했으므로 별도 태스크가 필요 없어졌다.**
 
-`AuthenticationMcpTransportContextProvider` 에 `writeToReactorContext()`,
-`fromToolCallReactiveContextHolder()` 가 있는 것으로 보아 이 문제를 인지하고 만든 흔적은 있으나,
-**실제로 통하는지 확인하지 못했다.**
+우려는 이랬다 — `authorization_code` 토큰은 사용자 세션에 묶이는데 MCP 툴 호출은 LLM 이
+결정해서 일어나므로, 그 시점에 사용자의 `Authentication` 이 살아 있겠는가.
 
-이번 조사에서 가정으로 세 번 틀렸다 — `ToolCallbackProvider` 자동 배선, `getToolCallbacks()` 캐싱,
-이 보안 모듈들의 존재 여부. 그러므로 **구현 1번 태스크를 "인증 컨텍스트가 툴 호출까지 전달되는가"
-실측으로 잡고, 결과에 따라 나머지 설계를 확정한다.** 통하지 않으면 설계를 다시 본다.
+답: **`ChatClient.stream()` 을 쓰면 살아 있지 않다.** 그리고 라이브러리가 해법을 직접 지시한다.
+`AuthenticationMcpTransportContextProvider` 의 javadoc 이다:
+
+```java
+chatClient.prompt("...").stream().content()
+    .contextWrite(AuthenticationMcpTransportContextProvider.writeToReactorContext())
+```
+
+이 클래스는 `SecurityContextHolder` / `RequestContextHolder` **thread-local** 에서 읽는데
+리액터 체인은 요청 스레드 밖에서 돈다. `contextWrite` 가 없으면 토큰이 안 붙고,
+증상은 **DEBUG 로그 한 줄**("No authentication or request context found") 뿐이다.
+구현 계획의 Global Constraints 에 못 박았다.
+
+### 같이 확인된, 조용히 죽는 스위치들
+
+소스 실측으로 확인한 것이다. 전부 오류 없이 기능이 사라지는 종류다.
+
+| 스위치 | 안 지키면 |
+|---|---|
+| `spring.ai.mcp.client.type: SYNC` | 클라이언트 보안 자동설정 전체가 사라진다 |
+| `spring.security.oauth2.resourceserver.jwt.issuer-uri` | MCP 서버 보안이 **아예 안 뜬다** — 무방비로 열린다 |
+| 서버·인가서버에 직접 `SecurityFilterChain` 정의 | `@ConditionalOnDefaultWebSecurity` 가 꺼져 모듈 설정이 물러난다 |
+| OAuth2 클라이언트 등록이 정확히 1개 | 0개·2개 이상이면 커스터마이저가 조용히 no-op 이 된다 |
+
+또 하나: **감사(audience) 검증은 기본으로 꺼져 있다** (`validateAudienceClaim = false`,
+자동설정도 켜지 않는다). 최소 연동에서는 issuer 검증만 일어나므로, `resource` 파라미터를
+따로 넘길 필요가 없다.
 
 ## 비목표
 
