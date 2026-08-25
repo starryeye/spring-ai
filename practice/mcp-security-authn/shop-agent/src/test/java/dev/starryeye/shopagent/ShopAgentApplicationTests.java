@@ -2,6 +2,7 @@ package dev.starryeye.shopagent;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -23,6 +24,9 @@ class ShopAgentApplicationTests {
 
 	@Autowired
 	ClientRegistrationRepository clientRegistrationRepository;
+
+	@Autowired
+	OAuth2ClientProperties oAuth2ClientProperties;
 
 	@Test
 	void contextLoads() {
@@ -46,5 +50,10 @@ class ShopAgentApplicationTests {
 		assertThat(registration.getClientId()).isEqualTo("shop-agent");
 		assertThat(registration.getAuthorizationGrantType().getValue())
 				.isEqualTo("authorization_code");
+
+		// transport 커스터마이저(HttpClientStreamableHttpTransportAutoConfiguration
+		// .preRegisteredClientCustomizer)가 실제로 읽는 것은 이 맵이다. 0개나 2개 이상이면
+		// WARN 한 줄만 남기고 no-op 커스터마이저가 설치되어 토큰이 조용히 안 붙는다.
+		assertThat(oAuth2ClientProperties.getRegistration()).hasSize(1);
 	}
 }
