@@ -1,0 +1,27 @@
+server:
+  port: 8101
+
+spring:
+  application:
+    name: shop-mcp-server
+  ai:
+    mcp:
+      server:
+        name: shop-mcp-server
+        version: 0.0.1
+        protocol: STREAMABLE
+        # SYNC 다. ASYNC 였던 앞 practice 와 반대이고,
+        # @McpTool 이 Mono 를 반환하면 조용히 등록에서 빠진다.
+        type: SYNC
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # 이 줄이 없으면 McpServerSecurityAutoConfiguration 이 아예 뜨지 않아
+          # /mcp 가 무방비로 열린다. @ConditionalOnProperty(matchIfMissing = false).
+          issuer-uri: http://localhost:9000
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    org.springaicommunity.mcp.security: DEBUG

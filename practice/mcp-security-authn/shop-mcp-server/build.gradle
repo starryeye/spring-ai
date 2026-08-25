@@ -1,0 +1,47 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.starryeye'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('springAiVersion', "2.0.0")
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// webflux 가 아니라 webmvc 다 — servlet 스택이므로.
+	implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+	// mcp-server-security(코어) 와 spring-boot-security-oauth2-resource-server 를 전이 의존으로 끌어온다.
+	implementation 'org.springaicommunity:mcp-server-security-spring-boot:0.1.14'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	// spring-boot-starter-test 는 웹 슬라이스에 대해 알지 못하므로 Boot 4.1 모듈 분리 이후
+	// AutoConfigureMockMvc 를 쓰려면 이 모듈을 명시적으로 추가해야 한다.
+	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
