@@ -111,8 +111,7 @@ localhost:9000/oauth2/authorize?... (Accept: text/html) → 302 → localhost:90
 와 `shop-agent` 에 각각 고유한 세션 쿠키 이름을 지정해 근본 수정했다
 (`server.servlet.session.cookie.name` — `AUTHSERVERSESSIONID` /
 `SHOPAGENTSESSIONID`). `shop-mcp-server` 는 브라우저가 직접 접근하지 않는
-stateless JWT 리소스 서버(에이전트 백엔드가 서버 대 서버로 호출)라 변경이
-필요 없었다.
+JWT 리소스 서버(에이전트 백엔드가 서버 대 서버로 호출)라 변경이 필요 없었다.
 
 **수정 후, 실제 브라우저(Claude_Browser 자동화, curl 아님)로 처음부터 끝까지
 재검증했다.** 로그인 폼 제출 → `shop-agent` 홈(`/?continue`)으로 정상
@@ -139,9 +138,11 @@ stateless JWT 리소스 서버(에이전트 백엔드가 서버 대 서버로 �
 
 p3(무선 기계식 키보드, 재고 0)를 정확히 품절로 답했다. 두 질문 모두 브라우저
 탭에서 직접 입력·전송하고 화면에 렌더된 답을 확인했다 — API 를 curl 로 찌른
-것이 아니다. 체감 지연: 질문 1은 전송 후 화면이 "생각 중..." 상태에서
-약 30초 뒤 답으로 바뀌었고(핸드셰이크가 겹친 첫 요청), 질문 2는 약 20초
-뒤 바뀌었다 — 두 값 모두 브리핑이 안내한 30~100초 범위 안이다.
+것이 아니다. 체감 지연(10초 간격 폴링으로 관측한 근사치): 질문 1은
+전송 후 화면이 "생각 중..." 상태에서 약 30초 뒤 답으로 바뀌었고(핸드셰이크가
+겹친 첫 요청), 질문 2는 약 20초 뒤 바뀌었다 — 폴링 간격 때문에 실제 값과
+±10초 오차가 있을 수 있는 대략치이며, 브리핑이 안내한 30~100초 범위보다
+짧게 관측된 경우(질문 2)도 있었다.
 
 ### 시나리오 4 — 서버 로그에서 호출자 확인
 
@@ -164,15 +165,30 @@ DEBUG ...AuthorizationCodeSyncHttpRequestCustomizer : Adding token to header
 
 ## 학습 포인트
 
+- **기동 순서(`auth-server` → `shop-mcp-server` → `shop-agent`)가 강제되는
+  이유는 `NimbusJwtDecoder`.** `spring.security.oauth2.resourceserver.jwt
+  .issuer-uri` 를 넣으면 `NimbusJwtDecoder.withIssuerLocation(issuer).build()`
+  가 `SecurityFilterChain` 생성 시점(즉 앱 기동 중)에 **즉시** OIDC discovery
+  메타데이터를 가져온다. `auth-server` 가 떠 있지 않으면 `shop-mcp-server` 는
+  `ConnectException` 으로 컨텍스트 생성 자체가 실패해 아예 뜨지 않는다.
+  `shop-agent` 도 OAuth2 클라이언트 등록의 issuer-uri 검증 때문에 기동 시점에
+  같은 discovery 를 거친다. **따라오는 결과:** `shop-mcp-server` 나 `shop-agent`
+  에서 `./gradlew test` 를 돌릴 때도 `@SpringBootTest` 가 같은 컨텍스트를
+  띄우므로 `auth-server` 가 먼저 떠 있어야 한다 — 없으면 테스트가 전부
+  `ConnectException` 으로 실패한다(직접 재현해 확인함, 아래 트러블슈팅 참고).
 - `authorization_code` 토큰은 `sub`=사용자 / `client_id`=에이전트다. MCP 서버
   로그의 `사용자=user` 가 그 증거다.
 - 스트리밍에는 `.contextWrite(writeToReactorContext())` 가 필수다. 없으면
   토큰이 조용히 빠지고 DEBUG 로그 한 줄만 남는다.
-- `spring.security.oauth2.resourceserver.jwt.issuer-uri` 가 없으면 MCP 서버
-  보안 자동설정이 아예 안 뜬다 — 즉 **무방비로 열린다**. Task 2 Step 7 에서
-  직접 확인한 내용이고, 위 시나리오 1 비교표가 그 결과다.
 - `spring.ai.mcp.client.type` 이 `SYNC` 가 아니면 클라이언트 보안이 통째로
-  사라진다.
+  사라진다. `HttpClientStreamableHttpTransportAutoConfiguration` 자체가
+  `@ConditionalOnProperty(..., havingValue = "SYNC", matchIfMissing = true)`
+  로 걸려 있어, `ASYNC` 로 바꾸면 이 자동설정이 로드조차 안 된다(바이트코드로
+  확인). `ShopAgentApplicationTests.SYNC_클라이언트_보안_자동설정이_로드된다()`
+  가 그 자동설정이 만드는 `preRegisteredClientCustomizer` 빈의 존재를 보고
+  이 스위치를 잡는다 — **직접 확인**: `type: ASYNC` 로 바꾸면 이 테스트만
+  깨지고(`Expecting value to be true but was false`), 되돌리면 다시
+  통과한다.
 - OAuth2 클라이언트 등록이 2개 이상(또는 0개)이면 transport 커스터마이저가
   조용히 no-op 이 된다. `ShopAgentApplicationTests` 에
   `OAuth2ClientProperties.getRegistration()` 크기가 정확히 1인지 보는
@@ -195,9 +211,11 @@ DEBUG ...AuthorizationCodeSyncHttpRequestCustomizer : Adding token to header
 
   즉 오류 없이, 딱 그 툴 하나만 등록에서 조용히 빠진다. 원래 `String` 으로
   되돌리면 다시 통과한다. (실험 후 파일은 커밋된 상태로 정확히 복구했다.)
-- 세 모듈 모두 `@ConditionalOnDefaultWebSecurity` 계열이라, 직접
-  `SecurityFilterChain` 을 만들면 해당 자동설정이 통째로 물러난다
-  (에이전트 쪽 로그인 페이지 커스터마이징은 예외적으로 별도 처리됨).
+- 서버·인가 서버 두 모듈은 `@ConditionalOnDefaultWebSecurity` 계열이라, 직접
+  `SecurityFilterChain` 을 만들면 해당 자동설정이 통째로 물러난다.
+  `mcp-client-security-spring-boot` 에는 이 제약이 없다 — 그래서 `shop-agent`
+  는 자신의 `SecurityFilterChain` 을 직접 정의해도 아무것도 물러나지 않는다.
+  대비되는 이유는 `SecurityConfig` 의 자바독 참고.
 - 감사(`aud`) 검증(`validateAudienceClaim`)은 기본 **꺼져** 있다. 이 최소
   연동에서는 issuer 검증만 한다.
 - **`spring.ai.mcp.client.initialized: false` 가 필수다.** MCP 서버를
@@ -231,6 +249,7 @@ DEBUG ...AuthorizationCodeSyncHttpRequestCustomizer : Adding token to header
 
 | 증상 | 확인 명령 | 의미 |
 |---|---|---|
+| `shop-mcp-server` 또는 `shop-agent` 에서 `./gradlew test` 가 `ConnectException` 으로 실패 | `auth-server` 가 `:9000` 에 떠 있는지(`curl -sf localhost:9000/.well-known/openid-configuration`) 확인 | `NimbusJwtDecoder`/OAuth2 클라이언트 등록이 `SecurityFilterChain` 생성 시점에 OIDC discovery 를 즉시 수행한다. `@SpringBootTest` 도 같은 컨텍스트를 띄우므로 `auth-server` 를 먼저 기동해야 한다 |
 | 시나리오 3에서 401 또는 툴이 호출되지 않음 | `grep -i 'not requesting token' logs/shop-agent.log` | 보이면 `ChatController` 의 `.contextWrite(...)` 가 빠졌거나, `writeToReactorContext()` 가 요청 스레드 밖에서 호출된 것 |
 | 위 증상 계속 | `grep -i 'client registrations but expected exactly 1' logs/shop-agent.log` | 보이면 `spring.security.oauth2.client.registration.*` 이 2개 이상(또는 0개) |
 | 위 증상 계속 | `grep -i 'McpOAuth2ClientAutoConfiguration\|transport customizer' logs/shop-agent.log` | 아무것도 안 보이면 `spring.ai.mcp.client.type` 이 `SYNC` 가 아닐 가능성이 높음 |

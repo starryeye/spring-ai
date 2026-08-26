@@ -17,8 +17,10 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # 이 줄이 없으면 McpServerSecurityAutoConfiguration 이 아예 뜨지 않아
-          # /mcp 가 무방비로 열린다. @ConditionalOnProperty(matchIfMissing = false).
+          # 이 줄이 없으면 McpServerSecurityAutoConfiguration 이 아예 뜨지 않는다
+          # (@ConditionalOnProperty(matchIfMissing = false)). 그렇다고 /mcp 가 열리는
+          # 게 아니라, Boot 기본 HTTP Basic(무작위 비밀번호)이 대신 401 을 반환한다 —
+          # 의도한 보호가 아닌 다른 보호로 조용히 바뀌는 것이다(직접 확인함).
           issuer-uri: http://localhost:9000
 
 logging:

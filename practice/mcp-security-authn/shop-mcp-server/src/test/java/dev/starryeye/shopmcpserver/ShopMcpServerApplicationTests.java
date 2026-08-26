@@ -40,12 +40,12 @@ class ShopMcpServerApplicationTests {
 	/**
 	 * 이 practice 의 존재 이유. agent-mcps 에서는 이 요청이 통했다.
 	 *
-	 * <p>{@code .with(csrf())} 를 붙인 이유: 이 모듈(0.1.14)의 필터 체인은 CSRF 를 끄지 않는다.
-	 * 실제 서버(Tomcat)에 curl 로 토큰 없이 요청하면 세션이 막 생성된 첫 요청이라 CSRF 검사를
-	 * 통과하고 정상적으로 401(Bearer 챌린지)이 온다. 그런데 MockMvc + spring-security-test 조합은
-	 * 세션에 CSRF 토큰을 미리 채워 두므로, 토큰 없는 요청이 인증 이전에 CsrfFilter 에서
-	 * 403 으로 걸린다 — 이 테스트가 검증하려는 "인증 여부"와 무관한 차단이다.
-	 * {@code csrf()} 로 그 우연한 차단을 제거해야 실제 운영 동작(401)과 일치하는 결과를 본다.
+	 * <p>{@code .with(csrf())} 를 붙인 이유: 이 모듈(0.1.14)의 필터 체인은 CSRF 를 끄지 않는
+	 * 것으로 보인다. MockMvc 조합에서는 {@code csrf()} 없이 토큰 없는 POST 를 보내면 인증
+	 * 단계 이전에 403 으로 걸리는 것을 관찰했다 — 이 테스트가 검증하려는 "인증 여부"와
+	 * 무관한 차단이다. 다만 실제 Tomcat 서버에 curl 로 같은 요청을 보내면 왜 403 이 아니라
+	 * 401 이 오는지, 정확한 메커니즘은 확인하지 못했다. {@code csrf()} 로 그 차단을 제거해야
+	 * 실제 운영에서 관찰한 401 과 일치하는 결과를 본다.
 	 *
 	 * <p><b>{@code WWW-Authenticate} 헤더까지 검증하는 이유:</b> 상태 코드 401 만으로는
 	 * "이 MCP 보안 모듈이 실제로 동작해서 막은 것"인지, 아니면 단순히 {@code spring-boot-starter-security}
@@ -71,8 +71,11 @@ class ShopMcpServerApplicationTests {
 
 	@Test
 	void 아무_경로나_토큰_없이는_거부된다() throws Exception {
+		// 상태 코드만 보면 보안 모듈이 빠지고 Boot 기본 Basic 인증이 대신 막아도
+		// 그대로 통과한다. 스킴까지 확인해야 이 모듈이 실제로 걸었다는 증거가 된다.
 		mockMvc.perform(post("/").with(csrf()))
-				.andExpect(status().isUnauthorized());
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate", startsWith("Bearer")));
 	}
 
 	/**
