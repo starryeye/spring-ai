@@ -1,4 +1,4 @@
-# mcp-security-authn
+# mcp-security-authn-community
 
 **사용자가 브라우저로 로그인하고, 에이전트가 그 사용자를 대신해 보호된 MCP 서버를 호출한다.**
 
@@ -29,6 +29,55 @@
 
 > 헷갈리기 쉬운 지점 — grant 이름이 `authorization_code` 라 인가를 하는 것처럼 보이지만,
 > **grant 종류의 이름일 뿐**이다. 여기서 하는 일은 토큰 검증(인증)까지다.
+
+## 이 라이브러리의 위치 — 공식이 아니다
+
+`org.springaicommunity` 는 **Spring 공식 산출물이 아니다.** 저장소 README 가 직접 밝힌다:
+
+> "This is a community-driven project and is not officially endorsed by Spring AI or the MCP project."
+
+| 항목 | 사실 |
+|---|---|
+| GitHub org | `spring-ai-community` — `spring-projects` 가 아니다 |
+| POM 개발자 | `kehrlann` (Daniel Garnier-Moiroux) **한 명** |
+| 버전 | `0.1.14` — 1.0 미만 |
+| 버전 결합 | `0.1.x` ↔ Spring AI `2.0.x` / `0.0.6` ↔ `1.1.x` |
+| 라이선스 | Apache 2.0 |
+
+다만 그 한 명이 아무나는 아니다. Daniel Garnier-Moiroux 는 **Broadcom 의 Spring Commercial 팀**
+소속으로 Spring Security 에 기여하고 "security for AI" 를 담당한다. 즉 **Spring Security 내부자가
+만든 비공식 프로젝트**다 — 아마추어 사이드 프로젝트는 아니되, Spring 이 책임지는 산출물도 아니다.
+
+가장 걸리는 건 버전 결합이다. Spring AI 마이너 버전마다 별도 라인을 파야 한다는 건
+내부 API 에 밀착해 있다는 뜻이고, 그만큼 깨지기 쉽다.
+
+### 그래서 학습 가치는
+
+나눠서 봐야 한다.
+
+| 대상 | 가치 | 이유 |
+|---|---|---|
+| 라이브러리 API 이름 | **낮음** | 1.0 전이다. 흡수·개명·방치 어느 쪽도 가능하다 |
+| 그 아래 개념 | **높음** | `authorization_code`, 리소스 서버 JWT 검증, RFC 9728, 신원 전파 — 전부 표준이다. **MCP 명세 자체가 OAuth 2.1 을 요구**하므로 라이브러리가 사라져도 문제와 답은 남는다 |
+| Spring 메커니즘 | **가장 높음** | `@ConditionalOnDefaultWebSecurity` 백오프, 자동설정 순서, thread-local ↔ 리액터 컨텍스트 전파 — 순수 Spring 이고 어디서나 쓴다 |
+
+역설적으로 이 practice 에서 나온 발견들이 미성숙의 증거이기도 하다 — 자동설정이 `.oidc()` 를
+안 켜서 404 가 나는 것(모듈별 설명 1번), 조용히 죽는 스위치 다섯 개(학습 포인트 7번),
+`issuer-uri` 가 없으면 Boot 기본 보안이 슬쩍 대신 들어오는 것(학습 포인트 2번).
+성숙한 라이브러리라면 문서에 있거나 애초에 없을 종류다.
+
+**결론: 학습용으로는 값어치를 했지만, 프로덕션에 얹지는 말 것.**
+
+### 공식 라이브러리만으로 한 버전
+
+같은 것을 `org.springaicommunity` 없이 — Spring Security + Spring AI + MCP Java SDK 만으로 —
+구현한 것이 이웃 폴더에 있다.
+
+**→ [`mcp-security-authn-official`](../mcp-security-authn-official)**
+
+둘을 나란히 보면 이 라이브러리가 대신 해주던 일이 정확히 무엇인지 드러난다.
+"이름"이 사라진 자리에 남는 표준이 무엇인지도 같이 보인다.
+
 
 ## 구성
 
@@ -218,7 +267,7 @@ ollama pull qwen3:8b
 ## 1. 띄우기
 
 ```bash
-cd practice/mcp-security-authn
+cd practice/mcp-security-authn-community
 ./run.sh
 ```
 

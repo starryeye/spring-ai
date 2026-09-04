@@ -118,7 +118,7 @@ chatClient.prompt().user(message).stream().content()
 ## File Structure
 
 ```
-practice/mcp-security-authn/
+practice/mcp-security-authn-community/
 ├── README.md                         # 설명 + 관측된 검증 결과
 ├── run.sh / stop.sh                  # 3개 앱 기동/종료
 ├── .gitignore                        # logs/
@@ -159,11 +159,11 @@ LLM 을 모르고, `auth-server` 는 MCP 를 모른다.
 ## Task 1: auth-server — 토큰 발급
 
 **Files:**
-- Create: `practice/mcp-security-authn/auth-server/build.gradle`
-- Create: `practice/mcp-security-authn/auth-server/src/main/java/dev/starryeye/authserver/AuthServerApplication.java`
-- Create: `practice/mcp-security-authn/auth-server/src/main/java/dev/starryeye/authserver/UserConfig.java`
-- Create: `practice/mcp-security-authn/auth-server/src/main/resources/application.yml`
-- Test: `practice/mcp-security-authn/auth-server/src/test/java/dev/starryeye/authserver/AuthServerApplicationTests.java`
+- Create: `practice/mcp-security-authn-community/auth-server/build.gradle`
+- Create: `practice/mcp-security-authn-community/auth-server/src/main/java/dev/starryeye/authserver/AuthServerApplication.java`
+- Create: `practice/mcp-security-authn-community/auth-server/src/main/java/dev/starryeye/authserver/UserConfig.java`
+- Create: `practice/mcp-security-authn-community/auth-server/src/main/resources/application.yml`
+- Test: `practice/mcp-security-authn-community/auth-server/src/test/java/dev/starryeye/authserver/AuthServerApplicationTests.java`
 
 **Interfaces:**
 - Consumes: 없음 (첫 태스크)
@@ -177,7 +177,7 @@ LLM 을 모르고, `auth-server` 는 MCP 를 모른다.
 - [ ] **Step 1: Initializr 로 뼈대 생성 (wrapper·gitignore 확보)**
 
 ```bash
-mkdir -p practice/mcp-security-authn && cd practice/mcp-security-authn
+mkdir -p practice/mcp-security-authn-community && cd practice/mcp-security-authn-community
 curl -sfL https://start.spring.io/starter.zip \
   -d type=gradle-project -d language=java -d bootVersion=4.1.0 \
   -d groupId=dev.starryeye -d artifactId=auth-server -d name=auth-server \
@@ -357,7 +357,7 @@ class AuthServerApplicationTests {
 - [ ] **Step 6: 테스트가 통과하는지 실행**
 
 ```bash
-cd practice/mcp-security-authn/auth-server && ./gradlew test
+cd practice/mcp-security-authn-community/auth-server && ./gradlew test
 ```
 
 Expected: 4개 테스트 모두 PASS.
@@ -368,7 +368,7 @@ Expected: 4개 테스트 모두 PASS.
 - [ ] **Step 7: 실제로 기동해 확인**
 
 ```bash
-cd practice/mcp-security-authn/auth-server && ./gradlew bootRun
+cd practice/mcp-security-authn-community/auth-server && ./gradlew bootRun
 ```
 
 다른 터미널에서:
@@ -383,7 +383,7 @@ Expected: `issuer`, `authorization_endpoint`, `token_endpoint`, `jwks_uri` 가 �
 - [ ] **Step 8: 커밋**
 
 ```bash
-git add practice/mcp-security-authn/auth-server
+git add practice/mcp-security-authn-community/auth-server
 git commit -m "feat: mcp-security-authn auth-server — MCP 인가 서버로 토큰 발급"
 ```
 
@@ -394,14 +394,14 @@ git commit -m "feat: mcp-security-authn auth-server — MCP 인가 서버로 토
 이 practice 의 **핵심 태스크**다. `agent-mcps` 에서 열려 있던 구멍이 닫히는 지점이다.
 
 **Files:**
-- Create: `practice/mcp-security-authn/shop-mcp-server/build.gradle`
-- Create: `practice/mcp-security-authn/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/ShopMcpServerApplication.java`
-- Create: `practice/mcp-security-authn/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/Product.java`
-- Create: `practice/mcp-security-authn/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/ProductRepository.java`
-- Create: `practice/mcp-security-authn/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/ProductTools.java`
-- Create: `practice/mcp-security-authn/shop-mcp-server/src/main/resources/application.yml`
-- Test: `practice/mcp-security-authn/shop-mcp-server/src/test/java/dev/starryeye/shopmcpserver/ShopMcpServerApplicationTests.java`
-- Test: `practice/mcp-security-authn/shop-mcp-server/src/test/java/dev/starryeye/shopmcpserver/ProductToolsTest.java`
+- Create: `practice/mcp-security-authn-community/shop-mcp-server/build.gradle`
+- Create: `practice/mcp-security-authn-community/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/ShopMcpServerApplication.java`
+- Create: `practice/mcp-security-authn-community/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/Product.java`
+- Create: `practice/mcp-security-authn-community/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/ProductRepository.java`
+- Create: `practice/mcp-security-authn-community/shop-mcp-server/src/main/java/dev/starryeye/shopmcpserver/ProductTools.java`
+- Create: `practice/mcp-security-authn-community/shop-mcp-server/src/main/resources/application.yml`
+- Test: `practice/mcp-security-authn-community/shop-mcp-server/src/test/java/dev/starryeye/shopmcpserver/ShopMcpServerApplicationTests.java`
+- Test: `practice/mcp-security-authn-community/shop-mcp-server/src/test/java/dev/starryeye/shopmcpserver/ProductToolsTest.java`
 
 **Interfaces:**
 - Consumes: Task 1 의 issuer `http://localhost:9000` (기동 시점에는 불필요 — 지연 조회)
@@ -414,7 +414,7 @@ git commit -m "feat: mcp-security-authn auth-server — MCP 인가 서버로 토
 - [ ] **Step 1: Initializr 로 뼈대 생성**
 
 ```bash
-cd practice/mcp-security-authn
+cd practice/mcp-security-authn-community
 curl -sfL https://start.spring.io/starter.zip \
   -d type=gradle-project -d language=java -d bootVersion=4.1.0 \
   -d groupId=dev.starryeye -d artifactId=shop-mcp-server -d name=shop-mcp-server \
@@ -743,7 +743,7 @@ class ShopMcpServerApplicationTests {
 - [ ] **Step 7: 테스트를 실행해 실패를 확인**
 
 ```bash
-cd practice/mcp-security-authn/shop-mcp-server && ./gradlew test
+cd practice/mcp-security-authn-community/shop-mcp-server && ./gradlew test
 ```
 
 Expected: 이 시점에는 아직 통과해야 정상이다 (설정이 이미 다 들어갔으므로).
@@ -830,7 +830,7 @@ class ProductToolsTest {
 - [ ] **Step 9: 전체 테스트 실행**
 
 ```bash
-cd practice/mcp-security-authn/shop-mcp-server && ./gradlew test
+cd practice/mcp-security-authn-community/shop-mcp-server && ./gradlew test
 ```
 
 Expected: 10개 테스트 모두 PASS.
@@ -838,7 +838,7 @@ Expected: 10개 테스트 모두 PASS.
 - [ ] **Step 10: 실제로 기동해 401 을 눈으로 확인**
 
 ```bash
-cd practice/mcp-security-authn/shop-mcp-server && ./gradlew bootRun
+cd practice/mcp-security-authn-community/shop-mcp-server && ./gradlew bootRun
 ```
 
 다른 터미널에서 (auth-server 는 안 떠 있어도 된다 — 지연 조회이므로):
@@ -862,7 +862,7 @@ Expected: `Bearer ... resource_metadata=...` 형태. 확인 후 `Ctrl-C`.
 - [ ] **Step 11: 커밋**
 
 ```bash
-git add practice/mcp-security-authn/shop-mcp-server
+git add practice/mcp-security-authn-community/shop-mcp-server
 git commit -m "feat: mcp-security-authn shop-mcp-server — 토큰 없이는 401 인 MCP 서버"
 ```
 
@@ -871,14 +871,14 @@ git commit -m "feat: mcp-security-authn shop-mcp-server — 토큰 없이는 401
 ## Task 3: shop-agent — 브라우저 로그인 + LLM + MCP 클라이언트
 
 **Files:**
-- Create: `practice/mcp-security-authn/shop-agent/build.gradle`
-- Create: `practice/mcp-security-authn/shop-agent/src/main/java/dev/starryeye/shopagent/ShopAgentApplication.java`
-- Create: `practice/mcp-security-authn/shop-agent/src/main/java/dev/starryeye/shopagent/SecurityConfig.java`
-- Create: `practice/mcp-security-authn/shop-agent/src/main/java/dev/starryeye/shopagent/ChatClientConfig.java`
-- Create: `practice/mcp-security-authn/shop-agent/src/main/java/dev/starryeye/shopagent/ChatController.java`
-- Create: `practice/mcp-security-authn/shop-agent/src/main/resources/application.yml`
-- Create: `practice/mcp-security-authn/shop-agent/src/main/resources/static/index.html`
-- Test: `practice/mcp-security-authn/shop-agent/src/test/java/dev/starryeye/shopagent/ShopAgentApplicationTests.java`
+- Create: `practice/mcp-security-authn-community/shop-agent/build.gradle`
+- Create: `practice/mcp-security-authn-community/shop-agent/src/main/java/dev/starryeye/shopagent/ShopAgentApplication.java`
+- Create: `practice/mcp-security-authn-community/shop-agent/src/main/java/dev/starryeye/shopagent/SecurityConfig.java`
+- Create: `practice/mcp-security-authn-community/shop-agent/src/main/java/dev/starryeye/shopagent/ChatClientConfig.java`
+- Create: `practice/mcp-security-authn-community/shop-agent/src/main/java/dev/starryeye/shopagent/ChatController.java`
+- Create: `practice/mcp-security-authn-community/shop-agent/src/main/resources/application.yml`
+- Create: `practice/mcp-security-authn-community/shop-agent/src/main/resources/static/index.html`
+- Test: `practice/mcp-security-authn-community/shop-agent/src/test/java/dev/starryeye/shopagent/ShopAgentApplicationTests.java`
 
 **Interfaces:**
 - Consumes:
@@ -889,7 +889,7 @@ git commit -m "feat: mcp-security-authn shop-mcp-server — 토큰 없이는 401
 - [ ] **Step 1: Initializr 로 뼈대 생성**
 
 ```bash
-cd practice/mcp-security-authn
+cd practice/mcp-security-authn-community
 curl -sfL https://start.spring.io/starter.zip \
   -d type=gradle-project -d language=java -d bootVersion=4.1.0 \
   -d groupId=dev.starryeye -d artifactId=shop-agent -d name=shop-agent \
@@ -1254,7 +1254,7 @@ class ShopAgentApplicationTests {
 - [ ] **Step 9: 테스트 실행**
 
 ```bash
-cd practice/mcp-security-authn/shop-agent && ./gradlew test
+cd practice/mcp-security-authn-community/shop-agent && ./gradlew test
 ```
 
 Expected: 3개 테스트 PASS.
@@ -1267,7 +1267,7 @@ auth-server 를 먼저 띄우고 다시 실행한다.
 - [ ] **Step 10: 커밋**
 
 ```bash
-git add practice/mcp-security-authn/shop-agent
+git add practice/mcp-security-authn-community/shop-agent
 git commit -m "feat: mcp-security-authn shop-agent — 사용자 토큰으로 MCP 를 호출하는 에이전트"
 ```
 
@@ -1276,10 +1276,10 @@ git commit -m "feat: mcp-security-authn shop-agent — 사용자 토큰으로 MC
 ## Task 4: 실행 스크립트 + 종단 검증 + README
 
 **Files:**
-- Create: `practice/mcp-security-authn/run.sh`
-- Create: `practice/mcp-security-authn/stop.sh`
-- Create: `practice/mcp-security-authn/.gitignore`
-- Create: `practice/mcp-security-authn/README.md`
+- Create: `practice/mcp-security-authn-community/run.sh`
+- Create: `practice/mcp-security-authn-community/stop.sh`
+- Create: `practice/mcp-security-authn-community/.gitignore`
+- Create: `practice/mcp-security-authn-community/README.md`
 
 **Interfaces:**
 - Consumes: Task 1·2·3 의 세 앱
@@ -1405,7 +1405,7 @@ echo "완료."
 - [ ] **Step 4: 세 앱을 띄운다**
 
 ```bash
-cd practice/mcp-security-authn && ./run.sh
+cd practice/mcp-security-authn-community && ./run.sh
 ```
 
 Expected: 세 앱이 모두 `[준비됨]` 으로 찍힌다.
@@ -1479,7 +1479,7 @@ grep -i 'McpOAuth2ClientAutoConfiguration\|transport customizer' logs/shop-agent
 
 - [ ] **Step 9: README 작성**
 
-`practice/mcp-security-authn/README.md` 에 아래 내용을 담는다. **Step 5~7 에서 실제로
+`practice/mcp-security-authn-community/README.md` 에 아래 내용을 담는다. **Step 5~7 에서 실제로
 관측한 값만 적는다. 예상값을 적지 않는다.**
 
 포함할 절:
@@ -1518,7 +1518,7 @@ Expected: 두 번째 명령의 출력이 **비어 있어야** 한다. 뭔가 나
 - [ ] **Step 11: 커밋**
 
 ```bash
-git add practice/mcp-security-authn
+git add practice/mcp-security-authn-community
 git commit -m "docs: mcp-security-authn 실행 스크립트와 README — 종단 검증 결과 기록"
 ```
 

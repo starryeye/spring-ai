@@ -9,7 +9,7 @@
 > `McpToolFilter` 는 클라이언트측 허용목록이지 서버측 인가가 아니다.
 > `cancelOrder` 는 여전히 `POST localhost:8092/mcp` 로 누구나 호출할 수 있다.
 
-`practice/mcp-security-authn` 는 그 구멍을 메운다. 필터로 가린 것과 **실제로 잠근 것**의 차이를 보여준다.
+`practice/mcp-security-authn-community` 는 그 구멍을 메운다. 필터로 가린 것과 **실제로 잠근 것**의 차이를 보여준다.
 
 ## 이름에 대해
 
@@ -73,7 +73,7 @@ client_id = 에이전트      ← 발급 대상
 ## 레이아웃
 
 ```
-practice/mcp-security-authn/
+practice/mcp-security-authn-community/
 ├── auth-server/       :9000
 ├── shop-mcp-server/   :8101
 └── shop-agent/        :8100
