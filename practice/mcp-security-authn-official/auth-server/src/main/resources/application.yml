@@ -1,0 +1,36 @@
+server:
+  port: 9010
+  servlet:
+    session:
+      cookie:
+        # 쿠키는 호스트만 보고 포트를 구분하지 않는다. community practice(9000/8100)와
+        # 동시에 띄워도 세션이 서로 덮어쓰지 않도록 이름을 분리한다.
+        name: OFFICIALAUTHSESSIONID
+
+spring:
+  application:
+    name: official-auth-server
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: http://localhost:9010
+        client:
+          official-shop-agent:
+            registration:
+              client-id: official-shop-agent
+              client-secret: "{noop}official-shop-agent-secret"
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - authorization_code
+                - refresh_token
+              redirect-uris:
+                - http://localhost:8110/login/oauth2/code/authserver
+              scopes:
+                - openid
+                - profile
+            require-authorization-consent: false
+
+logging:
+  level:
+    org.springframework.security: INFO
