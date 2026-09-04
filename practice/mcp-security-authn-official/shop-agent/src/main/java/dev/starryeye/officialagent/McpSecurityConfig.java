@@ -18,8 +18,13 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 @Configuration
 public class McpSecurityConfig {
 
-    /** application.yml 의 registration 키와 같아야 한다. */
-    private static final String REGISTRATION_ID = "authserver";
+    /**
+     * application.yml 의 registration 키와 같아야 한다. 패키지 전용으로 열어 둔 것은
+     * 테스트({@code McpSecurityConfigTest})가 yml 설정과 실제로 일치하는지
+     * {@code ClientRegistrationRepository} 조회로 검증하기 위해서다 — 하드코딩된 이
+     * 상수가 yml 과 따로 놀게 되는 상황을 테스트가 잡아낸다.
+     */
+    static final String REGISTRATION_ID = "authserver";
 
     /**
      * 인가된 클라이언트를 <b>세션이 아니라 서비스</b>에 저장한다.

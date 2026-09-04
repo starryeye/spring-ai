@@ -21,6 +21,13 @@ import java.net.http.HttpRequest;
  *
  * <p>토큰은 <b>에이전트의 것이 아니라 사용자의 것</b>이다.
  * {@code authorization_code} 로 발급되어 {@code sub} 가 로그인한 사람이다.
+ *
+ * <p><b>의도적으로 하지 않은 것</b> — {@code authorizedClientManager.authorize(...)} 가 던지는
+ * 예외를 여기서 잡지 않는다. 이 클래스의 다른 실패 경로(인증 없음, 인가된 클라이언트 없음)는
+ * 전부 DEBUG 로그 한 줄만 남기고 조용히 넘어가는데, 그 조용함 자체가 이 practice 전체의
+ * 관찰 대상이다({@code README.md} 7절). 여기서 예외까지 삼켜 버리면 이 클래스에 남은 마지막
+ * "시끄러운" 실패 경로마저 조용한 네 번째 실패로 바뀐다 — 토큰 서버 장애 같은 진짜 이상 상황을
+ * 재고 없음으로 착각하게 만들 것이다. 그래서 이 예외는 잡지 않고 그대로 흘려보낸다.
  */
 public class OAuth2TokenAttachingRequestCustomizer implements McpSyncHttpClientRequestCustomizer {
 

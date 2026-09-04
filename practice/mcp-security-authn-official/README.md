@@ -40,8 +40,10 @@ community 와 동일하다. 다른 것은 그 흐름을 만드는 재료뿐이�
 | `shop-agent` | 8110 | 토큰을 **얻어서 붙인다**. 브라우저 UI + Ollama LLM (직접 쓴 배선) |
 
 community 와 포트가 다르다(9000/8101/8100 → 9010/8111/8110) — 두 practice 를 동시에 띄워도
-충돌하지 않도록 설계했다. 세 앱 모두 Spring Boot 4.1.0 · Spring AI 2.0.0 · servlet 스택,
-패키지는 `dev.starryeye.official*`.
+충돌하지 않도록 설계했다. 세 앱 모두 Spring Boot 4.1.0 · servlet 스택, 패키지는
+`dev.starryeye.official*`. Spring AI 2.0.0 은 `shop-mcp-server` 와 `shop-agent` 에만
+의존성으로 들어간다 — `auth-server` 는 MCP 를 전혀 모르는 순수 OAuth2 인가 서버라
+Spring AI 의존성이 없다(위 build.gradle 참고).
 
 ## 직접 쓴 코드
 
@@ -205,15 +207,19 @@ DEBUG ...OAuth2TokenAttachingRequestCustomizer  : 토큰을 헤더에 붙였다 
 | `protectedResourceMetadata` (RFC 9728) | 라이브러리(`mcp-server-security-spring-boot`)가 제공 | **Spring Security 7.1 에 이미 있다** — `.protectedResourceMetadata(Customizer.withDefaults())` 한 줄. 커뮤니티 모듈의 간판 기능 하나가 상류로 흡수된 사례 |
 | `WWW-Authenticate` 값 | `Bearer resource_metadata=http://localhost:8101/.well-known/oauth-protected-resource/mcp` (인용부호 없음, `/mcp` 접미사 있음) | `Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource"` (인용부호 있음, 접미사 없음) — **실측으로 다르다**, 어느 쪽이 "맞다"는 뜻은 아니다 |
 | `issuer-uri` 누락 시 | **조용히 안 죽는다** — `@ConditionalOnProperty` 가 껐을 뿐, `spring-boot-starter-security` 의 기본 보안(HTTP Basic)이 대신 들어와 401 은 여전히 나온다. 상태 코드만 보는 테스트는 이 상황을 놓친다 | **fail-closed** — `SecurityConfig` 는 무조건 실행되는 `@Configuration` 이고 `issuer-uri` 는 `NimbusJwtDecoder` 생성에 쓰인다. 값이 없거나 틀리면 **기동 자체가 실패**한다(Task 2 실측). "조용한 오탐"이 "시끄러운 실패"로 바뀌었다 |
-| 조용히 죽는 스위치 | **5개** (client type SYNC 게이트, issuer-uri 게이트, client registration 정확히 1개, 서버·인가서버의 `SecurityFilterChain` 직접 정의 시 자동설정 백오프, `.contextWrite(...)` 누락) | **직접 실측한 것은 1개** — `Hooks.enableAutomaticContextPropagation()` 을 지우고 재현했다(아래 상세). 나머지 4개 범주는 애초에 official 구조에 대응물이 없다: 조건부 자동설정을 쓰지 않으므로 "조건이 어긋나 조용히 백오프"할 지점 자체가 없고, issuer-uri 항목은 위 행처럼 오히려 시끄러운 실패로 바뀌었다 |
+| 조용히 죽는 스위치 | **5개** (client type SYNC 게이트, issuer-uri 게이트, client registration 정확히 1개, 서버·인가서버의 `SecurityFilterChain` 직접 정의 시 자동설정 백오프, `.contextWrite(...)` 누락) | **직접 실측한 것은 2개** — `Hooks.enableAutomaticContextPropagation()` 을 지운 경우와 `type: ASYNC` 로 바꾼 경우, 둘 다 재현했다(아래 상세). 나머지 3개 범주는 애초에 official 구조에 대응물이 없다: 조건부 자동설정을 쓰지 않으므로 "조건이 어긋나 조용히 백오프"할 지점 자체가 없고, issuer-uri 항목은 위 행처럼 오히려 시끄러운 실패로 바뀌었다 |
 | 코드량 (메인 소스만) | 11개 파일, 353줄 | 14개 파일, 522줄 (그중 보안 배선 전용 5개 파일이 235줄) |
 | 스트리밍 인증 전파 | `AuthenticationMcpTransportContextProvider.writeToReactorContext()` 를 `ChatController` 에서 `.contextWrite(...)` 로 명시 호출해야 했다(Spring AI 의 `internal` 패키지 의존) | **`Hooks.enableAutomaticContextPropagation()`(부팅 시 1회) + `AuthorizedClientServiceOAuth2AuthorizedClientManager`** 조합이 **첫 시도에서** 통했다. `ChatController` 에는 아무 것도 안 붙였고, `internal` 패키지 클래스는 전혀 참조하지 않는다(Task 3 Step 10 실측) |
 
-### "조용히 죽는 스위치" 실측 상세 — `Hooks.enableAutomaticContextPropagation()`
+### 7.1 "조용히 죽는 스위치" 실측 상세
 
-community 의 학습 포인트 5번과 정확히 대응하는 것이 있는지 실제로 지우고 확인했다
-(`ShopAgentApplication.main()`에서 그 한 줄을 주석 처리 → 재빌드 → 재기동 → 브라우저로 재로그인
-→ 같은 질문). 커밋 전에 원상복구했다(`git diff` 로 무변경 확인).
+두 개를 실제로 재현했다. 둘 다 값을 바꾸고 재빌드·재기동·재로그인·재질문까지 실측한 뒤,
+커밋 전에 원상복구하고 `git diff` 로 무변경을 확인했다.
+
+#### 실험 1 — `Hooks.enableAutomaticContextPropagation()` 제거
+
+community 의 학습 포인트 5번과 정확히 대응하는 것이 있는지 확인했다
+(`ShopAgentApplication.main()`에서 그 한 줄을 주석 처리).
 
 관측:
 
@@ -245,6 +251,55 @@ community 의 학습 포인트 5번과 정확히 대응하는 것이 있는지 �
   디스패치가 `boundedElastic` 으로 넘어가는 순간**이라는 것까지 실측으로 좁혀졌다. 초기
   핸드셰이크는 같은 리액터 체인 안에서도 성공했기 때문이다.
 
+#### 실험 2 — `spring.ai.mcp.client.type` 을 `ASYNC` 로 전환
+
+리뷰에서 지적된 지점이다. `McpSecurityConfig.mcpAuthenticationCustomizer()` 는
+`McpClientCustomizer<McpClient.SyncSpec>` 타입으로 등록된다. Spring AI 의
+`McpSyncClientConfigurer` 는 `List<McpClientCustomizer<McpClient.SyncSpec>>` 만 적용하고
+`McpAsyncClientConfigurer` 는 `AsyncSpec` 목록만 적용하므로, 제네릭 타입이 안 맞으면 **조건부
+자동설정 없이도** 커스터마이저가 조용히 걸러진다 — community 의 "client type SYNC 게이트"와
+증상은 같지만 원리는 다르다(자동설정 백오프가 아니라 제네릭 타입 매칭 실패).
+
+`shop-agent/application.yml` 의 `type` 을 `SYNC` → `ASYNC` 로 바꾸고 재기동, 로그로
+`AsyncMcpSamplingProvider`/`AsyncMcpElicitationProvider` 가 떠서 실제로 ASYNC 클라이언트가
+활성화됐음을 먼저 확인한 뒤, 로그인해서 같은 질문을 던졌다.
+
+관측 — **예상과 다르게, 더 시끄럽게 실패했다:**
+
+- `mcpAuthenticationCustomizer`(SyncSpec 용)가 적용되지 않으므로
+  `SecurityMcpTransportContextProvider.get()` 자체가 **한 번도 호출되지 않았다** — 로그에
+  `전송 컨텍스트에 인증을 담는다`/`인증 없음` 어느 쪽도 안 찍혔다(둘 다 0회). 대신 전송 계층의
+  기본(빈) 컨텍스트가 그대로 쓰였다.
+- `mcpTokenAttachingCustomizer`(전송 빌더용, sync/async 무관하게 항상 적용됨)는 정상적으로
+  붙었고, 그 안의 `OAuth2TokenAttachingRequestCustomizer` 가 빈 컨텍스트를 받아 딱 한 번
+  로그를 남겼다:
+
+  ```
+  DEBUG ...OAuth2TokenAttachingRequestCustomizer : 전송 컨텍스트에 인증이 없다 — 토큰을 붙이지 않는다 (POST http://localhost:8111/mcp)
+  ```
+
+- 이 요청은 로그인 직후 **첫 MCP 핸드셰이크(`initialize`)** 자체였다(`initialized: false`
+  라서 첫 채팅 요청 안에서 일어난다). `shop-mcp-server.log` 는 `AnonymousAuthenticationFilter`
+  로 처리된 뒤 응답을 거부했고(`searchProducts 호출` 없음), `shop-agent.log` 에는 MCP SDK 가
+  던진 예외가 그대로 잡혔다:
+
+  ```
+  ERROR ... Servlet.service() ... threw exception [Request processing failed: java.lang.RuntimeException: Client failed to initialize listing tools]
+  Caused by: io.modelcontextprotocol.client.transport.McpHttpClientTransportAuthorizationException: Authorization error when sending message
+  ```
+
+- **브라우저 화면은 `오류: HTTP 500` 이었다** — 실험 1(Hooks 제거)처럼 LLM 이 그럴싸한
+  사과문을 지어내지 않았다. `initialized: false` 때문에 툴 목록 조회 자체가 이 요청 안에서
+  실패해 예외가 곧바로 위로 튀어 올랐기 때문이다.
+
+**즉 리뷰가 예상한 증상("LLM 이 답을 지어낸다")과 실제로 다르다** — 근본 원인(전송 컨텍스트
+공급자가 조용히 안 붙는 것)은 리뷰의 지적대로 정확했고 DEBUG 로그 한 줄만 남긴다는 점도
+같지만, 그 뒤에 이어지는 실패의 "소리 크기"는 실험 1과 다르다. `initialized: false` 조합에서는
+초기 핸드셰이크 실패가 예외로 곧장 드러나 HTTP 500 이 되므로, 사용자 입장에서는 오히려 실험 1
+(조용한 사과문)보다 **원인을 더 빨리 의심하게 된다** — 화면에 에러가 보이기 때문이다. "조용한
+스위치"라는 표현은 로그 수준(DEBUG 한 줄, 예외 없음)에는 맞지만, 사용자에게 보이는 최종
+증상까지 조용하다는 뜻은 아니었다.
+
 ## 학습 포인트
 
 전부 **실제로 돌려봐야만** 드러난 것들이다.
@@ -263,9 +318,10 @@ Spring Security 7.1 에는 이미 `.protectedResourceMetadata(Customizer.withDef
 배선을 읽으면 "무엇이 왜 켜지는지" 전부 소스에 보인다 — 조건부 자동설정이 없으므로 숨어서
 켜지거나 꺼지는 부분이 없다. **어느 쪽이 낫다는 뜻이 아니다.** 커뮤니티 모듈은 235줄을 안 써도
 되는 대신 그 235줄이 하는 일을 신뢰해야 하고, 그 신뢰가 깨지는 지점(조용히 죽는 스위치 5개)을
-직접 찾아야 한다. 공식판은 그 235줄을 쓰는 대신 조건부 백오프 4개 범주가 통째로 사라지고,
-남은 진짜 위험 지점(리액터 경계에서의 thread-local 전파)이 어디인지 정확히 특정할 수 있다.
-**교환하는 것이 무엇인지가 요점이지, 승자를 가리는 게 아니다.**
+직접 찾아야 한다. 공식판은 그 235줄을 쓰는 대신 조건부 자동설정발 백오프 3개 범주가 통째로
+사라지고, 남은 두 개의 진짜 위험 지점 — 리액터 경계에서의 thread-local 전파(실험 1), MCP
+클라이언트 제네릭 타입과 커스터마이저 타입의 일치(실험 2) — 이 어디인지 실측으로 정확히
+특정할 수 있다. **교환하는 것이 무엇인지가 요점이지, 승자를 가리는 게 아니다.**
 
 ### 3. 공식 스트리밍 전파 경로가 첫 시도에서 통했다
 
@@ -294,6 +350,7 @@ JWT 리소스 서버 + 같은 호스트에 여러 OAuth2 앱"이라는 **문제 
 | `./gradlew test` 가 컨텍스트 로드부터 실패 | 같은 이유. `auth-server` 가 떠 있어야 한다 |
 | 401 인데 애초에 서버가 안 뜬다 | `issuer-uri` 설정 확인 — official 은 이 값이 없으면 **기동 자체가 실패**한다(community 처럼 조용히 무방비가 되는 게 아니다) |
 | 답변에 재고 숫자가 없고 "시스템 오류"라고 얼버무린다 | `logs/shop-agent.log` 에 `인증 없음` 이 있는지 확인 → `ShopAgentApplication` 의 `Hooks.enableAutomaticContextPropagation()` 누락 의심 |
+| 브라우저에 `오류: HTTP 500` 이 뜬다(첫 질문에서) | `logs/shop-agent.log` 에 `McpHttpClientTransportAuthorizationException` 이 있는지 확인 → `application.yml` 의 `spring.ai.mcp.client.type` 이 `SYNC` 인지 확인(7.1절 실험 2) |
 | 로그인이 `Invalid credentials` 로 튕김 | 세션 쿠키 이름이 겹쳤는가(community 와 동시 실행 시 특히) |
 | 첫 질문이 유난히 느리다(약 100초) | 정상. 첫 요청에 MCP 핸드셰이크가 포함된다 |
 | 포트가 이미 사용 중 | `./stop.sh` 후 재실행 |

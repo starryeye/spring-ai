@@ -25,6 +25,10 @@ spring:
     mcp:
       client:
         enabled: true
+        # SYNC 고정. McpSecurityConfig 의 mcpAuthenticationCustomizer 는
+        # McpClientCustomizer<McpClient.SyncSpec> 타입이라 ASYNC 로 바꾸면
+        # 조용히 적용되지 않는다 — 전송 컨텍스트가 항상 비어 토큰이 붙지 않는다.
+        # 직접 측정한 결과는 README §7.1 참고.
         type: SYNC
         # 부팅 시점에는 대신할 사용자가 없다. 서버가 모든 요청에 401 을 주므로
         # 기동 중 핸드셰이크가 실패해 컨텍스트가 죽는다. 첫 요청으로 미룬다.

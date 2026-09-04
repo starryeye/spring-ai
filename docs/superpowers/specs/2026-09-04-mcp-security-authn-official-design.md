@@ -50,6 +50,11 @@ Spring AI 마이너 버전마다 별도 라인을 파야 할 만큼 내부 API �
 
 **직접 쓸 코드는 클래스 2개, 70줄 안팎이다.** 나머지는 설정이다.
 
+> **정정 (Task 4 실측):** 위 추정은 틀렸다. 실제로 직접 쓴 파일은 5개(위 표의 "직접 작성"
+> 두 행 각각이 여러 클래스로 나뉘었다 — `SecurityMcpTransportContextProvider`,
+> `OAuth2TokenAttachingRequestCustomizer`, `McpSecurityConfig`, 그리고 두 `SecurityConfig`),
+> 총 235줄이다. 자세한 내역은 README §4 참고.
+
 ## 덤으로 드러나는 대비
 
 | | community | official |
@@ -58,6 +63,13 @@ Spring AI 마이너 버전마다 별도 라인을 파야 할 만큼 내부 API �
 | `SecurityFilterChain` | 직접 정의하면 모듈이 물러난다 (`@ConditionalOnDefaultWebSecurity`) | 내가 전부 쓴다 — 숨은 동작이 없다 |
 | 조용히 죽는 스위치 | 5개 | 사실상 없다. 내가 부르지 않으면 안 도는 게 코드에 보인다 |
 | 코드량 | 적다 | 많다 (클래스 2개 추가) |
+
+> **정정 (Task 4 실측):** "조용히 죽는 스위치 사실상 없다"는 틀렸다. 실제로 지우고 재현한
+> 결과 official 에도 최소 2개가 있다 — `Hooks.enableAutomaticContextPropagation()` 누락과
+> `spring.ai.mcp.client.type: ASYNC` 전환. 후자는 조건부 자동설정이 아니라 제네릭 타입
+> 매칭 실패로 커스터마이저가 조용히 걸러지는 것이라 원리는 다르지만 증상(DEBUG 로그 한 줄,
+> 토큰 미부착)은 같다. 나머지 3개 범주만 구조적으로 대응물이 없다. 자세한 실측은
+> README §7·§7.1 참고.
 
 **코드는 늘고 마법은 준다.** 이 교환을 눈으로 보는 것이 이 practice 의 산출물이다.
 

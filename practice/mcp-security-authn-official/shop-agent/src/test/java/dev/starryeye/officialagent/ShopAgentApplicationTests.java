@@ -48,7 +48,11 @@ class ShopAgentApplicationTests {
 
 	@Test
 	void OAuth2_클라이언트_등록이_정확히_하나다() {
-		var registration = clientRegistrationRepository.findByRegistrationId("authserver");
+		// 리터럴 "authserver" 가 아니라 McpSecurityConfig.REGISTRATION_ID 를 그대로 써서
+		// 조회한다 — 이 상수는 application.yml 의 registration 키와 일치해야만 의미가
+		// 있는데, 그 일치 여부를 이 테스트가 실제로 검증한다. yml 이나 상수 어느 한쪽만
+		// 바뀌면 이 조회가 null 을 돌려주며 즉시 빨간불이 된다.
+		var registration = clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID);
 
 		assertThat(registration).isNotNull();
 		assertThat(registration.getClientId()).isEqualTo("official-shop-agent");

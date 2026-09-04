@@ -3,7 +3,9 @@ package dev.starryeye.officialagent;
 import io.modelcontextprotocol.common.McpTransportContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -21,6 +23,17 @@ class SecurityMcpTransportContextProviderTest {
 
     @Test
     void 인증이_없으면_빈_컨텍스트를_준다() {
+        assertThat(provider.get()).isEqualTo(McpTransportContext.EMPTY);
+    }
+
+    @Test
+    void 익명_인증이면_빈_컨텍스트를_준다() {
+        // AnonymousAuthenticationToken.isAuthenticated() 는 true 이므로, 이 검사가
+        // 없으면 익명 사용자도 "인증됨"으로 통과해 버린다 — M2 로 잡은 회귀.
+        var anonymous = new AnonymousAuthenticationToken(
+                "key", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS")));
+        SecurityContextHolder.getContext().setAuthentication(anonymous);
+
         assertThat(provider.get()).isEqualTo(McpTransportContext.EMPTY);
     }
 
