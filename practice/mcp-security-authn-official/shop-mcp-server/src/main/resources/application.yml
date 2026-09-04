@@ -1,0 +1,24 @@
+server:
+  port: 8111
+
+spring:
+  application:
+    name: official-shop-mcp-server
+  ai:
+    mcp:
+      server:
+        name: official-shop-mcp-server
+        version: 0.0.1
+        protocol: STREAMABLE
+        # SYNC. @McpTool 이 Mono 를 반환하면 조용히 등록에서 빠진다.
+        type: SYNC
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9010
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    org.springframework.security: DEBUG
