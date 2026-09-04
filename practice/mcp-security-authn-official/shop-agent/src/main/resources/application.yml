@@ -1,0 +1,55 @@
+server:
+  port: 8110
+  servlet:
+    session:
+      cookie:
+        name: OFFICIALAGENTSESSIONID
+
+spring:
+  application:
+    name: official-shop-agent
+  ai:
+    model:
+      chat: ollama
+      audio:
+        speech: none
+        transcription: none
+      embedding: none
+      image: none
+      moderation: none
+    ollama:
+      chat:
+        model: qwen3:8b
+        temperature: 0.1
+        think: low
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        # 부팅 시점에는 대신할 사용자가 없다. 서버가 모든 요청에 401 을 주므로
+        # 기동 중 핸드셰이크가 실패해 컨텍스트가 죽는다. 첫 요청으로 미룬다.
+        initialized: false
+        streamable-http:
+          connections:
+            shop:
+              url: "http://localhost:8111"
+  security:
+    oauth2:
+      client:
+        registration:
+          authserver:
+            client-id: official-shop-agent
+            client-secret: official-shop-agent-secret
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope:
+              - openid
+              - profile
+        provider:
+          authserver:
+            issuer-uri: http://localhost:9010
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    dev.starryeye.officialagent: DEBUG
