@@ -1,0 +1,31 @@
+server:
+  port: 8120
+
+spring:
+  application:
+    name: memory-agent
+  ai:
+    model:
+      chat: ollama
+      # chat 외의 모델 자동설정을 끄지 않으면 다른 스타터가 API 키를 요구해 기동이 실패한다.
+      audio:
+        speech: none
+        transcription: none
+      embedding: none
+      image: none
+      moderation: none
+    ollama:
+      chat:
+        model: qwen3:8b
+        temperature: 0.1
+        # 미지정이면 수 분이 걸리고, false 면 지시를 못 따른다.
+        think: low
+
+chat:
+  memory:
+    # 이 값을 줄여 재기동하면 창이 밀리는 것을 관측할 수 있다 (검증 시나리오 4).
+    max-messages: 20
+
+logging:
+  level:
+    dev.starryeye.memoryagent: DEBUG

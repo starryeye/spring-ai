@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>chat-memory</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; }
+        label { display: block; margin-top: 12px; font-size: 13px; color: #555; }
+        input { width: 100%; padding: 8px; font-size: 15px; box-sizing: border-box; }
+        .row { display: flex; gap: 8px; align-items: flex-end; }
+        .row > div { flex: 1; }
+        button { padding: 8px 14px; font-size: 14px; white-space: nowrap; }
+        pre { background: #f4f4f4; padding: 12px; white-space: pre-wrap; min-height: 4em; }
+    </style>
+</head>
+<body>
+<h1>chat-memory</h1>
+<p>같은 대화 ID로 이어서 물으면 기억합니다. ID를 바꾸면 기억하지 못합니다.</p>
+
+<div class="row">
+    <div>
+        <label for="cid">대화 ID</label>
+        <input id="cid" value="alpha">
+    </div>
+    <button id="newCid">새 대화</button>
+    <button id="dump">저장 내용 보기</button>
+    <button id="clear">이 대화 비우기</button>
+</div>
+
+<label for="q">질문</label>
+<input id="q" placeholder="예: 내 이름은 스타리야" autofocus>
+<button id="send">보내기</button>
+
+<pre id="out"></pre>
+
+<script>
+    const out = document.getElementById('out');
+    const cid = document.getElementById('cid');
+    const q = document.getElementById('q');
+    const send = document.getElementById('send');
+
+    document.getElementById('newCid').addEventListener('click', () => {
+        cid.value = 'c-' + Math.random().toString(36).slice(2, 8);
+        out.textContent = '새 대화 ID: ' + cid.value;
+    });
+
+    document.getElementById('dump').addEventListener('click', async () => {
+        const res = await fetch('/api/conversations/' + encodeURIComponent(cid.value));
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+    });
+
+    document.getElementById('clear').addEventListener('click', async () => {
+        await fetch('/api/conversations/' + encodeURIComponent(cid.value), {method: 'DELETE'});
+        out.textContent = '비웠습니다: ' + cid.value;
+    });
+
+    async function ask() {
+        const message = q.value.trim();
+        if (!message) return;
+        send.disabled = true;
+        out.textContent = '생각 중... (로컬 모델은 수십 초 걸립니다)';
+        try {
+            const res = await fetch('/api/chat?conversationId=' + encodeURIComponent(cid.value),
+                    {method: 'POST', body: message});
+            if (!res.ok) {
+                out.textContent = '오류: HTTP ' + res.status;
+                return;
+            }
+            out.textContent = '';
+            const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+            for (;;) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                out.textContent += value;
+            }
+        } catch (e) {
+            out.textContent = '오류: ' + e;
+        } finally {
+            send.disabled = false;
+        }
+    }
+
+    send.addEventListener('click', ask);
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+</script>
+</body>
+</html>
