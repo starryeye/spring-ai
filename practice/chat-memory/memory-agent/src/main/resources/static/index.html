@@ -57,6 +57,7 @@
     async function ask() {
         const message = q.value.trim();
         if (!message) return;
+        q.value = '';
         send.disabled = true;
         out.textContent = '생각 중... (로컬 모델은 수십 초 걸립니다)';
         try {
