@@ -45,13 +45,29 @@
     });
 
     document.getElementById('dump').addEventListener('click', async () => {
-        const res = await fetch('/api/conversations/' + encodeURIComponent(cid.value));
-        out.textContent = JSON.stringify(await res.json(), null, 2);
+        try {
+            const res = await fetch('/api/conversations/' + encodeURIComponent(cid.value));
+            if (!res.ok) {
+                out.textContent = '오류: HTTP ' + res.status;
+                return;
+            }
+            out.textContent = JSON.stringify(await res.json(), null, 2);
+        } catch (e) {
+            out.textContent = '오류: ' + e;
+        }
     });
 
     document.getElementById('clear').addEventListener('click', async () => {
-        await fetch('/api/conversations/' + encodeURIComponent(cid.value), {method: 'DELETE'});
-        out.textContent = '비웠습니다: ' + cid.value;
+        try {
+            const res = await fetch('/api/conversations/' + encodeURIComponent(cid.value), {method: 'DELETE'});
+            if (!res.ok) {
+                out.textContent = '오류: HTTP ' + res.status;
+                return;
+            }
+            out.textContent = '비웠습니다: ' + cid.value;
+        } catch (e) {
+            out.textContent = '오류: ' + e;
+        }
     });
 
     async function ask() {

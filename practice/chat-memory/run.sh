@@ -32,13 +32,21 @@ else
   ( cd memory-agent && nohup ./gradlew bootRun -q > "../logs/memory-agent.log" 2>&1 < /dev/null & disown 2>/dev/null || true )
 fi
 
+ready=""
 for _ in $(seq 1 90); do
   if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8120/)" != "000" ]; then
     echo "  [준비됨] memory-agent"
+    ready="yes"
     break
   fi
   sleep 1
 done
+
+if [ -z "$ready" ]; then
+  echo "  [실패] memory-agent 가 뜨지 않았습니다. logs/memory-agent.log 마지막 20줄:"
+  tail -20 logs/memory-agent.log || true
+  exit 1
+fi
 
 cat <<'EOF'
 

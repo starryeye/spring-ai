@@ -56,8 +56,12 @@ chatClient.prompt().user(message).stream().content();   // 이번 질문 한 마
 이 관계는 **양방향으로 실측했다**:
 
 - `ChatMemoryConfig` 의 `@Bean` 을 지우면 자동설정 폴백이 대신 들어오고, 그 폴백은
-  `chat.memory.max-messages` 프로퍼티를 읽지 않아 창 크기가 기본값 20으로 고정된다 — 창 넘침
-  테스트(기대 3, 실제 4)가 정확히 그 지점에서 실패했다.
+  `chat.memory.max-messages` 프로퍼티를 읽지 않아 창 크기가 기본값 20으로 고정된다 —
+  `MemoryAgentApplicationTests` 의 `내가_정의한_ChatMemory_빈이_쓰인다()`(기대 3, 실제 4)가
+  정확히 그 지점에서 실패했다. (같은 창 넘침을 검사하는 `ChatMemoryConfigTest` 의
+  `창을_넘기면_오래된_것부터_밀려난다()` 는 `ChatMemoryConfig` 를 스프링 컨텍스트 없이
+  직접 생성해 호출하므로 `@Bean` 유무와 무관하게 항상 통과한다 — 이 실험은 그 테스트가
+  아니라 앞의 것을 건드린다.)
 - `@Bean` 을 복원하면 같은 테스트가 다시 통과한다.
 
 주의할 점 하나: 자동설정 폴백도 `MessageWindowChatMemory` 타입이고 기본 창 크기도 20이다.
@@ -112,12 +116,23 @@ Java 21 을 찾고, Ollama 가 안 떠 있으면 띄우고, `qwen3:8b` 가 없�
    관측: user/assistant 메시지 4개가 순서대로("내 이름은 스타리야" → 인사 →
    "내 이름 뭐야?" → "당신의 이름은...") 보인다.
 
-4. **창 넘침** — `application.yml` 의 `chat.memory.max-messages` 를 `2` 로 바꿔 재기동한다
-   (in-memory 저장소라 재기동하면 기존 대화는 전부 사라진다). 새 대화에서 3턴을 이어간다.
+   지금까지 만든 대화 ID 목록은 `ChatMemoryRepository.findConversationIds()` 를 쓰는
+   별도 엔드포인트로 확인한다 — `ChatMemory` 에는 없는 기능이라는 것이 여기서 드러난다.
+
+   ```bash
+   curl -s http://localhost:8120/api/conversations | python3 -m json.tool
+   ```
+
+4. **창 넘침** — 먼저 `./stop.sh` 로 앱을 내린다(포트가 이미 사용 중이면 `run.sh` 는
+   기동을 **건너뛰므로**, 내리지 않고 설정만 바꾸면 옛 프로세스가 옛 설정 그대로 계속
+   떠 있어 변화가 안 보인다). `application.yml` 의 `chat.memory.max-messages` 를 `2` 로
+   바꾸고 `./run.sh` 로 재기동한다(in-memory 저장소라 재기동하면 기존 대화는 전부
+   사라진다). 새 대화에서 3턴을 이어간다.
    관측: 1턴 후 저장소 2개(user+assistant), 2턴 후에도 여전히 2개지만 내용이 2턴 것으로
    교체되어 1턴 내용이 사라져 있다. 3턴째 "1턴에서 말한 걸 물어보면" 모델이 "그런 내용이
    없다"고 명확히 답해, 창 밖으로 밀려난 정보가 실제로 사라졌음을 확인했다. **실험 후
-   `max-messages` 를 20으로 되돌린다** — 이 저장소의 커밋 상태는 20이다.
+   `max-messages` 를 20으로 되돌리고 `./stop.sh` → `./run.sh` 로 다시 재기동한다** —
+   이 저장소의 커밋 상태는 20이다.
 
 5. **삭제** — "이 대화 비우기" 후 같은 질문을 한다.
 
@@ -160,11 +175,15 @@ Java 21 을 찾고, Ollama 가 안 떠 있으면 띄우고, `qwen3:8b` 가 없�
 ]
 ```
 
-**관측 결과 (표본 스냅샷 기준):** 클라이언트로 토큰이 실제로 흐르고 있는 순간에 저장소를
-조회한 두 차례의 시도 모두에서 user 메시지만 있었고, assistant 메시지가 조각난 채로 보인
-적은 없었다. assistant 메시지는 스트림이 완전히 끝난 뒤 한 번에 나타났다. 다만 이는 시행당
-한 번씩 저장소를 조회한 결과이지 스트리밍 구간을 연속으로 샘플링한 것은 아니다 — "그 스냅샷
-시점에는 조각난 상태가 관측되지 않았다"까지만 말할 수 있다.
+**관측 결과 (표본 스냅샷 기준):** 두 번의 시도 중 "토큰이 실제로 클라이언트로 흐르는 도중"이라는
+조건을 충족한 것은 **두 번째 시도(첫 바이트 도착 순간을 폴링해 잡은 것) 하나뿐이다.** 그 순간
+(86바이트 중 10바이트가 이미 전송된 상태) 저장소를 조회하니 user 메시지만 있었고, assistant
+메시지가 조각난 채로 보이지는 않았다. 첫 번째 시도(고정 3초)는 위에서 적었듯 첫 토큰이 오기
+전이라 "스트리밍 도중"을 실제로 표본하지 못했다 — 그때도 user 메시지만 있었다는 점은 참고
+정보일 뿐, 이 결론의 근거로 세지 않는다. assistant 메시지는 두 번째 시도에서 스트림이 완전히
+끝난 뒤 한 번에 나타났다. 다만 이는 조건을 충족한 시행 **한 번**에서 저장소를 한 번 조회한
+결과이지 스트리밍 구간을 연속으로 샘플링한 것은 아니다 — "그 한 스냅샷 시점에는 조각난 상태가
+관측되지 않았다"까지만 말할 수 있다.
 
 ### 실험 B — 스트리밍 중단
 
@@ -192,11 +211,24 @@ curl -s -N -X POST 'http://localhost:8120/api/chat?conversationId=aborted' \
 user 메시지는 남고 assistant 응답은 (관측한 창 안에서는) 남지 않는다 — 다음 턴에서 모델은
 "질문은 했는데 답은 없는" 히스토리를 이어받는다.
 
+이 관측은 소스로도 설명된다. `spring-ai-client-chat-2.0.0.jar` 를 `javap` 로 확인한 결과,
+`MessageChatMemoryAdvisor.adviseStream(...)` 은 `ChatClientMessageAggregator.aggregateChatClientResponse(...)`
+를 거쳐 `org.springframework.ai.chat.model.MessageAggregator.aggregate(...)` 를 호출하는데,
+이 메서드는 `Flux` 에 `doOnNext`(조각 누적) 다음으로 **`doOnComplete`** 를 걸어 그 안에서
+누적된 응답을 저장 콜백에 넘긴다. 즉 저장은 스트림이 "완료"라는 신호를 낼 때 한 번만 실행되도록
+배선되어 있다 — 토큰마다 실행되는 지점이 아예 없다. 클라이언트가 연결을 끊는 것은 `doOnComplete`
+가 아니라 취소(cancel)이므로 이 콜백 자체가 실행되지 않는다 — 실험 B 에서 assistant 메시지가
+전혀 남지 않은 이유가 여기 있다.
+
 ## 학습 포인트
 
 - **대화를 가르는 키가 곧 격리 경계다.** 지금은 클라이언트가 `conversationId` 를 보내므로
   남의 대화 ID 를 넣으면 그대로 읽힌다 — 사용자 한 명을 가정하기 때문에 성립하는 것이다.
-- `MessageWindowChatMemory` 는 오래된 메시지부터 밀어낸다. 창 크기가 곧 기억의 길이다.
+- `MessageWindowChatMemory` 는 오래된 메시지부터 밀어낸다. 창 크기가 곧 기억의 길이다 —
+  다만 `process()` 는 `SystemMessage` 는 밀어내지 않고 보존하며 자르는 지점을 다음 USER
+  메시지 앞으로 스냅하므로, 실제로 남는 메시지 수가 `maxMessages` 보다 적을 수 있다
+  (이 practice 의 시스템 프롬프트는 `ChatClientConfig` 가 어드바이저 바깥에서 붙이고
+  `ChatMemory` 에는 저장되지 않으므로, 위 검증 시나리오·테스트에서는 이 차이가 드러나지 않는다).
 - 저장소에 쌓이는 것은 결국 메시지 목록이다 — 마법이 아니라 `GET /api/conversations/{id}` 로
   확인할 수 있는 평범한 데이터다.
 - `findConversationIds()` 는 `ChatMemoryRepository` 에만 있고 `ChatMemory` 에는 없다.
