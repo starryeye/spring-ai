@@ -82,7 +82,7 @@
     }
 
     send.addEventListener('click', ask);
-    q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+    q.addEventListener('keydown', e => { if (e.key === 'Enter' && !send.disabled) ask(); });
 </script>
 </body>
 </html>
