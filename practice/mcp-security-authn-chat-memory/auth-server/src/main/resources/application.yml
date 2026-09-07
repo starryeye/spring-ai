@@ -1,0 +1,36 @@
+server:
+  port: 9020
+  servlet:
+    session:
+      cookie:
+        # 쿠키는 호스트만 보고 포트를 구분하지 않는다. 다른 practice 들과
+        # 동시에 띄워도 세션이 서로 덮어쓰지 않도록 이름을 분리한다.
+        name: MEMAUTHSESSIONID
+
+spring:
+  application:
+    name: memory-auth-server
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: http://localhost:9020
+        client:
+          memory-agent:
+            registration:
+              client-id: memory-agent
+              client-secret: "{noop}memory-agent-secret"
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - authorization_code
+                - refresh_token
+              redirect-uris:
+                - http://localhost:8130/login/oauth2/code/authserver
+              scopes:
+                - openid
+                - profile
+            require-authorization-consent: false
+
+logging:
+  level:
+    org.springframework.security: INFO
