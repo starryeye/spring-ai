@@ -1,3 +1,8 @@
+chat:
+  memory:
+    # 줄여서 재기동하면 창이 밀리는 것을 관측할 수 있다.
+    max-messages: 20
+
 server:
   port: 8130
   servlet:

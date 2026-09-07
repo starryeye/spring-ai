@@ -16,9 +16,10 @@ public class SecurityConfig {
                 .oauth2Login(Customizer.withDefaults())
                 .oauth2Client(Customizer.withDefaults())
                 // 학습용 단순화. index.html 의 fetch 가 CSRF 토큰을 싣지 않는다.
-                // 이 엔드포인트는 상태를 바꾸지 않는 조회성 질의만 받지만,
+                // /api/conversations/{label} 의 DELETE(대화 비우기)도 상태를 바꾸므로
+                // 여기 포함시키지 않으면 index.html 의 "이 대화 비우기" 버튼이 403 을 받는다.
                 // 실제 서비스라면 XSRF-TOKEN 쿠키를 읽어 헤더에 실어야 한다.
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/chat"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/chat", "/api/conversations/**"))
                 .build();
     }
 }

@@ -1,6 +1,8 @@
 package dev.starryeye.memoryauthn.agent;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -25,8 +27,11 @@ public class ChatClientConfig {
      */
     @Bean
     public ChatClient shopChatClient(ChatClient.Builder builder,
-                                     ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
-        ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
+                                     ObjectProvider<ToolCallbackProvider> toolCallbackProvider,
+                                     ChatMemory chatMemory) {
+        ChatClient.Builder configured = builder
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build());
         toolCallbackProvider.ifAvailable(configured::defaultTools);
         return configured.build();
     }
