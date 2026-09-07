@@ -215,8 +215,9 @@ cd ../shop-agent && ./gradlew test
 cd ../auth-server && ./gradlew test
 ```
 
-Expected: 부모와 같은 개수(auth-server 4, shop-mcp-server 10, shop-agent 5)가 전부 통과.
-개수가 다르면 복사가 불완전한 것이다.
+Expected: 부모와 같은 개수(auth-server 4, shop-mcp-server 10, **shop-agent 11**)가 전부 통과.
+shop-agent 의 11개는 `ShopAgentApplicationTests` 5 + `SecurityMcpTransportContextProviderTest` 3 +
+`OAuth2TokenAttachingRequestCustomizerTest` 3 이다. 개수가 다르면 복사가 불완전한 것이다.
 
 - [ ] **Step 6: ★ 툴 결과가 메모리에 남는지 실측한다 — 이 태스크의 핵심**
 
@@ -716,7 +717,17 @@ Enter 핸들러가 `send.disabled` 를 확인하기.
 cd practice/mcp-security-authn-chat-memory/shop-agent && ./gradlew test
 ```
 
-Expected: 부모의 5개 + `ConversationIdTest` 6개 + `ConversationControllerTest` 5개 = 16개 PASS.
+Expected: **22개 PASS.** 내역:
+
+| 클래스 | 개수 | 출처 |
+|---|---|---|
+| `ShopAgentApplicationTests` | 5 | 부모 |
+| `SecurityMcpTransportContextProviderTest` | 3 | 부모 |
+| `OAuth2TokenAttachingRequestCustomizerTest` | 3 | 부모 |
+| `ConversationIdTest` | 6 | 신규 |
+| `ConversationControllerTest` | 5 | 신규 |
+
+개수가 11개(부모분)에 못 미치면 Task 1 의 복사가 불완전한 것이다.
 
 - [ ] **Step 13: 커밋**
 
