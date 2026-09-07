@@ -39,6 +39,19 @@
     const q = document.getElementById('q');
     const send = document.getElementById('send');
 
+    // CookieCsrfTokenRepository 가 심어둔 XSRF-TOKEN 쿠키를 읽어 요청 헤더로 되돌려 보낸다.
+    // 이 값이 없으면(첫 페이지 로드가 CsrfCookieFilter 를 거치지 않은 경우) 헤더를 생략한다 —
+    // 서버가 401/403 으로 알려준다.
+    function csrfToken() {
+        const match = document.cookie.match('(?:^|;\\s*)XSRF-TOKEN=([^;]*)');
+        return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    function csrfHeaders() {
+        const token = csrfToken();
+        return token ? {'X-XSRF-TOKEN': token} : {};
+    }
+
     document.getElementById('dump').addEventListener('click', async () => {
         try {
             const res = await fetch('/api/conversations/' + encodeURIComponent(label.value));
@@ -54,7 +67,8 @@
 
     document.getElementById('clear').addEventListener('click', async () => {
         try {
-            const res = await fetch('/api/conversations/' + encodeURIComponent(label.value), {method: 'DELETE'});
+            const res = await fetch('/api/conversations/' + encodeURIComponent(label.value),
+                    {method: 'DELETE', headers: csrfHeaders()});
             if (!res.ok) {
                 out.textContent = '오류: HTTP ' + res.status;
                 return;
@@ -73,7 +87,7 @@
         out.textContent = '생각 중... (로컬 모델은 30~100초 걸립니다)';
         try {
             const res = await fetch('/api/chat?label=' + encodeURIComponent(label.value),
-                    {method: 'POST', body: message});
+                    {method: 'POST', headers: csrfHeaders(), body: message});
             if (!res.ok) {
                 out.textContent = '오류: HTTP ' + res.status;
                 return;

@@ -17,7 +17,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -63,6 +65,12 @@ class ConversationControllerTest {
 		chatMemory.add("alice:default", List.of(
 				new UserMessage("내 이름은 앨리스야"),
 				new AssistantMessage("반가워요 앨리스님")));
+		// bob 의 네임스페이스에도 대화를 심어둔다. 이게 없으면 아래 테스트는 ConversationId.of 가
+		// Authentication 을 아예 무시해도(즉 격리가 전혀 안 돼도) 통과해 버린다 — bob 이 파생한
+		// 키가 애초에 시드된 적이 없어 "격리됨"과 "그냥 없음"을 구분하지 못하기 때문이다.
+		chatMemory.add("bob:default", List.of(
+				new UserMessage("내 이름은 밥이야"),
+				new AssistantMessage("반가워요 밥님")));
 	}
 
 	@Test
@@ -75,13 +83,21 @@ class ConversationControllerTest {
 				.andExpect(jsonPath("$[0].text").value("내 이름은 앨리스야"));
 	}
 
-	/** 이 practice 의 핵심. bob 은 같은 label 로도 alice 의 것을 못 읽는다. */
+	/**
+	 * 이 practice 의 핵심. bob 이 같은 label("default")로 조회해도 alice 의 대화가 아니라
+	 * 자기 자신의 대화를 얻는다. bob 의 네임스페이스에도 데이터를 심어두는 이유는, 심어두지
+	 * 않으면 이 테스트가 {@code ConversationId.of} 가 {@code Authentication} 을 완전히
+	 * 무시해도(격리가 전혀 없어도) 통과해버리기 때문이다 — bob 이 파생한 키가 애초에 비어
+	 * 있으니 "격리됨"과 "단순히 없음"을 구분할 수 없다.
+	 */
 	@Test
 	@WithMockUser(username = "bob")
 	void 남의_대화는_같은_label_로도_안_읽힌다() throws Exception {
 		mockMvc.perform(get("/api/conversations/default"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.length()").value(0));
+				.andExpect(jsonPath("$.length()").value(2))
+				.andExpect(jsonPath("$[0].text").value("내 이름은 밥이야"))
+				.andExpect(jsonPath("$[*].text", everyItem(not(containsString("앨리스")))));
 	}
 
 	/** 경로에 남의 전체 ID 를 밀어넣어도 자기 네임스페이스로 강제된다. */
