@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,10 +18,16 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -122,6 +129,45 @@ class ConversationControllerTest {
 	void 목록에_자기_대화가_보인다() throws Exception {
 		mockMvc.perform(get("/api/conversations"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$", org.hamcrest.Matchers.hasItem("alice:default")));
+				.andExpect(jsonPath("$", hasItem("alice:default")));
+	}
+
+	/**
+	 * {@link SecurityConfig} 는 이 practice 전체에서 CSRF 예외를 단 하나도 두지 않는다
+	 * (두 부모 practice 는 {@code /api/chat} 을 예외로 뒀다). 그 결정을 코드 리뷰만으로
+	 * 지키는 것은 취약하다 — 누군가 나중에 "귀찮으니 이 엔드포인트만" 하며 예외를 다시
+	 * 넣어도 아무 테스트도 실패하지 않을 것이다. 이 테스트가 그 회귀를 잡는다.
+	 */
+	@Test
+	@WithMockUser(username = "alice")
+	void CSRF_토큰_없이_지우면_403() throws Exception {
+		mockMvc.perform(delete("/api/conversations/default"))
+				.andExpect(status().isForbidden());
+	}
+
+	/** 위 테스트의 대조군 — 토큰을 실어 보내면 같은 요청이 정상적으로 통과한다. */
+	@Test
+	@WithMockUser(username = "alice")
+	void CSRF_토큰과_함께_지우면_204() throws Exception {
+		mockMvc.perform(delete("/api/conversations/default").with(csrf()))
+				.andExpect(status().isNoContent());
+	}
+
+	/**
+	 * DELETE 의 격리는 지금까지 조회(GET) 경로와 {@code ConversationId.of} 를 공유한다는
+	 * 사실에만 기대고 있었다 — 직접 겨냥한 증거가 없었다. 여기서는 bob 이 경로에 alice 의
+	 * 전체 ID 를 밀어넣어 지워도, alice 의 실제 대화({@code alice:default})가 그대로
+	 * 남아있는지 저장소를 직접 열어 확인한다. 204 만 보고 끝내면 "격리돼서 남의 걸 못
+	 * 지웠다"와 "엉뚱한 걸 지워버렸다"를 구분할 수 없다 — 이 검증이 그 둘을 가른다.
+	 */
+	@Test
+	@WithMockUser(username = "bob")
+	void bob_이_alice_ID_로_지워도_alice_대화는_그대로_남는다() throws Exception {
+		mockMvc.perform(delete("/api/conversations/alice:default").with(csrf()))
+				.andExpect(status().isNoContent());
+
+		List<Message> aliceMessages = chatMemory.get("alice:default");
+		assertThat(aliceMessages, hasSize(2));
+		assertThat(aliceMessages.get(0).getText(), is("내 이름은 앨리스야"));
 	}
 }
