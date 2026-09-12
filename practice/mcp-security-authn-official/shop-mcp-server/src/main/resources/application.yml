@@ -17,6 +17,9 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:9010
+          # RFC 8707 로 발급된 aud 를 검증한다. 이 값이 없으면 같은 인가 서버가 발급한
+          # 다른 리소스용 토큰도 그대로 통과한다(confused deputy).
+          audiences: http://localhost:8111/mcp
 
 logging:
   level:
