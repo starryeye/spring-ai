@@ -29,7 +29,17 @@ spring:
               scopes:
                 - openid
                 - profile
+            # MCP 2025-11-25 는 PKCE(S256)를 MUST 로 요구한다.
+            # 이 값이 true 면 code_challenge 없는 인가 요청이 거부된다.
+            require-proof-key: true
             require-authorization-consent: false
+
+mcp:
+  authorization:
+    # RFC 8707. 이 인가 서버가 토큰을 발급해 줄 수 있는 보호 리소스 목록이다.
+    # 여기 없는 resource 로 요청하면 invalid_target 으로 거부한다.
+    resources:
+      - http://localhost:8111/mcp
 
 logging:
   level:
