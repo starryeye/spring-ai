@@ -4,13 +4,19 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
-# Java 21 확보 (시스템 기본은 17)
+# Java 21 확보 (시스템 기본은 17). sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수
+# 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
-  if [ -d "$HOME/.sdkman/candidates/java/current" ]; then
-    export JAVA_HOME="$HOME/.sdkman/candidates/java/current"
+  JAVA21_HOME=$(find "$HOME/.sdkman/candidates/java" -maxdepth 1 -type d -name '21.*' 2>/dev/null | sort -V | tail -1)
+  if [ -n "$JAVA21_HOME" ]; then
+    export JAVA_HOME="$JAVA21_HOME"
   fi
 fi
-echo "JAVA_HOME=${JAVA_HOME:-(미설정)}"
+if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
+  echo "[실패] Java 21 을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME 을 Java 21 로 직접 지정하세요." >&2
+  exit 1
+fi
+echo "JAVA_HOME=${JAVA_HOME}"
 
 # ollama 준비
 if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
