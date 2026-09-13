@@ -6,6 +6,7 @@ import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServ
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
@@ -37,5 +38,18 @@ public class McpTransportConfig {
 						.allowedHosts(List.of("localhost:" + port, "127.0.0.1:" + port))
 						.build())
 				.build();
+	}
+
+	/**
+	 * {@link McpProtocolVersionFilter} 를 MCP 엔드포인트에만 건다. 포트처럼 practice 마다
+	 * 달라지는 값을 하드코딩하지 않기 위해 엔드포인트 경로도 설정값에서 그대로 가져온다.
+	 */
+	@Bean
+	public FilterRegistrationBean<McpProtocolVersionFilter> mcpProtocolVersionFilter(
+			McpServerStreamableHttpProperties properties) {
+		FilterRegistrationBean<McpProtocolVersionFilter> registration =
+				new FilterRegistrationBean<>(new McpProtocolVersionFilter());
+		registration.addUrlPatterns(properties.getMcpEndpoint());
+		return registration;
 	}
 }

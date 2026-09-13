@@ -125,6 +125,23 @@ class McpAuthorizationStandardTest {
 		return request;
 	}
 
+	/**
+	 * {@code MCP-Protocol-Version} 헤더만 다르게 실어 보내는 요청을 만든다.
+	 * {@code protocolVersion} 이 {@code null} 이면 헤더 자체를 보내지 않는다.
+	 */
+	static MockHttpServletRequestBuilder mcpWithProtocolVersion(String token, String protocolVersion) {
+		MockHttpServletRequestBuilder request = post("/mcp")
+				.contentType(MediaType.APPLICATION_JSON)
+				.header("Accept", "application/json, text/event-stream")
+				.header("Host", HOST)
+				.header("Authorization", "Bearer " + token)
+				.content(INITIALIZE);
+		if (protocolVersion != null) {
+			request.header("MCP-Protocol-Version", protocolVersion);
+		}
+		return request;
+	}
+
 	@Test
 	void 보호_리소스_메타데이터를_경로형으로_공개한다() throws Exception {
 		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", HOST))
@@ -185,5 +202,33 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE), null, HOST))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+	}
+
+	/*
+	 * MCP 2025-11-25 전송 명세 "Protocol Version Header" 절.
+	 * SDK(WebMvcStreamableServerTransportProvider)는 이 헤더를 검증하지 않으므로
+	 * McpProtocolVersionFilter 가 대신 검증한다.
+	 */
+
+	@Test
+	void 지원하는_MCP_Protocol_Version_헤더는_통과한다() throws Exception {
+		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "2025-11-25"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.result.protocolVersion").value("2025-11-25"));
+	}
+
+	@Test
+	void 지원하지_않는_MCP_Protocol_Version_헤더는_400이다() throws Exception {
+		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")));
+	}
+
+	@Test
+	void MCP_Protocol_Version_헤더가_없으면_명세대로_통과한다() throws Exception {
+		// 명세: 헤더가 없고 버전을 알 다른 방법이 없다면 서버는 2025-03-26 을 가정해야
+		// 한다("SHOULD assume protocol version 2025-03-26") — 거부 사유가 아니다.
+		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), null))
+				.andExpect(status().isOk());
 	}
 }
