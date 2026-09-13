@@ -4,6 +4,7 @@ import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,8 @@ import java.util.List;
 public class McpTransportConfig {
 
 	@Bean
-	public WebMvcStreamableServerTransportProvider webMvcStreamableServerTransportProvider(JsonMapper jsonMapper,
+	public WebMvcStreamableServerTransportProvider webMvcStreamableServerTransportProvider(
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
 			McpServerStreamableHttpProperties properties, @Value("${server.port}") int port) {
 		return WebMvcStreamableServerTransportProvider.builder()
 				.jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
