@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 # 인증이 포함된 MCP 흐름을 curl 로 한 단계씩 밟으며 요청과 응답을 기록한다.
 # 사용: AS=... MCP_BASE=... CLIENT_ID=... ./mcp-authorization-walkthrough.sh > 결과.txt
+# 주의: 이 스크립트의 출력(결과.txt)에는 access/refresh/id 토큰 원문(JWT)이 그대로 남는다 — 공유 전 확인할 것.
 set -uo pipefail
+
+# 값 추출 직후 호출한다. 비어 있으면 어느 단계에서 무엇이 비었는지 알리고 즉시 멈춘다
+# (빈 값으로 뒷단계까지 조용히 흘려보내 진단 없이 뒤엉킨 캡처를 만들지 않기 위함).
+require() {
+  local label="$1" value="$2" step="$3"
+  if [ -z "$value" ]; then
+    printf '\n[오류] "%s" 단계에서 %s 값을 추출하지 못했습니다(빈 문자열). 위 응답 본문/헤더를 확인하세요.\n' "$step" "$label" >&2
+    exit 1
+  fi
+}
 
 AS=${AS:-http://localhost:9010}
 MCP_BASE=${MCP_BASE:-http://localhost:8111}
@@ -40,7 +51,12 @@ step "3. 인가 서버 메타데이터 (RFC 8414)"
 curl -si "$AS/.well-known/oauth-authorization-server"
 
 step "4. 사용자 로그인 (인가 서버 폼)"
-CSRF=$(curl -s -c "$JAR" -b "$JAR" "$AS/login" | sed -n 's/.*name="_csrf"[^>]*value="\([^"]*\)".*/\1/p' | head -1)
+LOGIN_FORM=$(curl -s -c "$JAR" -b "$JAR" "$AS/login")
+# name="_csrf" 와 value="..." 가 같은 <input> 태그 안에만 있으면 되고, 그 안에서
+# 어느 속성이 먼저 오는지는 가리지 않는다(속성 순서에 의존하지 않는다).
+CSRF_TAG=$(printf '%s' "$LOGIN_FORM" | grep -o '<input[^>]*name="_csrf"[^>]*>' | head -1)
+CSRF=$(printf '%s' "$CSRF_TAG" | grep -o 'value="[^"]*"' | head -1 | sed 's/^value="//;s/"$//')
+require "CSRF" "$CSRF" "4. 사용자 로그인 (인가 서버 폼)"
 curl -si -c "$JAR" -b "$JAR" -X POST "$AS/login" \
   --data-urlencode "username=$USERNAME" --data-urlencode "password=$PASSWORD" \
   --data-urlencode "_csrf=$CSRF" | head -8
@@ -54,6 +70,7 @@ AUTHORIZE=$(curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
 echo "$AUTHORIZE" | head -12
 LOCATION=$(printf '%s' "$AUTHORIZE" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p')
 CODE=$(printf '%s' "$LOCATION" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
+require "CODE" "$CODE" "5. 인가 요청 (PKCE S256 + resource)"
 
 step "6. 토큰 요청 (code_verifier + resource)"
 TOKEN=$(curl -s -u "$CLIENT_ID:$CLIENT_SECRET" -X POST "$AS/oauth2/token" \
@@ -64,6 +81,9 @@ echo "$TOKEN"
 ACCESS=$(printf '%s' "$TOKEN" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 REFRESH=$(printf '%s' "$TOKEN" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
 ID_TOKEN=$(printf '%s' "$TOKEN" | sed -n 's/.*"id_token":"\([^"]*\)".*/\1/p')
+require "ACCESS_TOKEN" "$ACCESS" "6. 토큰 요청 (code_verifier + resource)"
+require "REFRESH_TOKEN" "$REFRESH" "6. 토큰 요청 (code_verifier + resource)"
+require "ID_TOKEN" "$ID_TOKEN" "6. 토큰 요청 (code_verifier + resource)"
 
 step "6-1. access token 페이로드 (aud 가 MCP 서버다)"
 payload "$(printf '%s' "$ACCESS" | cut -d. -f2)"
@@ -76,6 +96,7 @@ INIT_RESPONSE=$(curl -si -X POST "$MCP" -H "Authorization: Bearer $ACCESS" \
   -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -d "$INITIALIZE")
 echo "$INIT_RESPONSE"
 SESSION=$(printf '%s' "$INIT_RESPONSE" | tr -d '\r' | sed -n 's/^[Mm]cp-[Ss]ession-[Ii]d: //p')
+require "SESSION" "$SESSION" "7. initialize (Bearer)"
 
 MCP_HEADERS=(-H "Authorization: Bearer $ACCESS" -H 'Content-Type: application/json'
   -H 'Accept: application/json, text/event-stream' -H "Mcp-Session-Id: $SESSION"
