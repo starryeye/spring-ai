@@ -20,6 +20,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ShopAgentApplicationTests {
 
+	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	McpAuthorizationDiscovery discovery;
+
+	@org.junit.jupiter.api.BeforeEach
+	void 발견_결과를_고정한다() {
+		org.mockito.BDDMockito.given(this.discovery.discover(DiscoveryFixtures.RESOURCE))
+				.willReturn(DiscoveryFixtures.discovered());
+	}
+
 	@Autowired
 	MockMvc mockMvc;
 
@@ -56,6 +65,10 @@ class ShopAgentApplicationTests {
 
 		assertThat(registration).isNotNull();
 		assertThat(registration.getClientId()).isEqualTo("official-shop-agent");
+		// 엔드포인트는 설정이 아니라 발견 결과에서 온다.
+		assertThat(registration.getProviderDetails().getIssuerUri()).isEqualTo(DiscoveryFixtures.ISSUER);
+		assertThat(registration.getProviderDetails().getAuthorizationUri())
+				.isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/authorize");
 		assertThat(oAuth2ClientProperties.getRegistration()).hasSize(1);
 	}
 

@@ -3,6 +3,8 @@ package dev.starryeye.officialagent;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
@@ -10,12 +12,19 @@ import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClient
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.web.client.RestClient;
 
 /**
  * community 버전에서 {@code mcp-client-security-spring-boot} 의 자동설정이
  * 통째로 해주던 배선이다. 공식 구성에서는 이 파일이 그 역할을 한다.
  */
 @Configuration
+// OAuth2ClientProperties 를 직접 켠다: Boot 의 OAuth2ClientAutoConfiguration 은 이 프로퍼티를
+// ClientRegistrationRepository 빈과 같은 조건부 설정 클래스에 묶어 두는데, 그 클래스는
+// @ConditionalOnMissingBean(ClientRegistrationRepository.class) 로 우리가 아래서 직접 만드는
+// DiscoveredClientRegistrationRepository 빈이 있으면 통째로 비활성화된다 — OAuth2ClientProperties
+// 도 같이 사라져 자격증명(client-id/secret) 을 읽어올 곳이 없어진다. 그래서 여기서 따로 켠다.
+@EnableConfigurationProperties({ McpAuthorizationProperties.class, OAuth2ClientProperties.class })
 public class McpSecurityConfig {
 
     /**
@@ -25,6 +34,23 @@ public class McpSecurityConfig {
      * 상수가 yml 과 따로 놀게 되는 상황을 테스트가 잡아낸다.
      */
     static final String REGISTRATION_ID = "authserver";
+
+    /**
+     * 발견용 HTTP 클라이언트. MCP 서버와 인가 서버의 메타데이터만 읽는다.
+     */
+    @Bean
+    public McpAuthorizationDiscovery mcpAuthorizationDiscovery() {
+        return new McpAuthorizationDiscovery(RestClient.create());
+    }
+
+    /**
+     * Boot 가 만드는 기본 등록 저장소(설정의 issuer-uri 로 만드는 것) 대신 이것을 쓴다.
+     */
+    @Bean
+    public DiscoveredClientRegistrationRepository clientRegistrationRepository(McpAuthorizationDiscovery discovery,
+            McpAuthorizationProperties properties, OAuth2ClientProperties clientProperties) {
+        return new DiscoveredClientRegistrationRepository(discovery, properties, clientProperties);
+    }
 
     /**
      * 인가된 클라이언트를 <b>세션이 아니라 서비스</b>에 저장한다.
