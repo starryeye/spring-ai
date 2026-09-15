@@ -33,8 +33,20 @@ spring:
               scopes:
                 - openid
                 - profile
+            # MCP 2025-11-25 는 PKCE(S256)를 MUST 로 요구한다.
+            require-proof-key: true
             # 학습용이므로 동의 화면을 건너뛴다. 켜두면 로그인 후 화면이 하나 더 뜬다.
             require-authorization-consent: false
+
+# 이 모듈은 동적 클라이언트 등록(DCR)을 기본으로 켠다. MCP 2026-07-28 에서
+# DCR 은 deprecated 이고, 이 practice 는 사전 등록만 쓰므로 끈다.
+spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false
+
+mcp:
+  authorization:
+    # RFC 8707. 이 인가 서버가 토큰을 발급해 줄 수 있는 보호 리소스 목록이다.
+    resources:
+      - http://localhost:8101/mcp
 
 logging:
   level:

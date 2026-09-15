@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,12 +39,11 @@ class ShopMcpServerApplicationTests {
 	/**
 	 * 이 practice 의 존재 이유. agent-mcps 에서는 이 요청이 통했다.
 	 *
-	 * <p>{@code .with(csrf())} 를 붙인 이유: 이 모듈(0.1.14)의 필터 체인은 CSRF 를 끄지 않는
-	 * 것으로 보인다. MockMvc 조합에서는 {@code csrf()} 없이 토큰 없는 POST 를 보내면 인증
-	 * 단계 이전에 403 으로 걸리는 것을 관찰했다 — 이 테스트가 검증하려는 "인증 여부"와
-	 * 무관한 차단이다. 다만 실제 Tomcat 서버에 curl 로 같은 요청을 보내면 왜 403 이 아니라
-	 * 401 이 오는지, 정확한 메커니즘은 확인하지 못했다. {@code csrf()} 로 그 차단을 제거해야
-	 * 실제 운영에서 관찰한 401 과 일치하는 결과를 본다.
+	 * <p>{@code SecurityConfig} 가 필터체인을 직접 정의하면서 CSRF 는 명시적으로 끈다
+	 * (무상태 리소스 서버라 세션 기반 CSRF 토큰을 쓰지 않는다). 대신 Origin/Host 검증
+	 * ({@code OriginValidationFilter}, {@code allowedHosts} 를 켰다)이 이 필터체인이 지키는
+	 * 모든 경로에 걸리므로, {@code Host} 헤더가 허용 목록과 일치해야 그 다음 인증 단계까지
+	 * 도달해 401 을 본다 — 없으면 421(Invalid Host header)로 먼저 막힌다.
 	 *
 	 * <p><b>{@code WWW-Authenticate} 헤더까지 검증하는 이유:</b> 상태 코드 401 만으로는
 	 * "이 MCP 보안 모듈이 실제로 동작해서 막은 것"인지, 아니면 단순히 {@code spring-boot-starter-security}
@@ -60,7 +58,7 @@ class ShopMcpServerApplicationTests {
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {
 		mockMvc.perform(post("/mcp")
-						.with(csrf())
+						.header("Host", "localhost:8101")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{"jsonrpc":"2.0","id":1,"method":"tools/list"}
@@ -73,7 +71,8 @@ class ShopMcpServerApplicationTests {
 	void 아무_경로나_토큰_없이는_거부된다() throws Exception {
 		// 상태 코드만 보면 보안 모듈이 빠지고 Boot 기본 Basic 인증이 대신 막아도
 		// 그대로 통과한다. 스킴까지 확인해야 이 모듈이 실제로 걸었다는 증거가 된다.
-		mockMvc.perform(post("/").with(csrf()))
+		// Host 헤더가 허용 목록과 일치해야 421(Invalid Host header)이 아니라 401 을 본다.
+		mockMvc.perform(post("/").header("Host", "localhost:8101"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate", startsWith("Bearer")));
 	}
