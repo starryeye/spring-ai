@@ -1,0 +1,238 @@
+
+
+===== 1. 토큰 없이 MCP 를 호출한다 (401 + WWW-Authenticate) =====
+HTTP/1.1 401 
+WWW-Authenticate: Bearer resource_metadata="http://localhost:8131/.well-known/oauth-protected-resource/mcp"
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Length: 0
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+
+
+===== 2. 보호 리소스 메타데이터 (RFC 9728, 경로형) =====
+HTTP/1.1 200 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Content-Length: 179
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+{"resource":"http://localhost:8131/mcp","bearer_methods_supported":["header"],"tls_client_certificate_bound_access_tokens":false,"authorization_servers":["http://localhost:9020"]}
+
+===== 3. 인가 서버 메타데이터 (RFC 8414) =====
+HTTP/1.1 200 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Content-Length: 1282
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+{"issuer":"http://localhost:9020","authorization_endpoint":"http://localhost:9020/oauth2/authorize","token_endpoint":"http://localhost:9020/oauth2/token","token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"jwks_uri":"http://localhost:9020/oauth2/jwks","response_types_supported":["code"],"grant_types_supported":["authorization_code","client_credentials","refresh_token","urn:ietf:params:oauth:grant-type:token-exchange"],"revocation_endpoint":"http://localhost:9020/oauth2/revoke","revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"introspection_endpoint":"http://localhost:9020/oauth2/introspect","introspection_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"code_challenge_methods_supported":["S256"],"tls_client_certificate_bound_access_tokens":true,"dpop_signing_alg_values_supported":["RS256","RS384","RS512","PS256","PS384","PS512","ES256","ES384","ES512"],"authorization_response_iss_parameter_supported":true}
+
+===== 4. 사용자 로그인 (인가 서버 폼) =====
+HTTP/1.1 302 
+Set-Cookie: MEMAUTHSESSIONID=B3776AB69264F9EE476676565E0AF561; Path=/; HttpOnly
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+
+
+===== 5. 인가 요청 (PKCE S256 + resource) =====
+HTTP/1.1 302 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Location: http://localhost:8130/login/oauth2/code/authserver?code=OmcjHIgqKyCnJUMPLVy_Dkid1sJnZfiQeJjYC0RYHJvMYgU52VVs6EwdVcm7HHOvOEjXtfTNN0iaxR92K6s9780BCi57IYdKkDrvJ7FpGCyJZUJkuqtfR-LSwqI9PZay&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9020
+Content-Length: 0
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+
+
+===== 6. 토큰 요청 (code_verifier + resource) =====
+{"access_token":"eyJraWQiOiJkMmJjZTM3OC0zNjFkLTQyMzAtOTY5ZS0zMTI1Mzc5ZTI3NDEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhbGljZSIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODEzMS9tY3AiLCJuYmYiOjE3ODk0NzQyMTYsInNjb3BlIjpbIm9wZW5pZCIsInByb2ZpbGUiXSwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo5MDIwIiwiZXhwIjoxNzg5NDc0NTE2LCJpYXQiOjE3ODk0NzQyMTYsImp0aSI6ImJhZTVlZGFiLWIyZDUtNDU5My1iYmUzLWUxNGE5ZGZhOWJlNCJ9.C5ROhTdjyCXkYWaWR5MqyOToyrhY4hSN1ldxKCtPXXwZhg8sKmsG4dDyUin5Wsl0SXfxvgPVEABZQsz2-HiGf4L8e8ce4LWHhM2oHjdPjLYQhfMEn6iHJ5LacdLuMJJBuPF3Uy9a5DDA1XHoe9Ju58PQXYE6x78OI5H5PDmr25yFvhD2DQleZYmxZLCyKO_SpvQxJcj8QjhNGcpOrWwDZjgcd1N2lCimaOnrYnOBtAk8VTviCEZFDQZTa5zao5WM9htKf39-2xQmTzjm1-73QGklvVW58QimtP4xEanj5OyaXUi6hXkyfn0J4yN5buV4CN0Qxv5seiVu51Iy61nVhA","refresh_token":"z_vv5CUhNBIwRc3C42OW7Csio6pSCuQxKPxbiByG5uzL7fmpjeWriIiZpDDXeFUoA_rH1uUtXlPmE9oCrXwg5V2-AqZqBnMCzfXj84YAVyVLKhVW3PyzKbLrYZO-6uHg","scope":"openid profile","id_token":"eyJraWQiOiJkMmJjZTM3OC0zNjFkLTQyMzAtOTY5ZS0zMTI1Mzc5ZTI3NDEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhbGljZSIsImF1ZCI6Im1lbW9yeS1hZ2VudCIsImF6cCI6Im1lbW9yeS1hZ2VudCIsImF1dGhfdGltZSI6MTc4OTQ3NDIxNiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo5MDIwIiwiZXhwIjoxNzg5NDc2MDE2LCJpYXQiOjE3ODk0NzQyMTYsImp0aSI6IjkzZjNiZDM0LTUzMzgtNGFiZS04NmMwLTZkY2Y3ODAyMzk3OCIsInNpZCI6IjZZX3BrNWdmaHNvcUY2Z2tEdlpSLVdZcFl4ZlZCYzlwcHczUFNNZVVlV28ifQ.SA2jz8wAKCVixben1djz54q--G1xvD0tYzyp88wMBpOLPKVsuVmZmjbNTymPZHT74VGPVgbTvB2bKnAJUYtljkYvNX_BBTEpAzkURT3ALj1vhRxH_Shx5UFFfHmvxfqIEZxtm3ms6NwW8XQmgr3ay62V0ZiU9_PEjlOUs6pqL4Up9M4uSCu6ohHAkkCDsUqiphg8LNxWQkBjm1yMCt2fwNnVd8sKHbzBed_h2yYvOZiR7sou2DlL5-4VNEHXf1Aa1XB1O_g9EQeX-pErr4BSc0s0HvWNXkwJXZi8ot91kcUgv8tHfMl7VYQGqqcR44eLVQnqyKQuNAEEScLZpkEcTQ","token_type":"Bearer","expires_in":299}
+
+
+===== 6-1. access token 페이로드 (aud 가 MCP 서버다) =====
+{"sub":"alice","aud":"http://localhost:8131/mcp","nbf":1789474216,"scope":["openid","profile"],"iss":"http://localhost:9020","exp":1789474516,"iat":1789474216,"jti":"bae5edab-b2d5-4593-bbe3-e14a9dfa9be4"}
+
+
+===== 6-2. id token 페이로드 (aud 는 클라이언트다) =====
+{"sub":"alice","aud":"memory-agent","azp":"memory-agent","auth_time":1789474216,"iss":"http://localhost:9020","exp":1789476016,"iat":1789474216,"jti":"93f3bd34-5338-4abe-86c0-6dcf78023978","sid":"6Y_pk5gfhsoqF6gkDvZR-WYpYxfVBc9ppw3PSMeUeWo"}
+
+
+===== 7. initialize (Bearer) =====
+HTTP/1.1 200 
+Mcp-Session-Id: f5e23d5d-bbe1-4a91-a6a1-be0d22aae537
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Content-Length: 289
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"completions":{},"logging":{},"prompts":{"listChanged":true},"resources":{"subscribe":false,"listChanged":true},"tools":{"listChanged":true}},"serverInfo":{"name":"memory-shop-mcp-server","version":"0.0.1"}}}
+
+
+===== 8. notifications/initialized (202) =====
+HTTP/1.1 202 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Length: 0
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+
+
+===== 9. tools/list =====
+HTTP/1.1 200 
+Cache-Control: no-cache
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+X-Frame-Options: DENY
+Content-Type: text/event-stream
+Transfer-Encoding: chunked
+Date: Tue, 15 Sep 2026 12:10:16 GMT
+
+id:f5e23d5d-bbe1-4a91-a6a1-be0d22aae537
+event:message
+data:{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. 상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"}},"required":["productId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"searchProducts","title":"searchProducts","description":"판매 중인 상품을 검색한다. 각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. 키워드는 상품명과 카테고리명에만 부분일치로 적용된다. 따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 (예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"keyword":{"type":"string","description":"상품명 또는 카테고리명의 일부. 가격·재고 같은 조건이나 문장을 넣으면 안 된다. 특정 상품을 지목하지 않는 질문이면 생략한다."}},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}}]}}
+
+
+
+===== 10. tools/call =====
+HTTP/1.1 200 
+Cache-Control: no-cache
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+X-Frame-Options: DENY
+Content-Type: text/event-stream
+Transfer-Encoding: chunked
+Date: Tue, 15 Sep 2026 12:10:17 GMT
+
+id:f5e23d5d-bbe1-4a91-a6a1-be0d22aae537
+event:message
+data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다."}],"isError":false}}
+
+
+
+===== 11. refresh_token 으로 갱신 (resource 를 다시 싣는다) =====
+{"access_token":"eyJraWQiOiJkMmJjZTM3OC0zNjFkLTQyMzAtOTY5ZS0zMTI1Mzc5ZTI3NDEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhbGljZSIsImF1ZCI6Imh0dHA6Ly9sb2NhbGhvc3Q6ODEzMS9tY3AiLCJuYmYiOjE3ODk0NzQyMTcsInNjb3BlIjpbIm9wZW5pZCIsInByb2ZpbGUiXSwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo5MDIwIiwiZXhwIjoxNzg5NDc0NTE3LCJpYXQiOjE3ODk0NzQyMTcsImp0aSI6IjI0MGE0NjQ0LTg0YmYtNDI0Zi04Mzc1LTJkZjg1ODY3MTE4YyJ9.lHn1SDf_EDoy2kK8hy0CEx7P2s5HhlEzS_EoTdfSnkcAMxeBVgcnazi9ErR7HaXTDl-wfBXKyqlYbwb8eY-3jdqEqFLKxXrUhsUmn5Bh2q-Sx9jP8KqBAJOcRnsZ0LbCzwXSpTo2_Lo1NZ5jW77lPx08TAwM1R0mAtz2a7w1jg7g730HTOx8LE_4xS1jXLsU18393CZVLe_3DQMb1FMRFs0Mia-52p5OAoa0v4RbIlptZLAAaTRpYxhomvgqMEOWqrsvHHS1k-z7ovO1CmMvtw86a0Cp_UaxJldid-LWJ77P3kyU-Nbdv5si2-W66LkPPbXO7boG2WhZJeHMphGN8Q","refresh_token":"z_vv5CUhNBIwRc3C42OW7Csio6pSCuQxKPxbiByG5uzL7fmpjeWriIiZpDDXeFUoA_rH1uUtXlPmE9oCrXwg5V2-AqZqBnMCzfXj84YAVyVLKhVW3PyzKbLrYZO-6uHg","scope":"openid profile","id_token":"eyJraWQiOiJkMmJjZTM3OC0zNjFkLTQyMzAtOTY5ZS0zMTI1Mzc5ZTI3NDEiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJhbGljZSIsImF1ZCI6Im1lbW9yeS1hZ2VudCIsImF6cCI6Im1lbW9yeS1hZ2VudCIsImF1dGhfdGltZSI6MTc4OTQ3NDIxNiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo5MDIwIiwiZXhwIjoxNzg5NDc2MDE3LCJpYXQiOjE3ODk0NzQyMTcsImp0aSI6IjNiNmU0NGM3LTY4Y2ItNGVkMC04YTNhLTM2ODU1NmFmNTRjOCIsInNpZCI6IjZZX3BrNWdmaHNvcUY2Z2tEdlpSLVdZcFl4ZlZCYzlwcHczUFNNZVVlV28ifQ.Og3Mode8pSQNn03YzNc9IItuT0PJA5ytlSpyWkBfK1A0ZkKATdPt65PTq6AlK1QTTCMNbCAifv2Isk34s7-wLc5xQ-B2HNBK9D4GCUv0aoo5CMVFQ2xZkMw9Cr3zsuJB0fXMxDRf7Nqov6Fe-ankABagMNuUshLdU3aAcH3bgoy0yTCh6f6eGWosGdsSli97EAJLM1wMgVNRq0Re0PXqPDDbeNiHcbik3lgi6EAg1-FsfRaifFofe1np9lQ6T0sragpTP4orY0Cktx_PiuPHYkNLdKK4_SCsCR6QbktE5E2bj1m0brd8yA5vDV-J5WRemHrlJaPrRFRnEClzAI8NHA","token_type":"Bearer","expires_in":299}
+{"sub":"alice","aud":"http://localhost:8131/mcp","nbf":1789474217,"scope":["openid","profile"],"iss":"http://localhost:9020","exp":1789474517,"iat":1789474217,"jti":"240a4644-84bf-424f-8375-2df85867118c"}
+
+
+===== 12. 오류: aud 가 다른 토큰(id_token)을 Bearer 로 쓴다 =====
+HTTP/1.1 401 
+WWW-Authenticate: Bearer error="invalid_token", error_description="An error occurred while attempting to decode the Jwt: The aud claim is not valid", error_uri="https://tools.ietf.org/html/rfc6750#section-3.1", resource_metadata="http://localhost:8131/.well-known/oauth-protected-resource/mcp"
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Length: 0
+Date: Tue, 15 Sep 2026 12:10:17 GMT
+
+
+
+===== 13. 오류: 허용되지 않은 Origin =====
+HTTP/1.1 403 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: text/plain;charset=UTF-8
+Content-Length: 21
+Date: Tue, 15 Sep 2026 12:10:17 GMT
+
+Invalid Origin header
+
+===== 14. 오류: Mcp-Session-Id 없이 tools/list =====
+HTTP/1.1 400 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json
+Transfer-Encoding: chunked
+Date: Tue, 15 Sep 2026 12:10:17 GMT
+Connection: close
+
+{"jsonRpcError":{"code":-32601,"message":"Session ID missing"},"cause":null,"localizedMessage":"Session ID missing","message":"Session ID missing","stackTrace":[{"classLoaderName":"app","className":"io.modelcontextprotocol.spec.McpError$Builder","fileName":"McpError.java","lineNumber":81,"methodName":"build","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider","fileName":"WebMvcStreamableServerTransportProvider.java","lineNumber":449,"methodName":"handlePost","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.servlet.function.support.HandlerFunctionAdapter","fileName":"HandlerFunctionAdapter.java","lineNumber":106,"methodName":"handle","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.servlet.DispatcherServlet","fileName":"DispatcherServlet.java","lineNumber":963,"methodName":"doDispatch","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.servlet.DispatcherServlet","fileName":"DispatcherServlet.java","lineNumber":866,"methodName":"doService","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.servlet.FrameworkServlet","fileName":"FrameworkServlet.java","lineNumber":1000,"methodName":"processRequest","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.servlet.FrameworkServlet","fileName":"FrameworkServlet.java","lineNumber":903,"methodName":"doPost","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"jakarta.servlet.http.HttpServlet","fileName":"HttpServlet.java","lineNumber":649,"methodName":"service","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.servlet.FrameworkServlet","fileName":"FrameworkServlet.java","lineNumber":874,"methodName":"service","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"jakarta.servlet.http.HttpServlet","fileName":"HttpServlet.java","lineNumber":710,"methodName":"service","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":128,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.tomcat.websocket.server.WsFilter","fileName":"WsFilter.java","lineNumber":53,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":107,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"dev.starryeye.memoryauthn.mcpserver.McpProtocolVersionFilter","fileName":"McpProtocolVersionFilter.java","lineNumber":67,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":107,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.CompositeFilter$VirtualFilterChain","fileName":"CompositeFilter.java","lineNumber":108,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy","fileName":"FilterChainProxy.java","lineNumber":235,"methodName":"lambda$doFilterInternal$2","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":376,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.access.intercept.AuthorizationFilter","fileName":"AuthorizationFilter.java","lineNumber":101,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.access.ExceptionTranslationFilter","fileName":"ExceptionTranslationFilter.java","lineNumber":126,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.access.ExceptionTranslationFilter","fileName":"ExceptionTranslationFilter.java","lineNumber":120,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.authentication.AnonymousAuthenticationFilter","fileName":"AnonymousAuthenticationFilter.java","lineNumber":100,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter","fileName":"SecurityContextHolderAwareRequestFilter.java","lineNumber":181,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.savedrequest.RequestCacheAwareFilter","fileName":"RequestCacheAwareFilter.java","lineNumber":63,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter","fileName":"BearerTokenAuthenticationFilter.java","lineNumber":207,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.oauth2.server.resource.web.OAuth2ProtectedResourceMetadataFilter","fileName":"OAuth2ProtectedResourceMetadataFilter.java","lineNumber":98,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.authentication.logout.LogoutFilter","fileName":"LogoutFilter.java","lineNumber":110,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.authentication.logout.LogoutFilter","fileName":"LogoutFilter.java","lineNumber":96,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.header.HeaderWriterFilter","fileName":"HeaderWriterFilter.java","lineNumber":90,"methodName":"doHeadersAfter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.header.HeaderWriterFilter","fileName":"HeaderWriterFilter.java","lineNumber":75,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.context.SecurityContextHolderFilter","fileName":"SecurityContextHolderFilter.java","lineNumber":82,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.context.SecurityContextHolderFilter","fileName":"SecurityContextHolderFilter.java","lineNumber":69,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter","fileName":"WebAsyncManagerIntegrationFilter.java","lineNumber":62,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.session.DisableEncodeUrlFilter","fileName":"DisableEncodeUrlFilter.java","lineNumber":42,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy$VirtualFilterChain","fileName":"FilterChainProxy.java","lineNumber":385,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy","fileName":"FilterChainProxy.java","lineNumber":237,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.web.FilterChainProxy","fileName":"FilterChainProxy.java","lineNumber":195,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.CompositeFilter$VirtualFilterChain","fileName":"CompositeFilter.java","lineNumber":113,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.ServletRequestPathFilter","fileName":"ServletRequestPathFilter.java","lineNumber":52,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.CompositeFilter$VirtualFilterChain","fileName":"CompositeFilter.java","lineNumber":113,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.CompositeFilter","fileName":"CompositeFilter.java","lineNumber":74,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy","fileName":"WebSecurityConfiguration.java","lineNumber":317,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.DelegatingFilterProxy","fileName":"DelegatingFilterProxy.java","lineNumber":355,"methodName":"invokeDelegate","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.DelegatingFilterProxy","fileName":"DelegatingFilterProxy.java","lineNumber":272,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":107,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.RequestContextFilter","fileName":"RequestContextFilter.java","lineNumber":100,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":107,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.FormContentFilter","fileName":"FormContentFilter.java","lineNumber":93,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":107,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.CharacterEncodingFilter","fileName":"CharacterEncodingFilter.java","lineNumber":199,"methodName":"doFilterInternal","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.springframework.web.filter.OncePerRequestFilter","fileName":"OncePerRequestFilter.java","lineNumber":116,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.ApplicationFilterChain","fileName":"ApplicationFilterChain.java","lineNumber":107,"methodName":"doFilter","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.StandardWrapperValve","fileName":"StandardWrapperValve.java","lineNumber":165,"methodName":"invoke","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.StandardContextValve","fileName":"StandardContextValve.java","lineNumber":77,"methodName":"invoke","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.authenticator.AuthenticatorBase","fileName":"AuthenticatorBase.java","lineNumber":492,"methodName":"invoke","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.StandardHostValve","fileName":"StandardHostValve.java","lineNumber":113,"methodName":"invoke","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.valves.ErrorReportValve","fileName":"ErrorReportValve.java","lineNumber":83,"methodName":"invoke","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.core.StandardEngineValve","fileName":"StandardEngineValve.java","lineNumber":72,"methodName":"invoke","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.catalina.connector.CoyoteAdapter","fileName":"CoyoteAdapter.java","lineNumber":341,"methodName":"service","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.coyote.http11.Http11Processor","fileName":"Http11Processor.java","lineNumber":397,"methodName":"service","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.coyote.AbstractProcessorLight","fileName":"AbstractProcessorLight.java","lineNumber":63,"methodName":"process","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.coyote.AbstractProtocol$ConnectionHandler","fileName":"AbstractProtocol.java","lineNumber":1272,"methodName":"process","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.tomcat.util.net.NioEndpoint$SocketProcessor","fileName":"NioEndpoint.java","lineNumber":1801,"methodName":"doRun","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.tomcat.util.net.SocketProcessorBase","fileName":"SocketProcessorBase.java","lineNumber":52,"methodName":"run","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.tomcat.util.threads.ThreadPoolExecutor","fileName":"ThreadPoolExecutor.java","lineNumber":946,"methodName":"runWorker","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker","fileName":"ThreadPoolExecutor.java","lineNumber":480,"methodName":"run","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":"app","className":"org.apache.tomcat.util.threads.TaskThread$WrappingRunnable","fileName":"TaskThread.java","lineNumber":57,"methodName":"run","moduleName":null,"moduleVersion":null,"nativeMethod":false},{"classLoaderName":null,"className":"java.lang.Thread","fileName":"Thread.java","lineNumber":1583,"methodName":"run","moduleName":"java.base","moduleVersion":"21.0.6","nativeMethod":false}],"suppressed":[]}
+
+===== 15. 오류: 지원하지 않는 MCP-Protocol-Version =====
+HTTP/1.1 400 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Type: application/json;charset=ISO-8859-1
+Content-Length: 108
+Date: Tue, 15 Sep 2026 12:10:17 GMT
+Connection: close
+
+{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Unsupported MCP-Protocol-Version: 1999-01-01"}}
+
+===== 16. 오류: 모르는 resource 로 인가 요청 (invalid_target) =====
+HTTP/1.1 302 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Location: http://localhost:8130/login/oauth2/code/authserver?error=invalid_target&error_description=The%20requested%20resource%20is%20not%20a%20known%20protected%20resource&error_uri=https%3A%2F%2Fwww.rfc-editor.org%2Frfc%2Frfc8707%23section-2&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9020
+
+
+===== 17. 오류: PKCE 없는 인가 요청 (invalid_request) =====
+HTTP/1.1 302 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Location: http://localhost:8130/login/oauth2/code/authserver?error=invalid_request&error_description=OAuth%202.0%20Parameter%3A%20code_challenge&error_uri=https%3A%2F%2Fdatatracker.ietf.org%2Fdoc%2Fhtml%2Frfc7636%23section-4.4.1&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9020
+
+
+===== 18. 세션 종료 (DELETE) =====
+HTTP/1.1 200 
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 0
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Frame-Options: DENY
+Content-Length: 0
+Date: Tue, 15 Sep 2026 12:10:17 GMT
+

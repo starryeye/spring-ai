@@ -46,6 +46,8 @@ spring:
     oauth2:
       client:
         registration:
+          # 여기에는 자격증명만 둔다. 인가 서버의 엔드포인트는 설정에 적지 않고
+          # MCP 서버에게 물어서 알아낸다(McpAuthorizationDiscovery).
           authserver:
             client-id: memory-agent
             client-secret: memory-agent-secret
@@ -54,9 +56,13 @@ spring:
             scope:
               - openid
               - profile
-        provider:
-          authserver:
-            issuer-uri: http://localhost:9020
+
+mcp:
+  authorization:
+    # 발견의 출발점. 이 URL 하나만 알면 인가 서버는 따라온다.
+    resource-url: http://localhost:8131/mcp
+    # 위 자격증명이 등록된 인가 서버. 발견 결과가 다르면 자격증명을 보내지 않는다.
+    credentials-issuer: http://localhost:9020
 
 logging:
   level:

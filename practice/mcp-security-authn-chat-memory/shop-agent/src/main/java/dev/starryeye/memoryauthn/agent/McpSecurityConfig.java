@@ -3,36 +3,54 @@ package dev.starryeye.memoryauthn.agent;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
+import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.web.client.RestClient;
 
 /**
- * community 버전에서 {@code mcp-client-security-spring-boot} 의 자동설정이
- * 통째로 해주던 배선이다. 공식 구성에서는 이 파일이 그 역할을 한다.
+ * MCP 호출에 쓸 토큰을 마련하는 배선.
+ *
+ * <p>인가 서버의 위치는 설정이 아니라 발견에서 온다. 토큰 요청과 갱신 요청에는
+ * RFC 8707 {@code resource} 를 실어, 발급되는 토큰이 이 MCP 서버 전용이 되게 한다.
  */
 @Configuration
+// OAuth2ClientProperties 를 직접 켠다: Boot 의 OAuth2ClientAutoConfiguration 은 이 프로퍼티를
+// ClientRegistrationRepository 빈과 같은 조건부 설정 클래스에 묶어 두는데, 그 클래스는
+// @ConditionalOnMissingBean(ClientRegistrationRepository.class) 로 우리가 아래서 직접 만드는
+// DiscoveredClientRegistrationRepository 빈이 있으면 통째로 비활성화된다 — OAuth2ClientProperties
+// 도 같이 사라져 자격증명(client-id/secret) 을 읽어올 곳이 없어진다. 그래서 여기서 따로 켠다.
+@EnableConfigurationProperties({ McpAuthorizationProperties.class, OAuth2ClientProperties.class })
 public class McpSecurityConfig {
 
-    /**
-     * application.yml 의 registration 키와 같아야 한다. 패키지 전용으로 열어 둔 것은
-     * 테스트({@code McpSecurityConfigTest})가 yml 설정과 실제로 일치하는지
-     * {@code ClientRegistrationRepository} 조회로 검증하기 위해서다 — 하드코딩된 이
-     * 상수가 yml 과 따로 놀게 되는 상황을 테스트가 잡아낸다.
-     */
+    /** application.yml 의 registration 키와 같아야 한다. */
     static final String REGISTRATION_ID = "authserver";
 
+    @Bean
+    public McpAuthorizationDiscovery mcpAuthorizationDiscovery() {
+        return new McpAuthorizationDiscovery(RestClient.create());
+    }
+
+    @Bean
+    public DiscoveredClientRegistrationRepository clientRegistrationRepository(McpAuthorizationDiscovery discovery,
+            McpAuthorizationProperties properties, OAuth2ClientProperties clientProperties) {
+        return new DiscoveredClientRegistrationRepository(discovery, properties, clientProperties);
+    }
+
     /**
-     * 인가된 클라이언트를 <b>세션이 아니라 서비스</b>에 저장한다.
-     *
-     * <p>이 빈이 있으면 {@code oauth2Login} 이 로그인 성공 시 여기에 저장하고,
-     * 나중에 {@code Authentication} 만으로 토큰을 꺼낼 수 있다.
-     * 서블릿 요청·응답이 필요 없어지므로 리액터 스레드에서도 동작한다 —
-     * 스트리밍 응답에서 토큰을 붙이려면 이 성질이 필요하다.
+     * 인가된 클라이언트를 세션이 아니라 서비스에 저장한다. 서블릿 요청 없이
+     * {@code Authentication} 만으로 토큰을 꺼낼 수 있어야 리액터 스레드에서도 토큰을 붙인다.
      */
     @Bean
     public OAuth2AuthorizedClientService authorizedClientService(
@@ -40,18 +58,46 @@ public class McpSecurityConfig {
         return new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
     }
 
+    /** 로그인(코드 교환) 때 쓰는 토큰 요청 클라이언트. resource 를 함께 보낸다. */
+    @Bean
+    public RestClientAuthorizationCodeTokenResponseClient authorizationCodeTokenResponseClient(
+            DiscoveredClientRegistrationRepository registrations) {
+        var tokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
+        tokenResponseClient.addParametersConverter(
+                ResourceIndicators.tokenRequest(() -> registrations.discovered().resource()));
+        return tokenResponseClient;
+    }
+
+    /** 액세스 토큰이 만료된 뒤 쓰는 갱신 클라이언트. 여기에도 resource 가 필요하다. */
+    @Bean
+    public RestClientRefreshTokenTokenResponseClient refreshTokenTokenResponseClient(
+            DiscoveredClientRegistrationRepository registrations) {
+        var tokenResponseClient = new RestClientRefreshTokenTokenResponseClient();
+        tokenResponseClient.addParametersConverter(
+                ResourceIndicators.tokenRequest(() -> registrations.discovered().resource()));
+        return tokenResponseClient;
+    }
+
     /**
-     * {@code AuthorizedClientServiceOAuth2AuthorizedClientManager} 는
-     * {@code HttpServletRequest} 를 요구하지 않는다. community 가 쓰던
-     * {@code DefaultOAuth2AuthorizedClientManager} 와 다른 점이고,
-     * 그 차이가 이 practice 를 internal API 없이 가능하게 하는 열쇠다.
+     * 이 매니저의 기본 구성에는 갱신이 들어 있지 않다. refresh provider 를 직접 넣어야
+     * 만료된 토큰이 갱신된다.
+     *
+     * <p>테스트가 이 메서드를 직접 호출해야 해서 static 으로 둔다. Spring 은 static
+     * {@code @Bean} 메서드도 정상적으로 지원하며, 세 번째 인자는 구체 타입인
+     * {@code RestClientRefreshTokenTokenResponseClient} 빈이 타입 할당 가능성으로
+     * 주입된다.
      */
     @Bean
-    public OAuth2AuthorizedClientManager authorizedClientManager(
+    static AuthorizedClientServiceOAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AuthorizedClientService authorizedClientService) {
-        return new AuthorizedClientServiceOAuth2AuthorizedClientManager(
-                clientRegistrationRepository, authorizedClientService);
+            OAuth2AuthorizedClientService authorizedClientService,
+            OAuth2AccessTokenResponseClient<OAuth2RefreshTokenGrantRequest> refreshTokenTokenResponseClient) {
+        var manager = new AuthorizedClientServiceOAuth2AuthorizedClientManager(clientRegistrationRepository,
+                authorizedClientService);
+        manager.setAuthorizedClientProvider(OAuth2AuthorizedClientProviderBuilder.builder()
+                .refreshToken(refreshToken -> refreshToken.accessTokenResponseClient(refreshTokenTokenResponseClient))
+                .build());
+        return manager;
     }
 
     /** 모든 MCP 동기 클라이언트에 인증 전달용 컨텍스트 공급자를 꽂는다. */
