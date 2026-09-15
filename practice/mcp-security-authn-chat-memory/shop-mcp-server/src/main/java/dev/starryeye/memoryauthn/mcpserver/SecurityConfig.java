@@ -1,35 +1,67 @@
 package dev.starryeye.memoryauthn.mcpserver;
 
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.UrlUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * community 버전에는 이 파일이 <b>없었다</b>. mcp-server-security-spring-boot 의
- * 자동설정이 필터체인을 대신 만들어 줬고, 오히려 여기에 이런 빈을 정의하면
- * {@code @ConditionalOnDefaultWebSecurity} 때문에 그 자동설정이 통째로 물러났다.
+ * MCP 서버는 OAuth 2.0 보호 리소스다(MCP 2025-11-25 인가 §1).
  *
- * <p>공식 구성에서는 반대다 — 내가 전부 쓴다. 코드는 늘지만 숨은 동작이 없다.
- * 무엇이 켜지는지가 이 메서드 안에 전부 보인다.
+ * <p>여기서 켜는 것은 세 가지다.
+ * <ul>
+ *   <li>RFC 9728 보호 리소스 메타데이터 — 클라이언트가 인가 서버를 찾는 출발점</li>
+ *   <li>401 챌린지의 {@code resource_metadata} — 그 메타데이터의 위치를 알려준다</li>
+ *   <li>토큰 검증 — 서명·{@code iss}(issuer-uri)와 {@code aud}(audiences 속성)</li>
+ * </ul>
  */
 @Configuration
 public class SecurityConfig {
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                .oauth2ResourceServer(resourceServer -> resourceServer
-                        // issuer-uri 로 JWK 를 받아 서명·issuer 를 검증한다.
-                        .jwt(Customizer.withDefaults())
-                        // RFC 9728 보호 리소스 메타데이터.
-                        // community 는 이것을 위해 라이브러리를 썼는데,
-                        // Spring Security 7.1 에 이미 들어와 있다.
-                        .protectedResourceMetadata(Customizer.withDefaults()))
-                // 무상태 리소스 서버다. 토큰으로만 인증하므로 CSRF 토큰을 쓰지 않는다.
-                .csrf(csrf -> csrf.disable())
-                .build();
-    }
+	private static final String PROTECTED_RESOURCE_METADATA = "/.well-known/oauth-protected-resource";
+
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http,
+			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) throws Exception {
+		return http
+				.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+				.oauth2ResourceServer(resourceServer -> resourceServer
+						.jwt(Customizer.withDefaults())
+						.authenticationEntryPoint(resourceMetadataEntryPoint())
+						.protectedResourceMetadata(metadata -> metadata
+								.protectedResourceMetadataCustomizer(builder -> builder
+										// MCP 클라이언트는 이 값을 보고 인가 서버로 간다.
+										.authorizationServer(issuer)
+										// 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다(Spring 기본값은 true).
+										.tlsClientCertificateBoundAccessTokens(false))))
+				// 무상태 리소스 서버다. 토큰으로만 인증하므로 CSRF 토큰을 쓰지 않는다.
+				.csrf(csrf -> csrf.disable())
+				.build();
+	}
+
+	/**
+	 * RFC 9728 §3.1 이 정한 규칙대로, 보호 리소스 URL 의 경로 앞에
+	 * {@code /.well-known/oauth-protected-resource} 를 끼워 넣은 URL 을 알려준다.
+	 * 즉 {@code /mcp} 요청은 {@code /.well-known/oauth-protected-resource/mcp} 를 가리킨다.
+	 */
+	private static BearerTokenAuthenticationEntryPoint resourceMetadataEntryPoint() {
+		BearerTokenAuthenticationEntryPoint entryPoint = new BearerTokenAuthenticationEntryPoint();
+		entryPoint.setResourceMetadataParameterResolver(SecurityConfig::resourceMetadataUrl);
+		return entryPoint;
+	}
+
+	private static String resourceMetadataUrl(HttpServletRequest request) {
+		String path = request.getRequestURI();
+		return UriComponentsBuilder.fromUriString(UrlUtils.buildFullRequestUrl(request))
+				.replacePath(PROTECTED_RESOURCE_METADATA + ("/".equals(path) ? "" : path))
+				.replaceQuery(null)
+				.build()
+				.toUriString();
+	}
 }

@@ -27,11 +27,11 @@ class AuthServerApplicationTests {
 	}
 
 	/**
-	 * community 버전은 이 엔드포인트를 살리려고 OidcDiscoveryConfig 라는 파일을
-	 * 따로 만들어야 했다. 공식 자동설정은 그냥 준다 — 그것을 확인하는 테스트다.
+	 * oauth2Login 은 openid 스코프로 id_token 을 받는다. 그 흐름이 성립하려면
+	 * OIDC 디스커버리 문서가 있어야 한다 — AuthorizationServerConfig 가 oidc() 를 켠다.
 	 */
 	@Test
-	void OIDC_메타데이터를_추가_설정_없이_공개한다() throws Exception {
+	void OIDC_메타데이터를_공개한다() throws Exception {
 		mockMvc.perform(get("/.well-known/openid-configuration"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.issuer").value("http://localhost:9020"));

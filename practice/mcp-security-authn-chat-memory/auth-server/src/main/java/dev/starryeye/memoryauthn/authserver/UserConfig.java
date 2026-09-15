@@ -10,6 +10,9 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
  * 사용자 <b>두 명</b>이다. 부모 practice 는 한 명이었다.
  * 대화 격리는 사용자가 둘 이상이어야 관측할 수 있다 —
  * 한 명으로는 "격리되었다"와 "격리 코드가 없다"를 구분하지 못한다.
+ *
+ * <p>필터체인은 {@link AuthorizationServerConfig} 에 있다. 인가 서버용 체인과
+ * 폼 로그인용 체인 두 개를 직접 정의하므로, Boot 의 기본 인가 서버 필터체인은 물러난다.
  */
 @Configuration
 public class UserConfig {
