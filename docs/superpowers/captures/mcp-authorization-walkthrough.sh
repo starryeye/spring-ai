@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 인증이 포함된 MCP 흐름을 curl 로 한 단계씩 밟으며 요청과 응답을 기록한다.
-# 사용: AS=... MCP_BASE=... CLIENT_ID=... ./mcp-authorization-walkthrough.sh > 결과.txt
+# 사용: AS=... MCP_BASE=... CLIENT_ID=... LOGIN_USERNAME=... LOGIN_PASSWORD=... ./mcp-authorization-walkthrough.sh > 결과.txt
 # 주의: 이 스크립트의 출력(결과.txt)에는 access/refresh/id 토큰 원문(JWT)이 그대로 남는다 — 공유 전 확인할 것.
 set -uo pipefail
 
@@ -20,8 +20,8 @@ MCP="$MCP_BASE/mcp"
 CLIENT_ID=${CLIENT_ID:-official-shop-agent}
 CLIENT_SECRET=${CLIENT_SECRET:-official-shop-agent-secret}
 REDIRECT_URI=${REDIRECT_URI:-http://localhost:8110/login/oauth2/code/authserver}
-USERNAME=${USERNAME:-user}
-PASSWORD=${PASSWORD:-password}
+LOGIN_USERNAME=${LOGIN_USERNAME:-user}
+LOGIN_PASSWORD=${LOGIN_PASSWORD:-password}
 PROTOCOL_VERSION=${PROTOCOL_VERSION:-2025-11-25}
 
 # RFC 7636 부록 B 의 예시 값이다.
@@ -57,9 +57,15 @@ LOGIN_FORM=$(curl -s -c "$JAR" -b "$JAR" "$AS/login")
 CSRF_TAG=$(printf '%s' "$LOGIN_FORM" | grep -o '<input[^>]*name="_csrf"[^>]*>' | head -1)
 CSRF=$(printf '%s' "$CSRF_TAG" | grep -o 'value="[^"]*"' | head -1 | sed 's/^value="//;s/"$//')
 require "CSRF" "$CSRF" "4. 사용자 로그인 (인가 서버 폼)"
-curl -si -c "$JAR" -b "$JAR" -X POST "$AS/login" \
-  --data-urlencode "username=$USERNAME" --data-urlencode "password=$PASSWORD" \
-  --data-urlencode "_csrf=$CSRF" | head -8
+LOGIN_RESPONSE=$(curl -si -c "$JAR" -b "$JAR" -X POST "$AS/login" \
+  --data-urlencode "username=$LOGIN_USERNAME" --data-urlencode "password=$LOGIN_PASSWORD" \
+  --data-urlencode "_csrf=$CSRF")
+echo "$LOGIN_RESPONSE" | head -8
+LOGIN_LOCATION=$(printf '%s' "$LOGIN_RESPONSE" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p')
+if printf '%s' "$LOGIN_LOCATION" | grep -q '/login?error'; then
+  printf '\n[오류] 로그인이 실패했습니다: Location=%s\n' "$LOGIN_LOCATION" >&2
+  exit 1
+fi
 
 step "5. 인가 요청 (PKCE S256 + resource)"
 AUTHORIZE=$(curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
