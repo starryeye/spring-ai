@@ -21,6 +21,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ShopAgentApplicationTests {
 
+	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	McpAuthorizationDiscovery discovery;
+
+	@org.junit.jupiter.api.BeforeEach
+	void 발견_결과를_고정한다() {
+		org.mockito.BDDMockito.given(this.discovery.discover(DiscoveryFixtures.RESOURCE))
+				.willReturn(DiscoveryFixtures.discovered());
+	}
+
 	@Autowired
 	MockMvc mockMvc;
 
@@ -55,16 +64,16 @@ class ShopAgentApplicationTests {
 	 */
 	@Test
 	void OAuth2_클라이언트_등록이_정확히_하나다() {
-		var registration = clientRegistrationRepository.findByRegistrationId("authserver");
+		var registration = clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID);
 
 		assertThat(registration).isNotNull();
 		assertThat(registration.getClientId()).isEqualTo("shop-agent");
-		assertThat(registration.getAuthorizationGrantType().getValue())
-				.isEqualTo("authorization_code");
-
-		// transport 커스터마이저(HttpClientStreamableHttpTransportAutoConfiguration
-		// .preRegisteredClientCustomizer)가 실제로 읽는 것은 이 맵이다. 0개나 2개 이상이면
-		// WARN 한 줄만 남기고 no-op 커스터마이저가 설치되어 토큰이 조용히 안 붙는다.
+		assertThat(registration.getAuthorizationGrantType().getValue()).isEqualTo("authorization_code");
+		// 엔드포인트는 설정이 아니라 발견 결과에서 온다.
+		assertThat(registration.getProviderDetails().getIssuerUri()).isEqualTo(DiscoveryFixtures.ISSUER);
+		assertThat(registration.getProviderDetails().getAuthorizationUri())
+				.isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/authorize");
+		// 모듈의 transport 커스터마이저가 실제로 읽는 것은 이 맵이다.
 		assertThat(oAuth2ClientProperties.getRegistration()).hasSize(1);
 	}
 
@@ -80,5 +89,24 @@ class ShopAgentApplicationTests {
 	@Test
 	void SYNC_클라이언트_보안_자동설정이_로드된다() {
 		assertThat(applicationContext.containsBean("preRegisteredClientCustomizer")).isTrue();
+	}
+
+	/**
+	 * 브라우저로 보내는 인가 요청에 PKCE 챌린지와 resource 가 실려야 한다.
+	 * 둘 중 하나라도 빠지면 인가 서버가 거부하거나(PKCE), 토큰의 aud 가 좁혀지지 않는다(resource).
+	 */
+	@Test
+	void 인가_요청에_PKCE_와_resource_가_실린다() throws Exception {
+		String location = mockMvc.perform(get("/oauth2/authorization/" + McpSecurityConfig.REGISTRATION_ID))
+				.andExpect(status().is3xxRedirection())
+				.andReturn().getResponse().getRedirectedUrl();
+
+		var parameters = org.springframework.web.util.UriComponentsBuilder.fromUriString(location).build()
+				.getQueryParams();
+
+		assertThat(parameters.getFirst("code_challenge_method")).isEqualTo("S256");
+		assertThat(parameters.getFirst("code_challenge")).isNotBlank();
+		assertThat(org.springframework.web.util.UriUtils.decode(parameters.getFirst("resource"),
+				java.nio.charset.StandardCharsets.UTF_8)).isEqualTo(DiscoveryFixtures.RESOURCE);
 	}
 }

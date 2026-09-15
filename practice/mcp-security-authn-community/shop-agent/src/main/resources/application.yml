@@ -60,9 +60,13 @@ spring:
             scope:
               - openid
               - profile
-        provider:
-          authserver:
-            issuer-uri: http://localhost:9000
+
+mcp:
+  authorization:
+    # 발견의 출발점. 이 URL 하나만 알면 인가 서버는 따라온다.
+    resource-url: http://localhost:8101/mcp
+    # 위 자격증명이 등록된 인가 서버. 발견 결과가 다르면 자격증명을 보내지 않는다.
+    credentials-issuer: http://localhost:9000
 
 logging:
   level:
