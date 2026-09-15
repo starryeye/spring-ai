@@ -157,13 +157,14 @@ class McpAuthorizationStandardTest {
 
     @Test
     void 토큰_없는_요청의_챌린지가_경로형_메타데이터를_가리킨다() throws Exception {
-        // 모듈의 BearerResourceMetadataTokenAuthenticationEntryPoint 는 resource_metadata
-        // 값을 원본 practice(Spring Security 의 BearerTokenAuthenticationEntryPoint 자체
-        // 지원)과 달리 인용부호 없이 덧붙인다.
+        // SecurityConfig 는 모듈의 BearerResourceMetadataTokenAuthenticationEntryPoint 를
+        // official 과 같은 Spring Security 의 BearerTokenAuthenticationEntryPoint 로 바꿔 끼운다.
+        // RFC 9110 §11.2 auth-param 문법상 ":" 와 "/" 를 담은 URL 값은 quoted-string 이어야 하므로
+        // resource_metadata 값은 따옴표로 감싸져야 한다.
         this.mockMvc.perform(mcp(null, null, HOST))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
-                        "Bearer resource_metadata=http://localhost:8101/.well-known/oauth-protected-resource/mcp"));
+                        "Bearer resource_metadata=\"http://localhost:8101/.well-known/oauth-protected-resource/mcp\""));
     }
 
     @Test
@@ -180,7 +181,11 @@ class McpAuthorizationStandardTest {
         this.mockMvc.perform(mcp(토큰(ISSUER, "shop-agent"), null, HOST))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
-                        org.hamcrest.Matchers.containsString("error=\"invalid_token\"")));
+                        org.hamcrest.Matchers.containsString("error=\"invalid_token\"")))
+                // 토큰이 있어도 유효하지 않으면 같은 진입점이 응답한다. resource_metadata 값도
+                // 따옴표로 감싸져 있어야 한다(RFC 9110 §11.2 auth-param 문법).
+                .andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString(
+                        "resource_metadata=\"http://localhost:8101/.well-known/oauth-protected-resource/mcp\"")));
     }
 
     @Test
