@@ -1607,3 +1607,258 @@ S11 을 명세와 대조하면, 서버는 405 가 아니라 SSE 로 응답하려
 2026-07-28 에서는 GET 스트림과 세션이 없어진다. 2026-07-28 만 지원하는 서버는 옛 클라이언트의 GET·DELETE 에 `405` 로 답하는 것이 좋다(SHOULD, [6절](#s6)).
 
 ---
+
+<a id="s6"></a>
+
+## 6. 2026-07-28 에서 달라지는 것 — 다이어그램 ⑧
+
+[1.1](#s1)에서 정한 대로 이 문서의 전송·수명주기 기준은 2025-11-25 다. 인가 규칙 중 2026-07-28 이 더한 두 가지 — 인가 응답의 `iss` 검증([4.6](#s4-6))과 자격증명의 issuer 바인딩([4.4](#s4-4)) — 는 이미 기준에 포함해 앞 절에서 다뤘다. 이 절은 나머지 차이, 전송·수명주기를 stateless 로 바꾼 부분을 정리한다. 이 practice 의 MCP Java SDK 2.0.0 은 이 변화를 구현하지 않으므로([6.4](#s6-4)) 아래는 모두 **[명세]**이고 **[관측]**은 없다.
+
+<a id="s6-1"></a>
+
+### 6.1 무엇이 바뀌는가
+
+**[명세]** [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog) — "Major changes" 1~3, 9, 12번.
+
+- **세션 제거.** Streamable HTTP 전송에서 프로토콜 수준 세션과 `Mcp-Session-Id` 헤더를 없앤다. `tools/list`·`resources/list`·`prompts/list` 같은 목록 엔드포인트는 더 이상 연결마다 달라지지 않는다. 호출 사이에 상태가 필요한 서버는 세션 대신, 툴 인자로 주고받는 서버 발급 핸들을 쓴다.
+- **stateless 화.** `initialize`/`notifications/initialized` 핸드셰이크를 없앤다. 모든 요청이 `_meta` 에 프로토콜 버전과 클라이언트 능력을 직접 싣는다 — `io.modelcontextprotocol/protocolVersion`, `io.modelcontextprotocol/clientCapabilities`. 클라이언트는 매 요청에 자신을 알리는 것이 좋고(**SHOULD**, `io.modelcontextprotocol/clientInfo`), 서버는 매 결과의 `_meta` 에 자신을 알리는 것이 좋다(**SHOULD**, `io.modelcontextprotocol/serverInfo`). 버전이 안 맞으면 `UnsupportedProtocolVersionError` 를 돌려준다.
+- **`server/discover` 신설.** 서버는 지원하는 프로토콜 버전·능력·신원을 알리는 이 RPC 를 구현해야 한다(**MUST**, [MCP 2026-07-28 Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)). 클라이언트가 이걸 부르는 것은 선택이다(MAY) — 사전 버전 선택이나 STDIO 하위 호환 탐침에 쓴다. 응답의 `serverInfo` 는 자체 신고 값이라 클라이언트가 보안 판단에 쓰면 안 된다(**SHOULD NOT**).
+- **GET 스트림 제거.** 서버가 언제든 보낼 수 있던 `GET /mcp` SSE 스트림과 `resources/subscribe`/`unsubscribe` 를, opt-in 알림 전용의 단일 장수명 `subscriptions/listen` 스트림으로 바꾼다. `notifications/progress`·`notifications/message` 같은 요청-스코프 알림은 그대로 그 요청의 응답 스트림으로 간다.
+- **재개 제거.** SSE 스트림 재개와 메시지 재전송(`Last-Event-ID`, SSE 이벤트 `id`)을 없앤다. 응답 스트림이 끊기면 그 요청은 사라지고, 클라이언트는 새 요청 ID 로 다시 보내야 한다(**MUST**).
+- **오류 코드 재번호.** JSON-RPC 서버 오류 범위를 나눈다 — `-32000`~`-32019` 는 기존 SDK 관례를 그대로 인정하고, `-32020`~`-32099` 를 MCP 명세 전용으로 예약한다. 이 초안에서 새로 정의됐던 오류를 이 범위로 옮긴다: `HeaderMismatch` `-32001`→`-32020`, `MissingRequiredClientCapability` `-32003`→`-32021`, `UnsupportedProtocolVersion` `-32004`→`-32022`.
+
+**[명세]** [MCP 2026-07-28 Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)
+
+- `MCP-Protocol-Version` 은 여전히 매 POST 에 MUST 이지만, 이제 값이 본문 `_meta` 의 `io.modelcontextprotocol/protocolVersion` 과 **정확히 같아야** 한다(2025-11-25 에는 이런 이중 표기·일치 요구가 없다, [4.8](#s4-8)).
+- 새 헤더 `Mcp-Method`(모든 요청 REQUIRED, 값은 `method` 필드)와 `Mcp-Name`(`tools/call`·`resources/read`·`prompts/get` 요청 REQUIRED, 값은 `params.name` 또는 `params.uri`)이 생긴다.
+- 헤더 값이 본문 값과 다르거나 필수 헤더가 없으면 서버는 `400 Bad Request` + JSON-RPC 오류 코드 `-32020`(`HeaderMismatch`)으로 거부해야 한다(**MUST**).
+- 이 버전만 지원하는 서버가 예전 클라이언트의 `GET`·`DELETE /mcp` 를 받으면 `405 Method Not Allowed` 로, `Mcp-Session-Id` 헤더는 무시하고 세션을 만들지 않는 것이 좋다(**SHOULD**, [Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility)).
+
+<a id="s6-2"></a>
+
+### 6.2 표로 보는 차이
+
+| 항목 | 2025-11-25(이 practice 의 기준) | 2026-07-28 |
+|---|---|---|
+| 핸드셰이크 | `initialize` → `notifications/initialized`([4.8](#s4-8)) | 없음. 모든 요청이 독립적 |
+| 세션 | `Mcp-Session-Id` 발급·검증([4.8](#s4-8), [E9](#e9)) | 없음 |
+| 프로토콜 버전 전달 | `MCP-Protocol-Version` 헤더만(없으면 구버전 가정, [E9](#e9)) | 헤더 + 본문 `_meta` 이중 표기, 불일치 시 `400 HeaderMismatch` |
+| 클라이언트·서버 신원 | `initialize` 요청·응답의 `clientInfo`·`serverInfo`(한 번) | 매 요청 `_meta` 의 `clientInfo`(SHOULD), 매 결과 `_meta` 의 `serverInfo`(SHOULD) |
+| 서버발 스트림 | `GET /mcp` 상시 SSE([E10](#e10)) | `subscriptions/listen`(opt-in, 알림 종류 선택) |
+| 재개 | `Last-Event-ID`, SSE `id`(있으면 세션 내 유일 MUST, [4.8](#s4-8)) | 없음 — 끊기면 새 요청 ID 로 재발행 MUST |
+| 메서드 라우팅 헤더 | 없음 | `Mcp-Method`, `Mcp-Name`(REQUIRED) |
+| 버전·기능 사전 조회 | 없음(`initialize` 응답으로만 앎) | `server/discover`(서버 MUST 구현) |
+| 세션 종료 | `DELETE /mcp`([E10](#e10)) | 없음(세션이 없으므로) |
+
+<a id="s6-3"></a>
+
+### 6.3 다이어그램 ⑧ — stateless 요청 흐름
+
+인가([4.1](#s4-1)~[4.7](#s4-7))는 HTTP 계층의 일이라 2026-07-28 에서도 그대로다. 달라지는 것은 그 아래 MCP 호출 하나뿐이다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 사용자 브라우저
+    participant C as MCP 클라이언트(에이전트)
+    participant M as MCP 서버
+    participant A as 인가 서버
+
+    Note over C: 토큰은 4~7절과 같은 방식으로 이미 마련되어 있다<br/>initialize 도, Mcp-Session-Id 도 없다
+    opt 지원 버전을 먼저 확인하고 싶을 때 (선택)
+        C->>M: POST /mcp server/discover (Authorization: Bearer)
+        M-->>C: 200 supportedVersions, capabilities, serverInfo
+    end
+    C->>M: POST /mcp tools/call<br/>Authorization: Bearer<br/>MCP-Protocol-Version: 2026-07-28<br/>Mcp-Method: tools/call, Mcp-Name: getStock<br/>본문 params._meta: protocolVersion, clientCapabilities, clientInfo
+    Note over M: MCP-Protocol-Version 헤더 == 본문 _meta.protocolVersion ?<br/>Mcp-Method, Mcp-Name 헤더 == 본문 method, params.name ?
+    alt 헤더와 본문이 어긋나거나 필수 헤더가 없음
+        M-->>C: 400 HeaderMismatch(-32020)
+    else 서버가 그 protocolVersion 을 모름
+        M-->>C: 400 UnsupportedProtocolVersionError(-32022), supportedVersions
+    else 검증 통과
+        M-->>C: 200 application/json 또는 text/event-stream (Mcp-Session-Id 없음)
+    end
+    Note over C: 다음 tools/call 도 완전히 새 요청이다<br/>이전 요청과 묶어 주는 세션이 없다
+    C->>M: POST /mcp tools/call (같은 형태, 새 요청)
+    M-->>C: 200 결과
+```
+
+<a id="s6-4"></a>
+
+### 6.4 이 practice 가 이 절을 관측하지 않는 이유
+
+세 practice 의 MCP 클라이언트·서버는 MCP Java SDK 2.0.0(`io.modelcontextprotocol.sdk`) 위에서 동작하고, 그 `ProtocolVersions` 상수는 `2024-11-05`·`2025-03-26`·`2025-06-18`·`2025-11-25` 까지만 정의한다([1.1](#s1)). `server/discover`, `_meta` 기반 stateless 요청, `Mcp-Method`/`Mcp-Name` 헤더를 SDK 가 보내거나 받지 않으므로 이 절의 내용은 캡처로 검증할 수 없다. 앱을 띄우지 않고 명세 원문(2026-07-28 Key Changes, Streamable HTTP, Discovery)만으로 작성했다.
+
+---
+
+<a id="s7"></a>
+
+## 7. 보안 고려사항
+
+이 절은 4~6절에서 다룬 개별 검증이 막는 공격을 한데 모은다. 이미 설명한 메커니즘은 다시 쓰지 않고 절 번호로 가리킨다.
+
+<a id="s7-1"></a>
+
+### 7.1 토큰 passthrough 금지
+
+**[명세]** [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) — MCP 클라이언트는 자기 리소스 서버(MCP 서버)의 인가 서버가 발급하지 않은 토큰을 그 서버에 보내면 안 되고(**MUST NOT**), MCP 서버는 자기 리소스에 유효한 토큰만 받아야 하며(**MUST**) 다른 토큰을 받거나 전달하면 안 된다(**MUST NOT**). [MCP 2025-11-25 Security Best Practices — Token Passthrough](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#token-passthrough) 는 이를 안티패턴으로 규정한다 — MCP 서버가 클라이언트의 토큰이 자기 앞으로 발급됐는지 검증하지 않고 하류 API 에 그대로 넘기는 것. 보안 통제 우회, 감사 추적 단절, 신뢰 경계 붕괴로 이어진다고 설명하고, 대응으로 "MCP 서버는 자기 앞으로 명시적으로 발급되지 않은 어떤 토큰도 받으면 안 된다(**MUST NOT**)"를 든다.
+
+이 practice 의 구조는 이 위험 자체가 성립하지 않는다. MCP 서버(`shop-mcp-server`)는 하류 API 를 호출하지 않는 순수 리소스 서버이고([2절](#s2)), 에이전트가 MCP 서버에 보내는 토큰은 오직 그 사용자가 로그인해 받은 access token 하나뿐이다([4.8](#s4-8) — "토큰은 로그인한 **사용자**의 것이다. 에이전트 자신의 토큰(client credentials)을 쓰지 않는다"). 전달할 다른 토큰이 애초에 없다.
+
+<a id="s7-2"></a>
+
+### 7.2 confused deputy 문제 — audience 검증이 막는 것
+
+**[명세]** [MCP 2025-11-25 Security Best Practices — Confused Deputy Problem](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#confused-deputy-problem) 이 설명하는 시나리오는, MCP 서버가 **하류 제3자 API 에 대한 OAuth 프록시**이고 그 제3자 인가 서버에 **고정된 static client_id** 로 등록되어 있으며, 그 인가 서버가 **동의 쿠키**를 남기고, MCP 서버가 **클라이언트별 동의**를 따로 받지 않을 때 성립한다. 공격자는 동의 쿠키가 남은 사용자에게 조작된 리다이렉트 URI 를 심어, 사용자가 이미 내준 동의를 훔쳐 자기 앞으로 인가 코드를 받는다.
+
+이 practice 는 이 조건을 만족하지 않는다 — MCP 서버가 프록시가 아니고, 제3자 인가 서버에 등록된 static client_id 도 없다([9절](#s9)). 대신 [MCP 2026-07-28 Authorization Security Considerations — Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#access-token-privilege-restriction) 이 규정하는, 더 일반적인 형태의 방어가 이 practice 에 있다 — "MCP 서버는 자기 앞으로 발급된 토큰만 받아야 하고(**MUST**), audience 클레임에 자기가 없는 토큰은 거부해야 한다(**MUST**)."
+
+이것이 [4.7](#s4-7)의 `aud` 발급(`ResourceAudienceTokenCustomizer`)과 [4.9](#s4-9)의 `aud` 검증이다. 인가 서버 하나가 여러 리소스의 토큰을 발급할 수 있는 구조에서, 이 검증이 없으면 어떤 리소스용으로 발급된 토큰이든 다른 리소스가 자기 것처럼 받아 처리해 버리는 "속은 대리인(confused deputy)"이 될 수 있다. audience 검증은 정확히 그 오용을 막는다. [4.9](#s4-9)의 C12 — id_token(`aud=official-shop-agent`)을 MCP 서버로 보내면 401 로 거부되는 것 — 이 그 방어가 동작하는 관측이다.
+
+<a id="s7-3"></a>
+
+### 7.3 mix-up 공격 — `iss` 검증이 막는 것
+
+[4.6](#s4-6)에서 자세히 다뤘다. 요약하면, 클라이언트가 신뢰하는 인가 서버 자리에 공격자의 인가 서버가 섞여 들어가면 인가 코드·토큰이 엉뚱한 곳으로 흐를 수 있고, MCP 는 클라이언트가 **MCP 서버가 알려 주는** 인가 서버로 가기 때문에 악성 MCP 서버의 PRM 이 공격자 인가 서버를 가리키는 식으로 이 조건이 쉽게 만들어진다([RFC 9207 §1](https://www.rfc-editor.org/rfc/rfc9207#section-1)). `AuthorizationResponseIssuerFilter` 가 발견 때 검증한 issuer 와 콜백의 `iss` 를 문자열 그대로 비교해, 다르면 코드를 어떤 토큰 엔드포인트로도 보내지 않는다(S18, S19).
+
+<a id="s7-4"></a>
+
+### 7.4 발견 단계의 SSRF 와 신뢰 경계
+
+**[명세]** [MCP 2025-11-25 Security Best Practices — Server-Side Request Forgery (SSRF)](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) — 발견 과정에서 클라이언트가 여는 URL 은 전부 **MCP 서버가 알려 주는 값**이다: `WWW-Authenticate` 의 `resource_metadata`, PRM 의 `authorization_servers`, 인가 서버 메타데이터의 `token_endpoint`·`authorization_endpoint` 등. 악성 MCP 서버는 이 값들을 내부망 주소나 클라우드 메타데이터 엔드포인트(`http://169.254.169.254/...`)로 채워, 클라이언트가 자기 대신 그 주소에 요청하게 만들 수 있다. 문서는 대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), 리다이렉트 대상 검증, egress 프록시를 든다(전부 **SHOULD**).
+
+이 practice 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egress 프록시)을 구현하지 **않는다** — HTTP 를 그대로 쓰는 로컬 데모이기 때문이다([7.8](#s7-8), [9절](#s9)). 대신 발견 각 단계에서 하는 두 **일치 검증**이 신뢰 범위를 좁힌다.
+
+- PRM 의 `resource` 가 클라이언트가 실제로 요청한 MCP 서버 URL 과 정확히 같아야 한다(RFC 9728 §3.3, [4.2](#s4-2)). MCP 서버가 자기 자신이 아닌 다른 리소스의 메타데이터를 내밀어도 `resource` 가 다르면 그 문서는 버려진다.
+- 인가 서버 메타데이터의 `issuer` 가 그 메타데이터를 요청하는 데 쓴 issuer 식별자와 정확히 같아야 한다(RFC 8414 §3.3, [4.3](#s4-3)). 공격자의 서버가 `https://attacker.example/.well-known/oauth-authorization-server` 에 `"issuer": "https://honest.example"` 를 내밀어도 거부된다 — [MCP 2026-07-28 Authorization Server Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery) 가 이 예시를 그대로 든다.
+
+두 검증 모두 **클라이언트가 그 URL 에 요청을 보내는 것 자체는 막지 못한다.** 이미 보낸 요청과 그 응답이 밖으로 새는 것(예: 오류 메시지에 담긴 내부망 정보)은 이 practice 의 범위 밖이다. 두 검증이 좁히는 것은 "받은 문서를 신뢰해 다음 단계(인가 요청, 토큰 요청)로 넘어갈지"이다 — SSRF 요청 자체가 아니라, SSRF 로 얻은 응답을 신뢰의 근거로 쓰는 것을 막는다.
+
+<a id="s7-5"></a>
+
+### 7.5 redirect URI 정확 일치와 PKCE
+
+**[명세]** [MCP 2026-07-28 Authorization Security Considerations — Open Redirection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#open-redirection) — 인가 서버는 등록된 값과 `redirect_uri` 를 정확히 대조해야 한다(**MUST**). [같은 문서 — Authorization Code Protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-code-protection) — PKCE 는 인가 코드를 가로챈 공격자가 `code_verifier` 없이는 그 코드를 토큰으로 바꿀 수 없게 한다.
+
+이 practice 의 관측: S4([4.5](#s4-5))에서 등록되지 않은 `redirect_uri=http://evil.example/callback` 은 리다이렉트 자체가 되지 않는다(`400`, `Location` 없음) — 코드가 브라우저를 거쳐 공격자에게 갈 방법이 없다. `require-proof-key: true` 가 `code_challenge` 없는 인가 요청을 아예 거부하므로(C17), 이 practice 의 모든 인가 코드는 PKCE 로 보호된다.
+
+<a id="s7-6"></a>
+
+### 7.6 세션 오류 응답의 정보 노출
+
+**[관측]** C14([4.8](#s4-8)) — `Mcp-Session-Id` 없이 `tools/list` 를 보내면 `400` 이 오는 것은 명세대로(**SHOULD**)지만, 응답 본문에 `stackTrace` 필드로 서버 내부의 자바 스택트레이스가 그대로 담긴다. S13 의 존재하지 않는 세션 `404` 응답도 같다. MCP 전송 명세는 이런 오류의 본문 형식을 규정하지 않으므로(`id` 없는 JSON-RPC 오류는 MAY) 이것이 명세 위반은 아니지만, 클래스 이름·패키지 경로·호출 스택이 응답에 그대로 노출되는 것은 정보 노출(information disclosure) 관점의 약점이다 — 내부 구현 세부가 공격 표면 파악에 쓰일 수 있다. Spring AI MCP 서버 전송의 오류 직렬화 방식이며, 이 practice 가 별도로 감싸지 않는다.
+
+<a id="s7-7"></a>
+
+### 7.7 Origin·Host 검증과 DNS 리바인딩
+
+**[명세]** [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) — 서버는 모든 연결의 `Origin` 을 검증해야 하고(**MUST**), 로컬 실행 시 127.0.0.1 에만 바인딩하는 것이 좋다(**SHOULD**). 이 요구가 막으려는 것은 DNS 리바인딩이다 — 공격자의 웹페이지가 피해자의 브라우저를 거쳐 `localhost` 의 MCP 서버에 요청을 보내게 만드는 공격이다. `Origin` 검증은 브라우저가 자동으로 붙이는 이 헤더를 보고 낯선 origin 의 요청을 걸러낸다. [4.8](#s4-8)의 C13(`Origin: http://evil.example` → 403)이 이 검증이고, S14(`Host: evil.example:8111` → 421)는 명세에 규정은 없지만 SDK 의 `DefaultServerTransportSecurityValidator` 가 Host 헤더까지 검증해 같은 부류의 공격(리버스 프록시 뒤에서 Host 를 속여 라우팅을 오인시키는 시도, [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20))을 막는다.
+
+<a id="s7-8"></a>
+
+### 7.8 localhost 에서의 HTTP 사용은 명세 위반이다
+
+**[명세]** [MCP 2026-07-28 Authorization Security Considerations — Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security) (OAuth 2.1 §1.5 를 그대로 따른다):
+
+> "모든 인가 서버 엔드포인트는 HTTPS 로 제공해야 한다(**MUST**). 모든 redirect URI 는 `localhost` 이거나 HTTPS 를 써야 한다(**MUST**)."
+
+이 문장은 두 대상을 다르게 다룬다 — **인가 서버 엔드포인트는 예외 없이 HTTPS MUST** 이고, **redirect URI 만** `localhost` 로 그 요구를 면한다. 이 practice 의 인가 서버는 `http://localhost:9010`(과 9020, 9000)이며, "`localhost` 라서" HTTPS 요구를 벗어날 수 없다 — 명세가 예외를 두는 곳은 redirect URI 뿐이다. 세 practice 모두 인가 엔드포인트·토큰 엔드포인트·MCP 서버를 전부 평문 HTTP 로 노출하며, 이는 로컬 학습 데모를 위한 의도된 선택이다([9절](#s9), [8절](#s8) 12번). 평문 HTTP 에서는 access token·refresh token·client_secret 이 네트워크 경로에 그대로 실린다.
+
+<a id="s7-9"></a>
+
+### 7.9 캡처 원본의 토큰 노출
+
+[1.2](#s1) 각주에서 이미 밝혔듯, `docs/superpowers/captures/2026-09-12-*.txt`·`2026-09-16-official-supplement.txt` 원본에는 access token·refresh token·id_token·인가 코드가 줄이지 않은 원문으로 남아 있다. 이 문서에 인용할 때는 토큰을 앞 20자(코드·refresh_token 은 앞 12자) + `...` 로 줄였지만, 캡처 원본 자체는 그렇지 않다. 모두 로컬 학습용 인가 서버가 발급한 짧은 수명(5~30분)의 토큰이고 인가 서버를 내리면 서명 검증에 쓸 키도 함께 사라지지만, 이 원본 파일을 저장소 밖으로 옮기거나 공유할 때는 그 사실이 사라지지 않는다.
+
+---
+
+<a id="s8"></a>
+
+## 8. 준수표
+
+행은 명세 항목, 열은 세 practice 다. 각 칸은 "예/아니오 + 근거(클래스 이름 또는 캡처 단계)"로 채운다. official 과 chat-memory 는 클래스 구성이 같으므로([2.5](#s2-5)) 근거도 대부분 같다.
+
+| # | 명세 항목 | official | chat-memory | community |
+|---|---|---|---|---|
+| 1 | PRM 제공(RFC 9728 §2 MUST), `resource` 일치(§3.3) | 예 — `SecurityConfig#protectedResourceMetadata`, C2 `resource` 일치 | 예 — 같음 | 예 — 모듈 `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer`, C2 |
+| 2 | 401 의 `resource_metadata`(MCP MUST) | 예 — `resourceMetadataEntryPoint`, C1 | 예 — 같음 | 예 — 모듈 진입점 대신 같은 Spring 진입점, C1 |
+| 3 | 클라이언트의 PRM 발견과 fallback 순서(MUST) | 예 — `McpAuthorizationDiscovery#protectedResourceMetadata`(챌린지→경로형→루트형), `McpAuthorizationDiscoveryTest` | 예 — 같음 | 예 — 모듈 `McpMetadataDiscoveryService#getMcpMetadata`, 같은 순서 |
+| 4 | AS 메타데이터 발견 순서와 `issuer` 검증(MUST) | 예 — `McpAuthorizationDiscovery#metadataUrls`(RFC 8414→OIDC), `#메타데이터의_issuer_가_다르면_실패한다` | 예 — 같음 | 예 — `McpAuthorizationDiscovery` 가 이어받음, 같은 테스트 |
+| 5 | `code_challenge_methods_supported` 확인(MUST) | 예 — `#PKCE_S256_을_광고하지_않으면_진행하지_않는다` | 예 — 같음 | 예 — 같음 |
+| 6 | PKCE S256(MUST) | 예 — `withPkce()` + `require-proof-key: true`, C17 | 예 — 같음 | 예 — 같음(인가 서버 설정 공유) |
+| 7 | `resource` 파라미터 — 인가·토큰·갱신(MUST) | 예 — `ResourceIndicators`(세 지점), C5·C6·C11 | 예 — 같음 | 예 — 같음 |
+| 8 | 토큰 audience 발급과 검증(MUST) | 예 — `ResourceAudienceTokenCustomizer` + `audiences` 설정, C6-1·C12 | 예 — 같음 | 예 — `ResourceAudienceTokenCustomizer` + 모듈 `AudienceValidationJwtDecoder`(기대값을 요청 URL 로 계산 — official 방식과 다름, [4.9](#s4-9) 각주) |
+| 9 | RFC 9207 `iss` — AS 광고(SHOULD)·클라이언트 검증(present 면 MUST) | 예 — `IssuerIdentifyingAuthorizationResponseHandler`(광고), `AuthorizationResponseIssuerFilter`(검증), S18·S19 | 예 — 같음 | 예 — 같음(`McpAuthorizationStandardConfig`) |
+| 10 | 자격증명의 issuer 바인딩(2026-07-28) | 예 — `DiscoveredClientRegistrationRepository`, `#자격증명이_묶인_인가_서버가_아니면_쓰지_않는다` | 예 — 같음 | 예 — 같음 |
+| 11 | `Origin` 검증(MUST), `Host` 검증 | 예 — SDK `DefaultServerTransportSecurityValidator`, C13·S14 | 예 — 같음 | 예 — 모듈 `OriginValidationFilter`(내부는 같은 SDK 검증기), 테스트로 421 확인 |
+| 12 | HTTPS(MUST, [7.8](#s7-8)) | **아니오** — 인가 서버·MCP 서버·에이전트 전부 `http://localhost`. 로컬 데모 목적([9절](#s9)) | **아니오** — 같음 | **아니오** — 같음 |
+| 13 | 토큰 passthrough 금지(MUST, [7.1](#s7-1)) | 예 — 하류 API 가 없고 사용자 토큰만 부착(`OAuth2TokenAttachingRequestCustomizer`) | 예 — 같음 | 예 — 모듈 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer` |
+| 14 | Dynamic Client Registration(RFC 7591, 2026-07-28 deprecated) | 다루지 않음 — 켜지 않음(Spring Authorization Server 기본값), C3 `registration_endpoint` 없음 | 다루지 않음 — 같음 | 다루지 않음 — `dynamic-client-registration.enabled: false` 로 명시적으로 끔 |
+| 15 | Client ID Metadata Document(CIMD) | 다루지 않음 — HTTPS `client_id` 가 전제([9절](#s9)) | 다루지 않음 — 같음 | 다루지 않음 — 같음 |
+| 16 | scope 설계·step-up 인가 | 다루지 않음 — 인증된 요청은 모든 툴 허용([4.9](#s4-9)), 다음 practice(`mcp-security-authz`) 범위([9절](#s9)) | 다루지 않음 — 같음 | 다루지 않음 — 같음 |
+
+12번(HTTPS)은 세 practice 모두 위반이다. 이유는 로컬에서 인가 서버·MCP 서버·에이전트를 각각 다른 포트로 띄우고 TLS 종단 없이 요청·응답을 그대로 관측하기 위해서다([9절](#s9)). 나머지 MUST 항목(1~11, 13)은 세 practice 모두 관측 또는 테스트로 확인했다.
+
+---
+
+<a id="s9"></a>
+
+## 9. 이 practice 에서 다루지 않는 것
+
+| 항목 | 다루지 않는 이유 |
+|---|---|
+| 2026-07-28 전송(stateless) | 세 practice 가 쓰는 MCP Java SDK 2.0.0 의 `ProtocolVersions` 가 `2025-11-25` 까지만 안다([1.1](#s1), [6.4](#s6-4)). `_meta` 기반 요청, `server/discover`, `Mcp-Method`/`Mcp-Name` 헤더를 SDK 가 만들거나 받지 않는다. |
+| Client ID Metadata Document(CIMD) | `client_id` 로 쓰는 문서 URL 이 `https` 스킴이어야 한다(**MUST**, [4.4](#s4-4)). 이 practice 는 인가 서버·에이전트를 전부 `http://localhost` 로 띄우므로 이 전제를 만족할 수 없다. |
+| Dynamic Client Registration(DCR) | 2026-07-28 에서 deprecated 로 표시되고 CIMD 로 대체됐다([4.4](#s4-4)). 사전 등록만으로도 흐름을 다 보일 수 있어 새로 켜지 않았다. |
+| HTTPS | 인가 서버·MCP 서버·에이전트를 로컬에서 여러 포트로 띄워 요청·응답을 그대로 관측하는 것이 이 practice 들의 목적이다. TLS 종단을 두면 관측 스크립트(`curl`)와 설정이 늘어나는 대신, 이 문서가 다루는 인가 흐름 자체에는 새로운 것이 생기지 않는다([7.8](#s7-8), [8절](#s8) 12번). |
+| scope 설계·step-up 인가 | 이 practice 의 MCP 서버는 인증된 요청이면 모든 툴을 허용한다([4.9](#s4-9)) — scope 를 나누지 않는다. scope 최소화, 런타임 `insufficient_scope` 챌린지, step-up 재인가는 다음 practice(`mcp-security-authz`)의 범위다. |
+
+---
+
+<a id="s10"></a>
+
+## 10. 출처
+
+### MCP 명세
+
+- 2025-11-25 Authorization: https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization
+- 2025-11-25 Transports: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+- 2025-11-25 Lifecycle: https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
+- 2025-11-25 Security Best Practices: https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices
+- 2025-11-25 Changelog: https://modelcontextprotocol.io/specification/2025-11-25/changelog
+- 2025-03-26 Authorization(비교용, [2.3](#s2)): https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization
+- 2025-06-18 Changelog(비교용, [2.3](#s2)): https://modelcontextprotocol.io/specification/2025-06-18/changelog
+- 2026-07-28 Key Changes: https://modelcontextprotocol.io/specification/2026-07-28/changelog
+- 2026-07-28 Streamable HTTP: https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http
+- 2026-07-28 Authorization: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
+- 2026-07-28 Authorization Server Discovery: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery
+- 2026-07-28 Client Registration: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration
+- 2026-07-28 Authorization Security Considerations: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations
+- 2026-07-28 server/discover(Discovery): https://modelcontextprotocol.io/specification/2026-07-28/server/discover
+
+### RFC · OAuth · OpenID
+
+- RFC 9728 Protected Resource Metadata: https://www.rfc-editor.org/rfc/rfc9728
+- RFC 8414 Authorization Server Metadata: https://www.rfc-editor.org/rfc/rfc8414
+- RFC 8707 Resource Indicators: https://www.rfc-editor.org/rfc/rfc8707
+- RFC 9207 Issuer Identification: https://www.rfc-editor.org/rfc/rfc9207
+- RFC 7636 PKCE: https://www.rfc-editor.org/rfc/rfc7636
+- RFC 6749 OAuth 2.0: https://www.rfc-editor.org/rfc/rfc6749
+- RFC 6750 Bearer Token Usage: https://www.rfc-editor.org/rfc/rfc6750
+- RFC 7591 Dynamic Client Registration: https://www.rfc-editor.org/rfc/rfc7591
+- RFC 9068 JWT Profile for Access Tokens: https://www.rfc-editor.org/rfc/rfc9068
+- OAuth 2.1: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13
+- OpenID Connect Discovery 1.0: https://openid.net/specs/openid-connect-discovery-1_0.html
+- OAuth Client ID Metadata Document: https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/
+
+### 그 밖에 본문에서 인용한 문서
+
+- RFC 9110 HTTP Semantics(auth-param 문법, 헤더 대소문자, Misdirected Request): https://www.rfc-editor.org/rfc/rfc9110
+- RFC 8705 mTLS Client Authentication(`tls_client_certificate_bound_access_tokens`): https://www.rfc-editor.org/rfc/rfc8705
+- RFC 9449 DPoP(`dpop_signing_alg_values_supported`): https://www.rfc-editor.org/rfc/rfc9449
+- RFC 9396 Rich Authorization Requests(`authorization_details_types_supported`): https://www.rfc-editor.org/rfc/rfc9396
+- RFC 8693 OAuth 2.0 Token Exchange(`scope` 클레임 형식): https://www.rfc-editor.org/rfc/rfc8693
+- OpenID Connect Core 1.0: https://openid.net/specs/openid-connect-core-1_0.html
+- JSON-RPC 2.0: https://www.jsonrpc.org/specification
+
+---
