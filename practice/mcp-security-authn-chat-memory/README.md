@@ -9,6 +9,13 @@
 `auth-server` :9020 / `shop-mcp-server` :8131 / `shop-agent` :8130. 사용자는 `alice`/`alice`,
 `bob`/`bob` 두 명.
 
+> 인증이 포함된 MCP 스펙 자체를 배우려면 [MCP 인가 표준 문서](../MCP-AUTHORIZATION.md) 를
+> 먼저 읽는다. 이 README 는 그 표준을 이 practice 가 어떻게 구현했는지를 다룬다 — 구현은
+> 부모 [`mcp-security-authn-official`](../mcp-security-authn-official)과 동일하다(에이전트가
+> 인가 서버 주소를 설정에 두지 않고 401 챌린지 → 메타데이터 순서로 발견, PKCE(S256)와
+> `resource`, `aud` 검증, `Origin`/`Host` 검증 등). 이 README 는 그 위에 얹은 대화 기억·
+> 격리만 다룬다.
+
 ## 부모와 달라지는 것
 
 | 항목 | 부모 (`chat-memory` 단독일 때) | 여기 (합친 것) |

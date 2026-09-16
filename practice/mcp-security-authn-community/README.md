@@ -4,6 +4,37 @@
 
 `org.springaicommunity` 의 MCP 보안 모듈 3종(`0.1.14`)을 최소로 연동해 보는 practice.
 
+> 인증이 포함된 MCP 스펙 자체를 배우려면 [MCP 인가 표준 문서](../MCP-AUTHORIZATION.md) 를
+> 먼저 읽는다. 이 README 는 그 표준을 이 practice 가 어떻게 구현했는지를 다룬다.
+
+## MCP 인가 표준 준수
+
+라이브러리 3종은 아직 이 표준의 발견·PKCE·`resource`·`iss` 부분을 지원하지 않는다. 그래서
+모듈 위에 아래를 직접 얹었다.
+
+- **에이전트**는 인가 서버 주소를 설정에 두지 않는다. `shop-agent` 는 MCP 서버에 토큰 없이
+  요청해 401 챌린지를 받고, 보호 리소스 메타데이터 → 인가 서버 메타데이터 순으로 발견한다
+  (`McpAuthorizationDiscovery`, `DiscoveredClientRegistrationRepository`). `application.yml`
+  에는 자격증명과 그 자격증명이 묶인 인가 서버(`mcp.authorization.credentials-issuer`)만
+  남는다. 인가 요청에는 PKCE(S256)와 RFC 8707 `resource`(`ResourceIndicators`)가 실리고,
+  콜백의 `iss` 는 코드 교환 전에 검증하며(`AuthorizationResponseIssuerFilter`), 토큰 갱신
+  요청에도 `resource` 를 싣는다. 토큰을 헤더에 붙이는 것만 `mcp-client-security-spring-boot`
+  모듈에 그대로 맡긴다.
+- **인가 서버**는 PKCE 를 강제하고(`require-proof-key: true`), access token 의 `aud` 를
+  요청한 `resource` 로 발급하며(`ResourceAudienceTokenCustomizer`), 모르는 resource 는
+  `invalid_target` 으로 거부하고(`ResourceIndicatorValidator`), 인가 응답(성공·오류)에
+  `iss` 를 싣고 메타데이터에 `authorization_response_iss_parameter_supported` 를 광고한다
+  (`IssuerIdentifyingAuthorizationResponseHandler`). 필터체인을 직접 만들지 않고, 모듈이
+  열어 둔 확장점(`Customizer<McpAuthorizationServerConfigurer>`, `McpAuthorizationStandardConfig`)
+  으로 얹는다 — 직접 만들면 `@ConditionalOnDefaultWebSecurity` 때문에 모듈의 인가 서버
+  설정이 통째로 물러난다. 동적 클라이언트 등록(DCR)은 끈다(MCP 2026-07-28 에서 deprecated).
+- **MCP 서버**는 보호 리소스 메타데이터를 경로형(`/.well-known/oauth-protected-resource/mcp`)
+  으로 제공하고, 401 챌린지가 그 URL 을 가리키며(따옴표 포함, RFC 9110 §11.2), 토큰의 `aud`
+  를 검증하고, `MCP-Protocol-Version` 헤더(`McpProtocolVersionFilter`)를 검증한다. 모듈의
+  `McpServerOAuth2Configurer` 필터체인을 직접 정의해 `validateAudienceClaim(true)` 를 켠다
+  (`SecurityConfig`) — 자동설정에는 이걸 켜는 길이 없다. `Origin`/`Host` 검증은 모듈의
+  `OriginValidationFilter` 를 그대로 쓴다.
+
 ## 왜 만들었나
 
 직전 practice `agent-mcps` 의 최종 리뷰가 남긴 지적이 출발점이다.
@@ -195,7 +226,7 @@ spring:
 |---|---|
 | `anyRequest().authenticated()` | 모든 경로에 인증 요구 |
 | JWT 디코더 | `NimbusJwtDecoder.withIssuerLocation(issuer)` — JWK 조회·서명·issuer 검증 |
-| `BearerResourceMetadataTokenAuthenticationEntryPoint` | 401 응답의 `WWW-Authenticate: Bearer resource_metadata=...` |
+| `BearerResourceMetadataTokenAuthenticationEntryPoint` | 401 응답의 `WWW-Authenticate: Bearer resource_metadata=...`(모듈 기본값은 인용부호 없음 — 이 practice 는 `SecurityConfig` 에서 인용부호 있는 진입점으로 바꿔 끼운다) |
 | 보호 리소스 메타데이터 엔드포인트 | `/.well-known/oauth-protected-resource/mcp` (RFC 9728) |
 | Origin 검증 필터 | `spring.ai.mcp.server.security.allowed-origins` 설정 시 (DNS rebinding 방어) |
 | 세션 바인딩 | 옵션 |
@@ -208,8 +239,16 @@ spring:
 @ConditionalOnProperty(... "jwt.issuer-uri", matchIfMissing = false)   // 이 속성이 없으면 안 뜸
 ```
 
-**감사(audience) 검증은 기본 꺼져 있다** (`validateAudienceClaim = false`).
-최소 연동에서는 issuer 검증만 하므로 `resource` 파라미터를 넘길 필요가 없다.
+**감사(audience) 검증은 기본 꺼져 있다** (`validateAudienceClaim = false`) — 최소 연동에서는
+issuer 검증만 하므로 `resource` 파라미터를 넘길 필요가 없었다.
+
+**이 practice는 지금 이 자동설정을 그대로 쓰지 않는다.** MCP 인가 표준은 audience 검증을
+MUST 로 요구하는데 자동설정에는 그걸 켜는 길이 없어서, `shop-mcp-server` 가 직접
+`SecurityFilterChain`(`SecurityConfig`)을 정의해 `McpServerOAuth2Configurer` 를 다시 적용하고
+`validateAudienceClaim(true)` 를 켠다 — 위 "활성화 조건" 두 번째 줄대로 자동설정은 물러나고,
+같은 설정기를 이 필터체인이 대체한다. 401 응답의 진입점도 여기서
+`resource_metadata` 값에 따옴표를 붙이는 것으로 바꿔 끼운다(RFC 9110 §11.2 — 아래 "직접 해보기"
+절의 실측 예시가 그 결과다).
 
 ## 3. `mcp-client-security-spring-boot` — 토큰 획득·부착
 
@@ -371,8 +410,11 @@ $ curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8101/mcp \
 
 ```
 HTTP/1.1 401
-WWW-Authenticate: Bearer resource_metadata=http://localhost:8101/.well-known/oauth-protected-resource/mcp
+WWW-Authenticate: Bearer resource_metadata="http://localhost:8101/.well-known/oauth-protected-resource/mcp"
 ```
+
+(이 값은 2026-08-26 최초 실측 당시엔 따옴표가 없었다. MCP 인가 표준 준수 작업에서 RFC 9110
+§11.2 의 auth-param 문법대로 따옴표를 붙이도록 고쳤다 — 2026-09-12 재캡처 결과로 갱신했다.)
 
 **`agent-mcps` 의 같은 요청과 나란히 비교.** `agent-mcps/product-mcp-server`
 (:8091, 보안 모듈 없음)에 똑같은 방식으로 요청을 두 단계로 실측했다.

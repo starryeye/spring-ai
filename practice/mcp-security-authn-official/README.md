@@ -5,13 +5,36 @@
 
 사용자가 브라우저로 로그인하고, 에이전트가 그 사용자를 대신해 보호된 MCP 서버를 호출하는 흐름은
 community 와 동일하다. 다른 것은 그 흐름을 만드는 재료뿐이다 — 커뮤니티 모듈 3종이 자동으로
-해주던 배선을 여기서는 5개 파일, 235줄로 손으로 짠다.
+해주던 배선과, MCP 인가 표준(발견·PKCE·`resource`·`aud`·`iss`)이 요구하는 배선을 여기서는
+20개 파일, 1,335줄로 손으로 짠다.
 
 **결론부터: 성공했다.** 세 앱 모두 뜨고, 401 이 나오고, 재고 숫자가 나오고, 로그의 `사용자=user`
 도 나온다. `mcp-security-authn-community` 가 이미 밝힌 것들(기동 순서, `initialized: false`,
 세션 쿠키 분리) 중 라이브러리와 무관했던 부분은 여기서도 그대로 재현됐고, 라이브러리에 묶여
 있던 부분(OIDC discovery, `protectedResourceMetadata`, `WWW-Authenticate` 값, 조용히 죽는
 스위치의 개수)은 실제로 달라졌다. 아래 7절이 그 대비표다.
+
+> 인증이 포함된 MCP 스펙 자체를 배우려면 [MCP 인가 표준 문서](../MCP-AUTHORIZATION.md) 를
+> 먼저 읽는다. 이 README 는 그 표준을 이 practice 가 어떻게 구현했는지를 다룬다.
+
+## MCP 인가 표준 준수
+
+- **에이전트**는 인가 서버 주소를 설정에 두지 않는다. `shop-agent` 는 MCP 서버에 토큰 없이
+  요청해 401 챌린지를 받고, 보호 리소스 메타데이터 → 인가 서버 메타데이터 순으로 발견한다
+  (`McpAuthorizationDiscovery`, `DiscoveredClientRegistrationRepository`). `application.yml`
+  에는 자격증명과 그 자격증명이 묶인 인가 서버(`mcp.authorization.credentials-issuer`)만
+  남는다. 인가 요청에는 PKCE(S256)와 RFC 8707 `resource`(`ResourceIndicators`)가 실리고,
+  콜백의 `iss` 는 코드 교환 전에 검증하며(`AuthorizationResponseIssuerFilter`), 토큰 갱신
+  요청에도 `resource` 를 싣는다.
+- **인가 서버**는 PKCE 를 강제하고, access token 의 `aud` 를 요청한 `resource` 로 발급하며
+  (`ResourceAudienceTokenCustomizer`), 모르는 resource 는 `invalid_target` 으로 거부하고
+  (`ResourceIndicatorValidator`), 인가 응답(성공·오류)에 `iss` 를 싣고 메타데이터에
+  `authorization_response_iss_parameter_supported` 를 광고한다
+  (`IssuerIdentifyingAuthorizationResponseHandler`). 필터체인 두 개를 `AuthorizationServerConfig`
+  로 직접 정의한다.
+- **MCP 서버**는 보호 리소스 메타데이터를 경로형(`/.well-known/oauth-protected-resource/mcp`)
+  으로 제공하고, 401 챌린지가 그 URL 을 가리키며, 토큰의 `aud` 를 검증하고, `Origin`/`Host`
+  (`McpTransportConfig`)와 `MCP-Protocol-Version`(`McpProtocolVersionFilter`)을 검증한다.
 
 ## 무엇이 "공식"인가
 
@@ -47,22 +70,47 @@ Spring AI 의존성이 없다(위 build.gradle 참고).
 
 ## 직접 쓴 코드
 
-community 에서 라이브러리 3개(전이 의존 포함 수십 개 자동설정 빈)가 하던 일을, 여기서는 아래
-5개 파일 **235줄**로 직접 짠다.
+community 에서 라이브러리 3개(전이 의존 포함 수십 개 자동설정 빈)가 하던 일과, MCP 인가
+표준(PKCE·`resource`·`aud`·`iss`·전송 보안)이 요구하는 배선을, 여기서는 아래 파일들로
+직접 짠다.
 
-| 파일 | 줄수 | 대체하는 것 |
-|---|---|---|
-| `shop-agent/.../SecurityMcpTransportContextProvider.java` | 46 | community 의 `AuthenticationMcpTransportContextProvider`. `SecurityContextHolder` 의 `Authentication` 을 MCP SDK 가 요구하는 `Supplier<McpTransportContext>` 로 옮긴다 |
-| `shop-agent/.../OAuth2TokenAttachingRequestCustomizer.java` | 65 | community 의 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`. 컨텍스트에서 인증을 꺼내 `OAuth2AuthorizedClientManager` 로 토큰을 얻고 `Authorization` 헤더에 붙인다 |
-| `shop-agent/.../McpSecurityConfig.java` | 65 | `mcp-client-security-spring-boot` 자동설정이 만들던 빈 4개(`AuthorizedClientService`, `AuthorizedClientManager`, MCP 커스터마이저 2개)를 직접 등록 |
-| `shop-agent/.../SecurityConfig.java` | 24 | `oauth2Login` + `oauth2Client` 필터체인. community 와 동일하게 에이전트 쪽은 원래도 라이브러리가 직접 정의를 허용했다 |
-| `shop-mcp-server/.../SecurityConfig.java` | 35 | `mcp-server-security-spring-boot` 자동설정이 만들던 필터체인 전체(`anyRequest().authenticated()` + JWT 리소스 서버 + `protectedResourceMetadata`) |
+`shop-agent` — 발견·인가 흐름·토큰 부착:
 
-`auth-server` 에는 이런 파일이 **없다** — Boot 의 `spring-boot-starter-oauth2-authorization-server`
-자동설정만으로 로그인 폼·토큰 발급·OIDC discovery 가 전부 나온다. community 판에 있던
-`OidcDiscoveryConfig` 도 official 에는 없다(필요 없어졌다).
+| 파일 | 하는 일 |
+|---|---|
+| `SecurityMcpTransportContextProvider.java` | community 의 `AuthenticationMcpTransportContextProvider`. `SecurityContextHolder` 의 `Authentication` 을 MCP SDK 가 요구하는 `Supplier<McpTransportContext>` 로 옮긴다 |
+| `OAuth2TokenAttachingRequestCustomizer.java` | community 의 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`. 컨텍스트에서 인증을 꺼내 `OAuth2AuthorizedClientManager` 로 토큰을 얻고 `Authorization` 헤더에 붙인다 |
+| `McpSecurityConfig.java` | `mcp-client-security-spring-boot` 자동설정이 만들던 빈들을 직접 등록 |
+| `SecurityConfig.java` | `oauth2Login` + `oauth2Client` 필터체인 |
+| `McpAuthorizationDiscovery.java` | 인가 서버를 발견한다(MCP 인가 §2.3) — 401 → `resource_metadata` → RFC 8414/OIDC 메타데이터 순서 |
+| `DiscoveredClientRegistrationRepository.java` | 설정에 인가 서버 주소를 두지 않고, 발견 결과로 `ClientRegistration` 을 만들어 캐시한다 |
+| `DiscoveredAuthorization.java` | 발견 결과(리소스 식별자 + 인가 서버 메타데이터)를 담는 레코드 |
+| `McpAuthorizationProperties.java` | `mcp.authorization.resource-url`/`credentials-issuer` 설정 바인딩 |
+| `McpDiscoveryException.java` | 발견이 명세대로 끝나지 않았을 때 던진다 |
+| `ResourceIndicators.java` | RFC 8707 `resource` 를 인가·토큰(갱신 포함) 요청에 싣는다 |
+| `AuthorizationResponseIssuerFilter.java` | 콜백의 `iss`(RFC 9207)를 코드 교환 **전에** 검증한다 |
+| `LoginFailureHandler.java` | 로그인 실패를 401 본문으로 그대로 알린다 |
 
-전체 메인 소스는 14개 파일 522줄 (community 는 11개 파일 353줄) — 아래 7절 "코드량" 참고.
+`shop-mcp-server` — 보호 리소스·전송 보안:
+
+| 파일 | 하는 일 |
+|---|---|
+| `SecurityConfig.java` | `mcp-server-security-spring-boot` 자동설정이 만들던 필터체인 전체(`anyRequest().authenticated()` + JWT 리소스 서버 + 경로형 `protectedResourceMetadata`) |
+| `McpTransportConfig.java` | 전송 빈을 직접 만들어 `Origin`/`Host` 검증기(SDK 의 `DefaultServerTransportSecurityValidator`)를 단다 |
+| `McpProtocolVersionFilter.java` | `MCP-Protocol-Version` 헤더 검증(MCP 전송 명세) — SDK 가 하지 않는 것을 보충한다 |
+
+`auth-server` — MCP 인가 표준 준수(PKCE·`resource`·`aud`·`iss`):
+
+| 파일 | 하는 일 |
+|---|---|
+| `AuthorizationServerConfig.java` | 필터체인 두 개를 직접 정의해 PKCE 강제(`require-proof-key`)와 아래 확장점을 건다 |
+| `ResourceIndicatorValidator.java` | 인가 요청의 `resource` 를 검사해 모르는 리소스면 `invalid_target` 으로 거부한다(RFC 8707 §2.1) |
+| `ResourceAudienceTokenCustomizer.java` | access token 의 `aud` 를 요청한 `resource` 로 발급한다(RFC 8707 §2.2) |
+| `IssuerIdentifyingAuthorizationResponseHandler.java` | 인가 응답(성공·오류)에 `iss` 를 싣는다(RFC 9207) |
+| `McpResourceProperties.java` | 이 인가 서버가 토큰을 내줄 수 있는 보호 리소스(MCP 서버) 목록 |
+
+community 판에 있던 `OidcDiscoveryConfig` 는 official 에는 없다(Boot 자동설정이 `.oidc(...)`
+를 기본으로 켜므로 필요 없다).
 
 ## 실행
 
@@ -102,24 +150,25 @@ $ curl -s -D - -o /dev/null -X POST http://localhost:8111/mcp \
     -H 'Content-Type: application/json' \
     -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 HTTP/1.1 401
-WWW-Authenticate: Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource"
+WWW-Authenticate: Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource/mcp"
 ```
 
 `WWW-Authenticate` 스킴이 `Bearer` — MCP 보안이 작동 중이라는 뜻이다(Boot 기본 보안이면
-`Basic` 이 나왔을 것). 값 자체는 community 와 **다르다** — 7절에서 나란히 비교한다.
+`Basic` 이 나왔을 것). `resource_metadata` 는 경로형(RFC 9728 §3.1) — `/mcp` 요청은
+`/.well-known/oauth-protected-resource/mcp` 를 가리킨다. 값에 따옴표를 붙이는 것과 경로형인
+것 둘 다 지금은 community 와 **같다** — MCP 인가 표준 준수 작업(Task 6)에서 community 도
+같은 형태로 맞춰졌다(아래 7절 비교표 참고).
 
-보호 리소스 메타데이터는 토큰 없이도 열려 있다(둘 다 200):
+보호 리소스 메타데이터는 토큰 없이도 열려 있다:
 
 ```
-$ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8111/.well-known/oauth-protected-resource
-200
 $ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8111/.well-known/oauth-protected-resource/mcp
 200
 ```
 
 `SecurityConfig` 는 `anyRequest().authenticated()` 하나뿐이고 `permitAll()` 을 어디에도 넣지
-않았다. 그런데도 두 경로 다 열린다 — `protectedResourceMetadata(Customizer.withDefaults())` 가
-내부적으로 자기 자신을 위한 `permitAll` 매처를 등록하기 때문이다(Task 2 관측).
+않았다. 그런데도 이 경로는 열린다 — `oauth2ResourceServer(...).protectedResourceMetadata(...)`
+가 내부적으로 자기 자신을 위한 `permitAll` 매처를 등록하기 때문이다(Task 2 관측).
 
 ### 시나리오 2 — 로그인 없이 브라우저로 접근
 
@@ -188,13 +237,11 @@ DEBUG ...OAuth2TokenAttachingRequestCustomizer  : 토큰을 헤더에 붙였다 
   모두 다르기 때문이다.
 - 같은 질문(`노트북 재고 있어?`)을 양쪽에 던진 결과, **답변 내용은 동일했다**(둘 다 p1=7개,
   p2=23개 — 같은 시드 데이터, 같은 모델).
-- `WWW-Authenticate` 를 나란히 비교:
-
-  | | community (:8101) | official (:8111) |
-  |---|---|---|
-  | 값 | `Bearer resource_metadata=http://localhost:8101/.well-known/oauth-protected-resource/mcp` | `Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource"` |
-  | 인용부호 | 없음 | **있음** (`"..."`) |
-  | 경로 | `/mcp` 접미사 있음 | **접미사 없음** |
+- `WWW-Authenticate` 를 나란히 비교했다(이 시나리오는 2026-09-04~05, MCP 인가 표준 준수
+  작업 전 기록이다). 그 시점에는 인용부호·경로 접미사가 서로 달랐으나, 이후 community 의
+  401 챌린지도 RFC 9110 문법대로 따옴표를 붙이도록 고쳐져(Task 6) 지금은 둘 다
+  `Bearer resource_metadata="http://localhost:<port>/.well-known/oauth-protected-resource/mcp"`
+  형태로 **같다**.
 
 확인 후 두 practice 모두 `./stop.sh` 로 종료, 6개 포트 전부 free 확인했다.
 
@@ -205,10 +252,10 @@ DEBUG ...OAuth2TokenAttachingRequestCustomizer  : 토큰을 헤더에 붙였다 
 | OIDC discovery | `OidcDiscoveryConfig` 를 직접 만들어 `.oidc(...)` 를 켜야 했다(자동설정이 안 켜줌) | **불필요** — Boot 4.1 자동설정이 기본으로 켠다(Task 1 실측: `userinfo_endpoint`, `end_session_endpoint` 포함 200 응답) |
 | `SecurityFilterChain` (리소스 서버) | 라이브러리가 만든다. 직접 정의하면 `@ConditionalOnDefaultWebSecurity` 때문에 라이브러리 설정이 통째로 물러난다 | **내가 전부 쓴다.** 조건부 자동설정 자체가 없으므로 "정의하면 물러나는" 걱정이 없다 |
 | `protectedResourceMetadata` (RFC 9728) | 라이브러리(`mcp-server-security-spring-boot`)가 제공 | **Spring Security 7.1 에 이미 있다** — `.protectedResourceMetadata(Customizer.withDefaults())` 한 줄. 커뮤니티 모듈의 간판 기능 하나가 상류로 흡수된 사례 |
-| `WWW-Authenticate` 값 | `Bearer resource_metadata=http://localhost:8101/.well-known/oauth-protected-resource/mcp` (인용부호 없음, `/mcp` 접미사 있음) | `Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource"` (인용부호 있음, 접미사 없음) — **실측으로 다르다**, 어느 쪽이 "맞다"는 뜻은 아니다 |
+| `WWW-Authenticate` 값 | `Bearer resource_metadata="http://localhost:8101/.well-known/oauth-protected-resource/mcp"` | `Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource/mcp"` — MCP 인가 표준 준수 이후로는 인용부호·경로 접미사 모두 **같다**(위 5절 참고) |
 | `issuer-uri` 누락 시 | **조용히 안 죽는다** — `@ConditionalOnProperty` 가 껐을 뿐, `spring-boot-starter-security` 의 기본 보안(HTTP Basic)이 대신 들어와 401 은 여전히 나온다. 상태 코드만 보는 테스트는 이 상황을 놓친다 | **fail-closed** — `SecurityConfig` 는 무조건 실행되는 `@Configuration` 이고 `issuer-uri` 는 `NimbusJwtDecoder` 생성에 쓰인다. 값이 없거나 틀리면 **기동 자체가 실패**한다(Task 2 실측). "조용한 오탐"이 "시끄러운 실패"로 바뀌었다 |
 | 조용히 죽는 스위치 | **5개** (client type SYNC 게이트, issuer-uri 게이트, client registration 정확히 1개, 서버·인가서버의 `SecurityFilterChain` 직접 정의 시 자동설정 백오프, `.contextWrite(...)` 누락) | **직접 실측한 것은 2개** — `Hooks.enableAutomaticContextPropagation()` 을 지운 경우와 `type: ASYNC` 로 바꾼 경우, 둘 다 재현했다(아래 상세). 나머지 3개 범주는 애초에 official 구조에 대응물이 없다: 조건부 자동설정을 쓰지 않으므로 "조건이 어긋나 조용히 백오프"할 지점 자체가 없고, issuer-uri 항목은 위 행처럼 오히려 시끄러운 실패로 바뀌었다 |
-| 코드량 (메인 소스만) | 11개 파일, 353줄 | 14개 파일, 522줄 (그중 보안 배선 전용 5개 파일이 235줄) |
+| 코드량 (메인 소스만, MCP 인가 표준 준수 이후) | 28개 파일, 1,408줄 | 29개 파일, 1,619줄 (그중 보안 배선 전용 20개 파일이 1,335줄) |
 | 스트리밍 인증 전파 | `AuthenticationMcpTransportContextProvider.writeToReactorContext()` 를 `ChatController` 에서 `.contextWrite(...)` 로 명시 호출해야 했다(Spring AI 의 `internal` 패키지 의존) | **`Hooks.enableAutomaticContextPropagation()`(부팅 시 1회) + `AuthorizedClientServiceOAuth2AuthorizedClientManager`** 조합이 **첫 시도에서** 통했다. `ChatController` 에는 아무 것도 안 붙였고, `internal` 패키지 클래스는 전혀 참조하지 않는다(Task 3 Step 10 실측) |
 
 ### 7.1 "조용히 죽는 스위치" 실측 상세
@@ -314,14 +361,21 @@ Spring Security 7.1 에는 이미 `.protectedResourceMetadata(Customizer.withDef
 
 ### 2. 공식으로 가면 코드는 늘고 마법은 준다
 
-메인 소스가 353줄(11파일) → 522줄(14파일)로 늘었다. 늘어난 235줄은 전부 보안 배선이고, 그
-배선을 읽으면 "무엇이 왜 켜지는지" 전부 소스에 보인다 — 조건부 자동설정이 없으므로 숨어서
-켜지거나 꺼지는 부분이 없다. **어느 쪽이 낫다는 뜻이 아니다.** 커뮤니티 모듈은 235줄을 안 써도
-되는 대신 그 235줄이 하는 일을 신뢰해야 하고, 그 신뢰가 깨지는 지점(조용히 죽는 스위치 5개)을
-직접 찾아야 한다. 공식판은 그 235줄을 쓰는 대신 조건부 자동설정발 백오프 3개 범주가 통째로
-사라지고, 남은 두 개의 진짜 위험 지점 — 리액터 경계에서의 thread-local 전파(실험 1), MCP
-클라이언트 제네릭 타입과 커스터마이저 타입의 일치(실험 2) — 이 어디인지 실측으로 정확히
-특정할 수 있다. **교환하는 것이 무엇인지가 요점이지, 승자를 가리는 게 아니다.**
+MCP 인가 표준 준수 이전에는 메인 소스가 353줄(11파일) → 522줄(14파일)이었다. 그 시점의
+차액 235줄은 전부 보안 배선이었고, 그 배선을 읽으면 "무엇이 왜 켜지는지" 전부 소스에 보인다 —
+조건부 자동설정이 없으므로 숨어서 켜지거나 꺼지는 부분이 없다. **어느 쪽이 낫다는 뜻이 아니다.**
+커뮤니티 모듈은 그 235줄을 안 써도 되는 대신 그 배선이 하는 일을 신뢰해야 하고, 그 신뢰가
+깨지는 지점(조용히 죽는 스위치 5개)을 직접 찾아야 한다. 공식판은 그 배선을 쓰는 대신 조건부
+자동설정발 백오프 3개 범주가 통째로 사라지고, 남은 두 개의 진짜 위험 지점 — 리액터 경계에서의
+thread-local 전파(실험 1), MCP 클라이언트 제네릭 타입과 커스터마이저 타입의 일치(실험 2) —
+이 어디인지 실측으로 정확히 특정할 수 있다. **교환하는 것이 무엇인지가 요점이지, 승자를
+가리는 게 아니다.**
+
+이후 MCP 인가 표준(발견·PKCE·`resource`·`aud`·`iss`)을 준수하면서 양쪽 다 다시 커졌다
+(공식 14→29파일·522→1,619줄, community 11→28파일·353→1,408줄) — 발견·PKCE·resource·iss
+검증은 두 라이브러리 모두 아직 갖추지 못해, 공식이든 community 든 손으로 짜야 했기 때문이다.
+이 표준 준수 코드만큼은 "라이브러리냐 공식이냐"의 차이가 거의 사라졌다는 뜻이다(7절 코드량
+표 참고).
 
 ### 3. 공식 스트리밍 전파 경로가 첫 시도에서 통했다
 
@@ -354,7 +408,7 @@ JWT 리소스 서버 + 같은 호스트에 여러 OAuth2 앱"이라는 **문제 
 | 로그인이 `Invalid credentials` 로 튕김 | 세션 쿠키 이름이 겹쳤는가(community 와 동시 실행 시 특히) |
 | 첫 질문이 유난히 느리다(약 100초) | 정상. 첫 요청에 MCP 핸드셰이크가 포함된다 |
 | 포트가 이미 사용 중 | `./stop.sh` 후 재실행 |
-| `WWW-Authenticate` 값이 community 랑 다르다 | 결함이 아니다 — 7절의 실측 비교 참고 |
+| 401 의 `resource_metadata` 가 예상과 다른 URL 을 가리킨다 | 경로형(RFC 9728 §3.1)이 맞는지 확인 — `/mcp` 요청은 `/.well-known/oauth-protected-resource/mcp` 를 가리켜야 한다 |
 
 ## 비목표
 

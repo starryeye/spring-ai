@@ -14,4 +14,7 @@ Spring AI 학습 저장소. 버전대별로 디렉터리가 나뉜다.
 
 새로 보는 사람은 `practice/agent-mcp/README.md` 부터 읽으면 된다.
 
+- [MCP 인가 표준](practice/MCP-AUTHORIZATION.md) — 인증이 포함된 MCP 스펙 정리
+  (시퀀스 다이어그램·엔드포인트 명세·준수표)
+
 `docs/superpowers/` 에는 `practice/agent-mcp` 의 설계 문서와 구현 계획이 있다.
