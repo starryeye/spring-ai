@@ -55,6 +55,7 @@ MCP 명세는 날짜로 리비전을 구분한다. 이 문서는 두 리비전�
   - `C<n>` — [`docs/superpowers/captures/2026-09-12-<practice>.txt`](../docs/superpowers/captures) 의 n 번 단계. 스크립트는 [`mcp-authorization-walkthrough.sh`](../docs/superpowers/captures/mcp-authorization-walkthrough.sh). practice 를 밝히지 않으면 세 practice 가 포트·client_id·사용자 이름만 다르고 같다는 뜻이다.
   - `S<n>` — [`docs/superpowers/captures/2026-09-16-official-supplement.txt`](../docs/superpowers/captures/2026-09-16-official-supplement.txt) 의 n 번 단계(official 만 관측). 스크립트는 [`mcp-authorization-supplement.sh`](../docs/superpowers/captures/mcp-authorization-supplement.sh).
   - `테스트:` — 캡처에 없고 각 practice 의 테스트로 고정된 사실. `클래스#메서드` 로 적는다.
+  - `[관측]` 블록에 실은 요청 줄(`curl`, HTTP 요청 라인 등)은 캡처 파일에 없다. `curl -si` 는 응답(상태줄·헤더·본문)만 남기므로, 요청 내용은 위 캡처 스크립트의 해당 단계 명령에서 그대로 옮긴 것이다.
 - **[구현]** 이 practice 가 그 규칙을 어느 클래스·설정으로 지키는지 적는다. 클래스 이름은 [2.5 구현 위치 지도](#s2-5)와 같다.
 - 토큰(JWT)은 앞 20자 + `...` 로 줄였다. refresh_token 과 인가 코드는 앞 12자 + `...` 로 줄였다. 응답의 공통 보안 헤더(`X-Content-Type-Options`, `X-XSS-Protection`, `X-Frame-Options`, `Expires`)와 `Date` 는 생략했다.
 - 엔드포인트 표([5절](#s5))의 **표시** 열은 원문 표기를 그대로 옮긴다: `REQUIRED` / `RECOMMENDED` / `OPTIONAL`. 원문이 조건을 붙였으면 조건까지 적는다. 원문이 표기 없이 `MUST`·`SHOULD`·`MAY` 문장으로만 규정하면 그 단어를 적고, 요구 수준 표기가 전혀 없으면 "표시 없음"이라고 적는다.
@@ -498,7 +499,7 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 
 - **사전 등록** — client_id(와 필요하면 자격증명)를 클라이언트에 미리 넣어 두거나, 사용자가 직접 등록한 뒤 UI 로 입력하게 한다.
 - **CIMD** — 클라이언트가 자기 메타데이터 JSON 을 HTTPS URL 에 올리고 그 URL 자체를 `client_id` 로 쓴다([draft-ietf-oauth-client-id-metadata-document-00 §3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)). 서로 모르는 클라이언트와 서버 사이의 기본 방식으로 권장된다.
-  - 클라이언트: `client_id` URL 은 `https` 이고 경로가 있어야 한다(**MUST**). 문서에는 최소 `client_id`, `client_name`, `redirect_uris` 가 있어야 하고(**MUST**), 문서의 `client_id` 는 문서 URL 과 정확히 같아야 한다(**MUST**).
+  - 클라이언트: `client_id` URL 은 `https` 이고 경로가 있어야 한다(**MUST**, [draft-ietf-oauth-client-id-metadata-document-00 §3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)). 문서에는 최소 `client_id`, `client_name`, `redirect_uris` 가 있어야 하고(**MUST**, [MCP 2025-11-25 Authorization — Client ID Metadata Documents — Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements)), 문서의 `client_id` 는 문서 URL 과 정확히 같아야 한다(**MUST**, [draft-ietf-oauth-client-id-metadata-document-00 §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)).
   - 인가 서버: URL 형태의 client_id 를 만나면 문서를 가져오고(**SHOULD**), `client_id` 일치·redirect URI·문서 구조를 검증한다(**MUST**). 임의 URL 을 가져오는 SSRF 위험을 고려한다(**SHOULD**).
 - **DCR** — 사용자 개입 없이 `POST /register` 로 client_id 를 받는다. 이전 MCP 리비전과의 하위 호환용이다. 2026-07-28 은 deprecated 로 표시하고 새 구현은 CIMD 를 쓰라고 한다. 그대로 쓰는 클라이언트는 알맞은 `application_type` 을 지정해야 한다(**MUST**, OIDC 인가 서버의 redirect URI 제약 충돌 방지).
 
@@ -1618,19 +1619,19 @@ S11 을 명세와 대조하면, 서버는 405 가 아니라 SSE 로 응답하려
 
 ### 6.1 무엇이 바뀌는가
 
-**[명세]** [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog) — "Major changes" 1~3, 9, 12번.
+**[명세]** [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog) — "Major changes" 1~4, 9번.
 
 - **세션 제거.** Streamable HTTP 전송에서 프로토콜 수준 세션과 `Mcp-Session-Id` 헤더를 없앤다. `tools/list`·`resources/list`·`prompts/list` 같은 목록 엔드포인트는 더 이상 연결마다 달라지지 않는다. 호출 사이에 상태가 필요한 서버는 세션 대신, 툴 인자로 주고받는 서버 발급 핸들을 쓴다.
 - **stateless 화.** `initialize`/`notifications/initialized` 핸드셰이크를 없앤다. 모든 요청이 `_meta` 에 프로토콜 버전과 클라이언트 능력을 직접 싣는다 — `io.modelcontextprotocol/protocolVersion`, `io.modelcontextprotocol/clientCapabilities`. 클라이언트는 매 요청에 자신을 알리는 것이 좋고(**SHOULD**, `io.modelcontextprotocol/clientInfo`), 서버는 매 결과의 `_meta` 에 자신을 알리는 것이 좋다(**SHOULD**, `io.modelcontextprotocol/serverInfo`). 버전이 안 맞으면 `UnsupportedProtocolVersionError` 를 돌려준다.
 - **`server/discover` 신설.** 서버는 지원하는 프로토콜 버전·능력·신원을 알리는 이 RPC 를 구현해야 한다(**MUST**, [MCP 2026-07-28 Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)). 클라이언트가 이걸 부르는 것은 선택이다(MAY) — 사전 버전 선택이나 STDIO 하위 호환 탐침에 쓴다. 응답의 `serverInfo` 는 자체 신고 값이라 클라이언트가 보안 판단에 쓰면 안 된다(**SHOULD NOT**).
 - **GET 스트림 제거.** 서버가 언제든 보낼 수 있던 `GET /mcp` SSE 스트림과 `resources/subscribe`/`unsubscribe` 를, opt-in 알림 전용의 단일 장수명 `subscriptions/listen` 스트림으로 바꾼다. `notifications/progress`·`notifications/message` 같은 요청-스코프 알림은 그대로 그 요청의 응답 스트림으로 간다.
 - **재개 제거.** SSE 스트림 재개와 메시지 재전송(`Last-Event-ID`, SSE 이벤트 `id`)을 없앤다. 응답 스트림이 끊기면 그 요청은 사라지고, 클라이언트는 새 요청 ID 로 다시 보내야 한다(**MUST**).
-- **오류 코드 재번호.** JSON-RPC 서버 오류 범위를 나눈다 — `-32000`~`-32019` 는 기존 SDK 관례를 그대로 인정하고, `-32020`~`-32099` 를 MCP 명세 전용으로 예약한다. 이 초안에서 새로 정의됐던 오류를 이 범위로 옮긴다: `HeaderMismatch` `-32001`→`-32020`, `MissingRequiredClientCapability` `-32003`→`-32021`, `UnsupportedProtocolVersion` `-32004`→`-32022`.
+- **오류 코드 재번호(Minor changes 12번).** JSON-RPC 서버 오류 범위를 나눈다 — `-32000`~`-32019` 는 기존 SDK 관례를 그대로 인정하고, `-32020`~`-32099` 를 MCP 명세 전용으로 예약한다. 이 초안에서 새로 정의됐던 오류를 이 범위로 옮긴다: `HeaderMismatch` `-32001`→`-32020`, `MissingRequiredClientCapability` `-32003`→`-32021`, `UnsupportedProtocolVersion` `-32004`→`-32022`.
 
 **[명세]** [MCP 2026-07-28 Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)
 
 - `MCP-Protocol-Version` 은 여전히 매 POST 에 MUST 이지만, 이제 값이 본문 `_meta` 의 `io.modelcontextprotocol/protocolVersion` 과 **정확히 같아야** 한다(2025-11-25 에는 이런 이중 표기·일치 요구가 없다, [4.8](#s4-8)).
-- 새 헤더 `Mcp-Method`(모든 요청 REQUIRED, 값은 `method` 필드)와 `Mcp-Name`(`tools/call`·`resources/read`·`prompts/get` 요청 REQUIRED, 값은 `params.name` 또는 `params.uri`)이 생긴다.
+- 새 헤더 `Mcp-Method`(모든 요청 REQUIRED, 값은 `method` 필드)와 `Mcp-Name`(`tools/call`·`resources/read`·`prompts/get` 요청 REQUIRED, 값은 `params.name` 또는 `params.uri`)이 생긴다(changelog "Minor changes" 4번).
 - 헤더 값이 본문 값과 다르거나 필수 헤더가 없으면 서버는 `400 Bad Request` + JSON-RPC 오류 코드 `-32020`(`HeaderMismatch`)으로 거부해야 한다(**MUST**).
 - 이 버전만 지원하는 서버가 예전 클라이언트의 `GET`·`DELETE /mcp` 를 받으면 `405 Method Not Allowed` 로, `Mcp-Session-Id` 헤더는 무시하고 세션을 만들지 않는 것이 좋다(**SHOULD**, [Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility)).
 
@@ -1780,7 +1781,7 @@ sequenceDiagram
 
 | # | 명세 항목 | official | chat-memory | community |
 |---|---|---|---|---|
-| 1 | PRM 제공(RFC 9728 §2 MUST), `resource` 일치(§3.3) | 예 — `SecurityConfig#protectedResourceMetadata`, C2 `resource` 일치 | 예 — 같음 | 예 — 모듈 `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer`, C2 |
+| 1 | PRM 제공(MCP MUST, 필드 정의는 RFC 9728 §2), `resource` 일치(RFC 9728 §3.3) | 예 — `SecurityConfig#protectedResourceMetadata`, C2 `resource` 일치 | 예 — 같음 | 예 — 모듈 `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer`, C2 |
 | 2 | 401 의 `resource_metadata`(MCP MUST) | 예 — `resourceMetadataEntryPoint`, C1 | 예 — 같음 | 예 — 모듈 진입점 대신 같은 Spring 진입점, C1 |
 | 3 | 클라이언트의 PRM 발견과 fallback 순서(MUST) | 예 — `McpAuthorizationDiscovery#protectedResourceMetadata`(챌린지→경로형→루트형), `McpAuthorizationDiscoveryTest` | 예 — 같음 | 예 — 모듈 `McpMetadataDiscoveryService#getMcpMetadata`, 같은 순서 |
 | 4 | AS 메타데이터 발견 순서와 `issuer` 검증(MUST) | 예 — `McpAuthorizationDiscovery#metadataUrls`(RFC 8414→OIDC), `#메타데이터의_issuer_가_다르면_실패한다` | 예 — 같음 | 예 — `McpAuthorizationDiscovery` 가 이어받음, 같은 테스트 |
@@ -1788,7 +1789,7 @@ sequenceDiagram
 | 6 | PKCE S256(MUST) | 예 — `withPkce()` + `require-proof-key: true`, C17 | 예 — 같음 | 예 — 같음(인가 서버 설정 공유) |
 | 7 | `resource` 파라미터 — 인가·토큰·갱신(MUST) | 예 — `ResourceIndicators`(세 지점), C5·C6·C11 | 예 — 같음 | 예 — 같음 |
 | 8 | 토큰 audience 발급과 검증(MUST) | 예 — `ResourceAudienceTokenCustomizer` + `audiences` 설정, C6-1·C12 | 예 — 같음 | 예 — `ResourceAudienceTokenCustomizer` + 모듈 `AudienceValidationJwtDecoder`(기대값을 요청 URL 로 계산 — official 방식과 다름, [4.9](#s4-9) 각주) |
-| 9 | RFC 9207 `iss` — AS 광고(SHOULD)·클라이언트 검증(present 면 MUST) | 예 — `IssuerIdentifyingAuthorizationResponseHandler`(광고), `AuthorizationResponseIssuerFilter`(검증), S18·S19 | 예 — 같음 | 예 — 같음(`McpAuthorizationStandardConfig`) |
+| 9 | RFC 9207 `iss` — 보내기(SHOULD, MCP 2026-07-28)·AS 광고(보내면 MUST, RFC 9207 §2.3)·클라이언트 검증(present 면 MUST) | 예 — `IssuerIdentifyingAuthorizationResponseHandler`(광고), `AuthorizationResponseIssuerFilter`(검증), S18·S19 | 예 — 같음 | 예 — 같음(`McpAuthorizationStandardConfig`) |
 | 10 | 자격증명의 issuer 바인딩(2026-07-28) | 예(기록 방식은 문구와 다름) — `DiscoveredClientRegistrationRepository`, `#자격증명이_묶인_인가_서버가_아니면_쓰지_않는다`. 명세는 issuer 를 `code_verifier` 와 같은 요청별 기록에 넣으라고 하지만, 이 practice 는 요청별 기록에 `registrationId` 만 넣고 issuer 는 그 등록(발견 결과, 프로세스 수명 동안 캐시)에서 꺼낸다. 인가 서버가 하나이고 발견 결과가 실행 중에 바뀌지 않아 비교 대상은 같다([4.6](#s4-6)) | 예(기록 방식은 문구와 다름) — 같음 | 예(기록 방식은 문구와 다름) — 같음(모듈이 이어받음) |
 | 11 | `Origin` 검증(MUST), `Host` 검증 | 예 — SDK `DefaultServerTransportSecurityValidator`, C13·S14 | 예 — 같음 | 예 — 모듈 `OriginValidationFilter`(내부는 같은 SDK 검증기), 테스트로 421 확인 |
 | 12 | HTTPS(MUST, [7.8](#s7-8)) | **아니오** — 인가 서버·MCP 서버·에이전트 전부 `http://localhost`. 로컬 데모 목적([9절](#s9)) | **아니오** — 같음 | **아니오** — 같음 |
