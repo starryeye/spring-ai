@@ -8,6 +8,8 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.util.Set;
@@ -46,6 +48,16 @@ public class McpProtocolVersionFilter implements Filter {
             ProtocolVersions.MCP_2025_06_18,
             ProtocolVersions.MCP_2025_11_25);
 
+    private final JsonMapper jsonMapper;
+
+    /**
+     * SDK 가 MCP 트래픽 직렬화에 쓰는 것과 같은 매퍼(자동설정 빈 {@code mcpServerJsonMapper})를
+     * 그대로 받는다 — 오류 응답만 다른 규칙으로 직렬화할 이유가 없다.
+     */
+    public McpProtocolVersionFilter(JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
+    }
+
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain chain)
             throws IOException, ServletException {
@@ -55,13 +67,20 @@ public class McpProtocolVersionFilter implements Filter {
         String version = request.getHeader(HEADER_NAME);
         if (version != null && !SUPPORTED_VERSIONS.contains(version)) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.setContentType("application/json");
+            // getWriter() 는 Content-Type 에 charset 이 없으면 ISO-8859-1 로 쓴다 — 명시한다.
+            response.setContentType("application/json;charset=UTF-8");
             // 기존 SDK 오류 응답과 마찬가지로 id 없는 JSON-RPC 오류 형태를 쓴다
             // (명세: "The HTTP response body MAY comprise a JSON-RPC error response
-            // that has no id").
-            response.getWriter().write("""
-                    {"jsonrpc":"2.0","id":null,"error":{"code":-32600,\
-                    "message":"Unsupported MCP-Protocol-Version: %s"}}""".formatted(version));
+            // that has no id"). 헤더 값을 문자열 포맷팅으로 끼워 넣으면 값에 섞인 따옴표가
+            // JSON 구조를 깨고 임의의 최상위 멤버를 주입할 수 있으므로, 트리를 만들어
+            // 직렬화한다 — Jackson 이 값 이스케이프를 책임진다.
+            ObjectNode body = this.jsonMapper.createObjectNode();
+            body.put("jsonrpc", "2.0");
+            body.putNull("id");
+            ObjectNode error = body.putObject("error");
+            error.put("code", -32600);
+            error.put("message", "Unsupported MCP-Protocol-Version: " + version);
+            response.getWriter().write(this.jsonMapper.writeValueAsString(body));
             return;
         }
         chain.doFilter(servletRequest, servletResponse);

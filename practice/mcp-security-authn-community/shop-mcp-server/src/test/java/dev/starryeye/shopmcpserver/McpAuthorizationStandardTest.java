@@ -232,7 +232,12 @@ class McpAuthorizationStandardTest {
     void 지원하지_않는_MCP_Protocol_Version_헤더는_400이다() throws Exception {
         this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")));
+                .andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
+                // docs/superpowers/captures/2026-09-12-community.txt 15번 단계 본문과 바이트 단위로 같다 —
+                // 오류 응답을 문자열 연결에서 Jackson 직렬화로 바꾼 뒤에도 정상 값의 출력은 그대로다.
+                .andExpect(content().string(
+                        "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
+                                + "\"message\":\"Unsupported MCP-Protocol-Version: 1999-01-01\"}}"));
     }
 
     @Test
@@ -241,5 +246,21 @@ class McpAuthorizationStandardTest {
         // 한다("SHOULD assume protocol version 2025-03-26") — 거부 사유가 아니다.
         this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), null))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void 따옴표가_든_MCP_Protocol_Version_헤더_값도_구조가_깨지지_않는_JSON으로_응답한다() throws Exception {
+        // 문자열 연결로 오류 메시지를 만들면 헤더 값에 섞인 따옴표가 JSON 구조를 깨고
+        // 임의의 최상위 멤버를 주입할 수 있었다. jsonPath 평가 자체가 본문이 유효한
+        // JSON 임을 증명하고, injected 필드 부재가 주입이 통하지 않음을 증명한다.
+        String 악성_헤더_값 = "x\"},\"injected\":{\"a\":\"b";
+        this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), 악성_헤더_값))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.jsonrpc").value("2.0"))
+                .andExpect(jsonPath("$.error.code").value(-32600))
+                .andExpect(jsonPath("$.error.message")
+                        .value("Unsupported MCP-Protocol-Version: " + 악성_헤더_값))
+                .andExpect(jsonPath("$.injected").doesNotExist());
     }
 }

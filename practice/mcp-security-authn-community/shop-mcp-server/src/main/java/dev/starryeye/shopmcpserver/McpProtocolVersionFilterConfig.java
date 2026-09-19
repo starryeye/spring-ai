@@ -1,9 +1,11 @@
 package dev.starryeye.shopmcpserver;
 
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * {@link McpProtocolVersionFilter} 를 MCP 엔드포인트에만 건다(MCP 2025-11-25 전송 명세: 유효하지
@@ -21,9 +23,9 @@ public class McpProtocolVersionFilterConfig {
 
     @Bean
     public FilterRegistrationBean<McpProtocolVersionFilter> mcpProtocolVersionFilter(
-            McpServerStreamableHttpProperties properties) {
+            @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
         FilterRegistrationBean<McpProtocolVersionFilter> registration =
-                new FilterRegistrationBean<>(new McpProtocolVersionFilter());
+                new FilterRegistrationBean<>(new McpProtocolVersionFilter(jsonMapper));
         registration.addUrlPatterns(properties.getMcpEndpoint());
         return registration;
     }

@@ -46,9 +46,9 @@ public class McpTransportConfig {
 	 */
 	@Bean
 	public FilterRegistrationBean<McpProtocolVersionFilter> mcpProtocolVersionFilter(
-			McpServerStreamableHttpProperties properties) {
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
 		FilterRegistrationBean<McpProtocolVersionFilter> registration =
-				new FilterRegistrationBean<>(new McpProtocolVersionFilter());
+				new FilterRegistrationBean<>(new McpProtocolVersionFilter(jsonMapper));
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		return registration;
 	}
