@@ -1000,6 +1000,7 @@ community 의 Host 거부는 테스트로 421 상태만 확인했다(`McpAuthori
 - MCP 서버: Spring AI 의 `WebMvcStreamableServerTransportProvider` 가 세션을 만들고(`Mcp-Session-Id` 는 UUID) 400/404 를 판단한다.
   - `McpProtocolVersionFilter` 가 SDK 가 하지 않는 `MCP-Protocol-Version` 검증을 한다. 헤더가 없으면 통과, SDK 가 아는 버전(`2024-11-05`~`2025-11-25`)이 아니면 400 이다.
   - `Origin`·`Host` 는 official·chat-memory 에서 SDK `DefaultServerTransportSecurityValidator` 가, community 에서 모듈 `OriginValidationFilter` 가 검증한다. `Origin` 이 없는 요청(서버 간 호출)은 통과한다.
+  - 두 검증의 순서가 practice 마다 반대다. official·chat-memory 는 `McpProtocolVersionFilter` 가 서블릿 필터로 먼저 걸리고 `Origin`/`Host` 검증은 그 뒤(전송 빈 안)에서 일어난다. community 는 `OriginValidationFilter` 가 시큐리티 필터 체인 안에서 먼저 걸리고 `MCP-Protocol-Version` 검증은 그 뒤다. 그래서 지원하지 않는 프로토콜 버전과 허용되지 않은 `Origin` 을 한 요청에 같이 실으면 official·chat-memory 는 `400`(프로토콜 버전 위반이 먼저 걸림), community 는 `403`(Origin 위반이 먼저 걸림)이 된다.
   - 허용 Origin 은 official·chat-memory 가 없음(Origin 이 실리면 전부 403), community 가 `http://localhost:8101` 이다.
   - 테스트(세 practice): `McpAuthorizationStandardTest#허용되지_않은_Origin_은_403이다`, `#허용되지_않은_Host_는_421이다`, `#Origin_없는_서버간_요청은_통과한다`, `#지원하는_MCP_Protocol_Version_헤더는_통과한다`, `#지원하지_않는_MCP_Protocol_Version_헤더는_400이다`, `#MCP_Protocol_Version_헤더가_없으면_명세대로_통과한다`.
 
@@ -1728,7 +1729,9 @@ sequenceDiagram
 
 **[명세]** [MCP 2025-11-25 Security Best Practices — Server-Side Request Forgery (SSRF)](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) — 발견 과정에서 클라이언트가 여는 URL 은 전부 **MCP 서버가 알려 주는 값**이다: `WWW-Authenticate` 의 `resource_metadata`, PRM 의 `authorization_servers`, 인가 서버 메타데이터의 `token_endpoint`·`authorization_endpoint` 등. 악성 MCP 서버는 이 값들을 내부망 주소나 클라우드 메타데이터 엔드포인트(`http://169.254.169.254/...`)로 채워, 클라이언트가 자기 대신 그 주소에 요청하게 만들 수 있다. 문서는 대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), 리다이렉트 대상 검증, egress 프록시를 든다(전부 **SHOULD**).
 
-이 practice 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egress 프록시)을 구현하지 **않는다** — HTTP 를 그대로 쓰는 로컬 데모이기 때문이다([7.8](#s7-8), [9절](#s9)). 대신 발견 각 단계에서 하는 두 **일치 검증**이 신뢰 범위를 좁힌다.
+official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egress 프록시)을 구현하지 **않는다** — `McpAuthorizationDiscovery` 가 401 챌린지의 `resource_metadata` 값과 인가 서버 메타데이터 URL 을 검증 없이 그대로 GET 한다. community 는 다르다 — `McpSecurityConfig`(`McpSecurityConfig.java:45-46`, 에이전트)가 모듈 `McpMetadataDiscoveryService` 를 `new DefaultUrlValidator(true)` 와 함께 구성하고, 그 서비스는 **보호 리소스 메타데이터(PRM) URL** 을 가져오기 **전에** `urlValidator.validateUrl()` 로 HTTPS 이거나 loopback(`localhost`·`127.0.0.1`·`::1`) HTTP 인지 검사한다(`mcp-security-common` 0.1.14 `DefaultUrlValidator`). `allowLoopback=true` 는 이 practice 가 로컬 HTTP 데모([7.8](#s7-8), [9절](#s9))이기 때문의 완화이고, loopback 이 아닌 주소는 이 검사만으로 이미 HTTPS 가 아니면 걸러진다. 다만 community 도 **인가 서버 메타데이터 URL**(`McpAuthorizationDiscovery` 가 이어받은 자기 코드, [4.3](#s4-3))에는 이 검증기를 태우지 않는다 — 그 경로는 official·chat-memory 와 같다. 즉 "community 는 PRM URL 만 검증하고, 세 practice 모두 인가 서버 메타데이터 URL 은 검증하지 않는다"가 정확한 서술이다.
+
+이처럼 이 SSRF 대응책이 부분적이거나 없는 대신, 발견 각 단계에서 하는 두 **일치 검증**이 신뢰 범위를 좁힌다.
 
 - PRM 의 `resource` 가 클라이언트가 실제로 요청한 MCP 서버 URL 과 정확히 같아야 한다(RFC 9728 §3.3, [4.2](#s4-2)). MCP 서버가 자기 자신이 아닌 다른 리소스의 메타데이터를 내밀어도 `resource` 가 다르면 그 문서는 버려진다.
 - 인가 서버 메타데이터의 `issuer` 가 그 메타데이터를 요청하는 데 쓴 issuer 식별자와 정확히 같아야 한다(RFC 8414 §3.3, [4.3](#s4-3)). 공격자의 서버가 `https://attacker.example/.well-known/oauth-authorization-server` 에 `"issuer": "https://honest.example"` 를 내밀어도 거부된다 — [MCP 2026-07-28 Authorization Server Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery) 가 이 예시를 그대로 든다.

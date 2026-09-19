@@ -65,8 +65,9 @@ community 와 동일하다. 다른 것은 그 흐름을 만드는 재료뿐이�
 community 와 포트가 다르다(9000/8101/8100 → 9010/8111/8110) — 두 practice 를 동시에 띄워도
 충돌하지 않도록 설계했다. 세 앱 모두 Spring Boot 4.1.0 · servlet 스택, 패키지는
 `dev.starryeye.official*`. Spring AI 2.0.0 은 `shop-mcp-server` 와 `shop-agent` 에만
-의존성으로 들어간다 — `auth-server` 는 MCP 를 전혀 모르는 순수 OAuth2 인가 서버라
-Spring AI 의존성이 없다(위 build.gradle 참고).
+의존성으로 들어간다 — `auth-server` 에는 `resource`(RFC 8707) 파라미터 검증(`McpResourceProperties`,
+`ResourceIndicatorValidator`)과 그 배선(`AuthorizationServerConfig`)이 있어 MCP 를 완전히
+모르지는 않지만, Spring AI 의존성은 없다(위 build.gradle 참고).
 
 ## 직접 쓴 코드
 
