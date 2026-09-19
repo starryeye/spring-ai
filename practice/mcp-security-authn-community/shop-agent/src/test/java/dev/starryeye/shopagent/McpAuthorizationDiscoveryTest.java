@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest;
 
@@ -56,6 +57,10 @@ class McpAuthorizationDiscoveryTest {
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 
+    void 없음(String url) {
+        this.server.expect(requestTo(url)).andExpect(method(HttpMethod.GET)).andRespond(withResourceNotFound());
+    }
+
     @Test
     void 챌린지에서_인가_서버까지_찾아낸다() {
         챌린지();
@@ -68,6 +73,19 @@ class McpAuthorizationDiscoveryTest {
         assertThat(discovered.issuer()).isEqualTo(ISSUER);
         assertThat(discovered.tokenEndpoint()).isEqualTo(ISSUER + "/oauth2/token");
         assertThat(discovered.issParameterSupported()).isTrue();
+        this.server.verify();
+    }
+
+    @Test
+    void RFC8414_가_없으면_OIDC_디스커버리로_간다() {
+        // metadataUrls() 의 RFC 8414 → OIDC 디스커버리 폴백은 community 가 복사해 가진 자기
+        // 코드다(McpAuthorizationDiscovery). 모듈이 아니라 이 practice 의 회귀를 잡는 테스트다.
+        챌린지();
+        응답("http://localhost:8101/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+        없음("http://localhost:9000/.well-known/oauth-authorization-server");
+        응답("http://localhost:9000/.well-known/openid-configuration", AUTHORIZATION_SERVER_METADATA);
+
+        assertThat(this.discovery.discover(RESOURCE).issuer()).isEqualTo(ISSUER);
         this.server.verify();
     }
 
