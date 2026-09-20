@@ -20,10 +20,12 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -122,6 +124,63 @@ class AuthorizationServerStandardTest {
 		this.mockMvc.perform(get("/.well-known/openid-configuration"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.authorization_response_iss_parameter_supported").value(true));
+	}
+
+	@Test
+	void 메타데이터에_클라이언트_인증_서명_알고리즘이_광고된다() throws Exception {
+		// RFC 8414 §2: token/revocation/introspection 이 client_secret_jwt·private_key_jwt 를
+		// 광고하면, 그 알고리즘 목록도 함께 실어야 한다(조건부 MUST). none 은 MUST NOT.
+		this.mockMvc.perform(get("/.well-known/oauth-authorization-server"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_jwt")))
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", hasItem("RS256")))
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", hasItem("HS256")))
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))))
+				.andExpect(jsonPath("$.revocation_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+				.andExpect(jsonPath("$.revocation_endpoint_auth_signing_alg_values_supported", hasItem("RS256")))
+				.andExpect(jsonPath("$.revocation_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))))
+				.andExpect(jsonPath("$.introspection_endpoint_auth_methods_supported", hasItem("client_secret_jwt")))
+				.andExpect(jsonPath("$.introspection_endpoint_auth_signing_alg_values_supported", hasItem("HS256")))
+				.andExpect(jsonPath("$.introspection_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))));
+	}
+
+	@Test
+	void OIDC_디스커버리에도_token_endpoint_인증_서명_알고리즘이_있다() throws Exception {
+		// OIDC Discovery 1.0 도 RFC 8414 §2 와 같은 조건부 MUST 를 요구한다.
+		this.mockMvc.perform(get("/.well-known/openid-configuration"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", hasItem("RS256")))
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", hasItem("HS256")))
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))));
+	}
+
+	@Test
+	void Basic_인증_실패시_스킴에_맞는_WWW_Authenticate_가_실린다() throws Exception {
+		// RFC 6749 §5.2 / OAuth 2.1 §3.2.4: Authorization 헤더로 인증을 시도했다면
+		// 그 스킴에 맞는 WWW-Authenticate 를 401 과 함께 반드시 실어야 한다.
+		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+		parameters.add("grant_type", "client_credentials");
+
+		this.mockMvc.perform(post("/oauth2/token").with(httpBasic(CLIENT_ID, "wrong-secret")).params(parameters))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("invalid_client"))
+				.andExpect(header().string("WWW-Authenticate", "Basic realm=\"" + ISSUER + "\""));
+	}
+
+	@Test
+	void Authorization_헤더_없이_실패하면_WWW_Authenticate_가_없다() throws Exception {
+		// client_secret_post 처럼 폼 파라미터로만 인증을 시도한 경우엔 스킴을 알 수 없으므로
+		// RFC 6749 §5.2 요구(Authorization 헤더로 시도한 경우 한정)의 대상이 아니다.
+		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+		parameters.add("grant_type", "client_credentials");
+		parameters.add("client_id", CLIENT_ID);
+		parameters.add("client_secret", "wrong-secret");
+
+		this.mockMvc.perform(post("/oauth2/token").params(parameters))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().doesNotExist("WWW-Authenticate"));
 	}
 
 	@Test
