@@ -3,6 +3,7 @@ package dev.starryeye.authserver;
 import org.springaicommunity.mcp.security.authorizationserver.config.McpAuthorizationServerConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 
 /**
@@ -21,7 +22,20 @@ import org.springframework.security.config.Customizer;
 @Configuration
 public class OidcDiscoveryConfig {
 
+    /**
+     * {@code McpAuthorizationServerAutoConfiguration} 은 이 타입의 빈들을
+     * {@code ObjectProvider#orderedStream()} 으로 모아 순서대로 적용한다({@code @Order} 가
+     * 없으면 {@code Ordered.LOWEST_PRECEDENCE} 로 취급되어 등록 순서에 암묵적으로 의존한다).
+     * 이 빈은 oidc() 를 켜서 {@code OidcConfigurer} 를 존재하게 만드는 쪽이라,
+     * {@code providerConfigurationCustomizer} 로 그 안의 claim 을 채우는
+     * {@link McpAuthorizationStandardConfig} 보다 먼저 적용되도록 낮은 순서를 준다 —
+     * 다만 {@code OAuth2AuthorizationServerConfigurer#oidc(...)} 는 호출될 때마다 같은
+     * {@code OidcConfigurer} 를 가져오거나 새로 만들어 즉시 적용하므로(module 소스 확인:
+     * spring-security-config 7.1.0 {@code OAuth2AuthorizationServerConfigurer#oidc}), 두 빈이
+     * 서로 다른 필드를 건드리는 지금은 이 순서가 없어도 결과는 같다.
+     */
     @Bean
+    @Order(0)
     public Customizer<McpAuthorizationServerConfigurer> mcpOidcDiscoveryCustomizer() {
         return configurer -> configurer.authorizationServer(oauth2 -> oauth2.oidc(Customizer.withDefaults()));
     }

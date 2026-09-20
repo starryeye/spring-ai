@@ -4,6 +4,7 @@ import org.springaicommunity.mcp.security.authorizationserver.config.McpAuthoriz
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.oauth2.jose.jws.JwsAlgorithms;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
@@ -37,6 +38,14 @@ import java.util.List;
  * 않는다. 반면 {@code errorResponseHandler}(클라이언트 인증)는 이 프로젝트에서 이 클래스만
  * 설정하므로 별도 호출로 두어도 안전하지만, 한 곳에 모아 두는 편이 위 함정을 다시 만들
  * 위험을 줄인다.
+ *
+ * <p>같은 이유로 이 클래스의 {@code authorizationServerMetadataCustomizer} 호출은 모듈
+ * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)} 와도 부딪힌다(module 소스
+ * 확인: {@code cimd(true)} 면 init() 이 그 메서드로 {@code client_id_metadata_document_supported}
+ * claim 을 먼저 심고, 그 뒤 {@code this.authServerCustomizer.forEach(...)} 로 이 클래스가 등록한
+ * 커스터마이저가 실행되어 같은 필드를 덮어쓴다). 이 프로젝트는 CIMD 를 켜지 않으므로(properties
+ * 로 켜는 경로도 없다) 지금은 무해하지만, {@code McpAuthorizationServerConfigurer#cimd(true)} 를
+ * 호출하는 커스터마이저 빈이 추가되는 순간 그 claim 은 조용히 사라진다.
  */
 @Configuration
 @EnableConfigurationProperties(McpResourceProperties.class)
@@ -72,7 +81,9 @@ public class McpAuthorizationStandardConfig {
             JwsAlgorithms.ES256, JwsAlgorithms.ES384, JwsAlgorithms.ES512,
             JwsAlgorithms.PS256, JwsAlgorithms.PS384, JwsAlgorithms.PS512);
 
+    // OidcDiscoveryConfig(순서 0) 가 OidcConfigurer 를 먼저 켠 뒤에 적용되도록 순서를 명시한다.
     @Bean
+    @Order(1)
     public Customizer<McpAuthorizationServerConfigurer> mcpAuthorizationStandardCustomizer(
             McpResourceProperties resources) {
         IssuerIdentifyingAuthorizationResponseHandler responseHandler =
