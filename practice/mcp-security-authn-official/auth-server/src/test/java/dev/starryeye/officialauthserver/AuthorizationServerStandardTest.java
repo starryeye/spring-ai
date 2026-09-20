@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.LinkedMultiValueMap;
@@ -146,14 +147,22 @@ class AuthorizationServerStandardTest {
 	}
 
 	@Test
-	void OIDC_디스커버리에도_token_endpoint_인증_서명_알고리즘이_있다() throws Exception {
+	void OIDC_디스커버리에도_token_revocation_introspection_인증_서명_알고리즘이_모두_있다() throws Exception {
 		// OIDC Discovery 1.0 도 RFC 8414 §2 와 같은 조건부 MUST 를 요구한다.
+		// OidcProviderConfigurationEndpointFilter 가 세 엔드포인트 모두에 private_key_jwt·
+		// client_secret_jwt 를 광고하므로, 짝이 되는 서명 알고리즘 claim 도 세 개 다 있어야 한다.
 		this.mockMvc.perform(get("/.well-known/openid-configuration"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
 				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", hasItem("RS256")))
 				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", hasItem("HS256")))
-				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))));
+				.andExpect(jsonPath("$.token_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))))
+				.andExpect(jsonPath("$.revocation_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+				.andExpect(jsonPath("$.revocation_endpoint_auth_signing_alg_values_supported", hasItem("RS256")))
+				.andExpect(jsonPath("$.revocation_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))))
+				.andExpect(jsonPath("$.introspection_endpoint_auth_methods_supported", hasItem("client_secret_jwt")))
+				.andExpect(jsonPath("$.introspection_endpoint_auth_signing_alg_values_supported", hasItem("HS256")))
+				.andExpect(jsonPath("$.introspection_endpoint_auth_signing_alg_values_supported", not(hasItem("none"))));
 	}
 
 	@Test
@@ -164,6 +173,48 @@ class AuthorizationServerStandardTest {
 		parameters.add("grant_type", "client_credentials");
 
 		this.mockMvc.perform(post("/oauth2/token").with(httpBasic(CLIENT_ID, "wrong-secret")).params(parameters))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("invalid_client"))
+				.andExpect(header().string("WWW-Authenticate", "Basic realm=\"" + ISSUER + "\""));
+	}
+
+	/**
+	 * client_secret_post 파라미터(client_id·client_secret 폼 파라미터)는 등록된 클라이언트가
+	 * client_secret_basic 만 허용하므로 {@code ClientSecretAuthenticationProvider} 가
+	 * "authentication_method" 사유로 invalid_client 를 던진다 — 자격증명 자체는 맞아도 실패한다.
+	 * 이 변환기는 Authorization 헤더 내용과 무관하게 동작하므로, 헤더에 임의의(때로는 문법에
+	 * 어긋나는) 스킴을 실어도 그 값과 무관하게 실패를 재현할 수 있다. 우리 핸들러는 어느
+	 * 변환기가 실패시켰는지와 상관없이 원본 Authorization 헤더를 다시 파싱하므로, 이 방식으로
+	 * requestedScheme() 의 파싱·폴백 로직만 독립적으로 검증할 수 있다.
+	 */
+	static MultiValueMap<String, String> 인증방법이_허용되지_않는_클라이언트_자격증명() {
+		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+		parameters.add("grant_type", "client_credentials");
+		parameters.add("client_id", CLIENT_ID);
+		parameters.add("client_secret", CLIENT_SECRET);
+		return parameters;
+	}
+
+	@Test
+	void Basic_아닌_스킴으로_인증_실패시_그_스킴이_그대로_반영된다() throws Exception {
+		// DEFAULT_SCHEME 이 "Basic" 이라 Basic 요청만으로는 스킴 파싱 자체가 이뤄지는지
+		// 검증하지 못한다 — 파싱을 건너뛰고 항상 기본값만 돌려주는 구현도 통과해버린다.
+		// Bearer 처럼 다른 스킴으로 시도했을 때 그 스킴이 그대로 실리는지로 파싱을 고정한다.
+		this.mockMvc.perform(post("/oauth2/token")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer not-a-real-token")
+						.params(인증방법이_허용되지_않는_클라이언트_자격증명()))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("invalid_client"))
+				.andExpect(header().string("WWW-Authenticate", "Bearer realm=\"" + ISSUER + "\""));
+	}
+
+	@Test
+	void 스킴_토큰에_따옴표가_섞이면_Basic_으로_폴백하고_주입되지_않는다() throws Exception {
+		// RFC 7230 §3.2.6 token 문법에 어긋나는 스킴(따옴표·공백 포함)은 헤더에 그대로
+		// 옮기면 WWW-Authenticate 값 주입으로 이어질 수 있다. 기본 스킴으로 폴백해야 한다.
+		this.mockMvc.perform(post("/oauth2/token")
+						.header(HttpHeaders.AUTHORIZATION, "Basic\" , evil=\"x not-a-real-credential")
+						.params(인증방법이_허용되지_않는_클라이언트_자격증명()))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.error").value("invalid_client"))
 				.andExpect(header().string("WWW-Authenticate", "Basic realm=\"" + ISSUER + "\""));

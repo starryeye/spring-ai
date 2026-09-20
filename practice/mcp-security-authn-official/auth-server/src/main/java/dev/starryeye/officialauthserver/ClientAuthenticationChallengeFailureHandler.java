@@ -51,8 +51,7 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 
 		String scheme = requestedScheme(request);
 		if (scheme != null) {
-			// RFC 9110 §11.6.1 문법상 realm 은 quoted-string 이어야 한다.
-			response.setHeader(HttpHeaders.WWW_AUTHENTICATE, scheme + " realm=\"" + quoted(issuer()) + "\"");
+			response.setHeader(HttpHeaders.WWW_AUTHENTICATE, challenge(scheme));
 		}
 
 		ServletServerHttpResponse httpResponse = new ServletServerHttpResponse(response);
@@ -73,6 +72,22 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 		}
 		String token = header.trim().split("\\s+", 2)[0];
 		return TOKEN.matcher(token).matches() ? token : DEFAULT_SCHEME;
+	}
+
+	/**
+	 * 스킴만 있는 챌린지("Basic")에 issuer 를 realm 으로 덧붙인다. issuer 를 구하지 못하면
+	 * realm 없이 스킴만 돌려준다 — RFC 9110 §11.6.1 상 realm 은 challenge 의 필수 파라미터가
+	 * 아니라 스킴만으로도 유효한 챌린지이기 때문이다. 이 클래스는 다른 practice 로 그대로
+	 * 옮겨질 것을 전제로 하므로, issuer 가 정적으로 보장되지 않는 환경에서도 500 으로
+	 * 퇴행하지 않게 한다.
+	 */
+	private static String challenge(String scheme) {
+		String issuer = issuer();
+		if (!StringUtils.hasText(issuer)) {
+			return scheme;
+		}
+		// RFC 9110 §11.6.1 문법상 realm 은 quoted-string 이어야 한다.
+		return scheme + " realm=\"" + quoted(issuer) + "\"";
 	}
 
 	private static String issuer() {

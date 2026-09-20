@@ -96,10 +96,18 @@ public class AuthorizationServerConfig {
 							.clientAuthentication(clientAuthentication -> clientAuthentication
 									.errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
 							// oauth2Login 이 id_token 을 받으려면 OIDC 가 필요하다.
+							// OidcProviderConfigurationEndpointFilter 는 token/revocation/introspection
+							// 세 엔드포인트 모두에 clientAuthenticationMethods()(private_key_jwt·
+							// client_secret_jwt 포함)를 그대로 광고하므로, AS 메타데이터와 동일하게
+							// 세 claim 모두가 조건부 MUST 대상이다.
 							.oidc(oidc -> oidc.providerConfigurationEndpoint(configuration -> configuration
 									.providerConfigurationCustomizer(builder -> builder
 											.claim(ISS_PARAMETER_SUPPORTED, true)
 											.claim(TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+											.claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS))));
 				})
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
