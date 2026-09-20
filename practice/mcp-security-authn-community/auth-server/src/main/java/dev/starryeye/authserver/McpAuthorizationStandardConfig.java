@@ -5,9 +5,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.oauth2.jose.jws.JwsAlgorithms;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+
+import java.util.List;
 
 /**
  * community 모듈의 인가 서버 자동설정 위에 MCP 인가 명세를 얹는다.
@@ -21,6 +24,19 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
  * 있으면 건너뛴다. 이 practice 의 에이전트는 로그인(openid)으로 토큰을 받으므로 그 경로가
  * 비어 버린다. 아래 토큰 커스터마이저가 모듈 것 뒤에 실행되어 스코프와 무관하게
  * {@code aud} 를 채운다.
+ *
+ * <p>메타데이터·OIDC 디스커버리 커스터마이저는 이 클래스 안에서 한 번에 구성해야 한다.
+ * {@code OAuth2AuthorizationServerMetadataEndpointConfigurer#authorizationServerMetadataCustomizer}
+ * 와 {@code OidcProviderConfigurationEndpointConfigurer#providerConfigurationCustomizer} 는
+ * 둘 다 커스터마이저를 리스트가 아니라 필드 하나에 담아 마지막 호출로 덮어쓴다(module 소스
+ * 확인: spring-security-config 7.1.0 소스의 두 클래스 모두 {@code this.xxxCustomizer = xxx;}).
+ * 그래서 다른 {@code Customizer<McpAuthorizationServerConfigurer>} 빈을 하나 더 만들어 같은
+ * 메서드를 다시 호출하면, 먼저 등록된 {@link #ISS_PARAMETER_SUPPORTED} claim 이 사라진다.
+ * {@code OidcDiscoveryConfig} 는 {@code oidc(Customizer.withDefaults())} 로 OidcConfigurer 를
+ * 존재하게만 만들 뿐 providerConfigurationCustomizer 를 건드리지 않으므로 이 클래스와 부딪히지
+ * 않는다. 반면 {@code errorResponseHandler}(클라이언트 인증)는 이 프로젝트에서 이 클래스만
+ * 설정하므로 별도 호출로 두어도 안전하지만, 한 곳에 모아 두는 편이 위 함정을 다시 만들
+ * 위험을 줄인다.
  */
 @Configuration
 @EnableConfigurationProperties(McpResourceProperties.class)
@@ -28,6 +44,33 @@ public class McpAuthorizationStandardConfig {
 
     /** RFC 9207 §3 — 인가 응답에 iss 를 싣는다고 알리는 메타데이터 필드. */
     static final String ISS_PARAMETER_SUPPORTED = "authorization_response_iss_parameter_supported";
+
+    /**
+     * RFC 8414 §2 — token/revocation/introspection 각 엔드포인트의
+     * {@code *_endpoint_auth_methods_supported} 가 {@code private_key_jwt} 또는
+     * {@code client_secret_jwt} 를 담고 있으면 짝이 되는 이 claim 들이 조건부 MUST 다.
+     * 최신 Spring Security(community 모듈이 물고 있는 7.1.0 포함)에는 이 claim 상수조차 없다.
+     */
+    static final String TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED =
+            "token_endpoint_auth_signing_alg_values_supported";
+    static final String REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED =
+            "revocation_endpoint_auth_signing_alg_values_supported";
+    static final String INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED =
+            "introspection_endpoint_auth_signing_alg_values_supported";
+
+    /**
+     * 위 세 claim 에 실을 값. 지어낸 목록이 아니라, Spring 인가 서버의
+     * {@code JwtClientAssertionDecoderFactory} 가 client_secret_jwt/private_key_jwt
+     * 클라이언트 인증에서 실제로 검증기를 만들어내는 알고리즘 전부다 — 대칭키
+     * {@code MacAlgorithm}(HS256/HS384/HS512) 과 비대칭 {@code SignatureAlgorithm}
+     * (RS/ES/PS 256/384/512) 9종. {@code JwsAlgorithms} 상수를 그대로 참조해 값이
+     * 어긋나지 않게 한다. {@code none} 은 RFC 8414 §2 상 MUST NOT 이라 넣지 않는다.
+     */
+    static final List<String> CLIENT_ASSERTION_SIGNING_ALGORITHMS = List.of(
+            JwsAlgorithms.HS256, JwsAlgorithms.HS384, JwsAlgorithms.HS512,
+            JwsAlgorithms.RS256, JwsAlgorithms.RS384, JwsAlgorithms.RS512,
+            JwsAlgorithms.ES256, JwsAlgorithms.ES384, JwsAlgorithms.ES512,
+            JwsAlgorithms.PS256, JwsAlgorithms.PS384, JwsAlgorithms.PS512);
 
     @Bean
     public Customizer<McpAuthorizationServerConfigurer> mcpAuthorizationStandardCustomizer(
@@ -45,11 +88,33 @@ public class McpAuthorizationStandardConfig {
                                 .authorizationResponseHandler(responseHandler)
                                 .errorResponseHandler(responseHandler))
                         .authorizationServerMetadataEndpoint(metadata -> metadata
-                                .authorizationServerMetadataCustomizer(
-                                        builder -> builder.claim(ISS_PARAMETER_SUPPORTED, true)))
+                                .authorizationServerMetadataCustomizer(builder -> builder
+                                        .claim(ISS_PARAMETER_SUPPORTED, true)
+                                        .claim(TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+                                                CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+                                        .claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+                                                CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+                                        .claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+                                                CLIENT_ASSERTION_SIGNING_ALGORITHMS)))
+                        // RFC 6749 §5.2: Authorization 헤더로 인증을 시도했다면 그 스킴에 맞는
+                        // WWW-Authenticate 를 붙인다. Spring 기본 핸들러는 TODO 로 남겨 두고 있다.
+                        .clientAuthentication(clientAuthentication -> clientAuthentication
+                                .errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
+                        // OidcDiscoveryConfig 가 oidc() 를 켜 둔다. providerConfigurationCustomizer 는
+                        // OidcProviderConfigurationEndpointConfigurer 필드 하나에 담기므로(module 소스
+                        // 확인) token/revocation/introspection 세 claim 모두 이 한 호출에 모아야 한다 —
+                        // OidcProviderConfigurationEndpointFilter 도 AS 메타데이터와 동일하게 세
+                        // 엔드포인트 모두에 clientAuthenticationMethods()(private_key_jwt·
+                        // client_secret_jwt 포함)를 그대로 광고하기 때문에 세 claim 모두가 대상이다.
                         .oidc(oidc -> oidc.providerConfigurationEndpoint(configuration -> configuration
-                                .providerConfigurationCustomizer(
-                                        builder -> builder.claim(ISS_PARAMETER_SUPPORTED, true)))));
+                                .providerConfigurationCustomizer(builder -> builder
+                                        .claim(ISS_PARAMETER_SUPPORTED, true)
+                                        .claim(TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+                                                CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+                                        .claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+                                                CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+                                        .claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
+                                                CLIENT_ASSERTION_SIGNING_ALGORITHMS)))));
     }
 
     /** 모듈이 이 타입의 빈을 모아 기본 커스터마이저 뒤에 실행한다. */
