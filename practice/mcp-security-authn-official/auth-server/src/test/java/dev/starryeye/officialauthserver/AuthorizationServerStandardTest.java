@@ -235,6 +235,27 @@ class AuthorizationServerStandardTest {
 	}
 
 	@Test
+	void client_인증은_성공하고_code_verifier_만_틀리면_WWW_Authenticate_가_없다() throws Exception {
+		// PKCE code_verifier 검증은 OAuth2TokenEndpointFilter 가 아니라, ClientSecretAuthenticationProvider
+		// 내부의 CodeVerifierAuthenticator 가 "클라이언트 인증"의 일부로 OAuth2ClientAuthenticationFilter
+		// 안에서 수행한다. 그래서 이 실패도 우리 챌린지 핸들러(그 필터의 실패 핸들러)를 거치지만,
+		// 오류 코드는 invalid_client 가 아니라 invalid_grant 다 — client_secret 자체는 맞았기 때문이다.
+		// RFC 6749 §5.2 의 챌린지 의무는 invalid_client 응답에 한정되므로 붙으면 안 된다.
+		String code = 인가코드(RESOURCE);
+		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+		parameters.add("grant_type", "authorization_code");
+		parameters.add("code", code);
+		parameters.add("redirect_uri", REDIRECT_URI);
+		parameters.add("code_verifier", "wrong-verifier-wrong-verifier-wrong-verifier-000");
+		parameters.add("resource", RESOURCE);
+
+		this.mockMvc.perform(post("/oauth2/token").with(httpBasic(CLIENT_ID, CLIENT_SECRET)).params(parameters))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error").value("invalid_grant"))
+				.andExpect(header().doesNotExist("WWW-Authenticate"));
+	}
+
+	@Test
 	void 인가_응답에_code_state_iss_가_실린다() throws Exception {
 		UriComponents response = 인가요청(true, RESOURCE);
 
