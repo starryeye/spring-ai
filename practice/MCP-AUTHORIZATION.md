@@ -567,7 +567,7 @@ public client 는 refresh token 을 받지 않아, 만료되면 authorization re
 
 server 에 배포된 MCP client 는 OAuth 관련 URL 을 가져올 때 SSRF 위험을 고려하고 알맞은 대응을 구현해야 한다(**MUST**).
 대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), redirect 대상 검증, egress proxy 를 든다(모두 **SHOULD**).
-Agent 는 서버에서 도는 client 라 이 MUST 의 대상이다.
+Agent 는 서버에서 도는 client 라 이 MUST 의 대상이고, 세 practice 의 판정은 [준수표 27번](#s6)이다.
 
 #### 이 practice
 
@@ -670,10 +670,11 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 | 24 | loopback redirect 의 포트 허용 | MUST (RFC 8252 §7.3 · OAuth 2.1 §8.4.2) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator`, P10 | 예 — 같음 | 예 — 같음 | [4.4](#s4-4), [5.5](#s5-5) |
 | 25 | 신원을 확인할 수 없는 client 의 재동의 | SHOULD · SHOULD NOT (OAuth 2.1 §7.3.1) | 예 — `PublicClientConsentService`, P8 | 예 — 같음 | 예 — 같음 | [5.6](#s5-6) |
 | 26 | public client refresh token 의 회전 또는 sender-constrained | MUST (OAuth 2.1 §4.3.1) | 해당 없음 — refresh token 을 발급하지 않음, P7 | 해당 없음 — 같음 | 해당 없음 — 같음 | [4.10](#s4-10) |
+| 27 | 서버에 배포된 MCP client 의 SSRF 위험 고려와 대응 | MUST, 대응 네 가지는 SHOULD ([Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)) | **아니오** — `McpAuthorizationDiscovery` 가 challenge·PRM 이 준 URL 을 스킴·사설 IP·redirect 제한 없이 GET 한다(구성요소가 모두 localhost 인 학습 환경) | **아니오** — 같음 | **아니오** — PRM URL 만 `DefaultUrlValidator(true)` 로 HTTPS·loopback HTTP 검사, Authorization Server Metadata URL 과 사설 IP 는 제한 없음 | [5.4](#s5-4) |
 
-남은 MUST 위반은 12번(HTTPS)과 19번(SSE 이벤트 `id`)이고, 12번은 로컬 관측을 위한 선택이며 19번은 SDK 전송 클래스 구조 때문에 포크 없이는 바꿀 수 없다.
-18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 이 practice 가 직접 채운 것이고, 21번은 SHOULD 를 이행하지 않는다.
-17·22번은 MCP 가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
+남은 MUST 위반은 12번(HTTPS), 19번(SSE 이벤트 `id`), 27번(SSRF 대응) 셋이다.
+12번은 로컬 관측을 위한 선택이고, 19번은 SDK 전송 클래스 구조 때문에 포크 없이는 바꿀 수 없으며, 27번은 community 만 PRM URL 을 일부 검증한다.
+18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 이 practice 가 직접 채운 것이고, 21번은 SHOULD 를 이행하지 않으며, 17·22번은 MCP 가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
 
 ---
 
