@@ -1,4 +1,4 @@
-# 보충 관측 — 2026-09-16 (mcp-authorization-supplement.sh)
+# 보충 관측 — 2026-09-20 (mcp-authorization-supplement.sh)
 # AS=http://localhost:9010 MCP=http://localhost:8111/mcp AGENT=http://localhost:8110 CLIENT_ID=official-shop-agent
 
 
@@ -7,9 +7,9 @@ HTTP/1.1 200
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json
-Content-Length: 1514
+Content-Length: 1974
 
-{"issuer":"http://localhost:9010","authorization_endpoint":"http://localhost:9010/oauth2/authorize","token_endpoint":"http://localhost:9010/oauth2/token","token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"jwks_uri":"http://localhost:9010/oauth2/jwks","userinfo_endpoint":"http://localhost:9010/userinfo","end_session_endpoint":"http://localhost:9010/connect/logout","response_types_supported":["code"],"grant_types_supported":["authorization_code","client_credentials","refresh_token","urn:ietf:params:oauth:grant-type:token-exchange"],"revocation_endpoint":"http://localhost:9010/oauth2/revoke","revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"introspection_endpoint":"http://localhost:9010/oauth2/introspect","introspection_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"code_challenge_methods_supported":["S256"],"tls_client_certificate_bound_access_tokens":true,"dpop_signing_alg_values_supported":["RS256","RS384","RS512","PS256","PS384","PS512","ES256","ES384","ES512"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256"],"scopes_supported":["openid"],"authorization_response_iss_parameter_supported":true}
+{"issuer":"http://localhost:9010","authorization_endpoint":"http://localhost:9010/oauth2/authorize","token_endpoint":"http://localhost:9010/oauth2/token","token_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"jwks_uri":"http://localhost:9010/oauth2/jwks","userinfo_endpoint":"http://localhost:9010/userinfo","end_session_endpoint":"http://localhost:9010/connect/logout","response_types_supported":["code"],"grant_types_supported":["authorization_code","client_credentials","refresh_token","urn:ietf:params:oauth:grant-type:token-exchange"],"revocation_endpoint":"http://localhost:9010/oauth2/revoke","revocation_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"introspection_endpoint":"http://localhost:9010/oauth2/introspect","introspection_endpoint_auth_methods_supported":["client_secret_basic","client_secret_post","client_secret_jwt","private_key_jwt","tls_client_auth","self_signed_tls_client_auth"],"code_challenge_methods_supported":["S256"],"tls_client_certificate_bound_access_tokens":true,"dpop_signing_alg_values_supported":["RS256","RS384","RS512","PS256","PS384","PS512","ES256","ES384","ES512"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256"],"scopes_supported":["openid"],"authorization_response_iss_parameter_supported":true,"token_endpoint_auth_signing_alg_values_supported":["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"],"revocation_endpoint_auth_signing_alg_values_supported":["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"],"introspection_endpoint_auth_signing_alg_values_supported":["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]}
 
 
 ===== S2. 루트형 보호 리소스 메타데이터 (GET /.well-known/oauth-protected-resource) =====
@@ -38,7 +38,7 @@ Pragma: no-cache
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"timestamp":"2026-09-15T22:04:02.559Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
+{"timestamp":"2026-09-20T11:21:20.969Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
 
 
 ===== S5. 토큰 요청 성공 — 응답 헤더와 필드 (authorization_code) =====
@@ -48,7 +48,7 @@ Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
 Content-Length: 1702
 
-{"access_token":"eyJraWQiOiIyYjk5ZGJl...","refresh_token":"GYoLPa20WGKQ...","scope":"openid profile","id_token":"eyJraWQiOiIyYjk5ZGJl...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJlZDY1ZWFl...","refresh_token":"NfSEsMUmrh9W...","scope":"openid profile","id_token":"eyJraWQiOiJlZDY1ZWFl...","token_type":"Bearer","expires_in":299}
 
 
 ===== S6. 토큰 요청의 resource 가 인가 요청과 다름 (invalid_target) =====
@@ -63,6 +63,7 @@ Content-Length: 175
 
 ===== S7. code_verifier 불일치 (invalid_grant) =====
 HTTP/1.1 400 
+WWW-Authenticate: Basic realm="http://localhost:9010"
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
@@ -73,6 +74,7 @@ Content-Length: 25
 
 ===== S8. Basic 인증 실패 (invalid_client) =====
 HTTP/1.1 401 
+WWW-Authenticate: Basic realm="http://localhost:9010"
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
@@ -83,7 +85,7 @@ Content-Length: 26
 
 ===== S9. initialize 와 notifications/initialized =====
 HTTP/1.1 200 
-Mcp-Session-Id: 8d65c394-d27f-4f1a-b0da-ee861584b67e
+Mcp-Session-Id: fd3adc55-19f2-4c12-baf7-662fa897fd96
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json
@@ -99,7 +101,7 @@ Cache-Control: no-cache
 Content-Type: text/event-stream
 Transfer-Encoding: chunked
 
-id:8d65c394-d27f-4f1a-b0da-ee861584b67e
+id:fd3adc55-19f2-4c12-baf7-662fa897fd96
 event:message
 data:{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용�
 
@@ -162,12 +164,12 @@ Pragma: no-cache
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"jsonRpcError":{"code":-32603,"message":"Session not found: 8d65c394-d27f-4f1a-b0da-ee861584b67e"},"cause":null,"localizedMessage":"Session not found: 8d65c394-d27f-4f1a-b0da-ee861584b67e","message":"Session not found: 8d65c394-d27f-4f1a-b0da-ee861584b67e","stackTrace":[{"classLoaderName":"app","cl
+{"jsonRpcError":{"code":-32603,"message":"Session not found: fd3adc55-19f2-4c12-baf7-662fa897fd96"},"cause":null,"localizedMessage":"Session not found: fd3adc55-19f2-4c12-baf7-662fa897fd96","message":"Session not found: fd3adc55-19f2-4c12-baf7-662fa897fd96","stackTrace":[{"classLoaderName":"app","cl
 
 
 ===== S17. 에이전트가 만드는 인가 요청 (발견 결과로 만든다) =====
 HTTP/1.1 302 
-Location: http://localhost:9010/oauth2/authorize?response_type=code&client_id=official-shop-agent&scope=openid%20profile&state=vyMgahSxFKsbVLT6s41V2M7bHqehuDoToU8JTTPst5o%3D&redirect_uri=http://localhost:8110/login/oauth2/code/authserver&nonce=4SgkKmhfqjp9G_dLZfTpLJ-HLj0vUbm0IhCKt0Rqlpw&code_challenge=5tPg093jM6Nk0oOa1O3CYuUcYYPL92lzwX0p9ADgBHI&code_challenge_method=S256&resource=http://localhost:8111/mcp
+Location: http://localhost:9010/oauth2/authorize?response_type=code&client_id=official-shop-agent&scope=openid%20profile&state=Bor4SL5vzIto2vrU9QLW8zyttHuNliBvK9ASx_DqHVg%3D&redirect_uri=http://localhost:8110/login/oauth2/code/authserver&nonce=dKPUd1MyFgDUowvHG3ucpaG18osLsS5U0snwXtqplK4&code_challenge=8tjEKUMB7DFec1hGOKc9E3Jr9rGfytmAVIDek4ddblg&code_challenge_method=S256&resource=http://localhost:8111/mcp
 
 
 ===== S18. 조작한 iss 로 에이전트 콜백 (코드를 교환하지 않고 거부) =====
@@ -191,7 +193,7 @@ Content-Length: 80
 
 
 ===== S20. 에이전트 정상 로그인 왕복 (브라우저 역할) =====
-인가 서버 → http://localhost:8110/login/oauth2/code/authserver?code=tXQ2qA0_QjMQ...&state=I2byMp2wPbX-x5iZYEuu6ItEfKRdplBLM3Zr15y0Xx0%3D&iss=http%3A%2F%2Flocalhost%3A9010
+인가 서버 → http://localhost:8110/login/oauth2/code/authserver?code=mc5AIun0ZCP9...&state=-Eu7QE6XnIU7q1qG8plp9kx5mPJyF-7zT6KasPeGXzc%3D&iss=http%3A%2F%2Flocalhost%3A9010
 HTTP/1.1 302 
 Location: http://localhost:8110/
 
