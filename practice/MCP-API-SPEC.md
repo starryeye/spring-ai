@@ -47,8 +47,8 @@
 ### 예시 표기
 
 - 응답은 캡처 원문이다. `C<n>` 은 [`2026-09-12-<practice>.txt`](../docs/superpowers/captures/2026-09-12-official.txt), `S<n>` 은 [`2026-09-16-official-supplement.txt`](../docs/superpowers/captures/2026-09-16-official-supplement.txt), `P<n>` 은 [`2026-09-25-<practice>-public-client.txt`](../docs/superpowers/captures/2026-09-25-official-public-client.txt) 의 n 번 단계다.
-- 요청 줄과 요청 헤더는 캡처에 없다. [`mcp-authorization-walkthrough.sh`](../docs/superpowers/captures/mcp-authorization-walkthrough.sh), [`mcp-authorization-supplement.sh`](../docs/superpowers/captures/mcp-authorization-supplement.sh), [`mcp-authorization-public-client.sh`](../docs/superpowers/captures/mcp-authorization-public-client.sh) 의 해당 단계 `curl` 명령에서 옮겼다.
-- 공통 보안 헤더(`X-Content-Type-Options`, `X-XSS-Protection`, `X-Frame-Options`, `Expires`)와 `Date` 는 뺐다. JWT 는 앞 20자 + `...`, refresh token 과 authorization code 는 캡처 스크립트와 같이 앞 12자 + `...` 로 줄였다.
+- 요청 줄과 요청 헤더는 캡처에 없다. [`mcp-authorization-walkthrough.sh`](../docs/superpowers/captures/mcp-authorization-walkthrough.sh), [`mcp-authorization-supplement.sh`](../docs/superpowers/captures/mcp-authorization-supplement.sh), [`mcp-authorization-public-client.sh`](../docs/superpowers/captures/mcp-authorization-public-client.sh) 의 해당 단계 `curl` 명령을 따른다.
+- 공통 보안 헤더(`X-Content-Type-Options`, `X-XSS-Protection`, `X-Frame-Options`, `Expires`)와 `Date` 는 싣지 않는다. JWT 는 앞 20자 + `...`, refresh token 과 authorization code 는 캡처 스크립트와 같이 앞 12자 + `...` 로 줄여 적는다.
 
 ### practice 별 주소
 
@@ -71,7 +71,7 @@
 | `MCP-Session-Id` | 헤더 | MUST — 서버가 초기화 때 발급했으면 이후 모든 HTTP 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)) | 보이는 ASCII(0x21~0x7E)만 MUST. 헤더 이름은 대소문자를 가리지 않는다(캡처는 `Mcp-Session-Id`) | 씀 — C14 없음 → `400` · S13 모르는 값 → `404` |
 | `Origin` | 헤더 | client 요구 없음 · 서버는 모든 연결에서 검증 MUST, 있는데 무효면 `403` MUST ([Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning)) | 브라우저가 붙인다. 서버 사이 호출에는 없다 | agent 는 보내지 않음. C13 `http://evil.example` → `403` |
 | `Accept` | 헤더 | MUST — POST 는 `application/json` 과 `text/event-stream` 둘 다, GET 은 `text/event-stream` ([Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server)) | | 씀 — S15 `text/event-stream` 없음 → `400` |
-| `Content-Type` | 헤더 | 표시 없음 — 명세는 JSON-RPC 메시지가 UTF-8 이어야 한다(MUST)고만 규정 ([Transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)) | | 씀 — `application/json` |
+| `Content-Type` | 헤더 | 표시 없음 — 명세는 JSON-RPC 메시지가 UTF-8 이어야 한다(MUST)고만 규정 ([Transports](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)) | | 씀 — 캡처 스크립트는 `application/json`, SDK client(`HttpClientStreamableHttpTransport`, MCP Java SDK 2.0.0)는 `application/json; charset=utf-8` |
 
 ---
 
@@ -243,9 +243,9 @@ access token 을 실어 JSON-RPC 메시지를 하나씩 보낸다. 한 MCP sessi
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
 | 메서드 `POST` | 요청 줄 | MUST — client 가 보내는 JSON-RPC 메시지마다 새 POST | | 씀 |
-| `Authorization: Bearer <token>` | 헤더 | MUST — 같은 session 이라도 모든 HTTP 요청 (MCP) · Resource Server 는 이 방식 지원 MUST ([RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750#section-2.1)) · URI query string 에 싣기 금지 MUST NOT (MCP) | `Bearer` 스킴 뒤 access token | 씀 |
+| `Authorization: Bearer <token>` | 헤더 | MUST — 같은 session 이라도 모든 HTTP 요청 (MCP) · Resource Server 는 이 방식 지원 MUST ([RFC 6750 §2.1](https://www.rfc-editor.org/rfc/rfc6750#section-2.1)) · URI query string 에 싣기 금지 MUST NOT (MCP) | `Bearer` 스킴 뒤 access token. 스킴 이름 `bearer` 는 대소문자를 가리지 않는다([OAuth 2.1 §5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.1.1), [RFC 9110 §11.1](https://www.rfc-editor.org/rfc/rfc9110#section-11.1)) | 씀 |
 | 공통 헤더 | 헤더 | [공통](#common) | `Accept`·`Content-Type`·`MCP-Protocol-Version`·`MCP-Session-Id`·`Origin` | 씀 |
-| 본문 | 본문 | MUST — JSON-RPC request·notification·response 하나 | UTF-8 MUST | 씀 — C7 `initialize`, C8 `notifications/initialized`, C9 `tools/list`, C10 `tools/call` |
+| 본문 | 본문 | MUST — JSON-RPC request·notification·response 하나 | UTF-8 MUST. JSON-RPC 배치는 2025-06-18 부터 지원하지 않는다([MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog)) | 씀 — C7 `initialize`, C8 `notifications/initialized`, C9 `tools/list`, C10 `tools/call` |
 
 원문 필드: 없음(Transports 는 필드 목록 없이 문장으로 규정한다)
 
@@ -319,7 +319,7 @@ client 가 먼저 POST 하지 않아도 서버가 request·notification 을 보�
 | 메서드 `GET` | 요청 줄 | MAY | | SDK client 가 session ID 를 받은 뒤 연다 — S11 |
 | `Accept: text/event-stream` | 헤더 | MUST | | 씀 |
 | `Authorization` | 헤더 | MUST (모든 HTTP 요청) | | 씀 |
-| `MCP-Session-Id` | 헤더 | MUST — 서버가 발급했으면 | | 씀 — S12 없음 → `400 text/plain` |
+| `MCP-Session-Id` | 헤더 | MUST — 서버가 발급했으면 이후 모든 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) 2번) | | 씀 — S12 없음 → `400 text/plain` |
 | `MCP-Protocol-Version` | 헤더 | MUST (초기화 이후 모든 요청) | | 씀 |
 | `Last-Event-ID` | 헤더 | SHOULD — 끊긴 뒤 재개할 때 | 서버는 끊긴 그 stream 의 메시지만 재전송할 수 있고(MAY), 다른 stream 것은 재전송하면 안 된다(MUST NOT) | 쓰지 않음 |
 
@@ -379,7 +379,7 @@ Session ID required in mcp-session-id header
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
 | 메서드 `DELETE` | 요청 줄 | SHOULD — 더 쓰지 않을 session | | SDK client 가 session 을 닫을 때 보낸다 — C18, S16 |
-| `MCP-Session-Id` | 헤더 | SHOULD — 위와 같은 문장, 끝낼 session 을 가리킨다 | | 씀 |
+| `MCP-Session-Id` | 헤더 | MUST — 서버가 발급했으면 이후 모든 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) 2번) · 이 헤더를 실은 DELETE 로 session 을 끝내는 것은 SHOULD (같은 절 5번) | 끝낼 session 을 가리킨다 | 씀 |
 | `Authorization` | 헤더 | MUST (모든 HTTP 요청) | | 씀 |
 | `MCP-Protocol-Version` | 헤더 | MUST (초기화 이후 모든 요청) | | 씀 |
 
@@ -460,17 +460,17 @@ Authorization Server 의 엔드포인트와 지원 기능을 알린다. MCP clie
 | `response_modes_supported` | OPTIONAL, 생략 시 `["query", "fragment"]` | | 쓰지 않음 |
 | `grant_types_supported` | OPTIONAL, 생략 시 `["authorization_code", "implicit"]` | 서버 전체가 지원하는 grant | 광고됨 — 4개. client 는 `authorization_code`·`refresh_token` 만 등록 |
 | `token_endpoint_auth_methods_supported` | OPTIONAL, 생략 시 `client_secret_basic` | 값은 [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2) 의 `token_endpoint_auth_method` 이름. `none` 은 public client | 씀 — `client_secret_basic`(confidential client), `none`(public client). 광고는 Spring 고정 6개 + `none`(P1) |
-| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL — `private_key_jwt`·`client_secret_jwt` 를 광고하면 MUST 포함 | `none` 금지(MUST NOT) | 씀 — 두 방식을 광고하므로 조건부 MUST 대상. 12개 |
+| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL — `private_key_jwt`·`client_secret_jwt` 를 광고하면 MUST 포함 | `none` 금지(MUST NOT) | 광고됨 — 두 방식을 광고하므로 조건부 MUST 충족. 12개 |
 | `service_documentation` | OPTIONAL | | 쓰지 않음 |
 | `ui_locales_supported` | OPTIONAL | | 쓰지 않음 |
 | `op_policy_uri` | OPTIONAL | | 쓰지 않음 |
 | `op_tos_uri` | OPTIONAL | | 쓰지 않음 |
 | `revocation_endpoint` | OPTIONAL | RFC 7009 | 광고됨, 쓰지 않음 — `http://localhost:9010/oauth2/revoke` |
 | `revocation_endpoint_auth_methods_supported` | OPTIONAL, 생략 시 `client_secret_basic` | | 광고됨 — 6개 |
-| `revocation_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 MUST 포함 | | 씀 — 조건부 MUST 대상. 12개 |
+| `revocation_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 MUST 포함 | | 광고됨 — 조건부 MUST 충족. 12개 |
 | `introspection_endpoint` | OPTIONAL | RFC 7662 | 광고됨, 쓰지 않음 — `http://localhost:9010/oauth2/introspect` |
 | `introspection_endpoint_auth_methods_supported` | OPTIONAL | | 광고됨 — 6개 |
-| `introspection_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 MUST 포함 | | 씀 — 조건부 MUST 대상. 12개 |
+| `introspection_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 MUST 포함 | | 광고됨 — 조건부 MUST 충족. 12개 |
 | `code_challenge_methods_supported` | OPTIONAL, 생략하면 PKCE 미지원 (RFC 8414) · 없으면 client 는 진행 거부 MUST ([MCP](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)) | | 씀 — `["S256"]` |
 | `signed_metadata` | OPTIONAL ([§2.1](https://www.rfc-editor.org/rfc/rfc8414#section-2.1)) | | 쓰지 않음 |
 | `authorization_response_iss_parameter_supported` | 표시 없음, 생략 시 `false` ([RFC 9207 §3](https://www.rfc-editor.org/rfc/rfc9207#section-3)) · `iss` 를 주는 서버는 `true` MUST ([RFC 9207 §2.3](https://www.rfc-editor.org/rfc/rfc9207#section-2.3), [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)) | | 씀 — `true` |
@@ -494,7 +494,7 @@ RFC 8414 §2 밖에서 정의되어 응답에 나오는 필드:
 
 관측: C3 세 practice 의 필드 구성이 같다. P1 에서 `token_endpoint_auth_methods_supported` 는 `none` 을 더한 7개다.
 
-**예시** (C3, official — `none` 을 더하기 전의 캡처라 방식이 6개다)
+**예시** (C3, official — 이 캡처에는 `none` 이 없다. 현재 설정은 P1 의 7개)
 
 ```http
 GET /.well-known/oauth-authorization-server HTTP/1.1
@@ -519,7 +519,7 @@ Content-Length: 1742
 
 OpenID Connect Discovery 문서다. MCP client 는 RFC 8414 문서가 없을 때 이것을 시도한다.
 
-근거: [OpenID Connect Discovery 1.0 §3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata), [§4.1](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest), [§4.2](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationResponse), [§4.3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationValidation), [RFC 8414 §5](https://www.rfc-editor.org/rfc/rfc8414#section-5), [MCP 2025-11-25 Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-metadata-discovery), [Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)
+근거: [OpenID Connect Discovery 1.0 §3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata), [§4](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig), [§4.1](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest), [§4.2](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationResponse), [§4.3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationValidation), [RFC 8414 §5](https://www.rfc-editor.org/rfc/rfc8414#section-5), [MCP 2025-11-25 Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-metadata-discovery), [Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)
 
 RFC 8414 와의 차이는 두 가지다.
 
@@ -531,7 +531,7 @@ RFC 8414 와의 차이는 두 가지다.
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
 | 메서드 `GET` | 요청 줄 | MUST ([§4.1](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest)) | | 씀 |
-| 경로 | URL | MUST ([§4.1](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest)) | issuer 뒤에 `/.well-known/openid-configuration` 을 붙인다(RFC 8414 는 앞에 끼운다). MCP client 는 path 있는 issuer 에 두 방식을 모두 시도 MUST | 씀 — S1 |
+| 경로 | URL | MUST ([§4](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig)) | issuer 뒤에 `/.well-known/openid-configuration` 을 붙인다(RFC 8414 는 앞에 끼운다). issuer path 끝의 `/` 는 없앤다(MUST, [§4.1](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest)). MCP client 는 path 있는 issuer 에 두 방식을 모두 시도 MUST | 씀 — S1 |
 
 원문 필드: 없음(요청은 파라미터 없는 GET 이다)
 
@@ -556,7 +556,7 @@ RFC 8414 와의 차이는 두 가지다.
 | `scopes_supported` | RECOMMENDED, `openid` 지원 MUST | 같음(RECOMMENDED) | 광고됨 — `["openid"]` |
 | `response_types_supported` | REQUIRED | 같음 | 씀 — `["code"]` |
 | `response_modes_supported` | OPTIONAL | 같음 | 쓰지 않음 |
-| `grant_types_supported` | OPTIONAL | 같음 | 광고됨 — AS metadata와 같음 |
+| `grant_types_supported` | OPTIONAL | 같음 | 광고됨 — AS metadata 와 같음 |
 | `acr_values_supported` | OPTIONAL | OIDC 전용 | 쓰지 않음 |
 | `subject_types_supported` | REQUIRED | OIDC 전용 | 광고됨 — `["public"]` |
 | `id_token_signing_alg_values_supported` | REQUIRED, `RS256` 포함 MUST | OIDC 전용 | 씀 (ID token 서명) — `["RS256"]` |
@@ -568,8 +568,8 @@ RFC 8414 와의 차이는 두 가지다.
 | `request_object_signing_alg_values_supported` | OPTIONAL | OIDC 전용 | 쓰지 않음 |
 | `request_object_encryption_alg_values_supported` | OPTIONAL | OIDC 전용 | 쓰지 않음 |
 | `request_object_encryption_enc_values_supported` | OPTIONAL | OIDC 전용 | 쓰지 않음 |
-| `token_endpoint_auth_methods_supported` | OPTIONAL, 생략 시 `client_secret_basic` | 같음 | 씀 — AS metadata와 같은 7개(P2) |
-| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL | RFC 8414 는 조건부 MUST. `none` 금지(MUST NOT) | 씀 — 12개, AS metadata와 같음 |
+| `token_endpoint_auth_methods_supported` | OPTIONAL, 생략 시 `client_secret_basic` | 같음 | 씀 — AS metadata 와 같은 7개(P2) |
+| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL | RFC 8414 는 조건부 MUST. `none` 금지(MUST NOT) | 광고됨 — 12개, AS metadata 와 같음 |
 | `display_values_supported` | OPTIONAL | OIDC 전용 | 쓰지 않음 |
 | `claim_types_supported` | OPTIONAL | OIDC 전용 | 쓰지 않음 |
 | `claims_supported` | RECOMMENDED | OIDC 전용 | 쓰지 않음 |
@@ -587,7 +587,7 @@ RFC 8414 와의 차이는 두 가지다.
 
 원문 필드: OIDC Discovery 1.0 §3 의 35개와 MCP·RFC 9207 이 더하는 2개, 모두 37개 → 표 37행
 
-S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1.0 의 필드)와 AS metadata에서 본 `revocation_*`·`introspection_*`·`tls_client_certificate_bound_access_tokens`·`dpop_signing_alg_values_supported` 가 있다.
+S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1.0 의 필드)와 AS metadata 에서 본 `revocation_*`·`introspection_*`·`tls_client_certificate_bound_access_tokens`·`dpop_signing_alg_values_supported` 가 있다.
 
 **오류**
 
@@ -598,7 +598,7 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 
 관측: S1 은 `code_challenge_methods_supported`·`authorization_response_iss_parameter_supported` 를 싣는다. P2 에서 `token_endpoint_auth_methods_supported` 는 `none` 을 더한 7개다.
 
-**예시** (S1, official — `none` 을 더하기 전의 캡처라 방식이 6개다)
+**예시** (S1, official — 이 캡처에는 `none` 이 없다. 현재 설정은 P2 의 7개)
 
 ```http
 GET /.well-known/openid-configuration HTTP/1.1
@@ -666,7 +666,7 @@ client 가 만든 URL 로 브라우저가 이동한다. PKCE 의 `code_challenge
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | redirect URI 가 없거나 틀림, client_id 가 없거나 틀림 | redirect 하지 않음(MUST NOT) — S4, P10-1 `400` JSON | [OAuth 2.1 §4.1.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2.1) |
-| `code_challenge` 없음 | redirect 로 `error=invalid_request` — C17, P9. public client 요청은 거부 MUST | [OAuth 2.1 §4.1.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2.1), [RFC 7636 §4.4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.4.1) |
+| `code_challenge` 없음 | redirect 로 `error=invalid_request` — C17, P9. public client 요청은 거부 MUST, 그 밖의 client 요청도 다른 방법으로 code injection 을 막는다는 합리적 확신이 없으면 거부 MUST | [OAuth 2.1 §4.1.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2.1), [RFC 7636 §4.4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.4.1) |
 | 지원하지 않는 `code_challenge_method` | redirect 로 `error=invalid_request` MUST | [OAuth 2.1 §4.1.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2.1) |
 | 허용 목록 밖 `resource` | redirect 로 `error=invalid_target` — C16 | [RFC 8707 §2.1](https://www.rfc-editor.org/rfc/rfc8707#section-2.1) |
 | 그 밖의 오류 | redirect 로 오류 파라미터 | [Authorization Response](#authorization-response) |
@@ -699,7 +699,7 @@ Content-Length: 2388
 
 ## `POST /oauth2/authorize` — consent 제출
 
-consent 화면의 폼이 같은 URI 로 사용자의 결정을 제출한다. 명세는 이 폼의 형식을 정하지 않는다([OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) 은 resource owner 인증과 client·scope·수명 정보 제공만 요구한다), 그래서 아래 필드는 Spring Authorization Server 기본 폼의 것이다.
+consent 화면의 폼이 같은 URI 로 사용자의 결정을 제출한다. 명세는 이 폼의 형식을 정하지 않는다. [OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) 은 resource owner 를 명시적으로 인증하고 client·scope·수명 정보를 보여 주는 것이 좋다(SHOULD)고만 쓰므로, 아래 필드는 Spring Authorization Server 기본 폼의 것이다.
 
 근거: [OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3), [§7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1), [RFC 6749 §4.1.2.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1)
 
@@ -1028,9 +1028,11 @@ Authorization Server 의 서명 공개키를 JWK Set 으로 공개한다. MCP Se
 | 모르는 `kty`, 필수 멤버가 없는 key | 받는 쪽은 그 JWK 를 무시 SHOULD | [RFC 7517 §5](https://www.rfc-editor.org/rfc/rfc7517#section-5) |
 | JWK Set 에 private·symmetric key 값 | 담으면 안 된다(MUST NOT) | [OIDC Discovery §3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata) `jwks_uri` |
 
-관측: official Authorization Server 는 `JWKSource` bean 을 정의하지 않아 Spring Boot 자동 구성이 기동할 때 RSA key 를 만든다. 그래서 `kid`·`n` 은 재기동마다 바뀌고, 응답 `Content-Type` 은 `application/json;charset=ISO-8859-1` 이다.
+관측: official Authorization Server 는 `JWKSource` bean 을 정의하지 않아 Spring Boot 자동 구성이 기동할 때 RSA key 를 만든다. 그래서 `kid`·`n` 은 재기동마다 바뀐다.
 
-**예시** (관측(official))
+응답 `Content-Type` 은 `application/json;charset=ISO-8859-1` 이다. `NimbusJwkSetEndpointFilter`(spring-security-oauth2-authorization-server 7.1.0)가 `setContentType("application/json")` 뒤에 `getWriter()` 를 불러 servlet 기본 charset 이 붙는다.
+
+**예시** (관측, official)
 
 ```http
 GET /oauth2/jwks HTTP/1.1
@@ -1100,9 +1102,10 @@ client 가 자기 metadata JSON 을 HTTPS URL 에 올리고 그 URL 자체를 `c
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | 문서를 가져오지 못함 | authorization request 중단 SHOULD | [CIMD §4.3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.3) |
-| 문서의 `client_id` 가 URL 과 다름, JSON 구조가 잘못됨, 필수 필드 없음 | 검증 MUST — 실패하면 `invalid_client` 또는 `invalid_request` | [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
+| 문서의 `client_id` 가 URL 과 다름, JSON 구조가 잘못됨, 필수 필드 없음 | 검증 MUST (MCP Implementation Requirements). 실패하면 `error=invalid_client` 또는 `invalid_request` (MCP 흐름 다이어그램) | [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements), [Client ID Metadata Documents Flow](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents-flow) |
 | 요청의 redirect URI 가 문서에 없음 | 검증 MUST | MCP Implementation Requirements |
-| 오류 응답·잘못된 문서 | cache 하면 안 된다(MUST NOT). 정상 문서는 HTTP cache 헤더를 따라 cache SHOULD | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4) |
+| 오류 응답·잘못된 문서 | cache 하면 안 된다(MUST NOT) | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4) |
+| 정상 문서의 cache | cache 할 수 있고(MAY), cache 할 때 HTTP cache 헤더를 따른다(SHOULD, CIMD §4.4) · HTTP cache 헤더를 따라 cache SHOULD (MCP) | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
 | 사설·루프백 주소 URL | 가져오지 않는 것이 좋다(SHOULD, SSRF) | [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5) |
 | 큰 응답 | 크기 제한 SHOULD, 권장 최대 5KB | [CIMD §6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6) |
 
