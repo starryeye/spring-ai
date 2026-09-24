@@ -430,7 +430,7 @@ Authorization Server 는 client 인증·PKCE·`resource` 를 확인한 뒤 audie
 - Authorization Server: `ResourceAudienceTokenCustomizer` 는 token request 와 authorization request 의 `resource` 가 다르거나 허용 목록 밖이면 `invalid_target` 을 던지고, 통과하면 `aud` 를 그 값 하나로 둔다. 둘 다 없으면 `aud` 를 바꾸지 않고, 그 token 은 MCP Server 에서 거부된다. 테스트: `AuthorizationServerStandardTest#access_token_의_aud_는_resource_이고_id_token_은_client_id_다`.
 - community: 모듈 `ResourceIdentifierAudienceTokenCustomizer` 는 ID token 의 `aud` 도 `resource` 로 덮어쓴다. community 의 `ResourceAudienceTokenCustomizer` 는 그 뒤에 실행돼 ID token `aud` 를 client_id 로 되돌린다(OIDC Core §2).
 - `invalid_client` 의 `WWW-Authenticate`: Spring 기본 `OAuth2ClientAuthenticationFilter#onAuthenticationFailure` 는 이 헤더를 붙이지 않는다([spring-security #18285](https://github.com/spring-projects/spring-security/issues/18285), 7.2.0-M1 도 같다). 명세는 `401` 과 스킴에 맞는 `WWW-Authenticate` 를 요구하므로, `ClientAuthenticationChallengeFailureHandler` 가 요청의 스킴과 issuer realm 으로 채운다. 스킴이 `token` 문법에 맞지 않으면 `Basic` 으로 되돌리고, `Authorization` 헤더 없이 실패하면 헤더를 붙이지 않는다.
-- access token 은 RFC 9068 프로파일이 아니다: `typ` 과 `client_id` claim 이 없고 `scope` 가 JSON 배열이다(C6-1). MCP 는 이 프로파일을 요구하지 않아 MCP 준수에는 영향이 없다([6절](#s6) 17번).
+- access token 은 RFC 9068 프로파일이 아니다: 헤더에 `typ` 이 없고(C6), `client_id` claim 이 없으며 `scope` 가 JSON 배열이다(C6-1). MCP 는 이 프로파일을 요구하지 않아 MCP 준수에는 영향이 없다([6절](#s6) 17번).
 
 관측: C6-1 access token 의 `aud` 는 `http://localhost:8111/mcp`, C6-2 ID token 의 `aud` 는 `official-shop-agent` 이고 access token 수명은 300초다. 다른 `resource` 는 `400 invalid_target`(S6), 틀린 `code_verifier` 는 `400 invalid_grant`(S7)이다. 틀린 client_secret 은 `401` 과 `WWW-Authenticate: Basic realm="http://localhost:9010"` 이다(S8).
 
@@ -657,7 +657,7 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 | 14 | Dynamic Client Registration(RFC 7591) | MAY · 2026-07-28 deprecated | 다루지 않음 — 켜지 않음, C3 `registration_endpoint` 없음 | 다루지 않음 — 같음 | 다루지 않음 — `dynamic-client-registration.enabled: false` | [4.4](#s4-4) |
 | 15 | Client ID Metadata Document(CIMD) | SHOULD | 다루지 않음 — HTTPS `client_id` 가 전제 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.4](#s4-4), [8절](#s8) |
 | 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.9](#s4-9), [8절](#s8) |
-| 17 | RFC 9068 access token 프로파일 | 참고 — MCP 는 요구하지 않음 | 아니오(불일치) — `typ` 과 `client_id` claim 없음, `scope` 가 JSON 배열 | 아니오(불일치) — 같음 | 아니오(불일치) — 같음 | [4.7](#s4-7) |
+| 17 | RFC 9068 access token 프로파일 | 참고 — MCP 는 요구하지 않음 | 아니오(불일치) — 헤더에 `typ` 없음(C6), `client_id` claim 없음, `scope` 가 JSON 배열(C6-1) | 아니오(불일치) — 같음 | 아니오(불일치) — 같음 | [4.7](#s4-7) |
 | 18 | `invalid_client` `401` 의 `WWW-Authenticate` | MUST (RFC 6749 §5.2 · OAuth 2.1 §3.2.4) | 예 — `ClientAuthenticationChallengeFailureHandler`, S8 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig` 가 같은 handler 를 건다 | [4.7](#s4-7) |
 | 19 | SSE 이벤트 `id` 의 session 내 유일성 | MUST (MCP Resumability and Redelivery) | **아니오** — 이벤트 `id` 가 session ID, C9·C10 | **아니오** — 같음(같은 SDK) | **아니오** — 같음(같은 SDK) | [4.8](#s4-8) |
 | 20 | `token_endpoint`·`revocation_endpoint`·`introspection_endpoint` 의 `_auth_signing_alg_values_supported` | 조건부 MUST (RFC 8414 §2) | 예 — `AuthorizationServerConfig` metadata customizer | 예 — 같음 | 예 — `McpAuthorizationStandardConfig` | [4.3](#s4-3) |

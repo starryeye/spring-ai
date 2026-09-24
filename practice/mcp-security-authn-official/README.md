@@ -142,6 +142,17 @@ official 은 31개 파일(1,902줄)로 community 의 30개 파일(1,727줄)보�
 `Hooks.enableAutomaticContextPropagation()` 과 `AuthorizedClientServiceOAuth2AuthorizedClientManager` 조합은 Spring AI 의 `internal` 패키지를 참조하지 않고도 리액터 경계를 넘어 `SecurityContext` 를 전파한다.
 `ChatController` 에는 `.contextWrite(...)` 류의 코드가 없다.
 
+### filter chain 을 직접 정의하면 OIDC discovery 도 직접 켠다
+
+Boot 4.1 의 `OAuth2AuthorizationServerWebSecurityConfiguration` 은 `.oidc(withDefaults())` 를 켜지만, `@ConditionalOnDefaultWebSecurity` 라 `SecurityFilterChain` 을 직접 정의하면 물러난다.
+`AuthorizationServerConfig` 는 filter chain 을 직접 만들므로 `.oidc(...)` 를 스스로 켜고, 그 OIDC metadata 에도 `iss`·signing alg·`none` 을 더한다.
+
+### `issuer-uri` 는 없으면 기동이 실패하고, 틀리면 첫 token 검증에서 실패한다
+
+`SecurityConfig` 는 `issuer-uri` 를 기본값 없는 `@Value` 로 받아, 값이 없으면 placeholder 를 풀지 못해 기동이 실패한다.
+JWT decoder 는 Boot 자동 구성의 `SupplierJwtDecoder` 라 issuer metadata 를 첫 token 검증 때 가져온다.
+그래서 닿지 않는 issuer 로도 기동은 되고, 첫 token 요청이 `JwtDecoderInitializationException` 과 함께 `401` 로 끝난다.
+
 ### community 에서 배운 것 중 라이브러리와 무관한 것은 그대로였다
 
 기동 순서(`auth-server`→`shop-mcp-server`→`shop-agent`), `spring.ai.mcp.client.initialized: false` 의 필요성, `localhost` 멀티 앱의 session cookie 이름 분리는 `org.springaicommunity` 라이브러리의 특성이 아니라 문제 자체의 구조에서 나온다.
