@@ -161,7 +161,7 @@ sequenceDiagram
     H-->>A: metadata document (client_id, client_name, redirect_uris)
     Note over A: client_id == 문서 URL, redirect_uri 가 redirect_uris 에 있음,<br/>JSON 구조와 필수 필드를 검증
     alt 검증 성공
-        A-->>B: 200 consent 화면, client_name 표시
+        A-->>B: consent 화면, client_name 표시
         Note over A: HTTP cache 헤더를 따라 문서를 cache
     else 가져오기 실패 또는 검증 실패
         A-->>B: 오류 응답 error=invalid_client 또는 invalid_request
@@ -171,7 +171,7 @@ sequenceDiagram
 **단계**
 
 1. client 는 Authorization Server Metadata 에서 CIMD 지원 여부를 확인하는 것이 좋다(SHOULD, [Client ID Metadata Documents — Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#discovery)). 그 전에 client 는 문서를 HTTPS URL 에 올려 두어야 한다(MUST, [Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements)).
-2. Authorization Server Metadata 를 공개하는 서버는 CIMD 를 지원하면 `client_id_metadata_document_supported` 를 넣어야 한다(MUST, [CIMD draft-00 §5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5)). 이 필드가 없으면 client 는 DCR 이나 pre-registration 으로 돌아갈 수 있다(MAY).
+2. Authorization Server Metadata 를 공개하는 서버는 CIMD 를 지원하면 `client_id_metadata_document_supported` 를 넣어야 한다(MUST, [CIMD draft-00 §5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5)). 이 필드가 없으면 client 는 DCR 이나 pre-registration 으로 돌아갈 수 있다(MAY, [MCP Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#discovery)).
 3. client 가 URL 형태의 `client_id` 를 실은 authorization request 를 브라우저로 연다. 나머지 파라미터는 pre-registration client 와 같다([`GET /oauth2/authorize`](MCP-API-SPEC.md#authorize)).
 4. `client_id` URL 은 `https` scheme 과 path 를 가져야 하고(MUST), dot segment·fragment·username·password 를 담으면 안 된다(MUST NOT). query 는 담지 않는 것이 좋고(SHOULD NOT), port 는 담을 수 있다(MAY, [CIMD draft-00 §3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)).
 5. Authorization Server 는 URL 형태의 `client_id` 를 만나면 문서를 가져오는 것이 좋다(SHOULD, [Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) · [CIMD §4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4)). 임의 URL 을 가져오는 SSRF 에 주의해 사설·loopback 주소는 가져오지 않는 것이 좋다(SHOULD, [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5)). 응답 크기도 제한하는 것이 좋다(SHOULD, 권장 최대 5KB, [CIMD §6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6)).
@@ -373,7 +373,7 @@ sequenceDiagram
 
 ### 3.4 Token request
 
-authorization code 를 access token 으로 바꾼다. confidential client 는 `Authorization: Basic` 으로 인증하고, public client 는 인증 대신 `client_id` 와 PKCE `code_verifier` 로 자신을 증명한다. 두 경우 모두 access token 의 `aud` 는 `resource` 값이다.
+authorization code 를 access token 으로 바꾼다. confidential client 는 `Authorization: Basic` 으로 인증하고, public client 는 client 인증 없이 `client_id` 만 싣되 PKCE `code_verifier` 가 code 를 요청한 쪽에 묶는다. 두 경우 모두 access token 의 `aud` 는 `resource` 값이다.
 
 ```mermaid
 sequenceDiagram
@@ -387,7 +387,7 @@ sequenceDiagram
         A-->>G: 200 access_token(aud=resource), refresh_token,<br/>id_token(aud=client_id), token_type=Bearer, expires_in=299
     else public client
         L->>A: POST /oauth2/token (Authorization 헤더 없음)<br/>grant_type=authorization_code, client_id=local-mcp-client,<br/>code, redirect_uri, code_verifier, resource
-        Note over A: client 인증 방식이 none 이면<br/>PKCE 검증이 client 인증을 대신한다
+        Note over A: client 인증 없음 (none)<br/>code_verifier 로 code 를 요청한 쪽인지 확인한다
         A-->>L: 200 access_token(aud=resource), id_token,<br/>token_type=Bearer, expires_in=299, refresh_token 없음
     end
 ```
@@ -412,12 +412,12 @@ sequenceDiagram
     participant M as MCP Server
     C->>M: POST /mcp initialize<br/>Authorization: Bearer, Accept: application/json, text/event-stream
     M-->>C: 200 application/json InitializeResult (protocolVersion 2025-11-25)<br/>Mcp-Session-Id
-    C->>M: POST /mcp notifications/initialized<br/>Bearer, Mcp-Session-Id, MCP-Protocol-Version
-    M-->>C: 202 (본문 없음)
-    opt session ID 를 받은 SDK client
+    opt SDK client 가 initialize 응답을 받은 즉시 비동기로
         C->>M: GET /mcp (Accept: text/event-stream, Bearer, Mcp-Session-Id)
         Note over M: 서버발 메시지용 SSE stream<br/>보낼 메시지가 생길 때까지 응답이 오지 않는다
     end
+    C->>M: POST /mcp notifications/initialized<br/>Bearer, Mcp-Session-Id, MCP-Protocol-Version
+    M-->>C: 202 (본문 없음)
     C->>M: POST /mcp tools/list (Bearer, Mcp-Session-Id, MCP-Protocol-Version)
     M-->>C: 200 text/event-stream, event: message, tools 목록
     C->>M: POST /mcp tools/call getStock (Bearer, Mcp-Session-Id, MCP-Protocol-Version)
@@ -430,21 +430,21 @@ sequenceDiagram
 
 1. `initialize` 는 첫 상호작용이어야 한다(MUST, [MCP Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)). authorization 은 같은 session 이라도 모든 HTTP 요청에 실어야 한다(MUST, [MCP Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements)). 요청 형식은 [`POST /mcp` — Bearer](MCP-API-SPEC.md#mcp-post) 에 있다.
 2. 서버가 `InitializeResult` 와 함께 `Mcp-Session-Id` 를 발급한다(C7). 서버가 session ID 를 발급했으면 client 는 이후 모든 요청에 실어야 한다(MUST, [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)).
-3. `initialize` 가 성공하면 `notifications/initialized` 를 보내야 한다(MUST, MCP Lifecycle). 이때부터 `MCP-Protocol-Version: 2025-11-25` 를 싣는다(MUST, [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)).
-4. 서버는 notification 을 받아들였으면 `202` 를 돌려줘야 한다(MUST, [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server)). C8 은 본문 없는 `202` 다.
-5. SDK client 는 session ID 를 받은 뒤 서버발 메시지용 SSE stream 을 연다(S11). 이 서버는 보낼 메시지가 생길 때까지 상태 줄도 보내지 않는다([`GET /mcp`](MCP-API-SPEC.md#mcp-get)).
+3. client 는 서버발 메시지를 받으려고 `GET` 으로 SSE stream 을 열 수 있다(MAY, [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server)). SDK client 는 session ID 를 받는 즉시 비동기로 이 요청을 보내므로 `notifications/initialized` 와의 순서는 보장되지 않는다(S11). 이 서버는 보낼 메시지가 생길 때까지 상태 줄도 보내지 않는다([`GET /mcp`](MCP-API-SPEC.md#mcp-get)).
+4. `initialize` 가 성공하면 `notifications/initialized` 를 보내야 한다(MUST, MCP Lifecycle). 이때부터 `MCP-Protocol-Version: 2025-11-25` 를 싣는다(MUST, [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)).
+5. 서버는 notification 을 받아들였으면 `202` 를 돌려줘야 한다(MUST, [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server)). C8 은 본문 없는 `202` 다.
 6. `tools/list` 로 쓸 수 있는 tool 을 받는다. 요청에는 Bearer·`Mcp-Session-Id`·`MCP-Protocol-Version` 이 모두 있다.
 7. 응답은 `text/event-stream` 이고 첫 이벤트가 곧 JSON-RPC response 다(C9). 서버는 request 에 `application/json` 과 SSE 중 하나로 답해야 하고, client 는 둘 다 처리해야 한다(MUST).
 8. `tools/call` 로 `getStock` 을 부른다. 요청 형식은 `tools/list` 와 같다.
 9. 결과가 SSE 이벤트로 온다(C10). 이벤트 `id` 는 session ID 와 같은 값이다.
-10. 더 쓰지 않을 session 은 `MCP-Session-Id` 를 실은 `DELETE` 로 끝내는 것이 좋다(SHOULD, Session Management). 서버는 이 요청을 `405` 로 거절할 수도 있다(MAY).
+10. 더 쓰지 않을 session 은 `Mcp-Session-Id` 를 실은 `DELETE` 로 끝내는 것이 좋다(SHOULD, Session Management). 서버는 이 요청을 `405` 로 거절할 수도 있다(MAY).
 11. 이 서버는 `200` 으로 session 을 끝낸다(C18). 끝난 session ID 로 다시 요청하면 `404` 이고(MUST, S16), client 는 새 `initialize` 로 다시 시작해야 한다(MUST, Session Management). 요청 형식은 [`DELETE /mcp`](MCP-API-SPEC.md#mcp-delete) 에 있다.
 
 <a id="rt-token-validation"></a>
 
 ### 3.6 MCP Server 의 token 검증
 
-MCP Server 는 요청을 처리하기 전에 access token 을 검증하고, 자기를 audience 로 발급한 token 만 받아야 한다(MUST, [MCP Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction)). token 검사를 통과하면 전송 계층이 `MCP-Protocol-Version`·`Origin`·`Host`·session 을 본다. 실패마다 응답 코드가 다르다.
+MCP Server 는 요청을 처리하기 전에 access token 을 검증하고, 자기를 audience 로 발급한 token 만 받아야 한다(MUST, [MCP Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction)). official 에서는 token 검사 뒤에 servlet filter 가 `MCP-Protocol-Version` 을, MCP SDK 의 transport 가 `Origin`·`Host`·`Accept`·session 을 본다. 실패마다 응답 코드가 다르다.
 
 ```mermaid
 sequenceDiagram
@@ -459,21 +459,19 @@ sequenceDiagram
         M->>A: GET /oauth2/jwks
         A-->>M: JWK Set
     end
-    Note over M: 1. 서명 (JWS kid 로 JWK 선택)<br/>2. iss == issuer<br/>3. aud 에 자기 resource 식별자<br/>4. exp 가 지나지 않음
+    Note over M: 단계 순서 (official)<br/>서명 → claim → MCP-Protocol-Version → Origin·Host → Accept → session<br/>claim 셋(iss, aud, exp)과 Origin·Host 사이에는 순서가 없다
     alt 서명이 틀리거나 형식이 잘못됨
         M-->>C: 401 Bearer error=invalid_token
-    else iss 가 다름
-        M-->>C: 401 Bearer error=invalid_token
-    else aud 에 이 MCP Server 가 없음
-        M-->>C: 401 Bearer error=invalid_token, The aud claim is not valid
-    else exp 가 지남
-        M-->>C: 401 Bearer error=invalid_token
+    else iss, aud, exp 중 하나 이상이 틀림
+        M-->>C: 401 Bearer error=invalid_token (aud 이면 The aud claim is not valid)
     else MCP-Protocol-Version 이 무효
         M-->>C: 400 Unsupported MCP-Protocol-Version
     else Origin 이 있는데 무효
         M-->>C: 403 Invalid Origin header
     else Host 가 허용 목록 밖
         M-->>C: 421 Invalid Host header
+    else Accept 에 text/event-stream 이 없음
+        M-->>C: 400 Invalid Accept headers
     else Mcp-Session-Id 없음 (initialize 제외)
         M-->>C: 400 Session ID missing
     else 모르거나 끝난 session
@@ -491,15 +489,14 @@ sequenceDiagram
 4. MCP Server 가 JWK Set 을 요청한다. 형식은 [`GET /oauth2/jwks`](MCP-API-SPEC.md#jwks) 에 있다.
 5. 받은 key 로 서명을 검증한다. resource server 는 Authorization Server 가 준 key 로 서명을 검증해야 하고 `alg: none` 은 거부해야 한다(MUST, RFC 9068 §4).
 6. 서명이 틀리거나 JWT 형식이 아니면 `401 invalid_token` 이다(S3 `Malformed token`). 유효하지 않거나 만료된 token 은 `401` 이어야 한다(MUST, MCP Token Handling).
-7. `iss` 는 issuer 와 정확히 같아야 한다(MUST, RFC 9068 §4). 다르면 `401 invalid_token` 이다.
-8. `aud` 에 자기 resource 식별자가 있어야 한다(MUST, MCP Token Handling · RFC 9068 §4). 같은 Authorization Server 가 발급한 ID token(`aud=official-shop-agent`)을 보내면 `401` 과 `The aud claim is not valid` 가 돌아온다(C12).
-9. 현재 시각은 `exp` 이전이어야 하고, 짧은 허용 오차를 둘 수 있다(MUST, MAY, RFC 9068 §4). 지나면 `401 invalid_token` 이다.
-10. 무효·미지원 `MCP-Protocol-Version` 에는 `400` 을 줘야 한다(MUST, [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)). C15 의 `1999-01-01` 이 이 경우다.
-11. 서버는 모든 연결에서 `Origin` 을 검증해야 하고, 있는데 무효면 `403` 이어야 한다(MUST, [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning)). C13 의 `http://evil.example` 이 `403` 이다.
-12. 허용하지 않은 `Host` 는 `421` 이다(S14). MCP 는 이 경우를 규정하지 않고, DNS rebinding 을 막는 장치다([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)).
-13. session ID 가 필요한 서버는 `initialize` 말고 `Mcp-Session-Id` 없는 요청에 `400` 으로 답하는 것이 좋다(SHOULD, [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)). C14 가 `400` 이다.
-14. 끝났거나 모르는 session ID 에는 `404` 여야 한다(MUST, Session Management). S13 이 `404` 다.
-15. 모두 통과하면 request 는 `200`, notification 은 `202` 다. 검사 순서는 명세가 정하지 않고, 다이어그램은 official 의 순서다(community 는 `Origin`·`Host` 를 token 보다 먼저 본다).
+7. `iss` 는 issuer 와 정확히 같아야 하고, `aud` 에 자기 resource 식별자가 있어야 하며, 현재 시각은 `exp` 이전이어야 한다(MUST, 허용 오차 MAY, RFC 9068 §4 · audience 는 MCP Token Handling 도 MUST). official 의 Spring 검증기는 셋을 모두 검사한 뒤 오류를 모으므로 셋 사이에 순서가 없고, 어느 것이 틀려도 `401 invalid_token` 이다. 같은 Authorization Server 가 발급한 ID token(`aud=official-shop-agent`)을 보내면 `The aud claim is not valid` 가 돌아온다(C12).
+8. 무효·미지원 `MCP-Protocol-Version` 에는 `400` 을 줘야 한다(MUST, [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)). C15 의 `1999-01-01` 이 이 경우다. official 에서 이 검사는 transport 가 아니라 servlet filter 가 한다.
+9. 서버는 모든 연결에서 `Origin` 을 검증해야 하고, 있는데 무효면 `403` 이어야 한다(MUST, [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning)). C13 의 `http://evil.example` 이 `403` 이다.
+10. 허용하지 않은 `Host` 는 `421` 이다(S14). MCP 는 이 경우를 규정하지 않고, DNS rebinding 을 막는 장치다([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)). `Origin`·`Host` 는 한 검사기가 헤더를 차례로 보며 검사해 둘 사이에 정해진 순서가 없다.
+11. POST 의 `Accept` 에는 `application/json` 과 `text/event-stream` 을 모두 넣어야 한다(MUST, [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server)). 어겼을 때의 서버 응답은 명세가 정하지 않고, 이 서버는 `400` 이다(S15).
+12. session ID 가 필요한 서버는 `initialize` 말고 `Mcp-Session-Id` 없는 요청에 `400` 으로 답하는 것이 좋다(SHOULD, [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)). C14 가 `400` 이다.
+13. 끝났거나 모르는 session ID 에는 `404` 여야 한다(MUST, Session Management). S13 이 `404` 다.
+14. 모두 통과하면 request 는 `200`, notification 은 `202` 다. 명세는 검사 순서를 정하지 않고, official 의 단계 순서는 서명 → claim → `MCP-Protocol-Version` → `Origin`·`Host` → `Accept` → session 이다. community 는 `Origin`·`Host` 를 token 보다 먼저 본다.
 
 <a id="rt-refresh"></a>
 
