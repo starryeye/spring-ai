@@ -1,5 +1,13 @@
 # CIMD(Client ID Metadata Document)와 공개 클라이언트 지원 — 설계
 
+> **상태: 보류(2026-09-24).** 별도 practice 로 분리해 나중에 진행한다. 이 문서는 그때 쓸 설계다.
+> 보류 시점의 결론: 클라이언트별 CIMD 지원이 갈린다 — Claude(Code·Desktop·Cowork)와 ChatGPT·Codex 는 지원하고,
+> Gemini CLI 는 아직 지원하지 않는다([gemini-cli#25724](https://github.com/google-gemini/gemini-cli/issues/25724)).
+> CIMD 를 지원하지 않는 클라이언트는 **사전 등록** 경로로 붙는다(명세 우선순위 1번). 사전 등록 자체는 세 practice 에 이미 동작한다 —
+> 다만 지금 등록된 클라이언트는 에이전트 전용 기밀 클라이언트라, 로컬 MCP 클라이언트를 붙이려면 공개 클라이언트(`none` + PKCE + 루프백 리다이렉트) 항목이 필요하다.
+> 미결 결정 하나: CIMD 의 `client_id` 는 HTTPS 여야 하는데 학습 환경은 localhost 다. 종단 캡처를 남기려면
+> (1) 테스트로만 검증하거나 (2) 설정으로 루프백 HTTP 를 한시 허용하고 준수표에 위반으로 기록해야 한다.
+
 ## 목표
 
 인증 practice 세 개의 인가 서버가 **사전 관계가 없는 MCP 클라이언트**(Claude, ChatGPT 등)를 받아들일 수 있게 한다.
