@@ -1,0 +1,6 @@
+# 옛 MCP-AUTHORIZATION.md 에서 일부러 뺀 링크. 형식: URL<TAB>이유
+http://localhost:<에이전트	링크가 아니다 — 옛 4.4.1 표의 자리표시 표기(`http://localhost:<에이전트 포트>/...`)가 잘린 조각. 실제 redirect URI 세 개는 MCP-AUTHORIZATION.md 2절 포트 표에 있다
+http://127.0.0.1:8123/callback?code=	링크가 아니다 — 옛 다이어그램 ⑨ 메시지 안의 관측 redirect 조각. public client 흐름은 MCP-SEQUENCES.md#rt-authz-public 에 있다
+http://127.0.0.1:8123/callback?code=...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010	관측 값이다 — 관측 요청·응답 전문은 허브에 옮기지 않는 규칙(설계 "명세 인용")에 따라 뺐다. 허브에는 P3·P8 consent 관측만 남긴다
+http://localhost:8110/login/oauth2/code/authserver?code=3S_GaQLdjO5v...&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9010	관측 값이다 — 관측 전문은 허브에 옮기지 않는다. 이 code 값은 현재 캡처(2026-09-12-official.txt)에도 없다. 허브 4.6 에는 같은 응답의 `iss` 값만 남긴다
+http://localhost:9010<br/	링크가 아니다 — 옛 mermaid 메시지에서 줄바꿈 태그가 붙은 조각. issuer `http://localhost:9010` 은 허브에 있다
