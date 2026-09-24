@@ -1,6 +1,6 @@
 # mcp-security-authn-official 시퀀스
 
-[MCP-SEQUENCES.md](../MCP-SEQUENCES.md) 의 표준 흐름을 이 practice 의 클래스 이름으로 다시 그린다. 요청·응답 필드는 [API-SPEC.md](API-SPEC.md) 에 있고, 여기서는 클래스 사이 호출 순서만 다룬다. 호출 순서는 각 클래스의 소스를 직접 대조해 확인했다.
+[MCP-SEQUENCES.md](../MCP-SEQUENCES.md) 의 표준 흐름을 이 practice 의 클래스 이름으로 다시 그린다. 요청·응답 필드는 [API-SPEC.md](API-SPEC.md) 에 있고, 여기서는 클래스 사이 호출 순서만 다룬다.
 
 ## 목차
 
@@ -140,6 +140,7 @@ sequenceDiagram
     participant CL as ChatClient
     participant MC as MCP Sync Client
     participant STP as SecurityMcpTransportContextProvider
+    participant T as HttpClientStreamableHttpTransport
     participant OTC as OAuth2TokenAttachingRequestCustomizer
     participant OAM as OAuth2AuthorizedClientManager
     participant M as MCP Server
@@ -149,13 +150,16 @@ sequenceDiagram
     CL->>MC: tools/call 요청
     MC->>STP: transportContextProvider.get()
     Note over STP: SecurityContextHolder 에서 Authentication 을 꺼내<br/>McpTransportContext 에 담는다
-    MC->>OTC: httpRequestCustomizer.customize(...)
+    MC->>T: tools/call 전송
+    T->>OTC: httpRequestCustomizer.customize(builder, "POST", ...)
     OTC->>OAM: authorize(OAuth2AuthorizeRequest)
     Note over OAM: access token 이 만료됐거나 60초 안에 만료되면<br/>RestClientRefreshTokenTokenResponseClient 로 갱신
     OAM-->>OTC: OAuth2AuthorizedClient
-    OTC->>M: POST /mcp, Authorization: Bearer
-    M-->>OTC: tools/call 결과
-    OTC-->>CL: 결과 전달
+    OTC-->>T: builder 에 Authorization: Bearer 헤더
+    T->>M: POST /mcp, Authorization: Bearer
+    M-->>T: tools/call 결과
+    T-->>MC: 응답
+    MC-->>CL: 결과 전달
     CL-->>CC: 최종 답변
     CC-->>U: text/plain 스트리밍
 ```
@@ -166,10 +170,10 @@ sequenceDiagram
 2. `ChatController` 는 요청 본문을 그대로 `ChatClient` 의 `user(...)` 에 넣고 스트리밍을 시작한다. tool 정의는 `ChatClientConfig` 가 `defaultTools(...)` 로 미리 꽂아 두었다.
 3. LLM 이 `searchProducts`(또는 `getStock`)를 부르기로 결정하면 Spring AI 가 등록된 MCP client 로 `tools/call` 을 보낸다. 이 호출은 리액터 체인 위에서 일어난다.
 4. MCP client 는 요청을 만들기 전에 `SecurityMcpTransportContextProvider.get()` 을 부른다. `Hooks.enableAutomaticContextPropagation()`(`ShopAgentApplication`)이 켜져 있어야 이 시점에도 원래 요청 스레드의 `SecurityContext` 가 보인다.
-5. 얻은 `McpTransportContext` 로 `OAuth2TokenAttachingRequestCustomizer.customize(...)` 가 실행된다. 컨텍스트에 인증이 없으면 DEBUG 로그 한 줄만 남기고 헤더를 붙이지 않는다.
+5. transport(`HttpClientStreamableHttpTransport`)는 HTTP 요청을 만든 뒤 보내기 전에 `OAuth2TokenAttachingRequestCustomizer.customize(...)` 에 요청 builder 와 `McpTransportContext` 를 넘긴다. 컨텍스트에 인증이 없으면 customizer 는 DEBUG 로그 한 줄만 남기고 헤더를 붙이지 않는다.
 6. 인증이 있으면 `OAuth2AuthorizedClientManager.authorize(...)` 를 부른다. `AuthorizedClientServiceOAuth2AuthorizedClientManager` 는 `OAuth2AuthorizedClientService` 에서 기존 token 을 찾는다.
 7. access token 이 만료됐거나 60초 안에 만료되면 매니저가 등록된 refresh provider(`RestClientRefreshTokenTokenResponseClient`, `resource` 포함)로 새 token 을 받는다([만료와 refresh](../MCP-SEQUENCES.md#rt-refresh)).
-8. `Authorization: Bearer <access token>` 을 요청에 붙여 `POST /mcp` 로 보낸다. token 의 `sub` 는 로그인한 사용자이고 `client_id` 는 `official-shop-agent` 다.
+8. customizer 가 builder 에 `Authorization: Bearer <access token>` 을 붙이면 transport 가 `POST /mcp` 로 보낸다. token 의 `sub` 는 로그인한 사용자이고, `client_id` claim 은 없다([4.7](../MCP-AUTHORIZATION.md#s4-7)).
 9. MCP Server 가 [token 을 검증](../MCP-SEQUENCES.md#rt-token-validation)하고 `ProductTools` 의 메서드를 실행한 결과를 돌려준다.
 10. 결과가 `ChatClient` 를 거쳐 최종 답으로 이어지고, `ChatController` 가 `text/plain;charset=UTF-8` 로 스트리밍한다.
 
@@ -231,4 +235,4 @@ sequenceDiagram
 6. token request 가 온다. client 인증에 실패하면(예: 잘못된 `client_secret`, public client 에 실린 비밀) `OAuth2ClientAuthenticationFilter` 가 `ClientAuthenticationChallengeFailureHandler` 를 부른다.
 7. 이 핸들러는 요청이 `Authorization` 헤더로 인증을 시도했을 때만 `WWW-Authenticate` 를 붙이고(RFC 6749 §5.2), 오류 코드가 `invalid_client` 일 때만 `401` 이다(S8, P12, P14).
 8. client 인증이 성공하면 access token 발급 직전에 `resourceAudienceTokenCustomizer` 빈(`ResourceAudienceTokenCustomizer`)이 `JwtEncodingContext` 를 받는다.
-9. 요청·인가된 `resource` 가 있으면 access token 의 `aud` 로 넣고, 서로 다르면 `invalid_target` 예외를 던진다(RFC 8707 §2.2). id token 은 건드리지 않아 `aud` 는 client_id 로 남는다(C6-1·C6-2).
+9. 요청·인가된 `resource` 가 있으면 access token 의 `aud` 로 넣고, 서로 다르면 `invalid_target` 예외를 던진다(RFC 8707 §2.2). ID token 은 건드리지 않아 `aud` 는 client_id 로 남는다(C6-1·C6-2).

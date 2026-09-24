@@ -62,4 +62,4 @@
 - **OIDC discovery** — 모듈 자동 구성은 `openid` scope 로 `oauth2Login` 을 하는 이 practice 에 필요한 `.oidc(...)` 를 켜지 않는다. `OidcDiscoveryConfig` 가 그 확장점으로 켠다.
 - **DCR 끔** — 모듈은 DCR 을 기본으로 켜지만 `spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false` 로 끈다. MCP 2026-07-28 이 DCR 을 deprecated 로 표시한다.
 - **`401` entry point** — 모듈 기본 진입점은 `resource_metadata` 값에 인용부호를 붙이지 않는다. `SecurityConfig#resourceMetadataEntryPoint` 가 RFC 9110 §11.2 의 quoted-string 규칙대로 붙이는 진입점으로 바꿔 끼운다.
-- **`none` advertise** — 모듈 기본 metadata 는 `none` 인증 방식을 광고하지 않는다. `McpAuthorizationStandardConfig` 가 `authorizationServerMetadataCustomizer`(AS metadata)와 `providerConfigurationCustomizer`(OIDC discovery)에 **같은 커스터마이저 람다** 안에서 더한다 — 두 커스터마이저는 필드 하나에 담겨 마지막 호출이 앞의 것을 덮어쓰기 때문이다.
+- **`none` 광고** — 모듈 기본 metadata 는 `none` 인증 방식을 광고하지 않는다. `McpAuthorizationStandardConfig` 가 `authorizationServerMetadataCustomizer`(AS metadata)와 `providerConfigurationCustomizer`(OIDC discovery)에 **같은 커스터마이저 람다** 안에서 더한다 — 두 커스터마이저는 필드 하나에 담겨 마지막 호출이 앞의 것을 덮어쓰기 때문이다.

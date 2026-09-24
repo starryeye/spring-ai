@@ -1,7 +1,7 @@
 # MCP Authorization API 명세
 
 인증이 포함된 MCP 호출에 등장하는 HTTP 엔드포인트를 명세 기준으로 모았다. 각 절은 원문이 정의한 파라미터·헤더·필드를 빠짐없이 싣고, 세 practice(`mcp-security-authn-official`·`-chat-memory`·`-community`)가 무엇을 쓰는지 "이 practice" 열에 적는다.
-전송·수명주기는 MCP 2025-11-25, authorization 은 2025-11-25 에 2026-07-28 추가분(`iss` 검증, 자격증명의 issuer 바인딩)을 더한 것을 기준으로 한다.
+전송·수명주기는 MCP 2025-11-25, authorization 은 2025-11-25 에 2026-07-28 추가분(`iss` 검증, 자격증명의 issuer binding)을 더한 것을 기준으로 한다.
 
 ## 엔드포인트 목차
 

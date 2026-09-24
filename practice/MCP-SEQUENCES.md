@@ -54,17 +54,7 @@ flowchart LR
 
 ### 신뢰 관계
 
-누가 무엇을 설정으로 미리 알고, 무엇을 실행 중에 알아내는지 정리한다. Authorization Server 의 위치는 어느 client 설정에도 없다.
-
-| 구성요소 | 역할 | 미리 아는 것(설정) | 실행 중에 알아내거나 검증하는 것 |
-|---|---|---|---|
-| Browser | user-agent. 로그인하고 redirect 를 나른다 | 없음 | Agent 와 Authorization Server 각각의 session cookie 만 가진다. token 은 보지 않는다 |
-| Agent | confidential client. 서버에서 돌며 사용자 대신 MCP Server 를 부른다 | MCP Server URL, pre-registration 자격증명(`client_id`·`client_secret`·redirect URI·scope), 그 자격증명의 issuer(`credentials-issuer`) | Authorization Server 위치와 endpoint 는 [discovery](#rt-discovery) 로 알아낸다. 알아낸 issuer 가 `credentials-issuer` 와 다르면 멈춘다([issuer binding](#issuer-binding)) |
-| Local MCP Client | public client. 사용자 기기에서 돈다 | MCP Server URL, `client_id`(`local-mcp-client`), loopback redirect URI. 비밀은 없다 | discovery 는 Agent 와 같다. 실행할 때 빈 loopback 포트를 고른다 |
-| MCP Server | resource server. token 을 검증하고 tool 을 실행한다 | 신뢰할 issuer, 자기 resource 식별자(audience) | 서명 key 는 Authorization Server 의 `jwks_uri` 에서 받는다. 요청마다 서명·`iss`·`aud`·`exp` 를 본다([token 검증](#rt-token-validation)) |
-| Authorization Server | 사용자를 로그인시키고 token 을 발급한다 | 등록된 client 둘, token 을 발급할 resource 목록, 사용자 계정 | authorization request 의 `resource` 가 목록에 있는지, token request 의 `resource` 가 authorization request 와 같은지 본다 |
-
-Agent 는 서버에서 도는 웹 앱이라 MCP Server 로 가는 요청에 브라우저의 `Origin` 이 붙지 않는다. Local MCP Client 는 이 practice 에 프로그램으로 존재하지 않고, 캡처 스크립트(`curl`)가 그 역할을 한다.
+누가 무엇을 설정으로 미리 알고 무엇을 실행 중에 알아내는지는 [허브 2절 신뢰 관계](MCP-AUTHORIZATION.md#s2) 에 있다.
 
 ---
 
@@ -293,7 +283,7 @@ sequenceDiagram
     G-->>B: 302 /oauth2/authorization/authserver
     B->>G: GET /oauth2/authorization/authserver
     Note over G: discovery 결과가 없으면 먼저 discovery 와 issuer binding
-    Note over G: code_verifier, code_challenge, state, nonce 를 만들고<br/>issuer 와 함께 요청 기록에 저장
+    Note over G: code_verifier, code_challenge, state, nonce 를 만들어<br/>요청 기록에 저장(명세는 issuer 도 함께)
     G-->>B: 302 authorization endpoint<br/>response_type=code, client_id, redirect_uri, scope, state, nonce,<br/>code_challenge, code_challenge_method=S256, resource
     B->>A: GET /oauth2/authorize
     A-->>B: 302 /login
@@ -303,7 +293,7 @@ sequenceDiagram
     Note over A: client_id 와 redirect_uri 일치, code_challenge 있음,<br/>resource 가 허용 목록에 있음. consent 생략
     A-->>B: 302 redirect_uri?code, state, iss
     B->>G: GET /login/oauth2/code/authserver?code, state, iss
-    Note over G: state 로 요청 기록을 찾고<br/>iss 를 기록한 issuer 와 비교
+    Note over G: state 로 요청 기록을 찾고<br/>iss 를 그 요청의 issuer 와 비교
     G->>A: POST /oauth2/token (code, code_verifier, resource)
     A-->>G: 200 access_token, refresh_token, id_token
     G-->>B: 302 /
@@ -313,7 +303,7 @@ sequenceDiagram
 
 1. 로그인하지 않은 사용자가 Agent 를 연다. Agent 에는 로그인 화면이 따로 없다.
 2. Agent 는 사용자를 authorization request 를 만드는 자기 주소로 보낸다. client 가 하나라 곧바로 그 client 의 흐름을 시작한다.
-3. 브라우저가 그 주소를 열면 Agent 는 discovery 결과가 없을 때 먼저 [discovery](#rt-discovery) 와 [issuer binding](#issuer-binding) 을 한다. 그 뒤 `code_verifier`·`state`·`nonce` 를 무작위로 만들고 `code_challenge = BASE64URL(SHA256(code_verifier))` 를 계산한다. redirect 하기 전에 검증된 `issuer` 를 `code_verifier`·`state` 와 같은 요청 기록에 남겨야 한다(MUST, [MCP 2026-07-28 Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)).
+3. 브라우저가 그 주소를 열면 Agent 는 discovery 결과가 없을 때 먼저 [discovery](#rt-discovery) 와 [issuer binding](#issuer-binding) 을 하고, `code_verifier`·`state`·`nonce` 를 무작위로 만들어 `code_challenge = BASE64URL(SHA256(code_verifier))` 를 계산한다. redirect 하기 전에 검증된 `issuer` 를 `code_verifier`·`state` 와 같은 요청 기록에 남겨야 한다(MUST, [MCP 2026-07-28 Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)). 이 practice 는 요청 기록에 `registrationId` 를 넣고, issuer 는 그 `registrationId` 로 캐시된 등록에서 꺼낸다([허브 4.6](MCP-AUTHORIZATION.md#s4-6)).
 4. Agent 가 authorization endpoint 로 redirect 한다(S17). PKCE 는 구현해야 하고 `S256` 을 써야 하며(MUST, [MCP Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)), `resource` 는 authorization request 와 token request 모두에 실어야 한다(MUST, [Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation)). 파라미터 표는 [`GET /oauth2/authorize`](MCP-API-SPEC.md#authorize) 에 있다.
 5. 브라우저가 Authorization Server 의 authorization endpoint 를 연다. 사용자는 아직 Authorization Server 에 로그인하지 않았다.
 6. Authorization Server 는 요청을 저장해 두고 로그인 화면으로 보낸다. 로그인 화면은 명세 범위 밖이다.

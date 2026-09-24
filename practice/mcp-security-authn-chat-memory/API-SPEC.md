@@ -68,7 +68,7 @@ Authorization Server metadata·discovery·authorize·token·agent 로그인(`GET
 **예시** (bob, label 생략 → `default`)
 
 ```http
-POST /api/chat?label=default
+POST /api/chat
 내 이름 뭐야?
 ```
 
@@ -128,7 +128,7 @@ GET /api/conversations
 
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
-| `label` | 경로 | OPTIONAL — 이 practice 고유 API | 조회할 대화 이름. `POST /api/chat` 과 같은 sanitize 규칙 | 씀 — `@PathVariable String label` |
+| `label` | 경로 | 필수 — 이 practice 고유 API | 조회할 대화 이름. `POST /api/chat` 과 같은 sanitize 규칙 | 씀 — `@PathVariable String label` |
 
 원문 필드: 없음(이 practice 고유 API)
 
@@ -176,7 +176,7 @@ GET /api/conversations/tools
 
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
-| `label` | 경로 | OPTIONAL — 이 practice 고유 API | 비울 대화 이름. `POST /api/chat` 과 같은 sanitize 규칙 | 씀 — `@PathVariable String label` |
+| `label` | 경로 | 필수 — 이 practice 고유 API | 비울 대화 이름. `POST /api/chat` 과 같은 sanitize 규칙 | 씀 — `@PathVariable String label` |
 
 원문 필드: 없음(이 practice 고유 API)
 

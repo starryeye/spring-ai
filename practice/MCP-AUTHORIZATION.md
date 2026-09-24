@@ -449,7 +449,7 @@ authorization 은 HTTP 계층의 일이라 JSON-RPC 메시지는 인증이 없�
 - [MCP 2025-11-25 Transports — Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) — JSON-RPC 메시지는 각각 새 HTTP POST 이고, `Accept` 에 `application/json`·`text/event-stream` 을 모두 넣어야 한다(**MUST**). 알림·응답에는 본문 없는 `202`, 요청에는 `application/json` 이나 `text/event-stream` 으로 응답해야 한다(**MUST**).
 - [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) — server 는 `MCP-Session-Id` 를 줄 수 있고(MAY), 받은 client 는 이후 모든 요청에 넣어야 한다(**MUST**). ID 없는 요청에는 `400` 이 좋고(**SHOULD**), 끝난 session 에는 `404` 여야 하며(**MUST**) 그 client 는 새 `initialize` 를 해야 한다(**MUST**). HTTP 헤더 이름은 대소문자를 구분하지 않는다([RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110#section-5.1)).
 - [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header) — client 는 이후 모든 요청에 `MCP-Protocol-Version` 을 넣어야 한다(**MUST**). 헤더가 없으면 server 는 `2025-03-26` 으로 가정하는 것이 좋고(**SHOULD**), 유효하지 않거나 지원하지 않는 값이면 `400` 이어야 한다(**MUST**).
-- [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) — server 는 모든 연결의 `Origin` 헤더를 검증해야 하고(**MUST**), `Origin` 헤더가 있는데 유효하지 않으면 `403` 이어야 한다(**MUST**). 로컬 실행 시 127.0.0.1 에만 바인딩하고, 모든 연결에 인증을 두는 것이 좋다(**SHOULD**).
+- [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) — server 는 모든 연결의 `Origin` 헤더를 검증해야 하고(**MUST**), `Origin` 헤더가 있는데 유효하지 않으면 `403` 이어야 한다(**MUST**). 로컬 실행 시 127.0.0.1 에만 bind 하고, 모든 연결에 인증을 두는 것이 좋다(**SHOULD**).
 - [MCP 2025-11-25 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements) — 같은 논리 session 이라도 모든 HTTP 요청에 `Authorization: Bearer <access-token>` 을 넣어야 하고(**MUST**, [OAuth 2.1 §5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.1.1)), URI 쿼리에 넣으면 안 된다(**MUST NOT**).
 - [MCP 2025-11-25 Transports — Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) — SSE 이벤트 `id` 는 붙일 수 있고(MAY), 붙였다면 session 안의 모든 stream 에서 전역으로 유일해야 한다(**MUST**).
 
@@ -457,7 +457,7 @@ authorization 은 HTTP 계층의 일이라 JSON-RPC 메시지는 인증이 없�
 
 - Agent: SDK `HttpClientStreamableHttpTransport` 가 POST 마다 `Accept`·`Content-Type`·`MCP-Protocol-Version`·`Mcp-Session-Id` 를 붙이고, session ID 를 받으면 `GET /mcp` stream 을 연다. `Authorization` 은 요청마다 불리는 커스터마이저(`OAuth2TokenAttachingRequestCustomizer`, community 는 모듈 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`)가 붙인다. token 은 로그인한 사용자의 것이고, Agent 자신의 client credentials token 은 쓰지 않는다.
 - Agent 는 기동 시점에 `initialize` 를 하지 않는다(`spring.ai.mcp.client.initialized: false`). 기동 시점에는 대신 호출할 사용자가 없어 `401` 이 오기 때문이고, handshake 는 첫 채팅 요청 중에 일어난다.
-- MCP Server: Spring AI `WebMvcStreamableServerTransportProvider` 가 session(UUID)과 `400`/`404` 를 판단한다. `McpProtocolVersionFilter` 가 SDK 가 하지 않는 `MCP-Protocol-Version` 검증을 하고(없으면 통과), `Origin`·`Host` 는 SDK `DefaultServerTransportSecurityValidator`(community 는 모듈 `OriginValidationFilter`)가 보고, `Origin` 이 없는 서버 간 요청은 통과시킨다. 테스트: `McpAuthorizationStandardTest#지원하지_않는_MCP_Protocol_Version_헤더는_400이다`.
+- MCP Server: Spring AI `WebMvcStreamableServerTransportProvider` 가 session(UUID)과 `400`/`404` 를 판단한다. `McpProtocolVersionFilter` 가 SDK 가 하지 않는 `MCP-Protocol-Version` 검증을 하고(없으면 통과), `Origin`·`Host` 는 SDK `DefaultServerTransportSecurityValidator`(community 는 모듈 `OriginValidationFilter`)가 보고, `Origin` 헤더가 없는 요청은 통과시킨다. 테스트: `McpAuthorizationStandardTest#지원하지_않는_MCP_Protocol_Version_헤더는_400이다`.
 - 검사 순서: official·chat-memory 는 `McpProtocolVersionFilter` 가 먼저, community 는 `OriginValidationFilter` 가 먼저다. 그래서 잘못된 버전과 허용되지 않은 `Origin` 을 함께 실으면 official·chat-memory 는 `400`, community 는 `403` 이다. 허용 Origin 은 official·chat-memory 가 없음, community 가 `http://localhost:8101` 이다.
 - SSE 이벤트 `id`: SDK 서버 전송은 이벤트 `id` 로 session ID 를 써서 한 session 의 이벤트가 같은 `id` 를 가진다(C9·C10). 그 값을 정하는 `WebMvcStreamableMcpSessionTransport` 가 `private` 이고 이를 감싼 `WebMvcStreamableServerTransportProvider` 가 `public final` 이라, 전송 구현 전체를 포크하지 않고는 바꿀 수 없다([6절](#s6) 19번).
 
@@ -562,11 +562,8 @@ public client 는 refresh token 을 받지 않아, 만료되면 authorization re
 
 ### 5.4 Discovery SSRF
 
-[Security Best Practices — Server-Side Request Forgery (SSRF)](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) 는 discovery 에서 client 가 여는 URL 이 모두 MCP Server 가 알려 준 값이라는 점을 짚는다.
-악성 MCP Server 는 이 값을 내부망이나 `http://169.254.169.254/` 같은 cloud metadata 주소로 채울 수 있다.
-
-server 에 배포된 MCP client 는 OAuth 관련 URL 을 가져올 때 SSRF 위험을 고려하고 알맞은 대응을 구현해야 한다(**MUST**).
-대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), redirect 대상 검증, egress proxy 를 든다(모두 **SHOULD**).
+discovery 에서 client 가 여는 URL 은 모두 MCP Server 가 알려 준 값이라, 악성 MCP Server 는 이를 내부망이나 `http://169.254.169.254/` 같은 cloud metadata 주소로 채울 수 있다([Security Best Practices — Server-Side Request Forgery (SSRF)](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)).
+server 에 배포된 MCP client 는 OAuth 관련 URL 을 가져올 때 SSRF 위험을 고려하고 알맞은 대응을 구현해야 하며(**MUST**), 대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), redirect 대상 검증, egress proxy 를 든다(모두 **SHOULD**).
 Agent 는 서버에서 도는 client 라 이 MUST 의 대상이고, 세 practice 의 판정은 [준수표 27번](#s6)이다.
 
 #### 이 practice
@@ -660,10 +657,10 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 | 14 | Dynamic Client Registration(RFC 7591) | MAY · 2026-07-28 deprecated | 다루지 않음 — 켜지 않음, C3 `registration_endpoint` 없음 | 다루지 않음 — 같음 | 다루지 않음 — `dynamic-client-registration.enabled: false` | [4.4](#s4-4) |
 | 15 | Client ID Metadata Document(CIMD) | SHOULD | 다루지 않음 — HTTPS `client_id` 가 전제 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.4](#s4-4), [8절](#s8) |
 | 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.9](#s4-9), [8절](#s8) |
-| 17 | RFC 9068 access token 프로파일 | 참고 — MCP 는 요구하지 않음 | 아니오(불일치) — `client_id` claim 없음, `scope` 가 JSON 배열 | 아니오(불일치) — 같음 | 아니오(불일치) — 같음 | [4.7](#s4-7) |
-| 18 | `invalid_client` `401` 의 `WWW-Authenticate` | MUST (RFC 6749 §5.2 · OAuth 2.1 §3.2.4) | **예** — `ClientAuthenticationChallengeFailureHandler`, S8 | **예** — 같음 | **예** — `McpAuthorizationStandardConfig` 가 같은 handler 를 건다 | [4.7](#s4-7) |
+| 17 | RFC 9068 access token 프로파일 | 참고 — MCP 는 요구하지 않음 | 아니오(불일치) — `typ` 과 `client_id` claim 없음, `scope` 가 JSON 배열 | 아니오(불일치) — 같음 | 아니오(불일치) — 같음 | [4.7](#s4-7) |
+| 18 | `invalid_client` `401` 의 `WWW-Authenticate` | MUST (RFC 6749 §5.2 · OAuth 2.1 §3.2.4) | 예 — `ClientAuthenticationChallengeFailureHandler`, S8 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig` 가 같은 handler 를 건다 | [4.7](#s4-7) |
 | 19 | SSE 이벤트 `id` 의 session 내 유일성 | MUST (MCP Resumability and Redelivery) | **아니오** — 이벤트 `id` 가 session ID, C9·C10 | **아니오** — 같음(같은 SDK) | **아니오** — 같음(같은 SDK) | [4.8](#s4-8) |
-| 20 | `token_endpoint`·`revocation_endpoint`·`introspection_endpoint` 의 `_auth_signing_alg_values_supported` | 조건부 MUST (RFC 8414 §2) | **예** — `AuthorizationServerConfig` metadata customizer | **예** — 같음 | **예** — `McpAuthorizationStandardConfig` | [4.3](#s4-3) |
+| 20 | `token_endpoint`·`revocation_endpoint`·`introspection_endpoint` 의 `_auth_signing_alg_values_supported` | 조건부 MUST (RFC 8414 §2) | 예 — `AuthorizationServerConfig` metadata customizer | 예 — 같음 | 예 — `McpAuthorizationStandardConfig` | [4.3](#s4-3) |
 | 21 | discovery 결과 재검증 | SHOULD (RFC 9728 §5.2) | **아니오** — 프로세스 수명 동안 캐시 | **아니오** — 같음 | **아니오** — 같음 | [4.10](#s4-10) |
 | 22 | `GET /mcp` stream 의 응답 시작 확인 | 참고 — 규정 없음 | 해당 없음 — 첫 이벤트 전까지 헤더가 나가지 않는다(S11) | 해당 없음 — 같음 | 해당 없음 — 같음 | [API](MCP-API-SPEC.md#mcp-get) |
 | 23 | public client 의 `client_id`, PKCE 강제, `none` 광고 | REQUIRED · MUST · OPTIONAL | 예 — `local-mcp-client` + `none` 광고, P5 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig`, P5 | [4.4](#s4-4) |
@@ -673,7 +670,7 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 | 27 | 서버에 배포된 MCP client 의 SSRF 위험 고려와 대응 | MUST, 대응 네 가지는 SHOULD ([Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)) | **아니오** — `McpAuthorizationDiscovery` 가 challenge·PRM 이 준 URL 을 스킴·사설 IP·redirect 제한 없이 GET 한다(구성요소가 모두 localhost 인 학습 환경) | **아니오** — 같음 | **아니오** — PRM URL 만 `DefaultUrlValidator(true)` 로 HTTPS·loopback HTTP 검사, Authorization Server Metadata URL 과 사설 IP 는 제한 없음 | [5.4](#s5-4) |
 
 남은 MUST 위반은 12번(HTTPS), 19번(SSE 이벤트 `id`), 27번(SSRF 대응) 셋이다.
-12번은 로컬 관측을 위한 선택이고, 19번은 SDK 전송 클래스 구조 때문에 포크 없이는 바꿀 수 없으며, 27번은 community 만 PRM URL 을 일부 검증한다.
+12번은 로컬 관측을 위한 선택이고, 19번은 SDK 전송 클래스 구조 때문에 포크 없이는 바꿀 수 없으며, 27번은 구성요소가 모두 localhost 인 학습 환경이라 대응을 두지 않았다(community 는 PRM URL 만 일부 검증).
 18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 이 practice 가 직접 채운 것이고, 21번은 SHOULD 를 이행하지 않으며, 17·22번은 MCP 가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
 
 ---

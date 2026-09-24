@@ -54,7 +54,7 @@ community 에서 라이브러리 3개(전이 의존 포함 수십 개 자동설�
 | `DiscoveredClientRegistrationRepository` | 설정 대신 discovery 결과로 `ClientRegistration` 을 만들고 issuer 를 확인 | [4.4](../MCP-AUTHORIZATION.md#s4-4) |
 | `McpAuthorizationDiscovery` | `401` → PRM → Authorization Server Metadata 순서로 discovery | [4.1](../MCP-AUTHORIZATION.md#s4-1)–[4.3](../MCP-AUTHORIZATION.md#s4-3) |
 | `DiscoveredAuthorization` | discovery 결과(resource 식별자·issuer·metadata)를 담는 레코드 | [4.2](../MCP-AUTHORIZATION.md#s4-2), [4.3](../MCP-AUTHORIZATION.md#s4-3) |
-| `McpAuthorizationProperties` | `mcp.authorization.resource-url`/`credentials-issuer` 설정 바인딩 | [4.4](../MCP-AUTHORIZATION.md#s4-4) |
+| `McpAuthorizationProperties` | `mcp.authorization.resource-url`/`credentials-issuer` 설정 binding | [4.4](../MCP-AUTHORIZATION.md#s4-4) |
 | `McpDiscoveryException` | discovery 가 명세대로 끝나지 않았을 때 던진다 | [4.1](../MCP-AUTHORIZATION.md#s4-1)–[4.3](../MCP-AUTHORIZATION.md#s4-3) |
 | `ResourceIndicators` | RFC 8707 `resource` 를 authorization·token·refresh 요청에 싣는다 | [4.5](../MCP-AUTHORIZATION.md#s4-5), [4.7](../MCP-AUTHORIZATION.md#s4-7), [4.10](../MCP-AUTHORIZATION.md#s4-10) |
 | `AuthorizationResponseIssuerFilter` | callback 의 `iss`(RFC 9207)를 코드 교환 **전에** 검증한다 | [4.6](../MCP-AUTHORIZATION.md#s4-6) |
@@ -123,16 +123,7 @@ confidential client(agent) 흐름과 public client(`local-mcp-client`) 흐름을
 
 ## community 와의 차이
 
-| 항목 | community | official |
-|---|---|---|
-| OIDC discovery | 별도 `OidcDiscoveryConfig` 로 `.oidc(...)` 를 켜야 한다 | Boot 4.1 자동설정이 기본으로 켠다 |
-| resource server 의 filter chain | 라이브러리가 만든다. 직접 정의하면 `@ConditionalOnDefaultWebSecurity` 로 라이브러리 설정이 물러난다 | 조건부 자동설정이 없어, 직접 정의해도 무엇이 물러날 걱정이 없다 |
-| Protected Resource Metadata(RFC 9728) | 라이브러리(`mcp-server-security-spring-boot`)가 제공 | Spring Security 7.1 의 `protectedResourceMetadata(...)` 한 줄로 이미 있다 |
-| `WWW-Authenticate` 값 | `Bearer resource_metadata="http://localhost:8101/..."` | `Bearer resource_metadata="http://localhost:8111/..."` — 인용부호·경로 접미사 모두 community 와 같다 |
-| `issuer-uri` 누락 시 | 조건부 자동설정이 꺼질 뿐, Boot 기본 보안(HTTP Basic)이 대신 들어와 `401` 은 그대로 나온다 | `SecurityConfig` 가 무조건 실행되는 `@Configuration` 이라 값이 없으면 기동 자체가 실패한다 |
-| 조용히 죽는 스위치 | 5개(client type SYNC 게이트, `issuer-uri` 게이트, client 등록 정확히 1개, `SecurityFilterChain` 직접 정의 시 자동설정 백오프, `.contextWrite(...)` 누락) | 2개(`Hooks.enableAutomaticContextPropagation()` 누락, `spring.ai.mcp.client.type` 을 `ASYNC` 로 전환) — 나머지 세 범주는 조건부 자동설정 자체가 없어 대응물이 없다 |
-| 코드량(`src/main/java`) | 30개 파일, 1,727줄 | 31개 파일, 1,902줄 |
-| 스트리밍 인증 전파 | `ChatController` 가 `.contextWrite(...)` 로 명시 호출(Spring AI `internal` 패키지 의존) | `Hooks.enableAutomaticContextPropagation()`(부팅 시 1회) + `AuthorizedClientServiceOAuth2AuthorizedClientManager` 조합. `ChatController` 는 아무 것도 하지 않는다 |
+community 의 모듈 자동 구성과 이 practice 의 직접 쓴 클래스를 맞대 본 비교는 [community README 의 대체 표](../mcp-security-authn-community/README.md#대체-표) 한 곳에 있다.
 
 ## 학습 포인트
 

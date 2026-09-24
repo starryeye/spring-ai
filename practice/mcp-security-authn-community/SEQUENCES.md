@@ -39,6 +39,7 @@ flowchart LR
         MSOC["McpServerOAuth2Configurer"]:::moduleAuto
         OVF["OriginValidationFilter"]:::moduleAuto
         MSEC["SecurityConfig"]:::customExt
+        MPVFC["McpProtocolVersionFilterConfig"]:::customExt
         MPVF["McpProtocolVersionFilter"]:::customExt
     end
     subgraph agent["shop-agent (:8100)"]
@@ -60,7 +61,7 @@ flowchart LR
     MSTD -->|"authorizationConsentService 빈"| PCCS
     MSEC -->|"McpServerOAuth2Configurer.mcpServerOAuth2() 적용"| MSOC
     MSOC -->|"allowedOrigins 설정 시 addFilterAfter"| OVF
-    MSEC -->|"FilterRegistrationBean"| MPVF
+    MPVFC -->|"FilterRegistrationBean, MCP endpoint 에만"| MPVF
     ASC -->|"addFilterBefore"| ARIF
     ASC -->|"authorizationRequestResolver 가 씀"| DR
     DR -->|"등록이 없으면 호출"| MAD
@@ -69,7 +70,7 @@ flowchart LR
     CC -->|".contextWrite(writeToReactorContext())"| ATCP
     ATCP -.->|"McpTransportContext 로 전달"| OACSHRC
     OACSHRC -.->|"Bearer 로 POST/GET/DELETE /mcp"| MSEC
-    MAD -.->|"401 challenge, PRM 조회"| MSEC
+    MDS -.->|"401 challenge, PRM 조회"| MSEC
     MAD -.->|"Authorization Server metadata 조회"| ASAC
 ```
 
@@ -139,8 +140,10 @@ sequenceDiagram
     Note over M: SecurityConfig 가 init() 에서<br/>validateAudienceClaim(true) 를 건다
     A->>O: POST /mcp, Origin/Host 헤더, Bearer
     O->>O: allowedOrigins/allowedHosts 대조
-    alt Origin·Host 가 허용 목록 밖
+    alt Origin 이 허용 목록 밖
         O-->>A: 403, jsonrpc error -32000
+    else Host 가 허용 목록 밖
+        O-->>A: 421, jsonrpc error -32000
     else 통과
         O->>M: 다음 필터로 전달
         M->>V: decode(token)
@@ -160,7 +163,7 @@ sequenceDiagram
 **단계**
 
 1. `SecurityConfig` 는 `McpServerOAuth2Configurer.mcpServerOAuth2()` 를 적용하며 `validateAudienceClaim(true)` 와 `allowedOrigins`/`allowedHosts` 를 설정한다. 후자는 `init()` 에서 `OriginValidationFilter` 를 `addFilterAfter(CorsFilter.class)` 로 자동 등록한다.
-2. `Origin`/`Host` 헤더가 허용 목록 밖이면 `OriginValidationFilter` 가 JSON-RPC 오류 본문과 함께 거부하고, MCP Server 안쪽 filter 는 실행되지 않는다.
+2. `OriginValidationFilter` 는 SDK `DefaultServerTransportSecurityValidator` 가 던진 status 를 그대로 쓴다. `Origin` 이 허용 목록 밖이면 `403`, `Host` 가 허용 목록 밖이면 `421` 을 JSON-RPC 오류 본문과 함께 돌려준다(테스트: `McpAuthorizationStandardTest#허용되지_않은_Host_는_421이다`). 거부되면 MCP Server 안쪽 filter 는 실행되지 않는다.
 3. 통과하면 `McpServerOAuth2Configurer#getJwtDecoder` 가 감싼 `AudienceValidationJwtDecoder` 가 위임 decoder(서명·`iss`·`exp` 검증)를 먼저 부른다.
 4. `AudienceValidationJwtDecoder` 는 `ResourceIdentifier#getResource()` 로 기대 `aud` 를 계산한다. 이 메서드는 저장된 값이 아니라, 현재 요청 URL 에서 쿼리·fragment 를 뗀 값을 매 요청마다 다시 만든다.
 5. token 의 `aud` claim 이 이 값과 다르면 `JwtValidationException` 이 던져지고 `401` 로 끝나며, 같으면 `tools/call` 처리로 이어진다.

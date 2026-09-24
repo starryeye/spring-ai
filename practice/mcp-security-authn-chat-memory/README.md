@@ -18,6 +18,23 @@
 
 사용자는 `alice`/`alice`, `bob`/`bob` 두 명이다. 격리를 검증하려면 최소 두 명이 필요하다.
 
+## 모듈별 역할
+
+### Authorization Server
+
+`auth-server` 는 official 과 같은 클래스로 사용자를 로그인시키고 MCP Server 용 access token 을 발급한다. 다른 것은 포트·계정(`alice`·`bob`)·confidential client_id(`memory-agent`)뿐이다.
+배선은 [official 의 Authorization Server](../mcp-security-authn-official/README.md#authorization-server) 에 있다.
+
+### MCP Server
+
+`shop-mcp-server` 는 official 과 같은 클래스로 token 을 검증하고 MCP tool 을 제공하는 resource server 다. 다른 것은 포트와 resource 식별자(`http://localhost:8131/mcp`)뿐이다.
+배선은 [official 의 MCP Server](../mcp-security-authn-official/README.md#mcp-server) 에 있다.
+
+### Agent
+
+`shop-agent` 의 discovery·로그인·token 부착은 official 과 같은 클래스다([official 의 Agent](../mcp-security-authn-official/README.md#agent)). 그 위에 `ChatMemoryConfig`(`MessageWindowChatMemory`)·`ChatClientConfig`(`MessageChatMemoryAdvisor`)가 대화 기억을 켜고, `ConversationId`·`ConversationController` 가 사용자별 conversationId 와 대화 API 를 맡는다.
+API: [API-SPEC.md](API-SPEC.md#api-chat) · 흐름: [SEQUENCES.md](SEQUENCES.md#conversation-id)
+
 ## official 과 같은 것 · 다른 것
 
 discovery·PKCE·`resource`·`aud`·`Origin`/`Host` 검증을 포함한 인증 흐름 전체는 [`mcp-security-authn-official`](../mcp-security-authn-official/README.md)과 같다. 이 문서는 그 위에 얹은 대화 기억·격리만 다룬다.
@@ -58,6 +75,16 @@ cd practice/mcp-security-authn-chat-memory
 
 두 사용자를 동시에 로그인하려면 브라우저 프로필을 분리해야 한다. 같은 프로필의 일반 창 두 개는 session cookie(`MEMAGENTSESSIONID`)를 공유해 나중에 로그인한 사용자가 앞 사용자를 덮어쓴다.
 
+public client(`local-mcp-client`) 흐름은 curl 캡처 스크립트로 밟는다. Authorization Server 와 MCP Server 만 떠 있으면 된다.
+
+```bash
+AS=http://localhost:9020 MCP_BASE=http://localhost:8131 \
+  LOGIN_USERNAME=alice LOGIN_PASSWORD=alice \
+  CONFIDENTIAL_CLIENT_ID=memory-agent CONFIDENTIAL_CLIENT_SECRET=memory-agent-secret \
+  CONFIDENTIAL_REDIRECT_URI=http://localhost:8130/login/oauth2/code/authserver \
+  ../../docs/superpowers/captures/mcp-authorization-public-client.sh
+```
+
 ```bash
 ./stop.sh
 ```
@@ -79,13 +106,39 @@ cd practice/mcp-security-authn-chat-memory
 
 ## 학습 포인트
 
-- **전체 ID 를 받는 API 를 두지 않는 것이 가장 확실한 방어다.** `GET /api/conversations/{label}` 은 label 만 받고, 서버가 항상 호출자 접두사를 강제로 붙인다. "필터링을 잘 하는 API" 보다 "잘못 부를 방법 자체가 없는 API" 가 강하다.
-- **`findConversationIds()` 는 저장소 전체를 안다.** 거르지 않으면 남의 ID가 샌다. 부모 `chat-memory` 에 이 필터가 없었던 것은 사용자 1명을 가정했기 때문이다.
-- **tool 호출 결과는 파라프레이즈되어 남는다.** 위 "tool 호출 결과가 memory 에 남는가" 절 참고.
-- **CSRF 를 예외 없이 전면 적용했다.** 부모 `mcp-security-authn-official` 은 `/api/chat` 을 CSRF 검사에서 면제했지만, 여기는 상태를 바꾸는 `DELETE /api/conversations/{label}` 을 포함해 어떤 endpoint 도 면제하지 않는다. `CookieCsrfTokenRepository.withHttpOnlyFalse()` 로 발급한 `XSRF-TOKEN` 쿠키를 `X-XSRF-TOKEN` 헤더로 되돌려 보내는 표준 SPA 패턴을 쓴다.
-- **로그아웃은 `shop-agent` 만으로 끝나지 않는다.** `auth-server`(`:9020`)의 OIDC session 이 남아 있으면 다음 로그인 때 같은 사용자로 조용히 재인증된다. 사용자를 바꾸려면 `shop-agent` 와 `auth-server` 양쪽에서 모두 로그아웃해야 한다.
-- **Spring Boot 4.1 은 `springSecurity()` 를 자동으로 붙이지 않는다.** `spring-boot-webmvc-test` 에는 `MockMvcSecurityConfiguration` 대응물이 없어, 이 배선이 없으면 보안이 걸린 `MockMvc` 테스트가 모두 redirect 로 실패한다. `ConversationControllerTest` 가 `@TestConfiguration` 과 `MockMvcBuilderCustomizer` 로 이 배선을 직접 되살린다.
-- official 에서 그대로 유지된 것: 기동 순서, `spring.ai.mcp.client.initialized: false` 로 인한 첫 요청 지연, 앱마다 session cookie 이름을 분리하는 관례.
+### 전체 ID 를 받는 API 를 두지 않는 것이 가장 확실한 방어다
+
+`GET /api/conversations/{label}` 은 label 만 받고, 서버가 항상 호출자 접두사를 강제로 붙인다.
+"필터링을 잘 하는 API" 보다 "잘못 부를 방법 자체가 없는 API" 가 강하다.
+
+### `findConversationIds()` 는 저장소 전체를 안다
+
+거르지 않으면 남의 ID 가 샌다.
+부모 `chat-memory` 에 이 필터가 없는 것은 사용자 1명을 가정하기 때문이다.
+
+### tool 호출 결과는 다른 말로 바뀌어 남는다
+
+`ToolResponseMessage` 는 저장되지 않고, 모델이 조회 값을 옮겨 적은 assistant 텍스트로만 남는다.
+자세히는 위 "tool 호출 결과가 memory 에 남는가" 절이다.
+
+### CSRF 는 예외 없이 전면 적용된다
+
+부모 `mcp-security-authn-official` 은 `/api/chat` 을 CSRF 검사에서 면제하지만, 여기는 상태를 바꾸는 `DELETE /api/conversations/{label}` 을 포함해 어떤 endpoint 도 면제하지 않는다.
+`CookieCsrfTokenRepository.withHttpOnlyFalse()` 로 발급한 `XSRF-TOKEN` 쿠키를 `X-XSRF-TOKEN` 헤더로 되돌려 보내는 표준 SPA 패턴을 쓴다.
+
+### 로그아웃은 `shop-agent` 만으로 끝나지 않는다
+
+`auth-server`(`:9020`)의 OIDC session 이 남아 있으면 다음 로그인 때 같은 사용자로 조용히 재인증된다.
+사용자를 바꾸려면 `shop-agent` 와 `auth-server` 양쪽에서 모두 로그아웃해야 한다.
+
+### Spring Boot 4.1 은 `springSecurity()` 를 자동으로 붙이지 않는다
+
+`spring-boot-webmvc-test` 에는 `MockMvcSecurityConfiguration` 대응물이 없어, 이 배선이 없으면 보안이 걸린 `MockMvc` 테스트가 모두 redirect 로 실패한다.
+`ConversationControllerTest` 가 `@TestConfiguration` 과 `MockMvcBuilderCustomizer` 로 이 배선을 직접 되살린다.
+
+### official 과 같은 운영 관례는 그대로다
+
+기동 순서, `spring.ai.mcp.client.initialized: false` 로 인한 첫 요청 지연, 앱마다 session cookie 이름을 분리하는 관례는 official 과 같다.
 
 ## 비목표
 
@@ -101,4 +154,4 @@ cd practice/mcp-security-authn-chat-memory
 - [MCP-AUTHORIZATION.md](../MCP-AUTHORIZATION.md) · [MCP-API-SPEC.md](../MCP-API-SPEC.md) · [MCP-SEQUENCES.md](../MCP-SEQUENCES.md)
 - 부모: [`mcp-security-authn-official`](../mcp-security-authn-official) · [`chat-memory`](../chat-memory)
 - 설계: [설계 스펙](../../docs/superpowers/specs/2026-09-07-mcp-security-authn-chat-memory-design.md) · [구현 계획](../../docs/superpowers/plans/2026-09-07-mcp-security-authn-chat-memory.md)
-- 캡처: [2026-09-25-chat-memory-public-client.txt](../../docs/superpowers/captures/2026-09-25-chat-memory-public-client.txt)
+- 캡처: [2026-09-12-chat-memory.txt](../../docs/superpowers/captures/2026-09-12-chat-memory.txt) · [2026-09-25-chat-memory-public-client.txt](../../docs/superpowers/captures/2026-09-25-chat-memory-public-client.txt)

@@ -16,7 +16,7 @@ authorization 흐름(discovery·로그인·token 교환)은 official 과 같은 
 
 ## 1. conversationId 파생
 
-로그인한 사용자의 `Authentication` 이 `label` 과 합쳐져 `ChatMemory` 가 쓰는 conversationId 가 되는 과정이다. 호출 순서는 `ChatController`·`ConversationId` 소스를 대조해 확인했다.
+로그인한 사용자의 `Authentication` 이 `label` 과 합쳐져 `ChatMemory` 가 쓰는 conversationId 가 되는 과정이다.
 
 ```mermaid
 sequenceDiagram
@@ -58,15 +58,18 @@ sequenceDiagram
     participant CC as ChatController
     participant CV as ConversationController
     participant CID as ConversationId
+    participant MA as MessageChatMemoryAdvisor
     participant ST as ChatMemoryRepository
     AL->>CC: POST /api/chat?label=default
     CC->>CID: of(alice, default)
     CID-->>CC: alice:default
-    CC->>ST: 저장 (key=alice:default)
+    CC->>MA: param(CONVERSATION_ID, alice:default)
+    MA->>ST: 저장 (key=alice:default)
     BO->>CC: POST /api/chat?label=default
     CC->>CID: of(bob, default)
     CID-->>CC: bob:default
-    CC->>ST: 저장 (key=bob:default)
+    CC->>MA: param(CONVERSATION_ID, bob:default)
+    MA->>ST: 저장 (key=bob:default)
     Note over ST: 같은 label 이어도 키가 달라 서로 안 보임
     BO->>CV: GET /api/conversations
     CV->>CID: prefixOf(bob)
@@ -78,8 +81,8 @@ sequenceDiagram
 
 **단계**
 
-1. alice 가 `label=default` 로 채팅을 보내면 `ConversationId.of` 가 `alice:default` 를 만들고 그 키로 저장된다.
-2. bob 이 같은 `label=default` 로 보내도 `ConversationId.of` 가 `bob:default` 를 만들어 서로 다른 키로 저장된다 — `label` 이 같아도 접두사가 다르면 완전히 다른 대화다.
+1. alice 가 `label=default` 로 채팅을 보내면 `ConversationId.of` 가 `alice:default` 를 만들고, `MessageChatMemoryAdvisor` 가 그 키로 저장한다.
+2. bob 이 같은 `label=default` 로 보내도 `ConversationId.of` 가 `bob:default` 를 만들어 `MessageChatMemoryAdvisor` 가 다른 키로 저장한다 — `label` 이 같아도 접두사가 다르면 완전히 다른 대화다.
 3. bob 이 `GET /api/conversations` 를 호출하면 `ConversationController` 가 `ConversationId.prefixOf(bob)`(`bob:`)를 구한다. API 는 [`api-conversations`](API-SPEC.md#api-conversations).
 4. `ChatMemoryRepository.findConversationIds()` 는 저장소 전체 키를 알지만, `ConversationController` 가 `bob:` 로 시작하는 것만 걸러 돌려준다.
 5. bob 이 label 에 `alice:default` 를 넣어도 `sanitize` 가 `:` 를 `_` 로 바꿔 `bob:alice_default` 가 되므로 alice 의 네임스페이스에는 닿지 않는다.
@@ -99,15 +102,16 @@ sequenceDiagram
     participant CC as ChatController
     participant CL as ChatClient
     participant MC as MCP Client
+    participant MA as MessageChatMemoryAdvisor
     participant ST as ChatMemoryRepository
     U->>CC: POST /api/chat?label=tools
     CC->>CL: prompt().user(message).stream()
     CL->>MC: tools/call searchProducts
     MC-->>CL: 재고 수치가 담긴 tool 결과
     Note over CL: LLM 이 수치를 최종 답변 텍스트로 옮겨 적음
-    CL->>ST: user 메시지 + 최종 assistant 텍스트만 저장
+    CL->>MA: advisor chain 으로 이번 턴 응답 전달
+    MA->>ST: user 메시지 + 최종 assistant 텍스트만 저장
     Note over ST: ToolResponseMessage 자체는 저장 안 됨
-    ST-->>CL: 저장 완료
     CL-->>CC: 최종 답변
     CC-->>U: text/plain 스트리밍
 ```

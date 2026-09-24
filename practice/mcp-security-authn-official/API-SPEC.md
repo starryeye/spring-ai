@@ -29,7 +29,7 @@
 | `GET /oauth2/authorize` | authorization request 접수, PKCE·`resource` 검증 | `require-proof-key: true`, `ResourceIndicatorValidator` 가 `resource` 를 검사 | [`authorize`](../MCP-API-SPEC.md#authorize) |
 | `POST /oauth2/authorize` | public client 의 consent 제출 | `PublicClientConsentService` 가 저장하지 않아 매 요청 consent 화면을 거친다 | [`authorize-consent`](../MCP-API-SPEC.md#authorize-consent) |
 | authorization response(redirect) | code·`state`·`iss` 전달 | `IssuerIdentifyingAuthorizationResponseHandler` 가 성공·오류 모두에 `iss` 를 싣는다 | [`authorization-response`](../MCP-API-SPEC.md#authorization-response) |
-| `POST /oauth2/token`(`authorization_code`) | access·refresh·id token 발급 | `ResourceAudienceTokenCustomizer` 가 access token `aud` 를 `resource` 로 지정 | [`token-authorization-code`](../MCP-API-SPEC.md#token-authorization-code) |
+| `POST /oauth2/token`(`authorization_code`) | access token·refresh token·ID token 발급 | `ResourceAudienceTokenCustomizer` 가 access token `aud` 를 `resource` 로 지정 | [`token-authorization-code`](../MCP-API-SPEC.md#token-authorization-code) |
 | `POST /oauth2/token`(`refresh_token`) | token 갱신 | 같은 커스터마이저 재적용. public client 는 발급하지 않음(`refresh_token` 없음) | [`token-refresh`](../MCP-API-SPEC.md#token-refresh) |
 | `GET /oauth2/jwks` | 서명 key 공개 | Boot 자동설정 기본값 그대로 | [`jwks`](../MCP-API-SPEC.md#jwks) |
 | client 인증 실패 응답 | `WWW-Authenticate` challenge | `ClientAuthenticationChallengeFailureHandler` 가 `Authorization` 헤더로 시도한 실패에 붙인다 | [4.7](../MCP-AUTHORIZATION.md#s4-7) |

@@ -24,7 +24,7 @@ official 과 포트가 달라(`9010`/`8111`/`8110` → `9000`/`8101`/`8100`) 두
 ## 모듈별 역할
 
 각 모듈은 `-spring-boot` 접미 변형을 쓴다. 접미 없는 core 모듈(`mcp-server-security` 등)을 전이 의존으로 끌어오면서 자동 구성을 얹어 준다.
-아래 "자동으로 생기는 것" 표는 각 모듈의 자동 구성 소스(`~/.gradle/caches` 의 `*-0.1.14-sources.jar`)를 직접 읽고 정리한 것이다.
+아래 "자동으로 생기는 것" 표의 근거는 각 모듈의 자동 구성 소스(`*-0.1.14-sources.jar`)다.
 
 ### `mcp-authorization-server-spring-boot` — token 발급
 
@@ -83,7 +83,7 @@ official 이 손으로 쓴 클래스마다, community 는 모듈이 자동으로
 | `McpResourceProperties` | `@ConfigurationProperties("mcp.authorization")`, `resources` 키 그대로 | 같은 클래스 |
 | `PublicClientConsentService` | `authorizationConsentService` 빈으로 등록 | 같은 클래스 |
 | `UserConfig` | 그대로 재사용, 폼 로그인 filter chain 은 모듈이 제공 | 같은 클래스 |
-| public client 의 `none` 인증 방식 advertise | `McpAuthorizationStandardConfig` 의 `authorizationServerMetadataCustomizer`(같은 커스터마이저 람다) | 직접 얹은 확장 |
+| public client 의 `none` 인증 방식 광고 | `McpAuthorizationStandardConfig` 의 `authorizationServerMetadataCustomizer`(같은 커스터마이저 람다) | 직접 얹은 확장 |
 | OIDC discovery(`.oidc(...)`) 켜기 | `OidcDiscoveryConfig`(`Customizer<McpAuthorizationServerConfigurer>` 빈) | 직접 얹은 확장 |
 | Dynamic Client Registration(DCR) 끔 | `spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false` | 모듈 자동 구성(설정으로 끔) |
 
@@ -104,7 +104,7 @@ official 이 손으로 쓴 클래스마다, community 는 모듈이 자동으로
 | `DiscoveredClientRegistrationRepository` | 같은 이름, `OAuth2ClientProperties` 에서 자격증명만 가져오고 나머지는 discovery 결과로 채운다 | 같은 클래스 |
 | `McpAuthorizationDiscovery` | 401 challenge·PRM 조회는 module 의 `McpMetadataDiscoveryService` 에 맡기고, Authorization Server metadata 발견·PKCE 지원 확인은 직접 한다 | 직접 얹은 확장 |
 | `DiscoveredAuthorization` | 같은 record | 같은 클래스 |
-| `McpAuthorizationProperties` | 같은 설정 바인딩(`mcp.authorization.resource-url`/`credentials-issuer`) | 같은 클래스 |
+| `McpAuthorizationProperties` | 같은 설정 binding(`mcp.authorization.resource-url`/`credentials-issuer`) | 같은 클래스 |
 | `McpDiscoveryException` | 같은 예외 | 같은 클래스 |
 | `ResourceIndicators` | 같은 코드 | 같은 클래스 |
 | `AuthorizationResponseIssuerFilter` | 같은 코드 | 같은 클래스 |
@@ -172,10 +172,10 @@ MCP 프로토콜 절차(`initialize` → session ID)만 지키면 보안 계층�
 `NimbusJwtDecoder.withIssuerLocation(issuer).build()` 의 `.build()` 는 filter chain 빈을 만드는 시점에 HTTP 로 discovery 문서를 조회한다.
 `auth-server` 없이 `shop-mcp-server` 를 띄우면 `ConnectException` 으로 기동 자체가 실패하고, `./gradlew test` 도 `auth-server` 가 떠 있어야 통과한다.
 
-### token 으로 보호된 MCP Server 는 부팅 시점에 핸드셰이크를 못 한다
+### token 으로 보호된 MCP Server 는 부팅 시점에 handshake 를 못 한다
 
 `McpClientAutoConfiguration` 은 빈 생성 시점에 `McpSyncClient.initialize()` 를 즉시 부르지만, 그 시점에는 요청 스레드도 로그인한 사용자도 없다.
-`spring.ai.mcp.client.initialized: false` 로 핸드셰이크를 첫 채팅 요청으로 미루면, 그 대가로 첫 질문이 느려진다.
+`spring.ai.mcp.client.initialized: false` 로 handshake 를 첫 채팅 요청으로 미루면, 그 대가로 첫 질문이 느려진다.
 
 ### 스트리밍에는 `.contextWrite(...)` 가 필수다
 
