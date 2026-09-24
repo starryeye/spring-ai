@@ -13,8 +13,8 @@ CIMD 는 [별도 practice 로 보류](2026-09-24-cimd-public-client-design.md)�
 | 출처 | 요구 |
 |---|---|
 | RFC 6749 §2.1 | 클라이언트 유형 — `confidential`(자격증명을 안전하게 보관 가능)과 `public`(불가능) |
-| RFC 6749 §3.2.1 / OAuth 2.1 §3.2.2 | 공개 클라이언트는 토큰 엔드포인트에서 클라이언트 인증을 하지 않는다. `client_id` 만 보낸다 |
-| RFC 8414 §2 | `token_endpoint_auth_methods_supported` — `none` 은 공개 클라이언트를 뜻한다 |
+| RFC 6749 §3.2.1 / OAuth 2.1 §4.1.3 | 공개 클라이언트는 토큰 엔드포인트에서 클라이언트 인증을 하지 않는다. 인증하지 않는 클라이언트는 `client_id` 를 보낸다(REQUIRED) |
+| RFC 8414 §2 · RFC 7591 §2 | `token_endpoint_auth_methods_supported` 의 값은 RFC 7591 §2 의 `token_endpoint_auth_method` 값이고, 그중 `none` 은 비밀이 없는 공개 클라이언트다 |
 | RFC 7636 · MCP 2025-11-25 | PKCE 는 MUST. 공개 클라이언트에는 비밀이 없으므로 코드 가로채기를 막는 유일한 장치다 |
 | RFC 8252 §7.3 | 네이티브 앱은 루프백 IP 리다이렉트(`127.0.0.1`)를 쓴다. 포트는 요청 시점에 정해질 수 있다 |
 | RFC 6749 §3.1.2.3 | 인가 서버는 등록된 리다이렉트 URI 와 대조한다 |
@@ -84,3 +84,14 @@ Spring 은 `none` 을 **절대** 광고하지 않는다(`OAuth2AuthorizationServ
 3. community — 같은 설정 + 모듈 커스터마이저에 `none` 추가
 4. 세 practice 종단 캡처
 5. 문서 갱신
+
+## 구현하며 확인한 것
+
+종단 캡처(`docs/superpowers/captures/2026-09-25-*-public-client.txt`)에서 드러나 설계에 더한 사항이다.
+
+| 관측 | 명세 | 결정 |
+|---|---|---|
+| Spring 은 한 번 받은 동의를 저장하고 다음 인가 요청의 동의 화면을 건너뛴다 | OAuth 2.1 §7.3.1 — 신원을 확인할 수 없는 클라이언트는 이전 동의가 있어도 처음처럼 처리한다(SHOULD), 동의 없이 자동 처리하지 않는다(SHOULD NOT) | `PublicClientConsentService` 가 인증 방식이 `none` 인 클라이언트의 동의를 저장하지 않는다. 세 practice 공통. 동의를 받은 그 요청은 방금 고른 scope 로 코드를 발급하므로 흐름은 그대로다 |
+| 등록에 `refresh_token` 그랜트가 있어도 공개 클라이언트에는 refresh token 이 발급되지 않는다(`OAuth2RefreshTokenGenerator`) | OAuth 2.1 §1.3.2 — 발급은 인가 서버 재량. §4.3.1 — 공개 클라이언트에 발급한다면 회전이나 sender-constrained 가 MUST. MCP 2026-07-28 — 클라이언트는 발급을 가정하면 안 된다(MUST NOT) | 위반이 아니므로 그대로 둔다. 설정 주석과 테스트로 사실을 고정한다 |
+| 등록값과 포트만 다른 루프백 `redirect_uri` 가 통과한다(`OAuth2AuthorizationCodeRequestAuthenticationValidator`) | RFC 8252 §7.3 · OAuth 2.1 §8.4.2 — 루프백 IP 리다이렉트는 요청 시점의 포트를 허용해야 한다(MUST) | 명세대로의 동작이다. 경로가 다르면 거부됨과 함께 테스트로 고정한다 |
+
