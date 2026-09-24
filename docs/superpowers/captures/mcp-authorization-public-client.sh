@@ -4,7 +4,7 @@
 # mcp-authorization-walkthrough.sh(C 번호)와 mcp-authorization-supplement.sh(S 번호)가 다룬다.
 #
 # 사전 조건: 동의 기록(OAuth2AuthorizationConsentService)은 (클라이언트, 사용자) 단위로 인가 서버
-#   메모리에 남는다. P3~P5 가 동의 화면을 관측하려면 그 기록이 없어야 하므로, 이 스크립트는
+#   메모리에 남는다. P3~P4 가 동의 화면을 관측하려면 그 기록이 없어야 하므로, 이 스크립트는
 #   갓 띄운 인가 서버에서 한 번 실행한다(재실행하려면 인가 서버를 다시 띄운다).
 #
 # 사용: practice 를 run.sh 로 띄운 뒤(기본값은 official)
@@ -146,37 +146,37 @@ if ! printf '%s' "$AUTHORIZE" | head -1 | grep -q ' 200'; then
   exit 1
 fi
 printf '%s\n' "$AUTHORIZE" | tidy | grep -iE '^(HTTP|Content-Type|Content-Length)'
-printf '%s\n' "$AUTHORIZE" | tidy | grep -oE '<p>[^<]*</p>|<input[^>]*name="(state|scope)"[^>]*>|<span class="scope-item">|scope[^<]{0,40}' | head -12
+echo
+# Spring 기본 동의 화면(DefaultConsentPage)에서 뜻이 있는 요소만 추린다. openid 는 동의 대상이
+# 아니라 체크박스가 없고, hidden state 는 원래 요청의 state 가 아니라 서버가 새로 발급한 값이다.
+printf '%s' "$AUTHORIZE" | tr -d '\r' | grep -oE '<title>[^<]*</title>|<p><span[^>]*>[^<]*</span> wants to access your account <span[^>]*>[^<]*</span></p>|<form [^>]*>|<input type="hidden" name="(client_id|state)"[^>]*>|<input class="form-check-input"[^>]*>'
 
-step "P4. 동의 화면의 scope 항목"
-printf '%s\n' "$AUTHORIZE" | tidy | grep -oE 'id="[a-z]+"|value="[a-z]+"[^>]*id=|>[a-z]+</span>|profile|openid' | head -12
-
-step "P5. 동의 제출 (POST /oauth2/authorize) → 인가 코드와 iss"
+step "P4. 동의 제출 (POST /oauth2/authorize) → 인가 코드와 iss"
 CONSENT_STATE=$(consent_state "$AUTHORIZE")
-require "CONSENT_STATE" "$CONSENT_STATE" "P5. 동의 제출"
+require "CONSENT_STATE" "$CONSENT_STATE" "P4. 동의 제출"
 CONSENT_RESPONSE=$(consent_submit "$CONSENT_STATE")
 printf '%s\n' "$CONSENT_RESPONSE" | tidy | grep -iE '^(HTTP|Location)'
 CODE=$(query_param "$(location_of "$CONSENT_RESPONSE")" code)
-require "CODE" "$CODE" "P5. 동의 제출"
+require "CODE" "$CODE" "P4. 동의 제출"
 
-step "P6. 토큰 요청 — 클라이언트 인증 없이 client_id 만 (OAuth 2.1 §3.2.2)"
+step "P5. 토큰 요청 — 클라이언트 인증 없이 client_id 만 (OAuth 2.1 §3.2.2)"
 TOKEN=$(curl -si -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode "client_id=$PUBLIC_CLIENT_ID" \
   --data-urlencode "code=$CODE" --data-urlencode "redirect_uri=$PUBLIC_REDIRECT_URI" \
   --data-urlencode "code_verifier=$VERIFIER" --data-urlencode "resource=$MCP")
 printf '%s\n' "$TOKEN" | tidy
 ACCESS=$(printf '%s' "$TOKEN" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
-require "ACCESS_TOKEN" "$ACCESS" "P6. 토큰 요청"
+require "ACCESS_TOKEN" "$ACCESS" "P5. 토큰 요청"
 
-step "P6-1. access token 페이로드 — aud 는 클라이언트 유형과 무관하게 resource 다 (RFC 8707)"
+step "P5-1. access token 페이로드 — aud 는 클라이언트 유형과 무관하게 resource 다 (RFC 8707)"
 payload "$(printf '%s' "$ACCESS" | cut -d. -f2)"
 
-step "P7. 이 토큰으로 MCP initialize"
+step "P6. 이 토큰으로 MCP initialize"
 INIT=$(curl -si -X POST "$MCP" -H "Authorization: Bearer $ACCESS" -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' -d "$INITIALIZE")
 printf '%s\n' "$INIT" | tidy | cut -c1-200
 SESSION=$(printf '%s' "$INIT" | tr -d '\r' | sed -n 's/^[Mm]cp-[Ss]ession-[Ii]d: //p')
-require "SESSION" "$SESSION" "P7. MCP initialize"
+require "SESSION" "$SESSION" "P6. MCP initialize"
 curl -si -X POST "$MCP" -H "Authorization: Bearer $ACCESS" -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' -H "Mcp-Session-Id: $SESSION" \
   -H "MCP-Protocol-Version: $PROTOCOL_VERSION" \
@@ -187,7 +187,7 @@ curl -si -X POST "$MCP" -H "Authorization: Bearer $ACCESS" -H 'Content-Type: app
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"getStock","arguments":{"productId":"p1"}}}' \
   | tidy | cut -c1-300
 
-step "P8. 응답에 refresh_token 이 없다 — Spring 은 공개 클라이언트에 발급하지 않는다"
+step "P7. 응답에 refresh_token 이 없다 — Spring 은 공개 클라이언트에 발급하지 않는다"
 printf '응답 필드: '
 printf '%s' "$TOKEN" | sed -n 's/.*{\(.*\)}.*/\1/p' | tr ',' '\n' | sed -n 's/^"\([a-z_]*\)".*/\1/p' | tr '\n' ' '
 echo
@@ -202,7 +202,7 @@ CONF_CODE=$(curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
   --data-urlencode 'state=confidential-state' --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' --data-urlencode "resource=$MCP" \
   | tr -d '\r' | sed -n 's/^[Ll]ocation: //p' | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
-require "CONF_CODE" "$CONF_CODE" "P8. 기밀 클라이언트 대조"
+require "CONF_CODE" "$CONF_CODE" "P7. 기밀 클라이언트 대조"
 curl -s -u "$CONFIDENTIAL_CLIENT_ID:$CONFIDENTIAL_CLIENT_SECRET" -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode "code=$CONF_CODE" \
   --data-urlencode "redirect_uri=$CONFIDENTIAL_REDIRECT_URI" --data-urlencode "code_verifier=$VERIFIER" \
@@ -210,37 +210,37 @@ curl -s -u "$CONFIDENTIAL_CLIENT_ID:$CONFIDENTIAL_CLIENT_SECRET" -X POST "$AS/oa
   | sed -n 's/.*{\(.*\)}.*/\1/p' | tr ',' '\n' | sed -n 's/^"\([a-z_]*\)".*/\1/p' | tr '\n' ' '
 echo
 
-step "P9. 같은 클라이언트로 다시 인가 — 이미 기록된 동의는 화면을 다시 띄우지 않는다"
+step "P8. 같은 클라이언트로 다시 인가 — 이미 기록된 동의는 화면을 다시 띄우지 않는다"
 public_authorize yes "$PUBLIC_REDIRECT_URI" | tidy | grep -iE '^(HTTP|Location)'
 
-step "P10. 오류: PKCE 없는 인가 요청 (RFC 7636 · MCP MUST)"
+step "P9. 오류: PKCE 없는 인가 요청 (RFC 7636 · MCP MUST)"
 public_authorize no "$PUBLIC_REDIRECT_URI" | tidy | grep -iE '^(HTTP|Location)'
 
-step "P11. 루프백 리다이렉트는 포트가 달라도 허용된다 (RFC 8252 §7.3 · OAuth 2.1 §8.4.2)"
+step "P10. 루프백 리다이렉트는 포트가 달라도 허용된다 (RFC 8252 §7.3 · OAuth 2.1 §8.4.2)"
 # 등록값은 http://127.0.0.1:8123/callback 인데 9999 로 요청해도 코드가 나온다.
 # OAuth2AuthorizationCodeRequestAuthenticationValidator.validateRedirectUri 가 호스트가
 # 루프백이면 등록 URI 의 포트를 요청 포트로 바꿔 비교한다 — 네이티브 앱이 실행 시점에
 # OS 에서 받은 임시 포트를 쓸 수 있게 하기 위한 명세 요구다.
 public_authorize yes "http://127.0.0.1:9999/callback" | tidy | grep -iE '^(HTTP|Location)'
 
-step "P11-1. 오류: 루프백이라도 경로가 다르면 거부한다 (리다이렉트하지 않는다)"
+step "P10-1. 오류: 루프백이라도 경로가 다르면 거부한다 (리다이렉트하지 않는다)"
 public_authorize yes "http://127.0.0.1:8123/not-registered" | tidy | cut -c1-200 | head -8
 
-step "P12. 오류: 틀린 code_verifier (invalid_grant) — 공개 클라이언트의 유일한 가로채기 방어"
-new_public_code "P12"
+step "P11. 오류: 틀린 code_verifier (invalid_grant) — 공개 클라이언트의 유일한 가로채기 방어"
+new_public_code "P11"
 curl -si -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode "client_id=$PUBLIC_CLIENT_ID" \
   --data-urlencode "code=$CODE" --data-urlencode "redirect_uri=$PUBLIC_REDIRECT_URI" \
   --data-urlencode 'code_verifier=wrong-verifier-wrong-verifier-wrong-verifier-000' \
   --data-urlencode "resource=$MCP" | tidy
 
-step "P13. 오류: 공개 클라이언트에 client_secret 을 실어 보냄 (invalid_client)"
+step "P12. 오류: 공개 클라이언트에 client_secret 을 실어 보냄 (invalid_client)"
 curl -si -u "$PUBLIC_CLIENT_ID:any-secret" -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode 'code=unused' \
   --data-urlencode "redirect_uri=$PUBLIC_REDIRECT_URI" --data-urlencode "code_verifier=$VERIFIER" \
   --data-urlencode "resource=$MCP" | tidy
 
-step "P14. 대조: 기밀 클라이언트는 동의 화면 없이 곧장 코드로 리다이렉트한다"
+step "P13. 대조: 기밀 클라이언트는 동의 화면 없이 곧장 코드로 리다이렉트한다"
 curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
   --data-urlencode 'response_type=code' --data-urlencode "client_id=$CONFIDENTIAL_CLIENT_ID" \
   --data-urlencode "redirect_uri=$CONFIDENTIAL_REDIRECT_URI" --data-urlencode 'scope=openid profile' \
@@ -248,7 +248,7 @@ curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
   --data-urlencode 'code_challenge_method=S256' --data-urlencode "resource=$MCP" \
   | tidy | grep -iE '^(HTTP|Location)'
 
-step "P15. 대조: 기밀 클라이언트는 client_id 만으로는 토큰을 받지 못한다 (invalid_client)"
+step "P14. 대조: 기밀 클라이언트는 client_id 만으로는 토큰을 받지 못한다 (invalid_client)"
 curl -si -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode "client_id=$CONFIDENTIAL_CLIENT_ID" \
   --data-urlencode 'code=unused' --data-urlencode "redirect_uri=$CONFIDENTIAL_REDIRECT_URI" \
