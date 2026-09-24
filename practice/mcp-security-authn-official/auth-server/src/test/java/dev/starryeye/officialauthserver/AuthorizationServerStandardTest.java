@@ -187,6 +187,11 @@ class AuthorizationServerStandardTest {
 	 * Spring 기본 동의 화면(DefaultConsentPage)이 실제로 돌려주는 폼의 hidden state 값을
 	 * 읽는다. 이 값은 원래 인가 요청의 state 파라미터가 아니라, 대기 중인 인가를 찾기 위해
 	 * 서버가 새로 발급한 값이다.
+	 *
+	 * DefaultConsentPage 는 Spring Authorization Server 소스에 "For internal use only"로
+	 * 표시된 비공개 클래스이고, 이 렌더링 결과를 정규식으로 파싱한다. DefaultConsentPage 의
+	 * 렌더링 형식이 바뀌면 이 정규식은 값을 찾지 못해 이 테스트가 실패한다. spring-security-test
+	 * 에는 동의 화면 파싱을 위한 공개 지원이 없어 지금은 이 결합을 대체할 방법이 없다.
 	 */
 	private static String 동의화면_state(String html) {
 		Matcher matcher = Pattern.compile("name=\"state\" value=\"([^\"]*)\"").matcher(html);
@@ -468,7 +473,11 @@ class AuthorizationServerStandardTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("none")))
 				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_basic")))
-				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")));
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_post")))
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_jwt")))
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("tls_client_auth")))
+				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("self_signed_tls_client_auth")));
 	}
 
 	@Test
