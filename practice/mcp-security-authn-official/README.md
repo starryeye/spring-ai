@@ -275,7 +275,7 @@ DEBUG ...OAuth2TokenAttachingRequestCustomizer  : 토큰을 헤더에 붙였다 
 | `WWW-Authenticate` 값 | `Bearer resource_metadata="http://localhost:8101/.well-known/oauth-protected-resource/mcp"` | `Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource/mcp"` — MCP 인가 표준 준수 이후로는 인용부호·경로 접미사 모두 **같다**(위 5절 참고) |
 | `issuer-uri` 누락 시 | **조용히 안 죽는다** — `@ConditionalOnProperty` 가 껐을 뿐, `spring-boot-starter-security` 의 기본 보안(HTTP Basic)이 대신 들어와 401 은 여전히 나온다. 상태 코드만 보는 테스트는 이 상황을 놓친다 | **fail-closed** — `SecurityConfig` 는 무조건 실행되는 `@Configuration` 이고 `issuer-uri` 는 `NimbusJwtDecoder` 생성에 쓰인다. 값이 없거나 틀리면 **기동 자체가 실패**한다(Task 2 실측). "조용한 오탐"이 "시끄러운 실패"로 바뀌었다 |
 | 조용히 죽는 스위치 | **5개** (client type SYNC 게이트, issuer-uri 게이트, client registration 정확히 1개, 서버·인가서버의 `SecurityFilterChain` 직접 정의 시 자동설정 백오프, `.contextWrite(...)` 누락) | **직접 실측한 것은 2개** — `Hooks.enableAutomaticContextPropagation()` 을 지운 경우와 `type: ASYNC` 로 바꾼 경우, 둘 다 재현했다(아래 상세). 나머지 3개 범주는 애초에 official 구조에 대응물이 없다: 조건부 자동설정을 쓰지 않으므로 "조건이 어긋나 조용히 백오프"할 지점 자체가 없고, issuer-uri 항목은 위 행처럼 오히려 시끄러운 실패로 바뀌었다 |
-| 코드량 (메인 소스만, MCP 인가 표준 준수 이후) | 28개 파일, 1,408줄 | 29개 파일, 1,619줄 (그중 보안 배선 전용 20개 파일이 1,335줄) |
+| 코드량 (`src/main/java` 전체, MCP 인가 표준 준수와 공개 클라이언트 이후) | 30개 파일, 1,727줄 | 31개 파일, 1,902줄 |
 | 스트리밍 인증 전파 | `AuthenticationMcpTransportContextProvider.writeToReactorContext()` 를 `ChatController` 에서 `.contextWrite(...)` 로 명시 호출해야 했다(Spring AI 의 `internal` 패키지 의존) | **`Hooks.enableAutomaticContextPropagation()`(부팅 시 1회) + `AuthorizedClientServiceOAuth2AuthorizedClientManager`** 조합이 **첫 시도에서** 통했다. `ChatController` 에는 아무 것도 안 붙였고, `internal` 패키지 클래스는 전혀 참조하지 않는다(Task 3 Step 10 실측) |
 
 ### 7.1 "조용히 죽는 스위치" 실측 상세
@@ -391,8 +391,8 @@ thread-local 전파(실험 1), MCP 클라이언트 제네릭 타입과 커스터
 이 어디인지 실측으로 정확히 특정할 수 있다. **교환하는 것이 무엇인지가 요점이지, 승자를
 가리는 게 아니다.**
 
-이후 MCP 인가 표준(발견·PKCE·`resource`·`aud`·`iss`)을 준수하면서 양쪽 다 다시 커졌다
-(공식 14→29파일·522→1,619줄, community 11→28파일·353→1,408줄) — 발견·PKCE·resource·iss
+이후 MCP 인가 표준(발견·PKCE·`resource`·`aud`·`iss`)을 준수하고 공개 클라이언트를 더하면서 양쪽 다
+다시 커졌다(공식 14→31파일·522→1,902줄, community 11→30파일·353→1,727줄) — 발견·PKCE·resource·iss
 검증은 두 라이브러리 모두 아직 갖추지 못해, 공식이든 community 든 손으로 짜야 했기 때문이다.
 이 표준 준수 코드만큼은 "라이브러리냐 공식이냐"의 차이가 거의 사라졌다는 뜻이다(7절 코드량
 표 참고).
