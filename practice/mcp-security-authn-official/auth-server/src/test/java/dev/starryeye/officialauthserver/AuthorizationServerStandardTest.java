@@ -9,9 +9,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.util.LinkedMultiValueMap;
@@ -65,12 +62,6 @@ class AuthorizationServerStandardTest {
 	@Autowired
 	MockMvc mockMvc;
 
-	@Autowired
-	RegisteredClientRepository registeredClientRepository;
-
-	@Autowired
-	OAuth2AuthorizationConsentService authorizationConsentService;
-
 	MockHttpSession session;
 
 	@BeforeEach
@@ -79,23 +70,6 @@ class AuthorizationServerStandardTest {
 				.perform(formLogin().user(USERNAME).password(PASSWORD))
 				.andExpect(status().is3xxRedirection())
 				.andReturn().getRequest().getSession(false);
-		공개클라이언트_동의_기록을_지운다();
-	}
-
-	/**
-	 * 동의 기록은 (클라이언트, 사용자) 단위로 인가 서버에 영구히 남는다. 한 테스트가
-	 * 공개 클라이언트에 동의를 마치면 스프링이 재사용하는 같은 테스트 컨텍스트 안에서
-	 * 다른 테스트의 인가 요청이 동의 화면 없이 곧장 통과해버린다 — 실제 서비스에서
-	 * "다시 물어보지 않는다"로 동작하는 것과 같은 이유다. 테스트끼리 이 기록으로
-	 * 영향을 주지 않도록 매번 지운다.
-	 */
-	private void 공개클라이언트_동의_기록을_지운다() {
-		var registeredClient = this.registeredClientRepository.findByClientId(PUBLIC_CLIENT_ID);
-		OAuth2AuthorizationConsent consent = this.authorizationConsentService.findById(registeredClient.getId(),
-				USERNAME);
-		if (consent != null) {
-			this.authorizationConsentService.remove(consent);
-		}
 	}
 
 	UriComponents 인가요청(boolean pkce, String resource) throws Exception {
@@ -552,8 +526,8 @@ class AuthorizationServerStandardTest {
 	void 공개_클라이언트에는_refresh_token_을_발급하지_않는다() throws Exception {
 		// 등록에 refresh_token 그랜트가 있어도 Spring 의 OAuth2RefreshTokenGenerator 는
 		// authorization_code 그랜트에서 클라이언트 인증 방식이 none 이면 null 을 돌려준다.
-		// OAuth 2.1 §4.3.1 은 공개 클라이언트에 대한 발급을 MAY 로 두고, 발급한다면 회전이나
-		// sender-constrained 를 MUST 로 요구한다 — 발급하지 않는 쪽은 그 요구를 피해 간다.
+		// 발급 여부는 인가 서버 재량이고(OAuth 2.1 §1.3.2), 공개 클라이언트에 발급한다면 회전이나
+		// sender-constrained 가 MUST 다(§4.3.1) — 발급하지 않는 쪽은 그 요구를 피해 간다.
 		String code = 공개클라이언트_인가코드(RESOURCE);
 
 		String body = 공개클라이언트_토큰요청(공개클라이언트_인가코드교환(code, RESOURCE), 200);
@@ -583,5 +557,19 @@ class AuthorizationServerStandardTest {
 		assertThat(response.getPort()).isEqualTo(9999);
 		assertThat(response.getPath()).isEqualTo("/callback");
 		assertThat(응답파라미터(response, "code")).isNotBlank();
+	}
+
+	@Test
+	void 공개_클라이언트는_이전에_동의했어도_매번_동의_화면을_거친다() throws Exception {
+		// OAuth 2.1 §7.3.1 — 클라이언트 신원을 확인할 수 없으면 이전 동의가 있어도 처음처럼
+		// 처리한다(SHOULD). PublicClientConsentService 가 공개 클라이언트의 동의를 기록하지 않으므로
+		// 첫 요청에서 동의를 마쳐도 두 번째 요청이 다시 동의 화면(200)으로 온다.
+		String code = 공개클라이언트_인가코드(RESOURCE);
+		assertThat(code).isNotBlank();
+
+		MvcResult second = 공개클라이언트_인가요청(true, RESOURCE);
+
+		assertThat(second.getResponse().getStatus()).isEqualTo(200);
+		assertThat(second.getResponse().getContentAsString()).contains("Consent required");
 	}
 }

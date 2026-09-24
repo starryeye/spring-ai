@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2Au
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
@@ -157,15 +158,15 @@ public class AuthorizationServerConfig {
 	}
 
 	/**
-	 * {@code OAuth2AuthorizationServerConfigurer} 는 이 타입의 빈이 없으면
-	 * {@code InMemoryOAuth2AuthorizationConsentService} 를 내부적으로만 만들어 쓰고
-	 * ApplicationContext 에는 올리지 않는다({@code OAuth2ConfigurerUtils.getAuthorizationConsentService}).
-	 * local-mcp-client(공개 클라이언트)의 동의 기록은 (클라이언트, 사용자) 단위로 이
-	 * 서비스에 영구히 남으므로, 빈으로 명시해 두어야 테스트가 그 기록을 확인·정리할 수 있다.
-	 * 구현 자체는 Spring 기본값과 같다 — 바뀌는 동작은 없다.
+	 * {@code OAuth2AuthorizationServerConfigurer} 는 이 타입의 빈이 있으면 그것을 쓰고, 없으면
+	 * {@code InMemoryOAuth2AuthorizationConsentService} 를 내부적으로 만든다
+	 * ({@code OAuth2ConfigurerUtils.getAuthorizationConsentService}). 공개 클라이언트의 동의를
+	 * 기록하지 않도록 기본 저장소를 {@link PublicClientConsentService} 로 감싸 빈으로 올린다.
 	 */
 	@Bean
-	public OAuth2AuthorizationConsentService authorizationConsentService() {
-		return new InMemoryOAuth2AuthorizationConsentService();
+	public OAuth2AuthorizationConsentService authorizationConsentService(
+			RegisteredClientRepository registeredClientRepository) {
+		return new PublicClientConsentService(new InMemoryOAuth2AuthorizationConsentService(),
+				registeredClientRepository);
 	}
 }
