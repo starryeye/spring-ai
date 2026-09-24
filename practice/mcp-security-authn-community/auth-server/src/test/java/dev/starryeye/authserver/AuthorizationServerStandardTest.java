@@ -9,7 +9,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponents;
@@ -18,6 +22,8 @@ import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
@@ -47,12 +53,23 @@ class AuthorizationServerStandardTest {
     static final String RESOURCE = "http://localhost:8101/mcp";
     static final String OTHER_RESOURCE = "http://localhost:9999/mcp";
 
+    // RFC 6749 §2.1 의 공개 클라이언트 — 비밀을 보관할 수 없어 client_id 만으로 토큰
+    // 엔드포인트에 온다. redirect-uri 는 RFC 8252 §7.3 의 루프백이다.
+    static final String PUBLIC_CLIENT_ID = "local-mcp-client";
+    static final String PUBLIC_CLIENT_REDIRECT_URI = "http://127.0.0.1:8123/callback";
+
     // RFC 7636 부록 B 의 예시 값이다.
     static final String CODE_VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     static final String CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    RegisteredClientRepository registeredClientRepository;
+
+    @Autowired
+    OAuth2AuthorizationConsentService authorizationConsentService;
 
     MockHttpSession session;
 
@@ -62,6 +79,23 @@ class AuthorizationServerStandardTest {
                 .perform(formLogin().user(USERNAME).password(PASSWORD))
                 .andExpect(status().is3xxRedirection())
                 .andReturn().getRequest().getSession(false);
+        공개클라이언트_동의_기록을_지운다();
+    }
+
+    /**
+     * 동의 기록은 (클라이언트, 사용자) 단위로 인가 서버에 영구히 남는다. 한 테스트가
+     * 공개 클라이언트에 동의를 마치면 스프링이 재사용하는 같은 테스트 컨텍스트 안에서
+     * 다른 테스트의 인가 요청이 동의 화면 없이 곧장 통과해버린다 — 실제 서비스에서
+     * "다시 물어보지 않는다"로 동작하는 것과 같은 이유다. 테스트끼리 이 기록으로
+     * 영향을 주지 않도록 매번 지운다.
+     */
+    private void 공개클라이언트_동의_기록을_지운다() {
+        var registeredClient = this.registeredClientRepository.findByClientId(PUBLIC_CLIENT_ID);
+        OAuth2AuthorizationConsent consent = this.authorizationConsentService.findById(registeredClient.getId(),
+                USERNAME);
+        if (consent != null) {
+            this.authorizationConsentService.remove(consent);
+        }
     }
 
     UriComponents 인가요청(boolean pkce, String resource) throws Exception {
@@ -112,6 +146,101 @@ class AuthorizationServerStandardTest {
 
     static List<String> 토큰의_aud(String jwt) throws Exception {
         return SignedJWT.parse(jwt).getJWTClaimsSet().getAudience();
+    }
+
+    private static UriComponentsBuilder 공개클라이언트_인가요청_URI(boolean pkce, String resource) {
+        UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/oauth2/authorize")
+                .queryParam("response_type", "code")
+                .queryParam("client_id", PUBLIC_CLIENT_ID)
+                .queryParam("redirect_uri", PUBLIC_CLIENT_REDIRECT_URI)
+                .queryParam("scope", "openid profile")
+                .queryParam("state", "state-1");
+        if (pkce) {
+            uri.queryParam("code_challenge", CODE_CHALLENGE).queryParam("code_challenge_method", "S256");
+        }
+        if (resource != null) {
+            uri.queryParam("resource", resource);
+        }
+        return uri;
+    }
+
+    /**
+     * 공개 클라이언트는 require-authorization-consent 가 true 라, 유효한 요청이면
+     * 리다이렉트가 아니라 200 으로 동의 화면을 돌려준다. 그 판단은 호출부에서 한다.
+     */
+    MvcResult 공개클라이언트_인가요청(boolean pkce, String resource) throws Exception {
+        return this.mockMvc
+                .perform(get(공개클라이언트_인가요청_URI(pkce, resource).encode().build().toUri()).session(this.session))
+                .andReturn();
+    }
+
+    /** redirect_uri 가 유효해서 곧장 리다이렉트로 거부되는 경우(예: PKCE 누락)에 쓴다. */
+    UriComponents 공개클라이언트_인가요청_거부(boolean pkce, String resource) throws Exception {
+        String location = this.mockMvc
+                .perform(get(공개클라이언트_인가요청_URI(pkce, resource).encode().build().toUri()).session(this.session))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        return UriComponentsBuilder.fromUriString(location).build();
+    }
+
+    /**
+     * Spring 기본 동의 화면(DefaultConsentPage)이 실제로 돌려주는 폼의 hidden state 값을
+     * 읽는다. 이 값은 원래 인가 요청의 state 파라미터가 아니라, 대기 중인 인가를 찾기 위해
+     * 서버가 새로 발급한 값이다.
+     *
+     * DefaultConsentPage 는 Spring Authorization Server 소스에 "For internal use only"로
+     * 표시된 비공개 클래스이고, 이 렌더링 결과를 정규식으로 파싱한다. DefaultConsentPage 의
+     * 렌더링 형식이 바뀌면 이 정규식은 값을 찾지 못해 이 테스트가 실패한다. spring-security-test
+     * 에는 동의 화면 파싱을 위한 공개 지원이 없어 지금은 이 결합을 대체할 방법이 없다.
+     */
+    private static String 동의화면_state(String html) {
+        Matcher matcher = Pattern.compile("name=\"state\" value=\"([^\"]*)\"").matcher(html);
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
+    }
+
+    /**
+     * 동의 화면의 체크박스를 담아 같은 URI 로 다시 POST 한다(client_id·state·scope). openid
+     * 는 동의 대상이 아니라 체크박스 자체가 없으므로 scope 파라미터로 보내지 않아도
+     * OAuth2AuthorizationConsentAuthenticationProvider 가 자동으로 다시 붙여 준다.
+     */
+    UriComponents 공개클라이언트_동의(MvcResult authorizationResponse, String approvedScope) throws Exception {
+        String state = 동의화면_state(authorizationResponse.getResponse().getContentAsString());
+        String location = this.mockMvc
+                .perform(post("/oauth2/authorize").session(this.session)
+                        .param("client_id", PUBLIC_CLIENT_ID)
+                        .param("state", state)
+                        .param("scope", approvedScope))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        return UriComponentsBuilder.fromUriString(location).build();
+    }
+
+    String 공개클라이언트_인가코드(String resource) throws Exception {
+        MvcResult authorizationResponse = 공개클라이언트_인가요청(true, resource);
+        assertThat(authorizationResponse.getResponse().getStatus()).isEqualTo(200);
+        UriComponents codeResponse = 공개클라이언트_동의(authorizationResponse, "profile");
+        return 응답파라미터(codeResponse, "code");
+    }
+
+    /** 공개 클라이언트는 client_secret_basic 헤더 없이 client_id 파라미터만으로 온다. */
+    String 공개클라이언트_토큰요청(MultiValueMap<String, String> parameters, int expectedStatus) throws Exception {
+        return this.mockMvc.perform(post("/oauth2/token").params(parameters))
+                .andExpect(status().is(expectedStatus))
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    static MultiValueMap<String, String> 공개클라이언트_인가코드교환(String code, String resource) {
+        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+        parameters.add("grant_type", "authorization_code");
+        parameters.add("client_id", PUBLIC_CLIENT_ID);
+        parameters.add("code", code);
+        parameters.add("redirect_uri", PUBLIC_CLIENT_REDIRECT_URI);
+        parameters.add("code_verifier", CODE_VERIFIER);
+        if (resource != null) {
+            parameters.add("resource", resource);
+        }
+        return parameters;
     }
 
     @Test
@@ -322,6 +451,101 @@ class AuthorizationServerStandardTest {
         String refreshed = 토큰요청(parameters, 200);
 
         assertThat(토큰의_aud(JsonPath.read(refreshed, "$.access_token"))).containsExactly(RESOURCE);
+    }
+
+    @Test
+    void 메타데이터에_공개_클라이언트_인증_방식_none_이_광고되고_기존_방식도_유지된다() throws Exception {
+        // RFC 8414 §2: none 은 client_secret 이 없는 공개 클라이언트를 뜻한다.
+        // OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods() 는
+        // 이 값을 절대 넣지 않으므로, 커스터마이저가 더한 값이 기존 여섯 방식 곁에
+        // 그대로 남아 있어야 한다 — 지우고 다시 채운 게 아니라 더한 것이어야 한다.
+        this.mockMvc.perform(get("/.well-known/oauth-authorization-server"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("none")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_basic")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_post")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_jwt")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("tls_client_auth")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("self_signed_tls_client_auth")));
+
+        this.mockMvc.perform(get("/.well-known/openid-configuration"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("none")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_basic")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_post")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("client_secret_jwt")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("tls_client_auth")))
+                .andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("self_signed_tls_client_auth")));
+    }
+
+    @Test
+    void 공개_클라이언트는_동의_화면을_거치고_기존_에이전트는_바로_코드를_받는다() throws Exception {
+        // require-authorization-consent 가 client 단위 설정이라 shop-agent(false)의
+        // 흐름은 그대로여야 한다 — 공개 클라이언트를 더한다고 바뀌면 안 된다.
+        MvcResult publicResponse = 공개클라이언트_인가요청(true, RESOURCE);
+        assertThat(publicResponse.getResponse().getStatus()).isEqualTo(200);
+        assertThat(publicResponse.getResponse().getContentAsString()).contains("Consent required");
+
+        UriComponents agentResponse = 인가요청(true, RESOURCE);
+        assertThat(응답파라미터(agentResponse, "code")).isNotBlank();
+    }
+
+    @Test
+    void 공개_클라이언트는_동의_뒤_클라이언트_인증_없이_토큰을_받고_access_token의_aud는_resource다() throws Exception {
+        String code = 공개클라이언트_인가코드(RESOURCE);
+
+        // client_secret_basic 헤더도 client_secret 파라미터도 없다 — client_id 만 보내고
+        // PKCE code_verifier 가 비밀의 자리를 대신한다(RFC 6749 §3.2.1 / OAuth 2.1 §3.2.2).
+        String body = 공개클라이언트_토큰요청(공개클라이언트_인가코드교환(code, RESOURCE), 200);
+
+        String accessToken = JsonPath.read(body, "$.access_token");
+        assertThat(토큰의_aud(accessToken)).containsExactly(RESOURCE);
+    }
+
+    @Test
+    void 공개_클라이언트도_code_challenge_없는_인가_요청은_거부된다() throws Exception {
+        UriComponents response = 공개클라이언트_인가요청_거부(false, RESOURCE);
+
+        assertThat(응답파라미터(response, "error")).isEqualTo("invalid_request");
+        assertThat(응답파라미터(response, "code")).isNull();
+    }
+
+    @Test
+    void 공개_클라이언트가_code_verifier_를_틀리면_invalid_grant_다() throws Exception {
+        String code = 공개클라이언트_인가코드(RESOURCE);
+        MultiValueMap<String, String> parameters = 공개클라이언트_인가코드교환(code, RESOURCE);
+        parameters.set("code_verifier", "wrong-verifier-wrong-verifier-wrong-verifier-000");
+
+        String body = 공개클라이언트_토큰요청(parameters, 400);
+
+        assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_grant");
+    }
+
+    @Test
+    void 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다() throws Exception {
+        // redirect_uri 자체가 미등록이면 그 주소로 리다이렉트하지 않는다 — 오픈 리다이렉터를
+        // 막기 위한 RFC 6749 §4.1.2.1 요구다. IssuerIdentifyingAuthorizationResponseHandler 가
+        // 이 경우 redirectUri 가 null 로 지워진 예외를 받아 response.sendError 로 직접 응답한다.
+        UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/oauth2/authorize")
+                .queryParam("response_type", "code")
+                .queryParam("client_id", PUBLIC_CLIENT_ID)
+                .queryParam("redirect_uri", "http://127.0.0.1:8123/not-registered")
+                .queryParam("scope", "openid profile")
+                .queryParam("state", "state-1")
+                .queryParam("code_challenge", CODE_CHALLENGE)
+                .queryParam("code_challenge_method", "S256");
+
+        // response.sendError(int, String) 는 상태 코드만 응답에 반영하고, 그 메시지 자체는
+        // MockHttpServletResponse.getErrorMessage() 로만 확인할 수 있다(본문에는 실리지 않는다
+        // — 실제 컨테이너라면 에러 페이지가 그 메시지를 담아 렌더링하지만 MockMvc 는 렌더링까지
+        // 가지 않는다).
+        String errorMessage = this.mockMvc.perform(get(uri.encode().build().toUri()).session(this.session))
+                .andExpect(status().isBadRequest())
+                .andReturn().getResponse().getErrorMessage();
+
+        assertThat(errorMessage).contains("invalid_request");
     }
 
     /**
