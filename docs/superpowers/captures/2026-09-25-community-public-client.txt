@@ -17,13 +17,13 @@ Content-Length: 2388
 <p><span class="font-weight-bold text-primary">local-mcp-client</span> wants to access your account <span class="font-weight-bold">user</span></p>
 <form name="consent_form" method="post" action="/oauth2/authorize">
 <input type="hidden" name="client_id" value="local-mcp-client">
-<input type="hidden" name="state" value="4M7l2bl82MMd2sWSd4Tv-AT0d7bSvLmwgE_XLYknNpE=">
+<input type="hidden" name="state" value="1ASoRoVof6uz_tqBKIqmUIbKLtEeV_1sVaCPwLnpxhg=">
 <input class="form-check-input" type="checkbox" name="scope" value="profile" id="profile">
 
 
 ===== P4. 동의 제출 (POST /oauth2/authorize) → 인가 코드와 iss =====
 HTTP/1.1 302 
-Location: http://127.0.0.1:8123/callback?code=Pjjbe4hw-CJ3...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
+Location: http://127.0.0.1:8123/callback?code=3Dgnd3qWAS-D...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
 
 
 ===== P5. 토큰 요청 — 클라이언트 인증 없이 client_id 만 (OAuth 2.1 §3.2.2) =====
@@ -33,16 +33,16 @@ Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
 Content-Length: 1547
 
-{"access_token":"eyJraWQiOiIxY2VjZmQz...","scope":"openid profile","id_token":"eyJraWQiOiIxY2VjZmQz...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI3OTNjNTg2...","scope":"openid profile","id_token":"eyJraWQiOiI3OTNjNTg2...","token_type":"Bearer","expires_in":299}
 
 
 ===== P5-1. access token 페이로드 — aud 는 클라이언트 유형과 무관하게 resource 다 (RFC 8707) =====
-{"sub":"user","aud":"http://localhost:8101/mcp","nbf":1790264305,"scope":["openid","profile"],"iss":"http://localhost:9000","exp":1790264605,"iat":1790264305,"jti":"92f9e23f-23ef-4d72-8946-4e6c5954971d"}
+{"sub":"user","aud":"http://localhost:8101/mcp","nbf":1790264655,"scope":["openid","profile"],"iss":"http://localhost:9000","exp":1790264955,"iat":1790264655,"jti":"8ffe97cf-93cc-4e26-ac63-1724f842c824"}
 
 
 ===== P6. 이 토큰으로 MCP initialize =====
 HTTP/1.1 200 
-Mcp-Session-Id: 68576c3d-602d-4ec9-9ec2-dcbc831952b0
+Mcp-Session-Id: c79420e3-f543-4606-b53d-e6ddbc7d9f04
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json
@@ -55,7 +55,7 @@ Cache-Control: no-cache
 Content-Type: text/event-stream
 Transfer-Encoding: chunked
 
-id:68576c3d-602d-4ec9-9ec2-dcbc831952b0
+id:c79420e3-f543-4606-b53d-e6ddbc7d9f04
 event:message
 data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다."}],"isError":false}}
 
@@ -65,14 +65,14 @@ data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 
 응답 필드: access_token scope id_token token_type expires_in
 OAuth2RefreshTokenGenerator.generate() 가 authorization_code 그랜트에서 클라이언트 인증 방식이
 none 이면 null 을 돌려준다("Do not issue refresh token to public client").
-OAuth 2.1 §4.3.1 은 공개 클라이언트에 대한 refresh token 발급을 MAY 로 두고, 발급한다면
-회전 또는 sender-constrained 를 MUST 로 요구한다. 발급하지 않는 쪽은 명세 위반이 아니다.
+발급 여부는 인가 서버 재량이고(OAuth 2.1 §1.3.2), 공개 클라이언트에 발급한다면
+회전 또는 sender-constrained 가 MUST 다(§4.3.1). 발급하지 않는 쪽은 명세 위반이 아니다.
 대조 — 기밀 클라이언트의 토큰 응답 필드: access_token refresh_token scope id_token token_type expires_in
 
 
-===== P8. 같은 클라이언트로 다시 인가 — 이미 기록된 동의는 화면을 다시 띄우지 않는다 =====
-HTTP/1.1 302 
-Location: http://127.0.0.1:8123/callback?code=fCZR5VkBrmKl...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
+===== P8. 같은 클라이언트로 다시 인가 — 이전에 동의했어도 다시 동의 화면을 거친다 (OAuth 2.1 §7.3.1) =====
+HTTP/1.1 200 
+<title>Consent required</title>
 
 
 ===== P9. 오류: PKCE 없는 인가 요청 (RFC 7636 · MCP MUST) =====
@@ -82,7 +82,7 @@ Location: http://127.0.0.1:8123/callback?error=invalid_request&error_description
 
 ===== P10. 루프백 리다이렉트는 포트가 달라도 허용된다 (RFC 8252 §7.3 · OAuth 2.1 §8.4.2) =====
 HTTP/1.1 302 
-Location: http://127.0.0.1:9999/callback?code=jq7Z9AltHCYn...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
+Location: http://127.0.0.1:9999/callback?code=2fyDe5yD896H...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
 
 
 ===== P10-1. 오류: 루프백이라도 경로가 다르면 거부한다 (리다이렉트하지 않는다) =====
@@ -92,7 +92,7 @@ Pragma: no-cache
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"timestamp":"2026-09-24T15:38:25.555Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
+{"timestamp":"2026-09-24T15:44:16.086Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
 
 
 ===== P11. 오류: 틀린 code_verifier (invalid_grant) — 공개 클라이언트의 유일한 가로채기 방어 =====
@@ -118,7 +118,7 @@ Content-Length: 26
 
 ===== P13. 대조: 기밀 클라이언트는 동의 화면 없이 곧장 코드로 리다이렉트한다 =====
 HTTP/1.1 302 
-Location: http://localhost:8100/login/oauth2/code/authserver?code=65YefyXVcpUg...&state=confidential-state&iss=http%3A%2F%2Flocalhost%3A9000
+Location: http://localhost:8100/login/oauth2/code/authserver?code=oYfyTynIL-QN...&state=confidential-state&iss=http%3A%2F%2Flocalhost%3A9000
 
 
 ===== P14. 대조: 기밀 클라이언트는 client_id 만으로는 토큰을 받지 못한다 (invalid_client) =====

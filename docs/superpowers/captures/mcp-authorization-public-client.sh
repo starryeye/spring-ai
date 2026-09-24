@@ -3,10 +3,6 @@
 # curl 로 한 단계씩 밟으며 기록한다(P 번호). 기밀 클라이언트 흐름은
 # mcp-authorization-walkthrough.sh(C 번호)와 mcp-authorization-supplement.sh(S 번호)가 다룬다.
 #
-# 사전 조건: 동의 기록(OAuth2AuthorizationConsentService)은 (클라이언트, 사용자) 단위로 인가 서버
-#   메모리에 남는다. P3~P4 가 동의 화면을 관측하려면 그 기록이 없어야 하므로, 이 스크립트는
-#   갓 띄운 인가 서버에서 한 번 실행한다(재실행하려면 인가 서버를 다시 띄운다).
-#
 # 사용: practice 를 run.sh 로 띄운 뒤(기본값은 official)
 #   AS=... MCP_BASE=... PUBLIC_CLIENT_ID=... CONFIDENTIAL_CLIENT_ID=... CONFIDENTIAL_CLIENT_SECRET=... \
 #     CONFIDENTIAL_REDIRECT_URI=... LOGIN_USERNAME=... LOGIN_PASSWORD=... ./mcp-authorization-public-client.sh > 결과.txt
@@ -110,17 +106,20 @@ consent_submit() {
     --data-urlencode 'scope=profile'
 }
 
+# 인가 요청 → 동의 화면 → 동의 제출까지 밟고 마지막 응답(리다이렉트)을 돌려준다.
+# $1 = 단계 이름, $2 = redirect_uri
+authorize_with_consent() {
+  local step_name="$1" redirect="$2" response state
+  response=$(public_authorize yes "$redirect")
+  state=$(consent_state "$response")
+  require "CONSENT_STATE" "$state" "$step_name"
+  consent_submit "$state"
+}
+
 # 동의까지 마치고 새 인가 코드 하나를 받는다(코드는 한 번만 쓸 수 있다).
 new_public_code() {
-  local step_name="$1" response state location code
-  response=$(public_authorize yes "$PUBLIC_REDIRECT_URI")
-  if printf '%s' "$response" | head -1 | grep -q ' 200'; then
-    state=$(consent_state "$response")
-    require "CONSENT_STATE" "$state" "$step_name"
-    response=$(consent_submit "$state")
-  fi
-  location=$(location_of "$response")
-  code=$(query_param "$location" code)
+  local step_name="$1" code
+  code=$(query_param "$(location_of "$(authorize_with_consent "$step_name" "$PUBLIC_REDIRECT_URI")")" code)
   require "CODE" "$code" "$step_name"
   CODE="$code"
 }
@@ -141,7 +140,7 @@ login
 step "P3. 공개 클라이언트의 인가 요청 (PKCE S256 + resource) — 동의 화면"
 AUTHORIZE=$(public_authorize yes "$PUBLIC_REDIRECT_URI")
 if ! printf '%s' "$AUTHORIZE" | head -1 | grep -q ' 200'; then
-  printf '\n[오류] 동의 화면 대신 %s 가 왔습니다. 이 (클라이언트, 사용자) 조합의 동의가 이미 기록돼 있습니다 — 인가 서버를 다시 띄운 뒤 실행하세요.\n' \
+  printf '\n[오류] 동의 화면 대신 %s 가 왔습니다. 인가 서버가 공개 클라이언트의 동의를 기록하고 있는지 확인하세요(PublicClientConsentService).\n' \
     "$(printf '%s' "$AUTHORIZE" | head -1 | tr -d '\r')" >&2
   exit 1
 fi
@@ -193,8 +192,8 @@ printf '%s' "$TOKEN" | sed -n 's/.*{\(.*\)}.*/\1/p' | tr ',' '\n' | sed -n 's/^"
 echo
 printf '%s\n' "OAuth2RefreshTokenGenerator.generate() 가 authorization_code 그랜트에서 클라이언트 인증 방식이"
 printf '%s\n' "none 이면 null 을 돌려준다(\"Do not issue refresh token to public client\")."
-printf '%s\n' "OAuth 2.1 §4.3.1 은 공개 클라이언트에 대한 refresh token 발급을 MAY 로 두고, 발급한다면"
-printf '%s\n' "회전 또는 sender-constrained 를 MUST 로 요구한다. 발급하지 않는 쪽은 명세 위반이 아니다."
+printf '%s\n' "발급 여부는 인가 서버 재량이고(OAuth 2.1 §1.3.2), 공개 클라이언트에 발급한다면"
+printf '%s\n' "회전 또는 sender-constrained 가 MUST 다(§4.3.1). 발급하지 않는 쪽은 명세 위반이 아니다."
 printf '%s' "대조 — 기밀 클라이언트의 토큰 응답 필드: "
 CONF_CODE=$(curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
   --data-urlencode 'response_type=code' --data-urlencode "client_id=$CONFIDENTIAL_CLIENT_ID" \
@@ -210,8 +209,12 @@ curl -s -u "$CONFIDENTIAL_CLIENT_ID:$CONFIDENTIAL_CLIENT_SECRET" -X POST "$AS/oa
   | sed -n 's/.*{\(.*\)}.*/\1/p' | tr ',' '\n' | sed -n 's/^"\([a-z_]*\)".*/\1/p' | tr '\n' ' '
 echo
 
-step "P8. 같은 클라이언트로 다시 인가 — 이미 기록된 동의는 화면을 다시 띄우지 않는다"
-public_authorize yes "$PUBLIC_REDIRECT_URI" | tidy | grep -iE '^(HTTP|Location)'
+step "P8. 같은 클라이언트로 다시 인가 — 이전에 동의했어도 다시 동의 화면을 거친다 (OAuth 2.1 §7.3.1)"
+# 신원을 확인할 수 없는 클라이언트는 이전 동의가 있어도 처음처럼 처리한다(SHOULD).
+# PublicClientConsentService 가 공개 클라이언트의 동의를 기록하지 않는다.
+AGAIN=$(public_authorize yes "$PUBLIC_REDIRECT_URI")
+printf '%s\n' "$AGAIN" | tidy | grep -iE '^(HTTP|Location)'
+printf '%s' "$AGAIN" | tr -d '\r' | grep -oE '<title>[^<]*</title>'
 
 step "P9. 오류: PKCE 없는 인가 요청 (RFC 7636 · MCP MUST)"
 public_authorize no "$PUBLIC_REDIRECT_URI" | tidy | grep -iE '^(HTTP|Location)'
@@ -221,7 +224,7 @@ step "P10. 루프백 리다이렉트는 포트가 달라도 허용된다 (RFC 82
 # OAuth2AuthorizationCodeRequestAuthenticationValidator.validateRedirectUri 가 호스트가
 # 루프백이면 등록 URI 의 포트를 요청 포트로 바꿔 비교한다 — 네이티브 앱이 실행 시점에
 # OS 에서 받은 임시 포트를 쓸 수 있게 하기 위한 명세 요구다.
-public_authorize yes "http://127.0.0.1:9999/callback" | tidy | grep -iE '^(HTTP|Location)'
+authorize_with_consent "P10" "http://127.0.0.1:9999/callback" | tidy | grep -iE '^(HTTP|Location)'
 
 step "P10-1. 오류: 루프백이라도 경로가 다르면 거부한다 (리다이렉트하지 않는다)"
 public_authorize yes "http://127.0.0.1:8123/not-registered" | tidy | cut -c1-200 | head -8
