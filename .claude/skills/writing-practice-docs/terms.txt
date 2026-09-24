@@ -1,0 +1,20 @@
+# 한국어로 옮기면 안 되는 전문 용어. 형식: 정규식<TAB>써야 할 영어 표기. 주제가 늘면 여기에 더한다.
+토큰	token
+클라이언트	client
+(?<![가-힣])인가(?=[\s을를은는이가의에와과도로]|$)	authorization
+리소스 서버	Resource Server
+보호 리소스	Protected Resource
+메타데이터	metadata
+사전 등록	pre-registration
+동의 화면	consent
+(?<![가-힣])동의(?=[\s을를은는이가의에와과도로]|$)	consent
+리다이렉트	redirect
+콜백	callback
+발급자	issuer
+스코프	scope
+(?<![가-힣])발견(?=[\s을를은는이가의에와과도로하한했해]|$)	discovery
+챌린지	challenge
+세션	session
+필터 ?체인	filter chain
+에이전트	agent
+MCP 서버	MCP Server
