@@ -32,6 +32,16 @@ import java.util.regex.Pattern;
  * (예: {@code client_secret_post} 로 폼 파라미터만 보낸 경우)에는 스킴을 알 수 없으므로
  * 헤더를 붙이지 않는다 — RFC 요구가 "Authorization 헤더로 시도한 경우"에 한정되기 때문이다.
  *
+ * <p>이 핸들러는 {@code OAuth2ClientAuthenticationFilter} 에만 걸려 있지만, 그 필터를 거치는
+ * 실패가 전부 {@code invalid_client} 인 것은 아니다 — Spring 의 {@code ClientSecretAuthenticationProvider}
+ * (그리고 {@code PublicClientAuthenticationProvider})는 내부 {@code CodeVerifierAuthenticator} 로
+ * PKCE {@code code_verifier} 검증을 "클라이언트 인증"의 일부로 이 필터 안에서 수행하고,
+ * 실패하면 {@code invalid_grant} 를 던진다({@code CodeVerifierAuthenticator#invalidGrantException}).
+ * 즉 code_verifier 불일치도 이 핸들러를 거치지만 오류 코드는 invalid_grant 다. RFC 6749 §5.2 의
+ * 챌린지 의무는 {@code invalid_client} 응답에 한정되므로, 오류 코드로 한 번 더 걸러야 한다 —
+ * 그러지 않으면 클라이언트 인증 자체는 성공한 요청(예: code_verifier 만 틀린 토큰 요청)에도
+ * Basic 챌린지가 붙어 클라이언트에게 "자격증명을 다시 보내라"는 잘못된 신호를 준다.
+ *
  * <p>이 클래스는 practice 고유 값을 담지 않는다. 다른 practice 로 패키지만 바꿔 재사용한다.
  */
 public class ClientAuthenticationChallengeFailureHandler implements AuthenticationFailureHandler {
@@ -48,15 +58,19 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
 			AuthenticationException exception) throws IOException {
 		OAuth2Error error = ((OAuth2AuthenticationException) exception).getError();
+		boolean invalidClient = OAuth2ErrorCodes.INVALID_CLIENT.equals(error.getErrorCode());
 
-		String scheme = requestedScheme(request);
-		if (scheme != null) {
-			response.setHeader(HttpHeaders.WWW_AUTHENTICATE, challenge(scheme));
+		// invalid_client 가 아니면(예: PKCE code_verifier 불일치로 인한 invalid_grant) 이 필터를
+		// 거쳐 왔더라도 RFC 6749 §5.2 가 말하는 "클라이언트 인증 실패"가 아니므로 붙이지 않는다.
+		if (invalidClient) {
+			String scheme = requestedScheme(request);
+			if (scheme != null) {
+				response.setHeader(HttpHeaders.WWW_AUTHENTICATE, challenge(scheme));
+			}
 		}
 
 		ServletServerHttpResponse httpResponse = new ServletServerHttpResponse(response);
-		httpResponse.setStatusCode(OAuth2ErrorCodes.INVALID_CLIENT.equals(error.getErrorCode())
-				? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST);
+		httpResponse.setStatusCode(invalidClient ? HttpStatus.UNAUTHORIZED : HttpStatus.BAD_REQUEST);
 		// 과한 정보를 노출하지 않으려고 오류 코드만 돌려주는 Spring 기본 동작을 그대로 따른다.
 		this.errorHttpResponseConverter.write(new OAuth2Error(error.getErrorCode()), null, httpResponse);
 	}
