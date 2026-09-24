@@ -28,6 +28,19 @@
   열어 둔 확장점(`Customizer<McpAuthorizationServerConfigurer>`, `McpAuthorizationStandardConfig`)
   으로 얹는다 — 직접 만들면 `@ConditionalOnDefaultWebSecurity` 때문에 모듈의 인가 서버
   설정이 통째로 물러난다. 동적 클라이언트 등록(DCR)은 끈다(MCP 2026-07-28 에서 deprecated).
+- **공개 클라이언트** — 인가 서버에는 에이전트(기밀 클라이언트, `client_secret_basic`) 말고
+  비밀이 없는 `local-mcp-client` 가 하나 더 사전 등록되어 있다(`application.yml`). 사용자 기기에서
+  도는 MCP 클라이언트를 가정한 등록이다 — 인증 방식 `none`(토큰 요청에 `client_id` 만), PKCE 필수,
+  루프백 리다이렉트 `http://127.0.0.1:8123/callback`(포트는 요청마다 달라도 된다, RFC 8252 §7.3),
+  매 인가 요청마다 동의 화면(`PublicClientConsentService`, OAuth 2.1 §7.3.1). 메타데이터의
+  `token_endpoint_auth_methods_supported` 에 `none` 을 더해 광고한다(Spring 은 넣지 않는다).
+  Spring 은 공개 클라이언트에 refresh token 을 발급하지 않는다. 두 부류의 비교는
+  [학습 문서 4.4.1](../MCP-AUTHORIZATION.md#s4-4-1).
+  모듈과 얽히는 곳이 둘 있다. `none` 광고는 기존 claim 과 **같은 커스터마이저 람다** 안에서
+  더한다 — 모듈의 메타데이터 커스터마이저 설정은 마지막 호출이 앞의 것을 덮어쓰는 필드 하나라서다.
+  모듈이 무조건 거는 `McpNoScopeClientConsentNotRequired`(scope 가 비었거나 `openid` 하나면 동의
+  생략)는 이 흐름(`openid profile`)에 걸리지 않고, 재동의는 그보다 아래 단계인 동의 저장소
+  (`PublicClientConsentService`)에서 막으므로 모듈의 판단 조건과 부딪히지 않는다.
 - **MCP 서버**는 보호 리소스 메타데이터를 경로형(`/.well-known/oauth-protected-resource/mcp`)
   으로 제공하고, 401 챌린지가 그 URL 을 가리키며(따옴표 포함, RFC 9110 §11.2), 토큰의 `aud`
   를 검증하고, `MCP-Protocol-Version` 헤더(`McpProtocolVersionFilter`)를 검증한다. 모듈의
@@ -194,7 +207,9 @@ implementation 'org.springaicommunity:mcp-authorization-server-spring-boot:0.1.1
 | `defaultSecurityFilterChain` | **폼 로그인 화면**. `/login` 을 직접 만들 필요가 없다 |
 | `dcrRegisteredClientRepository` | `spring.security.oauth2.authorizationserver.client.*` 를 `RegisteredClient` 로 매핑. DCR 도 기본 활성 |
 
-**내가 직접 쓴 것**은 `application.yml` 의 클라이언트 등록과 `UserDetailsService` 빈 하나가 전부다.
+**내가 직접 쓴 것**은 `application.yml` 의 클라이언트 등록(에이전트와 공개 클라이언트 `local-mcp-client`)과
+`UserDetailsService` 빈, 그리고 위 "MCP 인가 표준 준수" 절의 확장(`McpAuthorizationStandardConfig` 와
+그것이 거는 클래스들)이다.
 
 **주의 — 자동설정이 `.oidc()` 를 켜지 않는다.** 필터체인의 `securityMatcher` 에
 `/.well-known/openid-configuration` 은 포함되는데 정작 그 경로를 서빙하는 필터는 등록되지 않아
@@ -375,12 +390,25 @@ searchProducts 호출 (keyword=노트북, 사용자=user)
 grep 'Adding token to header' logs/shop-agent.log
 ```
 
+## 4-1. 공개 클라이언트 흐름 (스크립트)
+
+비밀 없는 `local-mcp-client` 로 붙는 프로그램은 없으므로 스크립트가 그 역할을 한다. 인가 서버와
+MCP 서버만 떠 있으면 된다. 동의 화면 → `client_id` 만으로 토큰 요청 → MCP 호출, 그리고 PKCE·루프백
+포트·재동의 확인까지 찍는다([기록](../../docs/superpowers/captures/2026-09-25-community-public-client.txt)).
+
+```bash
+AS=http://localhost:9000 MCP_BASE=http://localhost:8101 \
+  CONFIDENTIAL_CLIENT_ID=shop-agent CONFIDENTIAL_CLIENT_SECRET=shop-agent-secret \
+  CONFIDENTIAL_REDIRECT_URI=http://localhost:8100/login/oauth2/code/authserver \
+  ../../docs/superpowers/captures/mcp-authorization-public-client.sh
+```
+
 ## 5. 테스트
 
 ```bash
-cd auth-server && ./gradlew test        # 4개
-cd ../shop-mcp-server && ./gradlew test # 10개
-cd ../shop-agent && ./gradlew test      # 4개
+cd auth-server && ./gradlew test        # 테스트 메서드 33개
+cd ../shop-mcp-server && ./gradlew test # 22개
+cd ../shop-agent && ./gradlew test      # 21개
 ```
 
 **`auth-server` 가 떠 있어야 한다** — 이유는 학습 포인트 3번.
@@ -672,8 +700,10 @@ grep -i 'transport customizer' logs/shop-agent.log              # → 없으면 
 - 토큰 저장소 영속화 (in-memory 로 충분)
 - UI 완성도 — `index.html` 은 OAuth 리다이렉트를 브라우저에 맡기기 위한 최소 장치다
 - `client_credentials`, `hybrid` grant
-- DCR(동적 클라이언트 등록) — 라이브러리는 지원하지만 여기서는 사전 등록 하나만 쓴다.
-  브라우저 로그인에 client registration 이 어차피 필요하므로 DCR 은 덧붙는 절차가 된다
+- DCR(동적 클라이언트 등록) — 라이브러리는 지원하지만 여기서는 사전 등록(에이전트와
+  `local-mcp-client` 둘)만 쓴다. MCP 2026-07-28 에서 deprecated 이기도 하다
+- CIMD — 모듈에 기능(`cimd(true)`)이 있지만 `https` 문서 URL 이 전제라 별도 practice 로 미뤘다
+- 공개 클라이언트 쪽 프로그램 — 인가 서버 쪽만 다루고 클라이언트는 캡처 스크립트가 흉내 낸다
 
 # 참고
 

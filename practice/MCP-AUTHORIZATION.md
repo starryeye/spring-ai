@@ -16,7 +16,7 @@
    - [4.1 토큰 없는 요청과 401 챌린지](#s4-1) — 다이어그램 ②
    - [4.2 보호 리소스 메타데이터 발견](#s4-2)
    - [4.3 인가 서버 메타데이터 발견](#s4-3)
-   - [4.4 클라이언트 등록](#s4-4)
+   - [4.4 클라이언트 등록](#s4-4) — 다이어그램 ⑨(공개 클라이언트)
    - [4.5 인가 요청 — PKCE 와 resource](#s4-5) — 다이어그램 ③
    - [4.6 콜백과 iss 검증 — mix-up 공격](#s4-6) — 다이어그램 ④
    - [4.7 토큰 요청과 access token 의 구조](#s4-7) — 다이어그램 ⑤
@@ -54,6 +54,7 @@ MCP 명세는 날짜로 리비전을 구분한다. 이 문서는 두 리비전�
 - **[관측]** practice 를 실제로 띄워 주고받은 요청·응답이다. 출처 표기는 다음과 같다.
   - `C<n>` — [`docs/superpowers/captures/2026-09-12-<practice>.txt`](../docs/superpowers/captures) 의 n 번 단계. 스크립트는 [`mcp-authorization-walkthrough.sh`](../docs/superpowers/captures/mcp-authorization-walkthrough.sh). practice 를 밝히지 않으면 세 practice 가 포트·client_id·사용자 이름만 다르고 같다는 뜻이다.
   - `S<n>` — [`docs/superpowers/captures/2026-09-16-official-supplement.txt`](../docs/superpowers/captures/2026-09-16-official-supplement.txt) 의 n 번 단계(official 만 관측). 스크립트는 [`mcp-authorization-supplement.sh`](../docs/superpowers/captures/mcp-authorization-supplement.sh).
+  - `P<n>` — [`docs/superpowers/captures/2026-09-25-<practice>-public-client.txt`](../docs/superpowers/captures) 의 n 번 단계(공개 클라이언트 흐름, 세 practice 모두 관측). 스크립트는 [`mcp-authorization-public-client.sh`](../docs/superpowers/captures/mcp-authorization-public-client.sh). practice 를 밝히지 않으면 세 practice 가 포트·기밀 클라이언트 client_id·사용자 이름만 다르고 같다는 뜻이다.
   - `테스트:` — 캡처에 없고 각 practice 의 테스트로 고정된 사실. `클래스#메서드` 로 적는다.
   - `[관측]` 블록에 실은 요청 줄(`curl`, HTTP 요청 라인 등)은 캡처 파일에 없다. `curl -si` 는 응답(상태줄·헤더·본문)만 남기므로, 요청 내용은 위 캡처 스크립트의 해당 단계 명령에서 그대로 옮긴 것이다.
 - **[구현]** 이 practice 가 그 규칙을 어느 클래스·설정으로 지키는지 적는다. 클래스 이름은 [2.5 구현 위치 지도](#s2-5)와 같다.
@@ -61,7 +62,7 @@ MCP 명세는 날짜로 리비전을 구분한다. 이 문서는 두 리비전�
 - 엔드포인트 표([5절](#s5))의 **표시** 열은 원문 표기를 그대로 옮긴다: `REQUIRED` / `RECOMMENDED` / `OPTIONAL`. 원문이 조건을 붙였으면 조건까지 적는다. 원문이 표기 없이 `MUST`·`SHOULD`·`MAY` 문장으로만 규정하면 그 단어를 적고, 요구 수준 표기가 전혀 없으면 "표시 없음"이라고 적는다.
 - **이 practice** 열은 `씀`, `씀(조건)` 또는 `이 practice 에서는 쓰지 않음` 이다.
 
-> 캡처 원본(`2026-09-12-*.txt`)에는 access/refresh/id 토큰 원문이 그대로 남아 있다. 모두 5분(access)·30분(id) 수명의 로컬 학습용 토큰이고 인가 서버를 내리면 서명 키도 사라지지만, 원본을 다른 곳에 옮길 때는 줄여서 옮긴다.
+> 캡처 원본(`2026-09-12-*.txt`)에는 access/refresh/id 토큰 원문이 그대로 남아 있다(P 캡처는 스크립트가 줄여서 남긴다). 모두 5분(access)·30분(id) 수명의 로컬 학습용 토큰이고 인가 서버를 내리면 서명 키도 사라지지만, 원본을 다른 곳에 옮길 때는 줄여서 옮긴다.
 
 ---
 
@@ -83,13 +84,15 @@ MCP 명세는 날짜로 리비전을 구분한다. 이 문서는 두 리비전�
 
 에이전트는 브라우저 안의 앱이 아니라 서버에서 도는 웹 앱이다. 사용자는 브라우저로 에이전트에 말을 걸고, MCP 서버를 부르는 쪽은 에이전트의 백엔드다. 그래서 에이전트는 비밀(client_secret)을 안전하게 가질 수 있는 confidential client 이고, MCP 서버로 가는 요청에는 브라우저의 `Origin` 헤더가 붙지 않는다.
 
+인가 서버에는 에이전트 말고 **공개 클라이언트**(public client) `local-mcp-client` 가 하나 더 사전 등록되어 있다. 사용자 기기에서 도는 MCP 클라이언트(데스크톱 앱·CLI)처럼 비밀을 보관할 수 없는 클라이언트를 가정한 등록이다. 이 practice 에는 그 클라이언트 프로그램이 없어 캡처 스크립트(`curl`)가 그 역할을 한다. 두 부류의 차이는 [4.4.1](#s4-4-1)에 정리했다.
+
 ### 2.2 신뢰 관계
 
 | 누가 | 미리 아는 것(설정) | 실행 중에 알아내거나 검증하는 것 |
 |---|---|---|
 | 에이전트 | MCP 서버 URL(`mcp.authorization.resource-url`), 사전 등록 자격증명(client_id / secret / redirect_uri / scope), 그 자격증명이 등록된 인가 서버(`mcp.authorization.credentials-issuer`) | 인가 서버 위치와 엔드포인트는 **설정에 없다**. MCP 서버에게서 발견한다([4.2](#s4-2), [4.3](#s4-3)). 발견한 issuer 가 `credentials-issuer` 와 다르면 자격증명을 보내지 않는다([4.4](#s4-4)). |
 | MCP 서버 | 신뢰할 인가 서버(`issuer-uri`), 자기 리소스 식별자(audience) | 토큰 서명키는 인가 서버 메타데이터의 `jwks_uri` 에서 받는다. 매 요청 서명·`iss`·`aud`·`exp` 를 검증한다([4.9](#s4-9)). |
-| 인가 서버 | 등록된 클라이언트(client_id, secret, redirect_uri, grant, scope, PKCE 필수), 토큰을 발급해 줄 리소스 목록(`mcp.authorization.resources`), 사용자 계정 | 인가 요청의 `resource` 가 목록에 있는지, 토큰 요청의 `resource` 가 인가 요청과 같은지 본다([4.5](#s4-5), [4.7](#s4-7)). |
+| 인가 서버 | 등록된 클라이언트 둘 — 에이전트(기밀: client_id, secret, redirect_uri, grant, scope, PKCE 필수)와 `local-mcp-client`(공개: 비밀 없음, 루프백 redirect_uri, PKCE·동의 필수), 토큰을 발급해 줄 리소스 목록(`mcp.authorization.resources`), 사용자 계정 | 인가 요청의 `resource` 가 목록에 있는지, 토큰 요청의 `resource` 가 인가 요청과 같은지 본다([4.5](#s4-5), [4.7](#s4-7)). |
 | 브라우저 | 없음 | 인가 서버와 에이전트 각각의 세션 쿠키만 가진다. |
 
 ### 2.3 MCP 서버가 인가 서버를 겸하지 않는 이유
@@ -124,6 +127,7 @@ MCP 명세는 날짜로 리비전을 구분한다. 이 문서는 두 리비전�
 | 에이전트 | `http://localhost:8110` | `http://localhost:8130` | `http://localhost:8100` |
 | client_id | `official-shop-agent` | `memory-agent` | `shop-agent` |
 | redirect_uri | `http://localhost:8110/login/oauth2/code/authserver` | `http://localhost:8130/login/oauth2/code/authserver` | `http://localhost:8100/login/oauth2/code/authserver` |
+| 공개 클라이언트 | `local-mcp-client`, redirect_uri `http://127.0.0.1:8123/callback` | 같음 | 같음 |
 | 로그인 계정 | `user` / `password` | `alice` / `alice`, `bob` / `bob` | `user` / `password` |
 | 구성 방식 | 필터체인·빈을 직접 정의 | official 과 같은 클래스 구성 | 모듈 자동설정 + 확장점, 막히는 곳만 직접 정의 |
 
@@ -146,6 +150,9 @@ chat-memory 의 인가 서버·MCP 서버 클래스는 official 과 패키지만
 | access token `aud` 발급과 토큰 요청 `resource` 검증 | `ResourceAudienceTokenCustomizer` | `ResourceAudienceTokenCustomizer` — 모듈 기본 커스터마이저가 id_token `aud` 에 넣은 resource 를 client_id 로 되돌리는 분기 포함 |
 | 인가 응답의 `iss`, 메타데이터 광고(`iss` 지원 여부 + 클라이언트 인증 서명 알고리즘 세 claim) | `IssuerIdentifyingAuthorizationResponseHandler` + `AuthorizationServerConfig` | `IssuerIdentifyingAuthorizationResponseHandler` + `McpAuthorizationStandardConfig` |
 | 클라이언트 인증 실패의 `WWW-Authenticate` 챌린지 | `ClientAuthenticationChallengeFailureHandler` + `AuthorizationServerConfig#clientAuthentication` | `ClientAuthenticationChallengeFailureHandler` + `McpAuthorizationStandardConfig#clientAuthentication`(모듈 확장점) |
+| 공개 클라이언트 등록 | `auth-server` `application.yml` — `local-mcp-client`(`client-authentication-methods: [none]`, `require-proof-key: true`, `require-authorization-consent: true`) | 같음 |
+| 메타데이터의 `none` 광고 | `AuthorizationServerConfig` — AS·OIDC 두 커스터마이저의 `tokenEndpointAuthenticationMethods(...)` | `McpAuthorizationStandardConfig` — 기존 claim 과 같은 람다 안에서 |
+| 공개 클라이언트의 동의를 기록하지 않음 | `PublicClientConsentService` + `AuthorizationServerConfig#authorizationConsentService` | `PublicClientConsentService` + `McpAuthorizationStandardConfig#authorizationConsentService` |
 | 동적 클라이언트 등록(DCR) | 켜지 않음 — Spring Authorization Server 기본값. 메타데이터에 `registration_endpoint` 가 없다(C3) | 끔 — `application.yml` 의 `spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false` |
 | 보호 리소스·인가 서버 발견 | `McpAuthorizationDiscovery`, `DiscoveredAuthorization` | `McpAuthorizationDiscovery`(인가 서버 메타데이터) + 모듈 `McpMetadataDiscoveryService`(401 챌린지와 보호 리소스 메타데이터) |
 | 사전 등록 자격증명과 issuer 바인딩 | `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties` | 같음 |
@@ -219,6 +226,8 @@ sequenceDiagram
 | (5분 뒤) | 만료와 갱신 | [4.10](#s4-10) | [E8](#e8) |
 
 에이전트의 MCP 클라이언트는 기동 시점에 `initialize` 를 하지 않는다(`spring.ai.mcp.client.initialized: false`). 기동 시점에는 대신 호출해 줄 사용자가 없어 MCP 서버가 401 을 주기 때문이다. 핸드셰이크는 로그인한 사용자의 첫 채팅 요청을 처리하는 도중에 일어난다.
+
+이 흐름은 기밀 클라이언트(에이전트)의 것이다. 비밀이 없는 공개 클라이언트도 발견·PKCE·`resource`·`iss` 는 같고, 동의 화면과 토큰 요청의 모양이 다르다 — [4.4.1](#s4-4-1), 다이어그램 ⑨.
 
 ---
 
@@ -427,7 +436,7 @@ PRM 이 알려 주는 것은 인가 서버의 **issuer 식별자**(URL)뿐이다
 
 **RFC 8414 를 먼저 시도하는 이유.** MCP 가 순서를 고정했고, 그 근거로 [RFC 8414 §5](https://www.rfc-editor.org/rfc/rfc8414#section-5) 를 든다. RFC 8414 는 OpenID Connect 에 한정되지 않은 일반 OAuth 인가 서버 메타데이터다. RFC 8414 §5 는 경로가 있는 issuer 에서 두 규격의 URL 변환이 다르다고 설명한다 — RFC 8414 는 경로 앞에 끼우고, OIDC Discovery 는 경로 뒤에 붙인다. 그리고 앞으로는 RFC 8414 의 변환을 먼저 시도하고, 실패할 때만 OIDC 방식으로 넘어가라고 권한다. 두 문서의 필드 차이는 [E4](#e4) 에 정리했다. OIDC Discovery 는 OIDC 전용 필수 필드(`subject_types_supported`, `id_token_signing_alg_values_supported` 등)를 요구하고, PKCE 필드(`code_challenge_methods_supported`)를 정의하지 않는다.
 
-**[관측]** C3 — RFC 8414 메타데이터(official). chat-memory·community 는 issuer 와 엔드포인트의 포트만 다르고 필드 구성과 `Content-Length: 1742` 가 같다.
+**[관측]** C3 — RFC 8414 메타데이터(official). chat-memory·community 는 issuer 와 엔드포인트의 포트만 다르고 필드 구성과 `Content-Length: 1742` 가 같다. 아래 JSON 의 `token_endpoint_auth_methods_supported` 끝의 `"none"` 은 C3 캡처 뒤에 공개 클라이언트를 등록하면서 더한 값이다(P1). 그래서 지금 응답의 `Content-Length` 는 1749 다.
 
 ```http
 GET /.well-known/oauth-authorization-server HTTP/1.1
@@ -439,7 +448,7 @@ Host: localhost:9010
   "issuer": "http://localhost:9010",
   "authorization_endpoint": "http://localhost:9010/oauth2/authorize",
   "token_endpoint": "http://localhost:9010/oauth2/token",
-  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "client_secret_jwt", "private_key_jwt", "tls_client_auth", "self_signed_tls_client_auth"],
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post", "client_secret_jwt", "private_key_jwt", "tls_client_auth", "self_signed_tls_client_auth", "none"],
   "jwks_uri": "http://localhost:9010/oauth2/jwks",
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code", "client_credentials", "refresh_token", "urn:ietf:params:oauth:grant-type:token-exchange"],
@@ -474,6 +483,7 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 - `issuer` 가 요청한 issuer 식별자(`http://localhost:9010`)와 같다.
 - `code_challenge_methods_supported` 에 `S256` 이 있다 — 두 문서 모두.
 - `authorization_response_iss_parameter_supported: true` 가 있다 — 두 문서 모두.
+- `token_endpoint_auth_methods_supported` 에 `none` 이 있다 — 비밀 없이 `client_id` 만 보내는 공개 클라이언트를 받는다는 뜻이다([RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2) 의 값, RFC 8414 §2 가 참조). 토큰 엔드포인트용 필드에만 더했고 revocation·introspection 필드는 Spring 기본값 그대로다([4.4.1](#s4-4-1)).
 - `registration_endpoint` 가 없다 — DCR 을 제공하지 않는다([4.4](#s4-4)).
 - `client_id_metadata_document_supported` 가 없다 — CIMD 를 지원하지 않는다([4.4](#s4-4)).
 - `grant_types_supported` 에 `client_credentials`·`token-exchange` 가 있는 것은 Spring Authorization Server 의 서버 전체 능력이다. 이 practice 의 클라이언트에 등록된 grant 는 `authorization_code`·`refresh_token` 뿐이다.
@@ -497,7 +507,7 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 
 | 순위 | 방식 | 언제 쓰는가 | 요구 수준 | 이 practice |
 |---|---|---|---|---|
-| 1 | 사전 등록(pre-registration) | 클라이언트가 그 서버용 정보를 이미 가지고 있을 때 | 클라이언트는 정적 자격증명 옵션을 지원하는 것이 좋다(**SHOULD**) | **씀** |
+| 1 | 사전 등록(pre-registration) | 클라이언트가 그 서버용 정보를 이미 가지고 있을 때 | 클라이언트는 정적 자격증명 옵션을 지원하는 것이 좋다(**SHOULD**) | **씀** — 기밀 클라이언트(에이전트)와 공개 클라이언트(`local-mcp-client`) 둘 |
 | 2 | Client ID Metadata Document (CIMD) | 인가 서버가 메타데이터에 `client_id_metadata_document_supported: true` 를 광고할 때 | 인가 서버·클라이언트가 지원하는 것이 좋다(**SHOULD**) | 이 practice 에서는 쓰지 않음 |
 | 3 | Dynamic Client Registration (DCR, RFC 7591) | 인가 서버 메타데이터에 `registration_endpoint` 가 있을 때 | **MAY**. 2026-07-28 에서 deprecated | 이 practice 에서는 쓰지 않음 |
 | 4 | 사용자 입력 | 위 방법이 모두 없을 때 | — | 이 practice 에서는 쓰지 않음 |
@@ -518,7 +528,7 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 **[관측]**
 
 - C3 · S1 — 인가 서버 메타데이터에 `registration_endpoint` 와 `client_id_metadata_document_supported` 가 없다. 이 인가 서버에서 가능한 등록 방식은 사전 등록뿐이다.
-- 세 practice 의 client_id 는 인가 서버 설정(`spring.security.oauth2.authorizationserver.client.*`)에 미리 등록되어 있다([2.4](#s2-4)).
+- 세 practice 의 인가 서버 설정(`spring.security.oauth2.authorizationserver.client.*`)에는 client_id 두 개가 미리 등록되어 있다 — 에이전트(기밀)와 `local-mcp-client`(공개)([2.4](#s2-4), [4.4.1](#s4-4-1)).
 
 **[구현]**
 
@@ -540,6 +550,118 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 - 발견은 처음 필요할 때 한 번 하고, 성공한 결과만 캐시한다. 실패는 캐시하지 않아 다음 요청에서 다시 시도한다(`#발견은_한_번만_한다`, `#실패는_캐시하지_않는다`). 캐시가 프로세스 수명 동안 유지되므로, 실행 중에 PRM 의 인가 서버가 바뀌는 것은 에이전트를 다시 시작할 때 감지된다. 그때 issuer 가 다르면 위 검사로 오류가 난다.
 - community 인가 서버는 모듈이 기본으로 켜는 DCR 을 `spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false` 로 끈다. 테스트: `AuthorizationServerStandardTest#동적_클라이언트_등록은_켜지_않는다`.
 
+<a id="s4-4-1"></a>
+
+#### 4.4.1 기밀 클라이언트와 공개 클라이언트
+
+사전 등록된 클라이언트가 모두 비밀을 가질 수 있는 것은 아니다. 에이전트처럼 서버에서 도는 앱은 client_secret 을 안전하게 보관한다. 사용자 기기에서 도는 MCP 클라이언트(데스크톱 앱·CLI)는 배포본을 열어 보면 비밀이 드러나므로 보관할 수 없다. 세 practice 의 인가 서버는 두 부류를 하나씩 등록해, 같은 인가 서버에서 어떻게 달리 다뤄지는지 보인다.
+
+클라이언트를 **어떻게 등록하는가**(사전 등록·CIMD·DCR, 위 표)와 등록된 클라이언트를 **어떻게 인증하는가**(기밀·공개)는 서로 다른 축이다. 여기서 다루는 두 클라이언트는 둘 다 사전 등록이다.
+
+**[명세]**
+
+- [OAuth 2.1 §2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.1) — 클라이언트 유형은 인가 서버와 안전하게 인증할 수 있는지로 나뉜다. 자격증명이 있으면 `confidential`, 없으면 `public` 이다. 한 client_id 를 두 유형으로 다루면 안 된다(**SHOULD NOT**). 인가 서버는 클라이언트 신원에 대한 확신 정도를 보고 동의를 얼마나 자주 물을지 정할 수 있다.
+- [OAuth 2.1 §8.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.1.1) — 여러 사용자에게 배포되는 앱에 박힌 비밀은 비밀로 취급하지 않는다. 네이티브 앱에 공유 비밀로 클라이언트 인증을 요구하는 것은 권장하지 않고(**NOT RECOMMENDED**), 그래도 요구한다면 그 클라이언트를 공개 클라이언트로 다뤄야 한다(**MUST**).
+- [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) · [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2) — `token_endpoint_auth_methods_supported` 의 값은 RFC 7591 의 `token_endpoint_auth_method` 값이다. 그중 `none` 은 "OAuth 2.0 §2.1 의 공개 클라이언트이고 client secret 이 없다"는 뜻이다.
+- [OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3) — 클라이언트 인증을 하지 않는 클라이언트는 토큰 요청에 `client_id` 를 보내야 한다(REQUIRED). confidential client 는 인증해야 한다(**MUST**, [§3.2.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.2)).
+- [OAuth 2.1 §7.5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.5.2) — `code_challenge`·`code_verifier` 는 클라이언트에게 REQUIRED 이고 인가 서버는 강제해야 한다(**MUST**). 예외는 기밀 클라이언트이면서 OIDC `nonce` 를 올바르게 쓴다는 확신이 있을 때뿐이다. 공개 클라이언트에는 예외가 없다 — 비밀이 없으므로 가로챈 코드를 토큰으로 바꾸지 못하게 막는 장치가 PKCE 뿐이다.
+- [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) · [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2) — 네이티브 앱은 루프백 인터페이스(`http://127.0.0.1:{port}/{path}`)로 리다이렉트를 받을 수 있다. 인가 서버는 루프백 IP 리다이렉트에 요청 시점의 어떤 포트든 허용해야 한다(**MUST**) — 클라이언트가 실행할 때 OS 에서 빈 포트를 받기 때문이다. 이름 `localhost` 는 권장하지 않는다(**NOT RECOMMENDED**).
+- [OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) · [§7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) — 인가 서버는 사용자에게 클라이언트와 요청 scope 정보를 보여 주는 것이 좋다(**SHOULD**). 클라이언트 신원을 확인할 수 없으면 동의 없이 자동으로 처리하지 않는 것이 좋고(**SHOULD NOT**), 사용자가 같은 client_id 에 이전에 동의했더라도 처음처럼 처리하는 것이 좋다(**SHOULD**).
+- [OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2) · [§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) — refresh token 발급은 인가 서버 재량이다. 공개 클라이언트에 발급한다면 재사용을 감지하도록 sender-constrained 토큰이나 회전을 써야 한다(**MUST**). [MCP 2026-07-28 Authorization — Refresh Tokens](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#refresh-tokens) 은 클라이언트가 refresh token 발급을 가정하면 안 된다고 한다(**MUST NOT**).
+- [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) · [MCP 2025-11-25 Authorization — Token Audience Binding and Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-audience-binding-and-validation) — `resource` 와 audience 규칙에는 클라이언트 유형에 따른 구분이 없다.
+
+두 클라이언트의 차이:
+
+| | 기밀 클라이언트(에이전트) | 공개 클라이언트 |
+|---|---|---|
+| client_id | `official-shop-agent` · `memory-agent` · `shop-agent` | `local-mcp-client` (세 practice 같음) |
+| 토큰 엔드포인트 인증 | `client_secret_basic` — `Authorization: Basic` | `none` — 본문에 `client_id` 만(P5) |
+| redirect_uri | `http://localhost:<에이전트 포트>/login/oauth2/code/authserver` | `http://127.0.0.1:8123/callback` — 루프백, 포트는 요청마다 달라도 된다(P10) |
+| PKCE | 필수(`require-proof-key: true`) | 필수 — 코드 가로채기를 막는 유일한 장치(P9·P11) |
+| 동의 화면 | 없음(`require-authorization-consent: false`) | 매 인가 요청마다(`require-authorization-consent: true` + `PublicClientConsentService`, P3·P8) |
+| refresh token | 발급됨, 회전 없음(C11) | 발급되지 않음(P7) |
+| access token `aud` | `resource`(C6-1) | `resource`(P5-1) — 같다 |
+| MCP 서버의 검증 | 서명·`iss`·`aud`·`exp`([4.9](#s4-9)) | 같다 — MCP 서버는 토큰을 받은 클라이언트의 유형을 보지 않는다(P6) |
+
+**다이어그램 ⑨** — 공개 클라이언트의 인가 흐름. 발견([4.1](#s4-1)~[4.3](#s4-3))은 에이전트와 같아 생략했다. 이 practice 에서 "로컬 MCP 클라이언트" 역할은 캡처 스크립트가 한다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 사용자 브라우저
+    participant L as 로컬 MCP 클라이언트<br/>(127.0.0.1)
+    participant A as 인가 서버
+    participant M as MCP 서버
+
+    Note over L: code_verifier 생성, 루프백 포트에서 콜백 대기
+    L->>B: 인가 URL 을 브라우저로 연다
+    B->>A: GET /oauth2/authorize<br/>client_id=local-mcp-client,<br/>redirect_uri=http://127.0.0.1:8123/callback,<br/>code_challenge, code_challenge_method=S256,<br/>resource=http://localhost:8111/mcp, scope=openid profile, state
+    Note over A: redirect_uri 대조 (루프백이면 포트는 요청 값 허용)<br/>code_challenge 필수, resource 허용 목록
+    Note over A,B: 로그인 세션이 없으면 먼저 302 /login
+    A-->>B: 200 동의 화면 — 이전에 동의했어도 다시 묻는다
+    B->>A: POST /oauth2/authorize<br/>client_id, state(서버가 새로 발급한 값), scope=profile
+    Note over A: 동의를 저장하지 않는다 (PublicClientConsentService)
+    A-->>B: 302 http://127.0.0.1:8123/callback?code=..., state=..., iss=...
+    B->>L: GET /callback?code=..., state=..., iss=...
+    Note over L: state · iss 검증 (4.6)
+    L->>A: POST /oauth2/token (Authorization 헤더 없음)<br/>grant_type=authorization_code, client_id=local-mcp-client,<br/>code, redirect_uri, code_verifier, resource
+    Note over A: 클라이언트 인증 대신 PKCE 검증<br/>(PublicClientAuthenticationProvider → CodeVerifierAuthenticator)
+    A-->>L: 200 access_token(aud=resource), id_token, scope, expires_in<br/>refresh_token 없음
+    L->>M: POST /mcp, Authorization: Bearer ...
+    M-->>L: 200 (기밀 클라이언트의 토큰과 같은 검증)
+```
+
+**[관측]** P 캡처(세 practice 같은 결과, official 인용).
+
+- P1·P2 — 두 메타데이터 문서 모두 `"token_endpoint_auth_methods_supported":[...,"self_signed_tls_client_auth","none"]`.
+- P3 — 공개 클라이언트의 인가 요청은 코드 대신 동의 화면을 준다. Spring 기본 동의 화면에서 뜻 있는 요소만 추리면 다음과 같다. `openid` 는 동의 대상이 아니라 체크박스가 없다.
+
+  ```text
+  HTTP/1.1 200
+  Content-Type: text/html;charset=UTF-8
+
+  <title>Consent required</title>
+  <p><span class="font-weight-bold text-primary">local-mcp-client</span> wants to access your account <span class="font-weight-bold">user</span></p>
+  <form name="consent_form" method="post" action="/oauth2/authorize">
+  <input type="hidden" name="client_id" value="local-mcp-client">
+  <input type="hidden" name="state" value="tphddfAWPNDWbZiRo9UHe4c13B885u_TCoCxPoy72TU=">
+  <input class="form-check-input" type="checkbox" name="scope" value="profile" id="profile">
+  ```
+
+- P4 — 동의를 제출하면 `302 http://127.0.0.1:8123/callback?code=...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010`. `state` 는 원래 인가 요청의 값으로 돌아온다.
+- P5 — `Authorization` 헤더 없이 `client_id=local-mcp-client` 와 `code_verifier` 로 토큰을 받는다. 응답 필드는 `access_token scope id_token token_type expires_in` 이다.
+- P5-1 — access token 의 `aud` 는 `http://localhost:8111/mcp`, 기밀 클라이언트와 같다. P6 — 그 토큰으로 `initialize`·`tools/call` 이 통과한다.
+- P7 — `refresh_token` 이 없다. 같은 인가 서버에서 기밀 클라이언트의 응답에는 있다(`access_token refresh_token scope id_token token_type expires_in`).
+- P8 — 방금 동의했는데도 두 번째 인가 요청이 다시 `200` 동의 화면으로 온다.
+- P9 — `code_challenge` 없는 인가 요청은 `error=invalid_request&error_description=OAuth 2.0 Parameter: code_challenge` 로 돌아간다.
+- P10 — 등록값은 `http://127.0.0.1:8123/callback` 인데 `http://127.0.0.1:9999/callback` 으로 요청해도 동의 뒤 그 주소로 코드가 온다. P10-1 — 경로가 다르면(`/not-registered`) `400` 이고 리다이렉트하지 않는다.
+- P11 — 틀린 `code_verifier` 는 `400 {"error":"invalid_grant"}`.
+- P12 — 공개 클라이언트가 `Authorization: Basic` 으로 비밀을 보내면 `401 {"error":"invalid_client"}` + `WWW-Authenticate: Basic realm="http://localhost:9010"`. 등록된 인증 방식이 `none` 뿐이기 때문이다.
+- P13·P14 — 대조: 기밀 클라이언트는 동의 화면 없이 곧장 코드로 리다이렉트되고, `client_id` 만으로 토큰을 요청하면 `401 {"error":"invalid_client"}` 다(`Authorization` 헤더로 인증을 시도하지 않았으므로 `WWW-Authenticate` 는 없다).
+
+**[구현]**
+
+- 등록은 설정만으로 된다(official 예). Boot 의 `OAuth2AuthorizationServerPropertiesMapper` 가 `none` 을 그대로 `ClientAuthenticationMethod` 로 만든다.
+
+  ```yaml
+  spring.security.oauth2.authorizationserver.client.local-mcp-client:
+    registration:
+      client-id: local-mcp-client          # client-secret 이 없다
+      client-authentication-methods: [none]
+      authorization-grant-types: [authorization_code, refresh_token]
+      redirect-uris: [http://127.0.0.1:8123/callback]
+      scopes: [openid, profile]
+    require-proof-key: true
+    require-authorization-consent: true
+  ```
+
+- Spring 의 `OAuth2ClientAuthenticationFilter` 는 토큰 요청에서 클라이언트 인증을 `client_assertion` → `Authorization: Basic` → 본문 `client_secret` → 공개 클라이언트 순으로 찾는다. 앞의 셋이 없고 `authorization_code` 요청에 `code_verifier` 가 있으면 `PublicClientAuthenticationConverter` 가 `client_id` 를 꺼내 `none` 인증으로 만들고, `PublicClientAuthenticationProvider` 가 그 클라이언트에 `none` 이 등록됐는지 확인한 뒤 `CodeVerifierAuthenticator` 로 PKCE 를 검증한다. 공개 클라이언트에게는 PKCE 검증이 곧 클라이언트 인증이다.
+- `none` 광고: Spring 의 `OAuth2AuthorizationServerMetadataEndpointFilter` 는 여섯 방식을 고정으로 넣고 `none` 은 넣지 않는다. official·chat-memory 는 `AuthorizationServerConfig`, community 는 `McpAuthorizationStandardConfig` 가 두 메타데이터 커스터마이저에서 `tokenEndpointAuthenticationMethods(methods -> methods.add("none"))` 로 덧붙인다. 이 Consumer 는 필터가 먼저 채운 목록에 더할 뿐 지우지 않는다. 테스트: `AuthorizationServerStandardTest#메타데이터에_공개_클라이언트_인증_방식_none_이_광고되고_기존_방식도_유지된다`(세 practice).
+- 재동의: Spring 은 받은 동의를 `OAuth2AuthorizationConsentService` 에 저장하고, 다음 요청에서 저장된 동의가 요청 scope 를 모두 덮으면 동의 화면을 건너뛴다(P8 을 이 클래스 없이 뜨면 `302` 로 곧장 코드가 온다). `PublicClientConsentService` 는 기본 저장소를 감싸 인증 방식이 `none` 인 클라이언트의 동의를 저장하지도 찾아 주지도 않는다. 동의를 받은 그 요청은 저장 여부와 상관없이 방금 고른 scope 로 코드를 발급하므로(`OAuth2AuthorizationConsentAuthenticationProvider`) 흐름은 그대로다. 테스트: `PublicClientConsentServiceTest`, `AuthorizationServerStandardTest#공개_클라이언트는_이전에_동의했어도_매번_동의_화면을_거친다`(세 practice).
+- refresh token: 등록에 `refresh_token` 그랜트가 있어도 `OAuth2RefreshTokenGenerator` 가 `authorization_code` 그랜트에서 인증 방식이 `none` 이면 만들지 않는다. 테스트: `#공개_클라이언트에는_refresh_token_을_발급하지_않는다`.
+- 루프백 포트: `OAuth2AuthorizationCodeRequestAuthenticationValidator` 가 요청 `redirect_uri` 의 호스트가 루프백이면 등록 URI 의 포트를 요청 포트로 바꿔 비교한다. 그 밖의 부분(스킴·호스트·경로)은 정확히 일치해야 한다. 테스트: `#루프백_리다이렉트는_등록된_포트와_달라도_허용되고_경로가_다르면_거부된다`, `#등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다`.
+- 그 밖의 테스트(세 practice): `#공개_클라이언트는_동의_화면을_거치고_기존_에이전트는_바로_코드를_받는다`, `#공개_클라이언트는_동의_뒤_클라이언트_인증_없이_토큰을_받고_access_token의_aud는_resource다`, `#공개_클라이언트도_code_challenge_없는_인가_요청은_거부된다`, `#공개_클라이언트가_code_verifier_를_틀리면_invalid_grant_다`.
+
 <a id="s4-5"></a>
 
 ### 4.5 인가 요청 — PKCE 와 resource
@@ -548,7 +670,7 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 
 - [OAuth 2.1 §4.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.1)
   - `response_type=code`(REQUIRED), `client_id`(REQUIRED), `code_challenge`(REQUIRED 또는 RECOMMENDED — §7.5.1), `code_challenge_method`(OPTIONAL, 기본 `plain`), `redirect_uri`(등록이 하나면 OPTIONAL, 여럿이면 REQUIRED), `scope`(OPTIONAL), `state`(OPTIONAL).
-  - 인가 서버는 `redirect_uri` 를 등록값과 단순 문자열 비교로 정확히 대조해야 한다(**MUST**).
+  - 인가 서버는 `redirect_uri` 를 등록값과 단순 문자열 비교로 정확히 대조해야 한다(**MUST**). 루프백 IP 리다이렉트의 포트만은 요청 시점의 값을 허용해야 한다(**MUST**, [§8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2) — [4.4.1](#s4-4-1)).
   - [RFC 6749 §4.1.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.1) 에서 `state` 는 RECOMMENDED 였다.
 - [RFC 7636 §4.1–§4.3](https://www.rfc-editor.org/rfc/rfc7636#section-4.1)
   - `code_verifier` 는 43~128자의 비예약 문자로 된 고엔트로피 무작위 문자열이다. `S256` 일 때 `code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))` 다.
@@ -593,7 +715,7 @@ sequenceDiagram
     else 요청이 올바름
         A-->>B: 302 /login
         B->>A: 로그인 (user / password)
-        Note over A: 동의 화면은 생략 (require-authorization-consent: false)
+        Note over A: 동의 화면은 생략 (require-authorization-consent: false)<br/>공개 클라이언트는 매번 동의 화면을 거친다 (다이어그램 ⑨)
         Note over A: 인가 코드에 client_id, redirect_uri, code_challenge,<br/>resource, 사용자를 묶어 둔다
         A-->>B: 302 redirect_uri?code=..., state=..., iss=http://localhost:9010
     end
@@ -771,7 +893,7 @@ sequenceDiagram
   - MCP 명세는 audience 검증을 설명하면서 이 프로파일을 예로 드는 데 그친다. access token 형식을 RFC 9068 로 정하지는 않는다([Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2)).
 - [OpenID Connect Core 1.0 §2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken) — ID Token 의 `aud` 에는 클라이언트의 `client_id` 가 있어야 한다(**MUST**). 다른 audience 를 더할 수는 있다(MAY).
 
-**다이어그램 ⑤** — 토큰 요청.
+**다이어그램 ⑤** — 토큰 요청. 공개 클라이언트는 `Authorization` 헤더 없이 본문에 `client_id` 를 싣고, 1번의 클라이언트 인증 자리를 3번의 PKCE 검증이 대신한다([4.4.1](#s4-4-1), 다이어그램 ⑨).
 
 ```mermaid
 sequenceDiagram
@@ -1134,6 +1256,7 @@ grant_type=refresh_token&refresh_token=Cog6N7Fv1qyO...&resource=http%3A%2F%2Floc
 
 - 새 토큰의 `aud` 가 그대로 MCP 서버다(세 practice). `jti` 가 달라 새로 발급된 토큰임을 알 수 있다.
 - 응답의 `refresh_token` 은 처음 받은 값과 **완전히 같다**(세 practice, 캡처 원본 비교). 인가 서버가 refresh token 을 회전하지 않는다. OAuth 2.1 은 회전을 public client 에만 MUST 로 요구하므로, confidential client 인 이 practice 에서는 허용되는 동작이다.
+- 공개 클라이언트(`local-mcp-client`)는 refresh token 을 **아예 받지 않는다**(P7). Spring 의 `OAuth2RefreshTokenGenerator` 가 `authorization_code` 그랜트에서 인증 방식이 `none` 이면 만들지 않는다. 발급은 인가 서버 재량이므로([OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2)) 위반이 아니고, 발급하지 않으니 위 회전·sender-constrained 요구도 해당하지 않는다. 클라이언트는 위 MCP 2026-07-28 요구대로 발급을 가정하지 않고, access token 이 만료되면 인가 요청부터 다시 한다([4.4.1](#s4-4-1)).
 
 **[구현]**
 
@@ -1296,7 +1419,7 @@ grant_type=refresh_token&refresh_token=Cog6N7Fv1qyO...&resource=http%3A%2F%2Floc
 | `response_types_supported` | REQUIRED | | 씀 | `["code"]` |
 | `response_modes_supported` | OPTIONAL, 기본 `["query","fragment"]` | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `grant_types_supported` | OPTIONAL, 기본 `["authorization_code","implicit"]` | 서버 전체 지원 그랜트 | 광고됨 (클라이언트는 `authorization_code`·`refresh_token` 만 등록) | `["authorization_code","client_credentials","refresh_token","urn:ietf:params:oauth:grant-type:token-exchange"]` |
-| `token_endpoint_auth_methods_supported` | OPTIONAL, 기본 `client_secret_basic` | | 씀 (`client_secret_basic`) | 6개 방식 |
+| `token_endpoint_auth_methods_supported` | OPTIONAL, 기본 `client_secret_basic` | 값은 [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2) 의 인증 방식 이름. `none` 은 공개 클라이언트 | 씀 (`client_secret_basic`, `none`) | 7개 방식 — Spring 고정 6개 + `none`(P1, [4.4.1](#s4-4-1)) |
 | `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL — 단 `private_key_jwt`·`client_secret_jwt` 를 광고하면 **MUST** 포함 | | 씀 — 두 방식을 광고하므로 조건부 MUST 대상([8절](#s8) 20번) | `["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]` |
 | `service_documentation` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `ui_locales_supported` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 없음 |
@@ -1362,7 +1485,7 @@ RFC 8414 와의 핵심 차이는 다음과 같다.
 | `request_object_signing_alg_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `request_object_encryption_alg_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `request_object_encryption_enc_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
-| `token_endpoint_auth_methods_supported` | OPTIONAL | 같음 | 씀 | 6개 방식 |
+| `token_endpoint_auth_methods_supported` | OPTIONAL | 같음 | 씀 (`client_secret_basic`, `none`) | 7개 방식 — E3 와 같음(P2) |
 | `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL | RFC 8414 는 조건부 MUST | 씀 — 조건부 MUST 대상([8절](#s8) 20번) | `["HS256",...,"PS512"]` 12개(E3 와 같음) |
 | `display_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `claim_types_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
@@ -1396,8 +1519,8 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 | 이름 | 표시 | 설명 | 이 practice | 관측 (S17 에이전트 · C5 스크립트) |
 |---|---|---|---|---|
 | `response_type` | REQUIRED (RFC 6749 · OAuth 2.1) | `code` | 씀 | `code` |
-| `client_id` | REQUIRED | | 씀 | `official-shop-agent` |
-| `redirect_uri` | OPTIONAL (RFC 6749) · 등록이 하나면 OPTIONAL, 여럿이면 REQUIRED (OAuth 2.1) · REQUIRED (OIDC Core) | 등록값과 단순 문자열 비교로 정확히 일치해야 한다(AS MUST) | 씀 | `http://localhost:8110/login/oauth2/code/authserver` |
+| `client_id` | REQUIRED | | 씀 | `official-shop-agent` · 공개 클라이언트 `local-mcp-client`(P3) |
+| `redirect_uri` | OPTIONAL (RFC 6749) · 등록이 하나면 OPTIONAL, 여럿이면 REQUIRED (OAuth 2.1) · REQUIRED (OIDC Core) | 등록값과 단순 문자열 비교로 정확히 일치해야 한다(AS MUST). 루프백 IP 리다이렉트는 포트만 요청 값을 허용해야 한다(AS MUST, [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) · [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2)) | 씀 | `http://localhost:8110/login/oauth2/code/authserver` · P3 `http://127.0.0.1:8123/callback` · P10 `http://127.0.0.1:9999/callback`(포트만 다름, 통과) |
 | `scope` | OPTIONAL (RFC 6749 · OAuth 2.1) · REQUIRED, `openid` 포함 (OIDC Core) | 공백 구분 | 씀 | `openid profile` |
 | `state` | RECOMMENDED (RFC 6749) · OPTIONAL (OAuth 2.1) · RECOMMENDED (OIDC Core) · 사용·검증 SHOULD (MCP) | CSRF 방지·요청 상관 | 씀 | S17 무작위 값 · C5 `walkthrough-state` |
 | `code_challenge` | REQUIRED ([RFC 7636 §4.3](https://www.rfc-editor.org/rfc/rfc7636#section-4.3)) · REQUIRED 또는 RECOMMENDED (OAuth 2.1, §7.5.1) · MUST (MCP) | `BASE64URL(SHA256(code_verifier))`, 43~128자 | 씀 | S17 `5tPg093jM6Nk0oOa1O3CYuUcYYPL92lzwX0p9ADgBHI` |
@@ -1415,7 +1538,7 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 
 `response_mode` 부터 `acr_values` 까지는 OpenID Connect 가 더한 파라미터로, MCP 인가 명세의 범위 밖이다. OIDC Core 는 이 밖에도 `claims`, `request`, `request_uri` 같은 인가 요청 파라미터를 다른 절에서 정의한다. 이 practice 의 범위 밖이다.
 
-**응답** — [E6](#e6). 로그인 세션이 없으면 먼저 `302 /login` 이다(Spring Authorization Server 동작, 명세 범위 밖).
+**응답** — [E6](#e6). 로그인 세션이 없으면 먼저 `302 /login` 이다(Spring Authorization Server 동작, 명세 범위 밖). 공개 클라이언트는 요청이 올바르면 E6 대신 `200` 동의 화면이 먼저 온다(P3, P8). 그 폼이 같은 URI 로 `client_id`·`state`(서버가 새로 발급한 값)·`scope` 를 `POST` 하고, 그 응답이 E6 이다(P4). 동의 화면과 폼 형식은 Spring 기본 구현이고 명세가 정하지 않는다([OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) 은 클라이언트와 scope 정보를 보여 주라고만 한다).
 
 <a id="e6"></a>
 
@@ -1424,7 +1547,7 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 | 항목 | 내용 |
 |---|---|
 | 형태 | `302 Found`, `Location: <redirect_uri>?<파라미터>` (쿼리 컴포넌트, `application/x-www-form-urlencoded`) |
-| 받는 곳 | 에이전트 `GET /login/oauth2/code/authserver` |
+| 받는 곳 | 에이전트 `GET /login/oauth2/code/authserver` (공개 클라이언트는 `http://127.0.0.1:8123/callback`, P4) |
 | 근거 | [RFC 6749 §4.1.2](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2), [§4.1.2.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1) · [OAuth 2.1 §4.1.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2), [§4.1.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2.1) · [RFC 9207 §2](https://www.rfc-editor.org/rfc/rfc9207#section-2) · [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) · [MCP 2026-07-28 Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation) |
 
 **성공 응답**
@@ -1451,7 +1574,7 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 |---|---|---|---|
 | `invalid_request` | RFC 6749 §4.1.2.1 · RFC 7636 §4.4.1 | 필수 파라미터 누락·잘못된 값·중복. PKCE 필수인데 `code_challenge` 없음, 지원하지 않는 변환 방식 | `code_challenge` 없음 (C17) |
 | `unauthorized_client` | RFC 6749 §4.1.2.1 | 이 클라이언트는 이 방식으로 코드를 요청할 수 없음 | 관측 없음 |
-| `access_denied` | RFC 6749 §4.1.2.1 | 자원 소유자나 인가 서버가 거부 | 관측 없음 (동의 화면 없음) |
+| `access_denied` | RFC 6749 §4.1.2.1 | 자원 소유자나 인가 서버가 거부 | 관측 없음 — 공개 클라이언트의 동의 화면에서 거부하면 나오지만 캡처하지 않았다 |
 | `unsupported_response_type` | RFC 6749 §4.1.2.1 | 이 방식의 코드 발급 미지원 | 관측 없음 |
 | `invalid_scope` | RFC 6749 §4.1.2.1 | scope 가 잘못됐거나 알 수 없음 | 관측 없음 |
 | `server_error` | RFC 6749 §4.1.2.1 | 서버 내부 오류(리다이렉트로는 500 을 줄 수 없어서 정의) | 관측 없음 |
@@ -1472,11 +1595,11 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 
 | 이름 | 위치 | 표시 | 설명 | 이 practice | 관측 (C6 · S5) |
 |---|---|---|---|---|---|
-| `Authorization: Basic` | 헤더 | confidential client 는 인증 MUST ([OAuth 2.1 §3.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.1)) · `client_secret_basic` 은 [OAuth 2.1 §2.4.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.4.1) | `base64(client_id:client_secret)` | 씀 | C6 `-u official-shop-agent:...` |
+| `Authorization: Basic` | 헤더 | confidential client 는 인증 MUST ([OAuth 2.1 §3.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.1)) · `client_secret_basic` 은 [OAuth 2.1 §2.4.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.4.1) | `base64(client_id:client_secret)` | 씀 (기밀) · 공개 클라이언트는 보내지 않음 | C6 `-u official-shop-agent:...` · P5 없음 |
 | `grant_type` | 본문 | REQUIRED | `authorization_code` | 씀 | C6 |
 | `code` | 본문 | REQUIRED | 인가 응답의 코드 | 씀 | C6 |
 | `redirect_uri` | 본문 | 인가 요청에 있었으면 REQUIRED, 같은 값 (RFC 6749) · OAuth 2.1 목록에서 제외, 하위 호환은 §10.2 | | 씀 | C6 |
-| `client_id` | 본문 | 클라이언트 인증을 하지 않을 때 REQUIRED | | 이 practice 에서는 쓰지 않음 (Basic 인증) | C6 없음 |
+| `client_id` | 본문 | 클라이언트 인증을 하지 않을 때 REQUIRED ([OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3)) | | 씀 (공개 클라이언트) — 기밀 클라이언트는 Basic 인증이라 보내지 않음 | C6 없음 · P5 `local-mcp-client` |
 | `code_verifier` | 본문 | REQUIRED (RFC 7636 §4.5) · `code_challenge` 가 있었으면 REQUIRED, 없었으면 쓰면 안 됨 (OAuth 2.1) | 원래 무작위 문자열 | 씀 | C6 `dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk` |
 | `resource` | 본문 | 표시 없음 (RFC 8707 §2.2) · MUST (MCP) | 토큰을 쓸 리소스 | 씀 | C6 `http://localhost:8111/mcp` |
 | `scope` | 본문 | 이 그랜트에서는 정의 없음 | | 이 practice 에서는 쓰지 않음 | 없음 |
@@ -1491,7 +1614,7 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 | `access_token` | 필드 | REQUIRED | | 씀 | `eyJraWQiOiIyYjk5ZGJl...` |
 | `token_type` | 필드 | REQUIRED, 대소문자 무시 · OIDC 는 `Bearer` MUST | | 씀 | `Bearer` |
 | `expires_in` | 필드 | RECOMMENDED | 초 단위 수명 | 씀 | `299` |
-| `refresh_token` | 필드 | OPTIONAL | | 씀 | `GYoLPa20WGKQ...` |
+| `refresh_token` | 필드 | OPTIONAL | | 씀 (기밀) — 공개 클라이언트에는 발급하지 않음([4.10](#s4-10)) | `GYoLPa20WGKQ...` · P5·P7 없음 |
 | `scope` | 필드 | 요청과 같으면 OPTIONAL (RFC 6749) · RECOMMENDED (OAuth 2.1), 다르면 REQUIRED | | 씀 | `openid profile` |
 | `id_token` | 필드 | OIDC 토큰 응답에 포함 ([OIDC Core §3.1.3.3](https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse)) | `aud` 에 client_id MUST ([§2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken)) | 씀 | `eyJraWQiOiIyYjk5ZGJl...`, `aud=official-shop-agent` (C6-2) |
 
@@ -1500,8 +1623,8 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 | `error` 코드 | 정의 | 뜻 | 관측 |
 |---|---|---|---|
 | `invalid_request` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 | 필수 파라미터 누락, 중복, 인증 방식 여러 개, `code_challenge` 없이 `code_verifier` 전송 등 | — |
-| `invalid_client` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 | 클라이언트 인증 실패. `Authorization` 헤더로 인증을 시도했다면 **401 + `WWW-Authenticate` MUST** | S8 `401`, `WWW-Authenticate: Basic realm="http://localhost:9010"`, `{"error":"invalid_client"}` |
-| `invalid_grant` | RFC 6749 §5.2 · RFC 7636 §4.6 | 코드·refresh token 이 무효·만료·폐기, redirect_uri 불일치, 다른 클라이언트의 코드, `code_verifier` 불일치 | S7 `400 {"error":"invalid_grant"}` |
+| `invalid_client` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 | 클라이언트 인증 실패. `Authorization` 헤더로 인증을 시도했다면 **401 + `WWW-Authenticate` MUST** | S8 `401`, `WWW-Authenticate: Basic realm="http://localhost:9010"`, `{"error":"invalid_client"}` · P12 공개 클라이언트가 Basic 으로 비밀을 보냄 → 같은 `401` + `WWW-Authenticate` · P14 기밀 클라이언트가 `client_id` 만 보냄 → `401`, `WWW-Authenticate` 없음(헤더로 인증을 시도하지 않음) |
+| `invalid_grant` | RFC 6749 §5.2 · RFC 7636 §4.6 | 코드·refresh token 이 무효·만료·폐기, redirect_uri 불일치, 다른 클라이언트의 코드, `code_verifier` 불일치 | S7 `400 {"error":"invalid_grant"}` · P11(공개 클라이언트) 같음 |
 | `unauthorized_client` | RFC 6749 §5.2 | 이 클라이언트에 허용되지 않은 그랜트 | — |
 | `unsupported_grant_type` | RFC 6749 §5.2 | 지원하지 않는 그랜트 | — |
 | `invalid_scope` | RFC 6749 §5.2 | scope 가 잘못됐거나 허가 범위를 넘음 | — |
@@ -1525,9 +1648,9 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 | `refresh_token` | 본문 | REQUIRED | | 씀 | `Cog6N7Fv1qyO...` |
 | `scope` | 본문 | OPTIONAL | 원래 허가 범위를 넘으면 안 됨(MUST NOT). 생략하면 원래 범위 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `resource` | 본문 | 표시 없음 (RFC 8707 §2.2, 모든 그랜트에 사용 가능) · 토큰 요청에 MUST (MCP) | 원래 허가된 리소스로 제한될 수 있음 | 씀 | `http://localhost:8111/mcp` |
-| `client_id` | 본문 | 인증을 하지 않는 클라이언트일 때 사용 (OAuth 2.1 §3.2.2 OPTIONAL) | | 이 practice 에서는 쓰지 않음 | 없음 |
+| `client_id` | 본문 | 인증을 하지 않는 클라이언트일 때 사용 (OAuth 2.1 §3.2.2 OPTIONAL) | | 이 practice 에서는 쓰지 않음 — 공개 클라이언트는 refresh token 을 받지 않는다(P7) | 없음 |
 
-**응답** — E7 성공 응답과 같은 형식([OAuth 2.1 §4.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.2)). 새 refresh token 을 줄 수 있고(MAY), 주면 클라이언트는 옛것을 버려야 한다(MUST). public client 에는 회전이나 sender-constrained 토큰이 MUST 다([§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1)). 오류 코드는 E7 과 같다.
+**응답** — E7 성공 응답과 같은 형식([OAuth 2.1 §4.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.2)). 새 refresh token 을 줄 수 있고(MAY), 주면 클라이언트는 옛것을 버려야 한다(MUST). public client 에는 회전이나 sender-constrained 토큰이 MUST 다([§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1)). 이 practice 의 공개 클라이언트는 refresh token 자체를 받지 않아 해당하지 않는다([4.10](#s4-10)). 오류 코드는 E7 과 같다.
 
 | 필드 | 관측 (C11, 세 practice) |
 |---|---|
@@ -1752,6 +1875,8 @@ official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egr
 
 이 practice 의 관측: S4([4.5](#s4-5))에서 등록되지 않은 `redirect_uri=http://evil.example/callback` 은 리다이렉트 자체가 되지 않는다(`400`, `Location` 없음) — 코드가 브라우저를 거쳐 공격자에게 갈 방법이 없다. `require-proof-key: true` 가 `code_challenge` 없는 인가 요청을 아예 거부하므로(C17), 이 practice 의 모든 인가 코드는 PKCE 로 보호된다.
 
+정확 일치에는 명세가 정한 예외가 하나 있다. 루프백 IP 리다이렉트는 포트를 요청 시점 값으로 허용해야 한다(**MUST**, [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) · [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2)). 루프백 주소로 오는 리다이렉트는 같은 기기 밖으로 나가지 않으므로 포트를 풀어도 코드가 다른 기기로 새지 않는다. 같은 기기의 다른 프로세스가 그 포트에서 코드를 받을 수는 있어서, 이때 코드를 쓸모없게 만드는 것이 PKCE 다. 관측: P10 에서 등록값 `http://127.0.0.1:8123/callback` 과 포트만 다른 `:9999` 는 통과하고, P10-1 에서 경로가 다른 `/not-registered` 는 `400` 으로 리다이렉트되지 않는다. P11 에서 `code_verifier` 가 틀린 토큰 요청은 `invalid_grant` 다.
+
 <a id="s7-6"></a>
 
 ### 7.6 세션 오류 응답의 정보 노출
@@ -1780,6 +1905,16 @@ official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egr
 
 [1.2](#s1) 각주에서 이미 밝혔듯, `docs/superpowers/captures/2026-09-12-*.txt`·`2026-09-16-official-supplement.txt` 원본에는 access token·refresh token·id_token·인가 코드가 줄이지 않은 원문으로 남아 있다. 이 문서에 인용할 때는 토큰을 앞 20자(코드·refresh_token 은 앞 12자) + `...` 로 줄였지만, 캡처 원본 자체는 그렇지 않다. 모두 로컬 학습용 인가 서버가 발급한 짧은 수명(5~30분)의 토큰이고 인가 서버를 내리면 서명 검증에 쓸 키도 함께 사라지지만, 이 원본 파일을 저장소 밖으로 옮기거나 공유할 때는 그 사실이 사라지지 않는다.
 
+
+<a id="s7-10"></a>
+
+### 7.10 공개 클라이언트 사칭과 재동의
+
+**[명세]** [OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) · [§7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) — 클라이언트 신원을 확인할 수 없으면 인가 서버는 요청을 동의 없이 자동으로 처리하지 않는 것이 좋고(**SHOULD NOT**), 사용자가 같은 client_id 에 이전에 동의했더라도 처음처럼 처리하는 것이 좋다(**SHOULD**).
+
+공개 클라이언트의 `client_id` 는 비밀이 아니다. 같은 기기의 다른 프로그램이 `local-mcp-client` 를 대며 인가 요청을 보낼 수 있다. 인가 서버가 "이 사용자는 이 client_id 에 이미 동의했다"며 코드를 바로 내주면, 사용자는 모르는 사이에 그 프로그램에 코드를 넘기게 된다. 매번 동의 화면을 거치면 사용자가 자기가 시작하지 않은 요청을 알아챌 기회가 생긴다. 코드가 엉뚱한 곳으로 가더라도 `code_verifier` 없이는 토큰으로 바꿀 수 없다(PKCE).
+
+이 practice 의 관측: Spring 기본 동작은 동의를 저장해 두 번째 요청부터 동의 화면을 건너뛴다. `PublicClientConsentService` 로 공개 클라이언트의 동의를 저장하지 않아, P8 에서 두 번째 요청도 `200` 동의 화면으로 온다([4.4.1](#s4-4-1)). 기밀 클라이언트(에이전트)는 비밀로 신원을 증명하므로 이 절의 대상이 아니고, 동의 화면 자체를 켜지 않는다.
 ---
 
 <a id="s8"></a>
@@ -1812,8 +1947,12 @@ official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egr
 | 20 | `token_endpoint_auth_signing_alg_values_supported`·`revocation_endpoint_auth_signing_alg_values_supported`·`introspection_endpoint_auth_signing_alg_values_supported` — `private_key_jwt`·`client_secret_jwt` 를 광고하면 포함해야 하는 조건부 **MUST**(RFC 8414 §2) | **예** — `AuthorizationServerConfig` 가 AS 메타데이터·OIDC 디스커버리 양쪽의 `authorizationServerMetadataCustomizer`/`providerConfigurationCustomizer` 에 세 claim 을 추가한다. 값은 지어낸 목록이 아니라 Spring Authorization Server 의 `JwtClientAssertionDecoderFactory` 가 `client_secret_jwt`·`private_key_jwt` 인증에서 실제로 검증기를 만들어내는 알고리즘 전부(`MacAlgorithm` HS256/384/512 + `SignatureAlgorithm` RS/ES/PS 256/384/512, `none` 제외)다. 최신 Spring Security 에는 이 claim 상수 자체가 없어 문자열 리터럴로 직접 심었다([E3](#e3), [E4](#e4)) | **예** — 같음(`AuthorizationServerConfig`) | **예** — `McpAuthorizationStandardConfig` 가 모듈 확장점으로 같은 claim 을 심는다 |
 | 21 | 발견 결과 재검증 — 리소스 서버가 새 챌린지로 메타데이터 변경을 알리면 클라이언트가 다시 받아 검증(RFC 9728 §5.2 **SHOULD**) | **아니오** — 발견 결과(PRM·AS 메타데이터)를 프로세스 수명 동안 캐시하고, 실행 중 받은 401 로 다시 읽지 않는다([4.10](#s4-10)) | **아니오** — 같음 | **아니오** — 같음(같은 캐시 전략) |
 | 22 | `GET /mcp` SSE 스트림의 응답 시작을 클라이언트가 확인할 수 있는가 (명세에 규정 없음 — 참고) | 해당 없음 — 서버는 명세대로 SSE 로 응답하거나 405 를 고를 수 있고 SSE 를 골랐지만(위반 아님), `ServerResponse.sse(...)` 가 첫 이벤트를 보낼 때에야 헤더를 내보내 보낼 메시지가 없으면 5초 넘게 상태줄조차 오지 않는다(S11, curl 종료 코드 28)([E10](#e10)) | 해당 없음 — 같음 | 해당 없음 — 같음(같은 서버 전송) |
+| 23 | 공개 클라이언트 — 메타데이터의 `none`([RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) · [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2))과 `client_id` 만으로 하는 토큰 요청([OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3) REQUIRED) | 예 — `application.yml` 의 `local-mcp-client`, `AuthorizationServerConfig` 가 AS·OIDC 두 문서에 `none` 을 더한다(Spring 은 광고하지 않음), P1·P2·P5 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig`, P1·P2·P5 |
+| 24 | 루프백 IP 리다이렉트의 포트 허용([RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) · [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2) **MUST**) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator` 기본 동작, P10·P10-1, `#루프백_리다이렉트는_등록된_포트와_달라도_허용되고_경로가_다르면_거부된다` | 예 — 같음 | 예 — 같음 |
+| 25 | 신원을 확인할 수 없는 클라이언트의 재동의([OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) **SHOULD** / **SHOULD NOT**) | 예 — `PublicClientConsentService`. Spring 기본은 동의를 저장해 다음 요청부터 건너뛰므로 직접 메웠다([7.10](#s7-10)), P8, `#공개_클라이언트는_이전에_동의했어도_매번_동의_화면을_거친다` | 예 — 같음 | 예 — 같음(모듈의 동의 판단 조건과 무관하게 저장소 단계에서 막는다) |
+| 26 | 공개 클라이언트 refresh token 의 회전 또는 sender-constrained([OAuth 2.1 §4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) **MUST**) | 해당 없음 — 공개 클라이언트에 refresh token 을 발급하지 않는다(`OAuth2RefreshTokenGenerator`, 발급은 재량 — [§1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2)), P7 | 해당 없음 — 같음 | 해당 없음 — 같음 |
 
-12번(HTTPS)은 세 practice 모두 위반이다. 이유는 로컬에서 인가 서버·MCP 서버·에이전트를 각각 다른 포트로 띄우고 TLS 종단 없이 요청·응답을 그대로 관측하기 위해서다([9절](#s9)). 19번(SSE 이벤트 `id` 유일성)도 세 practice 모두 MUST 를 지키지 않는다 — 원인이 MCP Java SDK 서버 전송의 `public final`·`private` 클래스 구조에 있어(위 19번 근거) 이 practice 가 라이브러리를 포크하지 않는 한 고칠 수 없다. 18번(`invalid_client` 의 `WWW-Authenticate`)과 20번(조건부 `..._auth_signing_alg_values_supported` 세 필드)은 Spring Authorization Server 가 구현하지 않는 부분이었지만 세 practice 모두 `ClientAuthenticationChallengeFailureHandler` 와 메타데이터 커스터마이저로 직접 메워 이제 MUST 를 지킨다. 21번(발견 결과 재검증)은 SHOULD 를 이행하지 않는다. 17번(RFC 9068 프로파일)과 22번(GET 스트림 응답 시작 확인)은 MCP 이 요구하지 않거나 명세에 규정이 없는 참고 항목이라 MUST/SHOULD 위반으로 세지 않는다. 남은 MUST 위반은 12번(HTTPS)과 19번(SSE 이벤트 `id`) 둘뿐이고, 나머지 MUST 항목(1~11, 13, 18, 20)은 세 practice 모두 관측 또는 테스트로 확인했다.
+12번(HTTPS)은 세 practice 모두 위반이다. 이유는 로컬에서 인가 서버·MCP 서버·에이전트를 각각 다른 포트로 띄우고 TLS 종단 없이 요청·응답을 그대로 관측하기 위해서다([9절](#s9)). 19번(SSE 이벤트 `id` 유일성)도 세 practice 모두 MUST 를 지키지 않는다 — 원인이 MCP Java SDK 서버 전송의 `public final`·`private` 클래스 구조에 있어(위 19번 근거) 이 practice 가 라이브러리를 포크하지 않는 한 고칠 수 없다. 18번(`invalid_client` 의 `WWW-Authenticate`)과 20번(조건부 `..._auth_signing_alg_values_supported` 세 필드)은 Spring Authorization Server 가 구현하지 않는 부분이었지만 세 practice 모두 `ClientAuthenticationChallengeFailureHandler` 와 메타데이터 커스터마이저로 직접 메워 이제 MUST 를 지킨다. 21번(발견 결과 재검증)은 SHOULD 를 이행하지 않는다. 17번(RFC 9068 프로파일)과 22번(GET 스트림 응답 시작 확인)은 MCP 이 요구하지 않거나 명세에 규정이 없는 참고 항목이라 MUST/SHOULD 위반으로 세지 않는다. 23~26번은 공개 클라이언트를 등록하면서 생긴 항목이다. 25번(재동의)은 Spring 기본 동작이 SHOULD NOT 에 걸려 `PublicClientConsentService` 로 메웠고, 26번은 refresh token 을 발급하지 않아 해당하지 않는다. 남은 MUST 위반은 12번(HTTPS)과 19번(SSE 이벤트 `id`) 둘뿐이고, 나머지 MUST 항목(1~11, 13, 18, 20, 23, 24)은 세 practice 모두 관측 또는 테스트로 확인했다.
 
 ---
 
@@ -1824,8 +1963,9 @@ official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egr
 | 항목 | 다루지 않는 이유 |
 |---|---|
 | 2026-07-28 전송(stateless) | 세 practice 가 쓰는 MCP Java SDK 2.0.0 의 `ProtocolVersions` 가 `2025-11-25` 까지만 안다([1.1](#s1), [6.4](#s6-4)). `_meta` 기반 요청, `server/discover`, `Mcp-Method`/`Mcp-Name` 헤더를 SDK 가 만들거나 받지 않는다. |
-| Client ID Metadata Document(CIMD) | `client_id` 로 쓰는 문서 URL 이 `https` 스킴이어야 한다(**MUST**, [4.4](#s4-4)). 이 practice 는 인가 서버·에이전트를 전부 `http://localhost` 로 띄우므로 이 전제를 만족할 수 없다. |
+| Client ID Metadata Document(CIMD) | `client_id` 로 쓰는 문서 URL 이 `https` 스킴이어야 하고(**MUST**, [4.4](#s4-4)) 인가 서버가 그 문서를 가져와야 한다. 인가 서버·에이전트를 전부 `http://localhost` 로 띄우는 이 practice 와 맞지 않아 별도 practice 로 미뤘다. CIMD 로 들어온 클라이언트가 결국 되는 모습 — 비밀 없는 공개 클라이언트, PKCE, 동의 — 은 사전 등록한 `local-mcp-client` 로 볼 수 있다([4.4.1](#s4-4-1)). |
 | Dynamic Client Registration(DCR) | 2026-07-28 에서 deprecated 로 표시되고 CIMD 로 대체됐다([4.4](#s4-4)). 사전 등록만으로도 흐름을 다 보일 수 있어 새로 켜지 않았다. |
+| 공개 클라이언트 프로그램 | `local-mcp-client` 로 붙는 실제 프로그램(루프백 콜백 서버, `state`·`iss` 검증, 토큰 보관)은 만들지 않았다. 인가 서버가 공개 클라이언트를 어떻게 다루는지가 주제라, 클라이언트 쪽은 캡처 스크립트(`curl`)가 흉내 낸다([4.4.1](#s4-4-1)). |
 | HTTPS | 인가 서버·MCP 서버·에이전트를 로컬에서 여러 포트로 띄워 요청·응답을 그대로 관측하는 것이 이 practice 들의 목적이다. TLS 종단을 두면 관측 스크립트(`curl`)와 설정이 늘어나는 대신, 이 문서가 다루는 인가 흐름 자체에는 새로운 것이 생기지 않는다([7.8](#s7-8), [8절](#s8) 12번). |
 | scope 설계·step-up 인가 | 이 practice 의 MCP 서버는 인증된 요청이면 모든 툴을 허용한다([4.9](#s4-9)) — scope 를 나누지 않는다. scope 최소화, 런타임 `insufficient_scope` 챌린지, step-up 재인가는 다음 practice(`mcp-security-authz`)의 범위다. |
 
@@ -1861,7 +2001,8 @@ official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egr
 - RFC 7636 PKCE: https://www.rfc-editor.org/rfc/rfc7636
 - RFC 6749 OAuth 2.0: https://www.rfc-editor.org/rfc/rfc6749
 - RFC 6750 Bearer Token Usage: https://www.rfc-editor.org/rfc/rfc6750
-- RFC 7591 Dynamic Client Registration: https://www.rfc-editor.org/rfc/rfc7591
+- RFC 7591 Dynamic Client Registration(`token_endpoint_auth_method` 값, `none`): https://www.rfc-editor.org/rfc/rfc7591
+- RFC 8252 OAuth 2.0 for Native Apps(루프백 리다이렉트): https://www.rfc-editor.org/rfc/rfc8252
 - RFC 9068 JWT Profile for Access Tokens: https://www.rfc-editor.org/rfc/rfc9068
 - OAuth 2.1: https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13
 - OpenID Connect Discovery 1.0: https://openid.net/specs/openid-connect-discovery-1_0.html

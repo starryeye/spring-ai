@@ -6,7 +6,7 @@
 사용자가 브라우저로 로그인하고, 에이전트가 그 사용자를 대신해 보호된 MCP 서버를 호출하는 흐름은
 community 와 동일하다. 다른 것은 그 흐름을 만드는 재료뿐이다 — 커뮤니티 모듈 3종이 자동으로
 해주던 배선과, MCP 인가 표준(발견·PKCE·`resource`·`aud`·`iss`)이 요구하는 배선을 여기서는
-20개 파일, 1,335줄로 손으로 짠다.
+31개 Java 파일(`src/main/java` 기준 1,902줄)로 손으로 짠다.
 
 **결론부터: 성공했다.** 세 앱 모두 뜨고, 401 이 나오고, 재고 숫자가 나오고, 로그의 `사용자=user`
 도 나온다. `mcp-security-authn-community` 가 이미 밝힌 것들(기동 순서, `initialized: false`,
@@ -32,6 +32,14 @@ community 와 동일하다. 다른 것은 그 흐름을 만드는 재료뿐이�
   `authorization_response_iss_parameter_supported` 를 광고한다
   (`IssuerIdentifyingAuthorizationResponseHandler`). 필터체인 두 개를 `AuthorizationServerConfig`
   로 직접 정의한다.
+- **공개 클라이언트** — 인가 서버에는 에이전트(기밀 클라이언트, `client_secret_basic`) 말고
+  비밀이 없는 `local-mcp-client` 가 하나 더 사전 등록되어 있다(`application.yml`). 사용자 기기에서
+  도는 MCP 클라이언트를 가정한 등록이다 — 인증 방식 `none`(토큰 요청에 `client_id` 만), PKCE 필수,
+  루프백 리다이렉트 `http://127.0.0.1:8123/callback`(포트는 요청마다 달라도 된다, RFC 8252 §7.3),
+  매 인가 요청마다 동의 화면(`PublicClientConsentService`, OAuth 2.1 §7.3.1). 메타데이터의
+  `token_endpoint_auth_methods_supported` 에 `none` 을 더해 광고한다(Spring 은 넣지 않는다).
+  Spring 은 공개 클라이언트에 refresh token 을 발급하지 않는다. 두 부류의 비교는
+  [학습 문서 4.4.1](../MCP-AUTHORIZATION.md#s4-4-1).
 - **MCP 서버**는 보호 리소스 메타데이터를 경로형(`/.well-known/oauth-protected-resource/mcp`)
   으로 제공하고, 401 챌린지가 그 URL 을 가리키며, 토큰의 `aud` 를 검증하고, `Origin`/`Host`
   (`McpTransportConfig`)와 `MCP-Protocol-Version`(`McpProtocolVersionFilter`)을 검증한다.
@@ -100,7 +108,7 @@ community 에서 라이브러리 3개(전이 의존 포함 수십 개 자동설�
 | `McpTransportConfig.java` | 전송 빈을 직접 만들어 `Origin`/`Host` 검증기(SDK 의 `DefaultServerTransportSecurityValidator`)를 단다 |
 | `McpProtocolVersionFilter.java` | `MCP-Protocol-Version` 헤더 검증(MCP 전송 명세) — SDK 가 하지 않는 것을 보충한다 |
 
-`auth-server` — MCP 인가 표준 준수(PKCE·`resource`·`aud`·`iss`):
+`auth-server` — MCP 인가 표준 준수(PKCE·`resource`·`aud`·`iss`·공개 클라이언트):
 
 | 파일 | 하는 일 |
 |---|---|
@@ -109,6 +117,8 @@ community 에서 라이브러리 3개(전이 의존 포함 수십 개 자동설�
 | `ResourceAudienceTokenCustomizer.java` | access token 의 `aud` 를 요청한 `resource` 로 발급한다(RFC 8707 §2.2) |
 | `IssuerIdentifyingAuthorizationResponseHandler.java` | 인가 응답(성공·오류)에 `iss` 를 싣는다(RFC 9207) |
 | `McpResourceProperties.java` | 이 인가 서버가 토큰을 내줄 수 있는 보호 리소스(MCP 서버) 목록 |
+| `ClientAuthenticationChallengeFailureHandler.java` | `Authorization` 헤더로 인증을 시도했다 실패한 `invalid_client` 에 `WWW-Authenticate` 를 붙인다(RFC 6749 §5.2) |
+| `PublicClientConsentService.java` | 공개 클라이언트(`none`)의 동의를 기록하지 않아 매 인가 요청이 동의 화면을 거치게 한다(OAuth 2.1 §7.3.1) |
 
 community 판에 있던 `OidcDiscoveryConfig` 는 official 에는 없다(Boot 자동설정이 `.oidc(...)`
 를 기본으로 켜므로 필요 없다).
@@ -133,6 +143,15 @@ cd practice/mcp-security-authn-official
 issuer 메타데이터를 즉시 조회한다) — 8절 학습 포인트 참고.
 
 브라우저에서 `http://localhost:8110/` 을 열고 **`user` / `password`** 로 로그인한다.
+
+공개 클라이언트(`local-mcp-client`) 흐름은 그 클라이언트 프로그램이 없으므로 스크립트로 밟는다.
+인가 서버와 MCP 서버만 떠 있으면 되고, 기본값이 official 이다. 동의 화면 → 비밀 없는 토큰 요청 →
+MCP 호출, 그리고 PKCE·루프백 포트·재동의 확인까지 P1~P14 단계를 찍는다
+([기록](../../docs/superpowers/captures/2026-09-25-official-public-client.txt)).
+
+```bash
+../../docs/superpowers/captures/mcp-authorization-public-client.sh
+```
 
 ```bash
 ./stop.sh
@@ -419,6 +438,8 @@ JWT 리소스 서버 + 같은 호스트에 여러 OAuth2 앱"이라는 **문제 
 - 토큰 만료·리프레시 갱신 경로 — 세션이 짧아 실측하지 못했다. `AuthorizedClientServiceOAuth2AuthorizedClientManager` 는 리프레시를 지원하지만 이 practice 에서 만료를 실제로 겪어보지는 않았다
 - UI 완성도 — `index.html` 은 OAuth 리다이렉트를 브라우저에 맡기기 위한 최소 장치다
 - `client_credentials`, DCR(동적 클라이언트 등록)
+- CIMD(Client ID Metadata Document) — `https` 문서 URL 이 전제라 별도 practice 로 미뤘다
+- 공개 클라이언트 쪽 프로그램(루프백 콜백 서버, 토큰 보관) — 인가 서버 쪽만 다루고 클라이언트는 캡처 스크립트가 흉내 낸다
 
 ## 참고
 

@@ -13,8 +13,8 @@
 > 먼저 읽는다. 이 README 는 그 표준을 이 practice 가 어떻게 구현했는지를 다룬다 — 구현은
 > 부모 [`mcp-security-authn-official`](../mcp-security-authn-official)과 동일하다(에이전트가
 > 인가 서버 주소를 설정에 두지 않고 401 챌린지 → 메타데이터 순서로 발견, PKCE(S256)와
-> `resource`, `aud` 검증, `Origin`/`Host` 검증 등). 이 README 는 그 위에 얹은 대화 기억·
-> 격리만 다룬다.
+> `resource`, `aud` 검증, `Origin`/`Host` 검증, 비밀 없는 공개 클라이언트 `local-mcp-client`
+> 등록 등). 이 README 는 그 위에 얹은 대화 기억·격리만 다룬다.
 
 ## 부모와 달라지는 것
 
@@ -104,6 +104,16 @@ cd practice/mcp-security-authn-chat-memory
 브라우저에서 `http://localhost:8130/`을 열고 `alice`/`alice` 또는 `bob`/`bob`으로 로그인한다.
 `spring.ai.mcp.client.initialized: false`이므로 **로그인 후 첫 채팅 요청은 그 안에서 MCP
 핸드셰이크까지 함께 하느라 눈에 띄게 느리다**(실측 약 30초) — 두 번째 질문부터는 빨라진다.
+
+공개 클라이언트(`local-mcp-client`) 흐름은 스크립트로 밟는다. 인가 서버와 MCP 서버만 떠 있으면
+된다([기록](../../docs/superpowers/captures/2026-09-25-chat-memory-public-client.txt)).
+
+```bash
+AS=http://localhost:9020 MCP_BASE=http://localhost:8131 LOGIN_USERNAME=alice LOGIN_PASSWORD=alice \
+  CONFIDENTIAL_CLIENT_ID=memory-agent CONFIDENTIAL_CLIENT_SECRET=memory-agent-secret \
+  CONFIDENTIAL_REDIRECT_URI=http://localhost:8130/login/oauth2/code/authserver \
+  ../../docs/superpowers/captures/mcp-authorization-public-client.sh
+```
 
 **두 사용자를 동시에 로그인시켜 격리를 눈으로 보려면 창 두 개로는 부족하다.** 세션 쿠키
 (`MEMAGENTSESSIONID`)는 브라우저 프로필 단위로 공유되므로, 같은 브라우저의 일반 창 두 개는
