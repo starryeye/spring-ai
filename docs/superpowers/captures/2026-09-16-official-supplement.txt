@@ -1,4 +1,4 @@
-# 보충 관측 — 2026-09-20 (mcp-authorization-supplement.sh)
+# 보충 관측 — 2026-09-24 (mcp-authorization-supplement.sh)
 # AS=http://localhost:9010 MCP=http://localhost:8111/mcp AGENT=http://localhost:8110 CLIENT_ID=official-shop-agent
 
 
@@ -38,7 +38,7 @@ Pragma: no-cache
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"timestamp":"2026-09-20T11:21:20.969Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
+{"timestamp":"2026-09-24T04:03:25.636Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
 
 
 ===== S5. 토큰 요청 성공 — 응답 헤더와 필드 (authorization_code) =====
@@ -48,7 +48,7 @@ Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
 Content-Length: 1702
 
-{"access_token":"eyJraWQiOiJlZDY1ZWFl...","refresh_token":"NfSEsMUmrh9W...","scope":"openid profile","id_token":"eyJraWQiOiJlZDY1ZWFl...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI1ZDI5YjQ2...","refresh_token":"c2EWpcuQtqtf...","scope":"openid profile","id_token":"eyJraWQiOiI1ZDI5YjQ2...","token_type":"Bearer","expires_in":299}
 
 
 ===== S6. 토큰 요청의 resource 가 인가 요청과 다름 (invalid_target) =====
@@ -63,7 +63,6 @@ Content-Length: 175
 
 ===== S7. code_verifier 불일치 (invalid_grant) =====
 HTTP/1.1 400 
-WWW-Authenticate: Basic realm="http://localhost:9010"
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
@@ -85,7 +84,7 @@ Content-Length: 26
 
 ===== S9. initialize 와 notifications/initialized =====
 HTTP/1.1 200 
-Mcp-Session-Id: fd3adc55-19f2-4c12-baf7-662fa897fd96
+Mcp-Session-Id: d04dcc79-10d6-4539-bcb0-9854a1e7fe7f
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json
@@ -101,7 +100,7 @@ Cache-Control: no-cache
 Content-Type: text/event-stream
 Transfer-Encoding: chunked
 
-id:fd3adc55-19f2-4c12-baf7-662fa897fd96
+id:d04dcc79-10d6-4539-bcb0-9854a1e7fe7f
 event:message
 data:{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용�
 
@@ -164,12 +163,12 @@ Pragma: no-cache
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"jsonRpcError":{"code":-32603,"message":"Session not found: fd3adc55-19f2-4c12-baf7-662fa897fd96"},"cause":null,"localizedMessage":"Session not found: fd3adc55-19f2-4c12-baf7-662fa897fd96","message":"Session not found: fd3adc55-19f2-4c12-baf7-662fa897fd96","stackTrace":[{"classLoaderName":"app","cl
+{"jsonRpcError":{"code":-32603,"message":"Session not found: d04dcc79-10d6-4539-bcb0-9854a1e7fe7f"},"cause":null,"localizedMessage":"Session not found: d04dcc79-10d6-4539-bcb0-9854a1e7fe7f","message":"Session not found: d04dcc79-10d6-4539-bcb0-9854a1e7fe7f","stackTrace":[{"classLoaderName":"app","cl
 
 
 ===== S17. 에이전트가 만드는 인가 요청 (발견 결과로 만든다) =====
 HTTP/1.1 302 
-Location: http://localhost:9010/oauth2/authorize?response_type=code&client_id=official-shop-agent&scope=openid%20profile&state=Bor4SL5vzIto2vrU9QLW8zyttHuNliBvK9ASx_DqHVg%3D&redirect_uri=http://localhost:8110/login/oauth2/code/authserver&nonce=dKPUd1MyFgDUowvHG3ucpaG18osLsS5U0snwXtqplK4&code_challenge=8tjEKUMB7DFec1hGOKc9E3Jr9rGfytmAVIDek4ddblg&code_challenge_method=S256&resource=http://localhost:8111/mcp
+Location: http://localhost:9010/oauth2/authorize?response_type=code&client_id=official-shop-agent&scope=openid%20profile&state=3C1allspIhMjSc_tqFWW7iOvhCzryvgD9hh08ZbYJ3E%3D&redirect_uri=http://localhost:8110/login/oauth2/code/authserver&nonce=V3Gtfe-0MM7KwPlkMwvEMubJLZbwE7nlpfPWwqTh924&code_challenge=n50xckCBjg8zTfB43CXrPe9u72P70qaOkqzpvm2BNzg&code_challenge_method=S256&resource=http://localhost:8111/mcp
 
 
 ===== S18. 조작한 iss 로 에이전트 콜백 (코드를 교환하지 않고 거부) =====
@@ -193,7 +192,7 @@ Content-Length: 80
 
 
 ===== S20. 에이전트 정상 로그인 왕복 (브라우저 역할) =====
-인가 서버 → http://localhost:8110/login/oauth2/code/authserver?code=mc5AIun0ZCP9...&state=-Eu7QE6XnIU7q1qG8plp9kx5mPJyF-7zT6KasPeGXzc%3D&iss=http%3A%2F%2Flocalhost%3A9010
+인가 서버 → http://localhost:8110/login/oauth2/code/authserver?code=26wTEdfg5_89...&state=rp0_FhLUTGKRwkDGY5qLuB97B6UmpDHcVyMmTyztvpw%3D&iss=http%3A%2F%2Flocalhost%3A9010
 HTTP/1.1 302 
 Location: http://localhost:8110/
 
