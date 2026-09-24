@@ -144,7 +144,8 @@ chat-memory 의 인가 서버·MCP 서버 클래스는 official 과 패키지만
 | PKCE 강제 | `auth-server` `application.yml` — `require-proof-key: true` | 같음 |
 | `resource` 허용 목록과 인가 요청 검증 | `McpResourceProperties`, `ResourceIndicatorValidator` | 같음 |
 | access token `aud` 발급과 토큰 요청 `resource` 검증 | `ResourceAudienceTokenCustomizer` | `ResourceAudienceTokenCustomizer` — 모듈 기본 커스터마이저가 id_token `aud` 에 넣은 resource 를 client_id 로 되돌리는 분기 포함 |
-| 인가 응답의 `iss`, 메타데이터 광고 | `IssuerIdentifyingAuthorizationResponseHandler` + `AuthorizationServerConfig` | `IssuerIdentifyingAuthorizationResponseHandler` + `McpAuthorizationStandardConfig` |
+| 인가 응답의 `iss`, 메타데이터 광고(`iss` 지원 여부 + 클라이언트 인증 서명 알고리즘 세 claim) | `IssuerIdentifyingAuthorizationResponseHandler` + `AuthorizationServerConfig` | `IssuerIdentifyingAuthorizationResponseHandler` + `McpAuthorizationStandardConfig` |
+| 클라이언트 인증 실패의 `WWW-Authenticate` 챌린지 | `ClientAuthenticationChallengeFailureHandler` + `AuthorizationServerConfig#clientAuthentication` | `ClientAuthenticationChallengeFailureHandler` + `McpAuthorizationStandardConfig#clientAuthentication`(모듈 확장점) |
 | 동적 클라이언트 등록(DCR) | 켜지 않음 — Spring Authorization Server 기본값. 메타데이터에 `registration_endpoint` 가 없다(C3) | 끔 — `application.yml` 의 `spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false` |
 | 보호 리소스·인가 서버 발견 | `McpAuthorizationDiscovery`, `DiscoveredAuthorization` | `McpAuthorizationDiscovery`(인가 서버 메타데이터) + 모듈 `McpMetadataDiscoveryService`(401 챌린지와 보호 리소스 메타데이터) |
 | 사전 등록 자격증명과 issuer 바인딩 | `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties` | 같음 |
@@ -426,7 +427,7 @@ PRM 이 알려 주는 것은 인가 서버의 **issuer 식별자**(URL)뿐이다
 
 **RFC 8414 를 먼저 시도하는 이유.** MCP 가 순서를 고정했고, 그 근거로 [RFC 8414 §5](https://www.rfc-editor.org/rfc/rfc8414#section-5) 를 든다. RFC 8414 는 OpenID Connect 에 한정되지 않은 일반 OAuth 인가 서버 메타데이터다. RFC 8414 §5 는 경로가 있는 issuer 에서 두 규격의 URL 변환이 다르다고 설명한다 — RFC 8414 는 경로 앞에 끼우고, OIDC Discovery 는 경로 뒤에 붙인다. 그리고 앞으로는 RFC 8414 의 변환을 먼저 시도하고, 실패할 때만 OIDC 방식으로 넘어가라고 권한다. 두 문서의 필드 차이는 [E4](#e4) 에 정리했다. OIDC Discovery 는 OIDC 전용 필수 필드(`subject_types_supported`, `id_token_signing_alg_values_supported` 등)를 요구하고, PKCE 필드(`code_challenge_methods_supported`)를 정의하지 않는다.
 
-**[관측]** C3 — RFC 8414 메타데이터(official). chat-memory·community 는 issuer 와 엔드포인트의 포트만 다르고 필드 구성과 `Content-Length: 1282` 가 같다.
+**[관측]** C3 — RFC 8414 메타데이터(official). chat-memory·community 는 issuer 와 엔드포인트의 포트만 다르고 필드 구성과 `Content-Length: 1742` 가 같다.
 
 ```http
 GET /.well-known/oauth-authorization-server HTTP/1.1
@@ -449,7 +450,10 @@ Host: localhost:9010
   "code_challenge_methods_supported": ["S256"],
   "tls_client_certificate_bound_access_tokens": true,
   "dpop_signing_alg_values_supported": ["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"],
-  "authorization_response_iss_parameter_supported": true
+  "authorization_response_iss_parameter_supported": true,
+  "token_endpoint_auth_signing_alg_values_supported": ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"],
+  "revocation_endpoint_auth_signing_alg_values_supported": ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"],
+  "introspection_endpoint_auth_signing_alg_values_supported": ["HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"]
 }
 ```
 
@@ -473,12 +477,13 @@ S1 — 같은 인가 서버의 OpenID Provider 메타데이터(`/.well-known/ope
 - `registration_endpoint` 가 없다 — DCR 을 제공하지 않는다([4.4](#s4-4)).
 - `client_id_metadata_document_supported` 가 없다 — CIMD 를 지원하지 않는다([4.4](#s4-4)).
 - `grant_types_supported` 에 `client_credentials`·`token-exchange` 가 있는 것은 Spring Authorization Server 의 서버 전체 능력이다. 이 practice 의 클라이언트에 등록된 grant 는 `authorization_code`·`refresh_token` 뿐이다.
+- `token_endpoint_auth_signing_alg_values_supported`·`revocation_endpoint_auth_signing_alg_values_supported`·`introspection_endpoint_auth_signing_alg_values_supported` 가 세 엔드포인트 모두에 있다. `token_endpoint_auth_methods_supported` 등이 `client_secret_jwt`·`private_key_jwt` 를 광고하므로 RFC 8414 §2 의 조건부 MUST 대상이고, 12개 서명 알고리즘(`none` 제외)으로 채워 만족한다([8절](#s8) 20번).
 
 **[구현]**
 
 - 에이전트(세 practice): `McpAuthorizationDiscovery#metadataUrls` 가 위 표의 순서로 URL 을 만들고, 200 이 오는 첫 문서에 대해 `issuer` 일치와 `code_challenge_methods_supported` 의 `S256` 을 확인한다. 둘 중 하나라도 어긋나면 `McpDiscoveryException` 으로 멈춘다(다음 후보로 넘어가지 않는다). 테스트: `McpAuthorizationDiscoveryTest#메타데이터의_issuer_가_다르면_실패한다`, `#PKCE_S256_을_광고하지_않으면_진행하지_않는다`(세 practice), `#RFC8414_가_없으면_OIDC_디스커버리로_간다`(official·chat-memory).
 - [RFC 9728 §5.2](https://www.rfc-editor.org/rfc/rfc9728#section-5.2) 는 리소스 서버가 메타데이터가 바뀌었음을 알리려고 새 챌린지를 보낼 수 있고(MAY), 클라이언트는 그때 PRM 을 다시 받아 검증하는 것이 좋다(SHOULD)고 한다. 에이전트는 성공한 발견 결과를 프로세스 수명 동안 캐시하므로, 실행 중 MCP 서버가 보내는 401 로 발견을 다시 하지는 않는다([4.10](#s4-10)).
-- 인가 서버: official·chat-memory 는 `AuthorizationServerConfig` 가, community 는 `McpAuthorizationStandardConfig` 가 두 메타데이터 문서에 `authorization_response_iss_parameter_supported: true` 를 추가한다. community 의 모듈 자동설정은 OIDC 엔드포인트를 켜지 않으므로 `OidcDiscoveryConfig` 가 확장점으로 `oidc()` 를 켠다. 테스트: `AuthorizationServerStandardTest#메타데이터가_PKCE_S256_과_RFC9207_iss_지원을_광고한다`.
+- 인가 서버: official·chat-memory 는 `AuthorizationServerConfig` 가, community 는 `McpAuthorizationStandardConfig` 가 두 메타데이터 문서에 `authorization_response_iss_parameter_supported: true` 를 추가한다. community 의 모듈 자동설정은 OIDC 엔드포인트를 켜지 않으므로 `OidcDiscoveryConfig` 가 확장점으로 `oidc()` 를 켠다. 같은 클래스가 세 서명 알고리즘 claim 도 함께 심는다. 값은 지어낸 목록이 아니라 Spring Authorization Server 의 `JwtClientAssertionDecoderFactory` 가 `client_secret_jwt`·`private_key_jwt` 인증에서 실제로 만들어내는 알고리즘 전부(대칭키 `MacAlgorithm` HS256/384/512 + 비대칭 `SignatureAlgorithm` RS/ES/PS 256/384/512, `JwsAlgorithms` 상수 참조)이고, 최신 Spring Security(7.2.0-M1 포함)에는 이 claim 상수 자체가 없어 문자열 리터럴로 직접 심는다. 테스트: `AuthorizationServerStandardTest#메타데이터가_PKCE_S256_과_RFC9207_iss_지원을_광고한다`, `#메타데이터에_클라이언트_인증_서명_알고리즘이_광고된다`, `#OIDC_디스커버리에도_token_revocation_introspection_인증_서명_알고리즘이_모두_있다`(세 practice).
 
 <a id="s4-4"></a>
 
@@ -854,7 +859,7 @@ access token 을 RFC 9068 프로파일과 대조하면 다음과 같다.
 |---|---|---|
 | 인가 요청과 다른 `resource=http://localhost:9999/mcp` (S6) | `400` `{"error_description":"The requested resource does not match the authorization request","error":"invalid_target","error_uri":"https://www.rfc-editor.org/rfc/rfc8707#section-2"}` | RFC 8707 의 `invalid_target` 과 맞다 |
 | 틀린 `code_verifier` (S7) | `400` `{"error":"invalid_grant"}` | RFC 7636 §4.6 의 MUST 와 맞다 |
-| 틀린 client_secret 으로 Basic 인증 (S8) | `401` `{"error":"invalid_client"}`, **`WWW-Authenticate` 없음** | 상태 코드는 맞지만, `Authorization` 헤더로 인증을 시도한 경우에 요구되는 `WWW-Authenticate` 가 없다 — RFC 6749 §5.2 · OAuth 2.1 §3.2.4 의 MUST 와 다르다([8절](#s8) 18번) |
+| 틀린 client_secret 으로 Basic 인증 (S8) | `401` `WWW-Authenticate: Basic realm="http://localhost:9010"` `{"error":"invalid_client"}` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 의 MUST 와 맞다 — `Authorization` 헤더로 인증을 시도했으므로 그 스킴(`Basic`)에 맞는 `WWW-Authenticate` 가 realm(issuer)과 함께 실린다([8절](#s8) 18번) |
 
 **[구현]**
 
@@ -868,6 +873,7 @@ access token 을 RFC 9068 프로파일과 대조하면 다음과 같다.
 
   테스트: `AuthorizationServerStandardTest#access_token_의_aud_는_resource_이고_id_token_은_client_id_다`, `#토큰_요청의_resource_가_인가_요청과_다르면_invalid_target_이다`, `#토큰_요청에_resource_가_없으면_인가_요청의_resource_로_발급한다`.
 - community 인가 서버: 모듈의 `ResourceIdentifierAudienceTokenCustomizer` 는 "access token 이면서 `openid` scope" 인 경우만 건너뛰고, 그 밖의 토큰에는 `resource` 가 있으면 `aud` 를 덮어쓴다 — id_token 도 포함된다. 그래서 community 의 `ResourceAudienceTokenCustomizer` 는 모듈 것 뒤에 실행되어 두 가지를 한다. access token 의 `aud` 를 위 규칙대로 채우고, id_token 의 `aud` 를 client_id 로 되돌린다(OIDC Core §2). C6-2 에서 community id_token 의 `aud` 가 `shop-agent` 인 것이 그 결과다.
+- 클라이언트 인증 실패의 `WWW-Authenticate`: Spring 인가 서버의 `OAuth2ClientAuthenticationFilter#onAuthenticationFailure` 는 이 헤더를 붙이지 않는다(코드에 TODO 로만 남아 있다 — spring-security 이슈 [#18285](https://github.com/spring-projects/spring-security/issues/18285), 미해결. 7.2.0-M1 에서도 동일). 세 practice 모두 `ClientAuthenticationChallengeFailureHandler` 를 새로 작성해 `clientAuthentication(clientAuthentication -> clientAuthentication.errorResponseHandler(...))` 로 걸었다 — official·chat-memory 는 `AuthorizationServerConfig`, community 는 모듈 확장점을 쓰는 `McpAuthorizationStandardConfig` 에서 배선한다. 이 핸들러는 요청의 `Authorization` 헤더에서 클라이언트가 실제로 쓴 스킴 토큰을 꺼내(RFC 7230 §3.2.6 `token` 문법에 맞지 않으면 — 즉 따옴표·공백 등 헤더 주입에 쓰일 문자가 섞이면 — `Basic` 으로 폴백) `<스킴> realm="<issuer>"` 를 실어 보낸다. issuer 는 `AuthorizationServerContextHolder` 에서 얻고, 얻지 못하면 realm 없이 스킴만 돌려준다(RFC 9110 §11.6.1 상 realm 은 챌린지의 필수 파라미터가 아니다). `Authorization` 헤더 없이 인증에 실패한 경우(예: `client_secret_post` 로 폼 파라미터만 보낸 경우)에는 스킴을 알 수 없으므로 헤더를 붙이지 않는다 — RFC 요구가 "Authorization 헤더로 시도한 경우"에 한정되기 때문이다. 테스트: `AuthorizationServerStandardTest#Basic_인증_실패시_스킴에_맞는_WWW_Authenticate_가_실린다`, `#Basic_아닌_스킴으로_인증_실패시_그_스킴이_그대로_반영된다`, `#스킴_토큰에_따옴표가_섞이면_Basic_으로_폴백하고_주입되지_않는다`, `#Authorization_헤더_없이_실패하면_WWW_Authenticate_가_없다`(세 practice).
 
 <a id="s4-8"></a>
 
@@ -970,7 +976,7 @@ data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 
 명세와 대조한 결과:
 
 - 초기화 응답에 세션 ID 가 오고, 알림에 202, 요청에 JSON 또는 SSE 로 응답한다 — 명세대로다.
-- SSE 이벤트의 `id` 가 세션 ID 와 같다. 그래서 C9 와 C10 의 두 이벤트가 **같은 `id`** 를 가진다. [Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) 는 SSE 이벤트 `id` 를 붙일 수 있게 하되(MAY), 붙였다면 세션 안의 모든 스트림에서 전역으로 유일해야 한다(**MUST**)고 한다. MCP Java SDK 서버 전송의 동작이 이와 다르다([8절](#s8) 19번).
+- SSE 이벤트의 `id` 가 세션 ID 와 같다. 그래서 C9 와 C10 의 두 이벤트가 **같은 `id`** 를 가진다. [Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) 는 SSE 이벤트 `id` 를 붙일 수 있게 하되(MAY), 붙였다면 세션 안의 모든 스트림에서 전역으로 유일해야 한다(**MUST**)고 한다. MCP Java SDK 서버 전송의 동작이 이와 다르다([8절](#s8) 19번). 이 practice 에서 고치지 않은 이유: 이벤트 `id` 를 정하는 `WebMvcStreamableServerTransportProvider#sendMessage`(`this.sseBuilder.id(messageId != null ? messageId : this.sessionId)`)는 `messageId` 를 넘기지 않는 이 SDK 의 호출 경로에서 항상 세션 ID 로 떨어지는데, 그 로직을 쥔 내부 세션 전송 클래스(`WebMvcStreamableMcpSessionTransport`)는 `private` 이고 바깥의 `WebMvcStreamableServerTransportProvider` 자체가 `public final` 이라 상속으로 갈아끼울 수 없다 — 고치려면 999줄짜리 전송 구현 전체를 이 practice 안에 그대로 복사해 포크해야 한다. 최신 Spring AI 2.0.1 도 같은 코드다.
 - SSE 스트림을 열 때 보내는 것이 좋다고 한 "이벤트 ID + 빈 `data`" 준비 이벤트(**SHOULD**)는 없다. 첫 이벤트가 곧 응답이다.
 
 전송 계층의 경계 조건(official 만 관측, S 번호):
@@ -1164,7 +1170,7 @@ grant_type=refresh_token&refresh_token=Cog6N7Fv1qyO...&resource=http%3A%2F%2Floc
 | 16 | 인가 요청의 `redirect_uri` 가 등록값과 다름 | 인가 서버 | `400`, 리다이렉트 없음 | RFC 6749 §4.1.2.1 MUST NOT 리다이렉트 | S4 |
 | 17 | 토큰 요청의 `resource` 가 인가 요청과 다름 | 인가 서버 | `400 {"error":"invalid_target",...}` | RFC 8707 §2.2 | S6, 테스트 |
 | 18 | `code_verifier` 불일치 | 인가 서버 | `400 {"error":"invalid_grant"}` | RFC 7636 §4.6 MUST | S7 |
-| 19 | 클라이언트 인증 실패(Basic) | 인가 서버 | `401 {"error":"invalid_client"}`, `WWW-Authenticate` 없음 | RFC 6749 §5.2 · OAuth 2.1 §3.2.4: 401 **과 `WWW-Authenticate`** MUST | S8 |
+| 19 | 클라이언트 인증 실패(Basic) | 인가 서버 | `401`, `WWW-Authenticate: Basic realm="http://localhost:9010"`, `{"error":"invalid_client"}` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4: 401 **과 `WWW-Authenticate`** MUST 와 맞다 | S8 |
 | 20 | 콜백의 `iss` 불일치 | 에이전트 | `401 text/plain 로그인 실패: iss mismatch: ...` | RFC 9207 §2.4 MUST 거부 · MCP 2026-07-28 | S18 |
 | 21 | 콜백에 `iss` 없음(인가 서버가 광고함) | 에이전트 | `401 text/plain 로그인 실패: iss is missing ...` | RFC 9207 §2.4 MUST 거부 · MCP 2026-07-28 | S19 |
 | 22 | 발견 실패 — PRM `resource` 불일치, 메타데이터 `issuer` 불일치, `S256` 미지원, 자격증명 issuer 불일치 | 에이전트 | `McpDiscoveryException` — 인가 요청 URL 을 만들지 않는다 | RFC 9728 §3.3 · RFC 8414 §3.3 · MCP PKCE MUST · MCP 2026-07-28 Authorization Server Binding | 테스트 `McpAuthorizationDiscoveryTest`, `DiscoveredClientRegistrationRepositoryTest` |
@@ -1291,17 +1297,17 @@ grant_type=refresh_token&refresh_token=Cog6N7Fv1qyO...&resource=http%3A%2F%2Floc
 | `response_modes_supported` | OPTIONAL, 기본 `["query","fragment"]` | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `grant_types_supported` | OPTIONAL, 기본 `["authorization_code","implicit"]` | 서버 전체 지원 그랜트 | 광고됨 (클라이언트는 `authorization_code`·`refresh_token` 만 등록) | `["authorization_code","client_credentials","refresh_token","urn:ietf:params:oauth:grant-type:token-exchange"]` |
 | `token_endpoint_auth_methods_supported` | OPTIONAL, 기본 `client_secret_basic` | | 씀 (`client_secret_basic`) | 6개 방식 |
-| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL — 단 `private_key_jwt`·`client_secret_jwt` 를 광고하면 **MUST** 포함 | | 이 practice 에서는 쓰지 않음 | **없음** — 두 방식을 광고하므로 조건부 MUST 와 다름([8절](#s8) 20번) |
+| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL — 단 `private_key_jwt`·`client_secret_jwt` 를 광고하면 **MUST** 포함 | | 씀 — 두 방식을 광고하므로 조건부 MUST 대상([8절](#s8) 20번) | `["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]` |
 | `service_documentation` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `ui_locales_supported` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `op_policy_uri` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `op_tos_uri` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `revocation_endpoint` | OPTIONAL | RFC 7009 | 이 practice 에서는 쓰지 않음 | `http://localhost:9010/oauth2/revoke` |
 | `revocation_endpoint_auth_methods_supported` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 6개 방식 |
-| `revocation_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 **MUST** 포함 | | 이 practice 에서는 쓰지 않음 | **없음** — 조건부 MUST 와 다름([8절](#s8) 20번) |
+| `revocation_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 **MUST** 포함 | | 씀 — 조건부 MUST 대상([8절](#s8) 20번) | `["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]` |
 | `introspection_endpoint` | OPTIONAL | RFC 7662 | 이 practice 에서는 쓰지 않음 | `http://localhost:9010/oauth2/introspect` |
 | `introspection_endpoint_auth_methods_supported` | OPTIONAL | | 이 practice 에서는 쓰지 않음 | 6개 방식 |
-| `introspection_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 **MUST** 포함 | | 이 practice 에서는 쓰지 않음 | **없음** — 조건부 MUST 와 다름([8절](#s8) 20번) |
+| `introspection_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 광고하면 **MUST** 포함 | | 씀 — 조건부 MUST 대상([8절](#s8) 20번) | `["HS256","HS384","HS512","RS256","RS384","RS512","ES256","ES384","ES512","PS256","PS384","PS512"]` |
 | `code_challenge_methods_supported` | OPTIONAL (RFC 8414, 없으면 PKCE 미지원) · 클라이언트는 이 필드를 확인하고 없으면 진행 거부 MUST (MCP) | | 씀 | `["S256"]` |
 | `signed_metadata` | OPTIONAL ([§2.1](https://www.rfc-editor.org/rfc/rfc8414#section-2.1)) | | 이 practice 에서는 쓰지 않음 | 없음 |
 | `authorization_response_iss_parameter_supported` | 표시 없음, 생략 시 `false` ([RFC 9207 §3](https://www.rfc-editor.org/rfc/rfc9207#section-3)) · `iss` 를 보내는 서버는 `true` MUST ([RFC 9207 §2.3](https://www.rfc-editor.org/rfc/rfc9207#section-2.3)) | | 씀 | `true` |
@@ -1357,7 +1363,7 @@ RFC 8414 와의 핵심 차이는 다음과 같다.
 | `request_object_encryption_alg_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `request_object_encryption_enc_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `token_endpoint_auth_methods_supported` | OPTIONAL | 같음 | 씀 | 6개 방식 |
-| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL | RFC 8414 는 조건부 MUST | 이 practice 에서는 쓰지 않음 | 없음 |
+| `token_endpoint_auth_signing_alg_values_supported` | OPTIONAL | RFC 8414 는 조건부 MUST | 씀 — 조건부 MUST 대상([8절](#s8) 20번) | `["HS256",...,"PS512"]` 12개(E3 와 같음) |
 | `display_values_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `claim_types_supported` | OPTIONAL | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
 | `claims_supported` | RECOMMENDED | OIDC 전용 | 이 practice 에서는 쓰지 않음 | 없음 |
@@ -1494,7 +1500,7 @@ S1 에는 이 밖에 `end_session_endpoint`(OpenID Connect RP-Initiated Logout 1
 | `error` 코드 | 정의 | 뜻 | 관측 |
 |---|---|---|---|
 | `invalid_request` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 | 필수 파라미터 누락, 중복, 인증 방식 여러 개, `code_challenge` 없이 `code_verifier` 전송 등 | — |
-| `invalid_client` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 | 클라이언트 인증 실패. `Authorization` 헤더로 인증을 시도했다면 **401 + `WWW-Authenticate` MUST** | S8 `401 {"error":"invalid_client"}`, `WWW-Authenticate` 없음 |
+| `invalid_client` | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 | 클라이언트 인증 실패. `Authorization` 헤더로 인증을 시도했다면 **401 + `WWW-Authenticate` MUST** | S8 `401`, `WWW-Authenticate: Basic realm="http://localhost:9010"`, `{"error":"invalid_client"}` |
 | `invalid_grant` | RFC 6749 §5.2 · RFC 7636 §4.6 | 코드·refresh token 이 무효·만료·폐기, redirect_uri 불일치, 다른 클라이언트의 코드, `code_verifier` 불일치 | S7 `400 {"error":"invalid_grant"}` |
 | `unauthorized_client` | RFC 6749 §5.2 | 이 클라이언트에 허용되지 않은 그랜트 | — |
 | `unsupported_grant_type` | RFC 6749 §5.2 | 지원하지 않는 그랜트 | — |
@@ -1801,13 +1807,13 @@ official·chat-memory 는 이 SSRF 대응책(HTTPS 강제, 사설 IP 차단, egr
 | 15 | Client ID Metadata Document(CIMD) | 다루지 않음 — HTTPS `client_id` 가 전제([9절](#s9)) | 다루지 않음 — 같음 | 다루지 않음 — 같음 |
 | 16 | scope 설계·step-up 인가 | 다루지 않음 — 인증된 요청은 모든 툴 허용([4.9](#s4-9)), 다음 practice(`mcp-security-authz`) 범위([9절](#s9)) | 다루지 않음 — 같음 | 다루지 않음 — 같음 |
 | 17 | RFC 9068 액세스 토큰 프로파일 (MCP 은 요구하지 않음 — 참고) | 아니오(불일치) — `client_id` 클레임 없음, `scope` 가 공백 구분 문자열이 아닌 JSON 배열([4.7](#s4-7)). MCP 이 이 프로파일을 요구하지 않으므로 MCP 준수에는 영향 없음, RFC 9068 을 전제로 한 리소스 서버와는 비호환 | 아니오(불일치) — 같음 | 아니오(불일치) — 같음(토큰 발급이 같은 Spring Authorization Server 기본 동작) |
-| 18 | `invalid_client` 401 의 `WWW-Authenticate`(RFC 6749 §5.2 · OAuth 2.1 §3.2.4 **MUST**) | **아니오** — `Authorization` 헤더로 인증을 시도한 `invalid_client` 에 `WWW-Authenticate` 를 붙이지 않음. Spring Authorization Server 기본 동작이며 이 practice 는 커스터마이즈하지 않았다, S8([4.7](#s4-7)) | **아니오** — 같음(같은 기본 동작) | **아니오** — 같음(같은 기본 동작) |
-| 19 | SSE 이벤트 `id` 의 세션 내 전역 유일성(MCP 2025-11-25 Resumability and Redelivery **MUST**) | **아니오** — 이벤트 `id` 로 세션 ID 를 그대로 써서 한 세션의 여러 이벤트가 같은 `id` 를 가진다(C9·C10). MCP Java SDK 서버 전송의 동작이며 세 practice 가 같은 SDK 를 쓴다([4.8](#s4-8)) | **아니오** — 같음(같은 SDK) | **아니오** — 같음(같은 SDK) |
-| 20 | `token_endpoint_auth_signing_alg_values_supported`·`revocation_endpoint_auth_signing_alg_values_supported`·`introspection_endpoint_auth_signing_alg_values_supported` — `private_key_jwt`·`client_secret_jwt` 를 광고하면 포함해야 하는 조건부 **MUST**(RFC 8414 §2) | **아니오** — 세 필드 모두 광고하지 않으면서 `token_endpoint_auth_methods_supported`·`revocation_endpoint_auth_methods_supported`·`introspection_endpoint_auth_methods_supported` 에는 `client_secret_jwt`·`private_key_jwt` 를 포함한 6개 방식을 광고한다. 등록된 클라이언트는 `client_secret_basic` 만 쓰지만 메타데이터 자체는 Spring Authorization Server 기본값이라 조건이 걸린다([E3](#e3)) | **아니오** — 같음(같은 기본 메타데이터) | **아니오** — 같음(같은 기본 메타데이터) |
+| 18 | `invalid_client` 401 의 `WWW-Authenticate`(RFC 6749 §5.2 · OAuth 2.1 §3.2.4 **MUST**) | **예** — `AuthorizationServerConfig` 가 `clientAuthentication(...).errorResponseHandler(new ClientAuthenticationChallengeFailureHandler())` 로 새로 건다. Spring Authorization Server 의 `OAuth2ClientAuthenticationFilter#onAuthenticationFailure` 는 이 요구를 TODO 로만 남기고 헤더를 붙이지 않으므로(spring-security 이슈 [#18285](https://github.com/spring-projects/spring-security/issues/18285), 미해결, 7.2.0-M1 도 동일) practice 가 직접 구현했다. `WWW-Authenticate: Basic realm="http://localhost:9010"`, S8([4.7](#s4-7)) | **예** — 같음(`AuthorizationServerConfig`) | **예** — 모듈 확장점을 쓰는 `McpAuthorizationStandardConfig` 가 같은 핸들러를 건다 |
+| 19 | SSE 이벤트 `id` 의 세션 내 전역 유일성(MCP 2025-11-25 Resumability and Redelivery **MUST**) | **아니오** — 이벤트 `id` 로 세션 ID 를 그대로 써서 한 세션의 여러 이벤트가 같은 `id` 를 가진다(C9·C10). 고치려면 이벤트 `id` 를 정하는 내부 세션 전송 클래스(`WebMvcStreamableMcpSessionTransport`, `private`)를 갈아끼워야 하는데, 이를 감싼 `WebMvcStreamableServerTransportProvider` 자체가 `public final` 이라 상속으로 확장할 수 없다 — 999줄짜리 전송 구현 전체를 practice 안에 복사(라이브러리 포크)해야 고칠 수 있다. 최신 Spring AI 2.0.1 도 같은 코드다([4.8](#s4-8)) | **아니오** — 같음(같은 SDK) | **아니오** — 같음(같은 SDK) |
+| 20 | `token_endpoint_auth_signing_alg_values_supported`·`revocation_endpoint_auth_signing_alg_values_supported`·`introspection_endpoint_auth_signing_alg_values_supported` — `private_key_jwt`·`client_secret_jwt` 를 광고하면 포함해야 하는 조건부 **MUST**(RFC 8414 §2) | **예** — `AuthorizationServerConfig` 가 AS 메타데이터·OIDC 디스커버리 양쪽의 `authorizationServerMetadataCustomizer`/`providerConfigurationCustomizer` 에 세 claim 을 추가한다. 값은 지어낸 목록이 아니라 Spring Authorization Server 의 `JwtClientAssertionDecoderFactory` 가 `client_secret_jwt`·`private_key_jwt` 인증에서 실제로 검증기를 만들어내는 알고리즘 전부(`MacAlgorithm` HS256/384/512 + `SignatureAlgorithm` RS/ES/PS 256/384/512, `none` 제외)다. 최신 Spring Security 에는 이 claim 상수 자체가 없어 문자열 리터럴로 직접 심었다([E3](#e3), [E4](#e4)) | **예** — 같음(`AuthorizationServerConfig`) | **예** — `McpAuthorizationStandardConfig` 가 모듈 확장점으로 같은 claim 을 심는다 |
 | 21 | 발견 결과 재검증 — 리소스 서버가 새 챌린지로 메타데이터 변경을 알리면 클라이언트가 다시 받아 검증(RFC 9728 §5.2 **SHOULD**) | **아니오** — 발견 결과(PRM·AS 메타데이터)를 프로세스 수명 동안 캐시하고, 실행 중 받은 401 로 다시 읽지 않는다([4.10](#s4-10)) | **아니오** — 같음 | **아니오** — 같음(같은 캐시 전략) |
 | 22 | `GET /mcp` SSE 스트림의 응답 시작을 클라이언트가 확인할 수 있는가 (명세에 규정 없음 — 참고) | 해당 없음 — 서버는 명세대로 SSE 로 응답하거나 405 를 고를 수 있고 SSE 를 골랐지만(위반 아님), `ServerResponse.sse(...)` 가 첫 이벤트를 보낼 때에야 헤더를 내보내 보낼 메시지가 없으면 5초 넘게 상태줄조차 오지 않는다(S11, curl 종료 코드 28)([E10](#e10)) | 해당 없음 — 같음 | 해당 없음 — 같음(같은 서버 전송) |
 
-12번(HTTPS)은 세 practice 모두 위반이다. 이유는 로컬에서 인가 서버·MCP 서버·에이전트를 각각 다른 포트로 띄우고 TLS 종단 없이 요청·응답을 그대로 관측하기 위해서다([9절](#s9)). 18번(`invalid_client` 의 `WWW-Authenticate`), 19번(SSE 이벤트 `id` 유일성), 20번(조건부 `..._auth_signing_alg_values_supported` 세 필드)도 세 practice 모두 MUST 를 지키지 않는다 — Spring Authorization Server·MCP Java SDK 의 기본 동작이며 이 practice 에서 고치지 않았다. 21번(발견 결과 재검증)은 SHOULD 를 이행하지 않는다. 17번(RFC 9068 프로파일)과 22번(GET 스트림 응답 시작 확인)은 MCP 이 요구하지 않거나 명세에 규정이 없는 참고 항목이라 MUST/SHOULD 위반으로 세지 않는다. 나머지 MUST 항목(1~11, 13)은 세 practice 모두 관측 또는 테스트로 확인했다.
+12번(HTTPS)은 세 practice 모두 위반이다. 이유는 로컬에서 인가 서버·MCP 서버·에이전트를 각각 다른 포트로 띄우고 TLS 종단 없이 요청·응답을 그대로 관측하기 위해서다([9절](#s9)). 19번(SSE 이벤트 `id` 유일성)도 세 practice 모두 MUST 를 지키지 않는다 — 원인이 MCP Java SDK 서버 전송의 `public final`·`private` 클래스 구조에 있어(위 19번 근거) 이 practice 가 라이브러리를 포크하지 않는 한 고칠 수 없다. 18번(`invalid_client` 의 `WWW-Authenticate`)과 20번(조건부 `..._auth_signing_alg_values_supported` 세 필드)은 Spring Authorization Server 가 구현하지 않는 부분이었지만 세 practice 모두 `ClientAuthenticationChallengeFailureHandler` 와 메타데이터 커스터마이저로 직접 메워 이제 MUST 를 지킨다. 21번(발견 결과 재검증)은 SHOULD 를 이행하지 않는다. 17번(RFC 9068 프로파일)과 22번(GET 스트림 응답 시작 확인)은 MCP 이 요구하지 않거나 명세에 규정이 없는 참고 항목이라 MUST/SHOULD 위반으로 세지 않는다. 남은 MUST 위반은 12번(HTTPS)과 19번(SSE 이벤트 `id`) 둘뿐이고, 나머지 MUST 항목(1~11, 13, 18, 20)은 세 practice 모두 관측 또는 테스트로 확인했다.
 
 ---
 
