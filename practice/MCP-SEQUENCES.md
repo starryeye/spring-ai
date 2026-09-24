@@ -430,7 +430,7 @@ sequenceDiagram
 
 1. `initialize` 는 첫 상호작용이어야 한다(MUST, [MCP Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)). authorization 은 같은 session 이라도 모든 HTTP 요청에 실어야 한다(MUST, [MCP Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements)). 요청 형식은 [`POST /mcp` — Bearer](MCP-API-SPEC.md#mcp-post) 에 있다.
 2. 서버가 `InitializeResult` 와 함께 `Mcp-Session-Id` 를 발급한다(C7). 서버가 session ID 를 발급했으면 client 는 이후 모든 요청에 실어야 한다(MUST, [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)).
-3. client 는 서버발 메시지를 받으려고 `GET` 으로 SSE stream 을 열 수 있다(MAY, [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server)). SDK client 는 session ID 를 받는 즉시 비동기로 이 요청을 보내므로 `notifications/initialized` 와의 순서는 보장되지 않는다(S11). 이 서버는 보낼 메시지가 생길 때까지 상태 줄도 보내지 않는다([`GET /mcp`](MCP-API-SPEC.md#mcp-get)).
+3. client 는 서버발 메시지를 받으려고 `GET` 으로 SSE stream 을 열 수 있다(MAY, [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server)). SDK client(`HttpClientStreamableHttpTransport`)는 session ID 를 받는 즉시 비동기로 이 요청을 보내므로 `notifications/initialized` 와의 순서는 보장되지 않는다. 이 서버는 보낼 메시지가 생길 때까지 상태 줄도 보내지 않고 stream 을 열어 둔다(S11, [`GET /mcp`](MCP-API-SPEC.md#mcp-get)).
 4. `initialize` 가 성공하면 `notifications/initialized` 를 보내야 한다(MUST, MCP Lifecycle). 이때부터 `MCP-Protocol-Version: 2025-11-25` 를 싣는다(MUST, [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)).
 5. 서버는 notification 을 받아들였으면 `202` 를 돌려줘야 한다(MUST, [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server)). C8 은 본문 없는 `202` 다.
 6. `tools/list` 로 쓸 수 있는 tool 을 받는다. 요청에는 Bearer·`Mcp-Session-Id`·`MCP-Protocol-Version` 이 모두 있다.
@@ -459,7 +459,7 @@ sequenceDiagram
         M->>A: GET /oauth2/jwks
         A-->>M: JWK Set
     end
-    Note over M: 단계 순서 (official)<br/>서명 → claim → MCP-Protocol-Version → Origin·Host → Accept → session<br/>claim 셋(iss, aud, exp)과 Origin·Host 사이에는 순서가 없다
+    Note over M: 단계 순서 (official)<br/>서명 → claim → MCP-Protocol-Version → Origin·Host → Accept → session<br/>iss·aud·exp 끼리는 순서 없음<br/>Origin·Host 끼리도 순서 없음
     alt 서명이 틀리거나 형식이 잘못됨
         M-->>C: 401 Bearer error=invalid_token
     else iss, aud, exp 중 하나 이상이 틀림
