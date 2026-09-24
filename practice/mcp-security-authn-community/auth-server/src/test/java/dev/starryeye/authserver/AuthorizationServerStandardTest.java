@@ -558,4 +558,41 @@ class AuthorizationServerStandardTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.registration_endpoint").doesNotExist());
     }
+
+    @Test
+    void 공개_클라이언트에는_refresh_token_을_발급하지_않는다() throws Exception {
+        // 등록에 refresh_token 그랜트가 있어도 Spring 의 OAuth2RefreshTokenGenerator 는
+        // authorization_code 그랜트에서 클라이언트 인증 방식이 none 이면 null 을 돌려준다.
+        // OAuth 2.1 §4.3.1 은 공개 클라이언트에 대한 발급을 MAY 로 두고, 발급한다면 회전이나
+        // sender-constrained 를 MUST 로 요구한다 — 발급하지 않는 쪽은 그 요구를 피해 간다.
+        String code = 공개클라이언트_인가코드(RESOURCE);
+
+        String body = 공개클라이언트_토큰요청(공개클라이언트_인가코드교환(code, RESOURCE), 200);
+
+        assertThat((String) JsonPath.read(body, "$.access_token")).isNotBlank();
+        assertThat(body).doesNotContain("\"refresh_token\"");
+    }
+
+    @Test
+    void 루프백_리다이렉트는_등록된_포트와_달라도_허용되고_경로가_다르면_거부된다() throws Exception {
+        // RFC 8252 §7.3 · OAuth 2.1 §8.4.2 — 네이티브 앱은 실행 시점에 OS 에서 임시 포트를
+        // 받으므로, 인가 서버는 루프백 IP 리다이렉트의 포트를 요청 시점에 정하게 허용해야 한다(MUST).
+        // OAuth2AuthorizationCodeRequestAuthenticationValidator 는 호스트가 루프백이면 등록 URI 의
+        // 포트를 요청 포트로 바꿔 비교한다. 포트 외의 부분(스킴·호스트·경로)은 정확히 일치해야 한다 —
+        // 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다 가 확인한다.
+        String otherPort = "http://127.0.0.1:9999/callback";
+        MvcResult consentPage = this.mockMvc
+                .perform(get(공개클라이언트_인가요청_URI(true, RESOURCE)
+                        .replaceQueryParam("redirect_uri", otherPort).encode().build().toUri())
+                        .session(this.session))
+                .andReturn();
+        assertThat(consentPage.getResponse().getStatus()).isEqualTo(200);
+
+        UriComponents response = 공개클라이언트_동의(consentPage, "profile");
+
+        assertThat(response.getHost()).isEqualTo("127.0.0.1");
+        assertThat(response.getPort()).isEqualTo(9999);
+        assertThat(response.getPath()).isEqualTo("/callback");
+        assertThat(응답파라미터(response, "code")).isNotBlank();
+    }
 }

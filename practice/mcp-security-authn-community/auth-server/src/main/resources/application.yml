@@ -49,9 +49,13 @@ spring:
                 - none
               authorization-grant-types:
                 - authorization_code
+                # 등록은 허용하지만 Spring 은 공개 클라이언트에 refresh_token 을 발급하지 않는다
+                # (OAuth2RefreshTokenGenerator 가 authorization_code + none 이면 null). OAuth 2.1 §4.3.1 은
+                # 발급을 MAY 로 두고, 발급한다면 회전이나 sender-constrained 를 MUST 로 요구한다.
                 - refresh_token
               redirect-uris:
                 # RFC 8252 §7.3 — 네이티브 앱의 루프백 리다이렉트. 특정 제품 콜백에 매지 않는다.
+                # 루프백이면 인가 서버가 포트를 요청 값으로 바꿔 비교하므로 실행 시점의 임시 포트를 쓸 수 있다.
                 - http://127.0.0.1:8123/callback
               scopes:
                 - openid
