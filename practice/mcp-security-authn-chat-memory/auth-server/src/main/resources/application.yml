@@ -33,6 +33,32 @@ spring:
             # 이 값이 true 면 code_challenge 없는 인가 요청이 거부된다.
             require-proof-key: true
             require-authorization-consent: false
+          # RFC 6749 §2.1 의 공개 클라이언트 — 비밀을 안전하게 보관할 수 없는
+          # 클라이언트(사용자 기기에서 도는 MCP 클라이언트)다. client-secret 자체를
+          # 두지 않는다. client-authentication-methods 가 none 이면 Boot 의
+          # OAuth2AuthorizationServerPropertiesMapper 가 그대로 ClientAuthenticationMethod
+          # 로 만들어 등록한다 — 별도 RegisteredClientRepository 빈이 필요 없다.
+          local-mcp-client:
+            registration:
+              client-id: local-mcp-client
+              client-authentication-methods:
+                - none
+              authorization-grant-types:
+                - authorization_code
+                - refresh_token
+              redirect-uris:
+                # RFC 8252 §7.3 — 네이티브 앱의 루프백 리다이렉트. 특정 제품 콜백에 매지 않는다.
+                - http://127.0.0.1:8123/callback
+              scopes:
+                - openid
+                - profile
+            # 공개 클라이언트에는 비밀이 없어 code_challenge 가 코드 가로채기를 막는
+            # 유일한 장치다(RFC 7636, MCP 2025-11-25 MUST).
+            require-proof-key: true
+            # 비밀이 없어 "자기 자신임"을 증명하지 못하므로, 사용자가 무엇을 허용하는지
+            # 직접 확인하는 단계를 둔다. 클라이언트 단위 설정이라 memory-agent 는
+            # 영향받지 않는다.
+            require-authorization-consent: true
 
 mcp:
   authorization:

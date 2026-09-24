@@ -7,7 +7,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.jose.jws.JwsAlgorithms;
+import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
@@ -59,6 +62,16 @@ public class AuthorizationServerConfig {
 			JwsAlgorithms.ES256, JwsAlgorithms.ES384, JwsAlgorithms.ES512,
 			JwsAlgorithms.PS256, JwsAlgorithms.PS384, JwsAlgorithms.PS512);
 
+	/**
+	 * RFC 8414 §2 — {@code none} 은 클라이언트 인증을 하지 않는(비밀이 없는) 공개 클라이언트를
+	 * 뜻한다. {@code OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods()}
+	 * 는 이 값을 절대 광고하지 않으므로(client_secret_basic·client_secret_post·client_secret_jwt·
+	 * private_key_jwt·tls_client_auth·self_signed_tls_client_auth 여섯 가지만 고정으로 넣는다)
+	 * 커스터마이저에서 더한다. 필터가 먼저 그 여섯 값을 담아 빌더를 넘기므로,
+	 * {@code tokenEndpointAuthenticationMethods}(Consumer) 는 그 목록에 덧붙일 뿐 지우지 않는다.
+	 */
+	static final String PUBLIC_CLIENT_AUTHENTICATION_METHOD = ClientAuthenticationMethod.NONE.getValue();
+
 	@Bean
 	@Order(1)
 	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
@@ -90,7 +103,11 @@ public class AuthorizationServerConfig {
 											.claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
 											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)))
+													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+											// 공개 클라이언트(local-mcp-client) 는 client_secret 이 없어
+											// none 으로만 인증한다. 토큰 엔드포인트에서 이 방식을 받는다고 광고한다.
+											.tokenEndpointAuthenticationMethods(methods ->
+													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD))))
 							// RFC 6749 §5.2: Authorization 헤더로 인증을 시도했다면 그 스킴에 맞는
 							// WWW-Authenticate 를 붙인다. Spring 기본 핸들러는 TODO 로 남겨 두고 있다.
 							.clientAuthentication(clientAuthentication -> clientAuthentication
@@ -108,7 +125,10 @@ public class AuthorizationServerConfig {
 											.claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
 											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS))));
+													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
+											// OIDC 디스커버리도 AS 메타데이터와 같은 이유로 none 을 더한다.
+											.tokenEndpointAuthenticationMethods(methods ->
+													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD)))));
 				})
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
 				// 브라우저가 인가 엔드포인트에 로그인 없이 오면 로그인 화면으로 보낸다.
@@ -134,5 +154,18 @@ public class AuthorizationServerConfig {
 	@Bean
 	public OAuth2TokenCustomizer<JwtEncodingContext> resourceAudienceTokenCustomizer(McpResourceProperties resources) {
 		return new ResourceAudienceTokenCustomizer(resources);
+	}
+
+	/**
+	 * {@code OAuth2AuthorizationServerConfigurer} 는 이 타입의 빈이 없으면
+	 * {@code InMemoryOAuth2AuthorizationConsentService} 를 내부적으로만 만들어 쓰고
+	 * ApplicationContext 에는 올리지 않는다({@code OAuth2ConfigurerUtils.getAuthorizationConsentService}).
+	 * local-mcp-client(공개 클라이언트)의 동의 기록은 (클라이언트, 사용자) 단위로 이
+	 * 서비스에 영구히 남으므로, 빈으로 명시해 두어야 테스트가 그 기록을 확인·정리할 수 있다.
+	 * 구현 자체는 Spring 기본값과 같다 — 바뀌는 동작은 없다.
+	 */
+	@Bean
+	public OAuth2AuthorizationConsentService authorizationConsentService() {
+		return new InMemoryOAuth2AuthorizationConsentService();
 	}
 }
