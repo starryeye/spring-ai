@@ -61,8 +61,9 @@ spring:
             require-proof-key: true
             # 비밀이 없어 "자기 자신임"을 증명하지 못하므로, 사용자가 무엇을 허용하는지
             # 직접 확인하는 단계를 둔다(OAuth 2.1 §7.3). 클라이언트 단위 설정이라
-            # memory-agent 는 영향받지 않는다. 같은 이유로 PublicClientConsentService 가
-            # 이 클라이언트의 동의를 기록하지 않아 매 인가 요청이 동의 화면을 거친다(§7.3.1).
+            # memory-agent 는 영향받지 않는다. PublicClientConsentService 는 이 클라이언트의
+            # 동의를 기록하지 않고, PublicClientScopeValidator 는 동의할 scope 가 없는 요청(scope 없음,
+            # openid 하나)을 invalid_scope 로 거부한다 — 두 장치로 모든 인가 요청이 동의 화면을 거친다(§7.3.1).
             require-authorization-consent: true
 
 mcp:

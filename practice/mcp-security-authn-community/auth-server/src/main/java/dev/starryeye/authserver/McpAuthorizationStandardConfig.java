@@ -24,11 +24,11 @@ import java.util.List;
  * 때문에 모듈의 인가 서버 설정이 통째로 물러난다. 대신 모듈이 열어 둔 확장점
  * ({@code Customizer<McpAuthorizationServerConfigurer>})으로 넣는다.
  *
- * <p>모듈도 {@code resource} 를 {@code aud} 로 넣는 커스터마이저
- * ({@code ResourceIdentifierAudienceTokenCustomizer})를 갖고 있지만 {@code openid} 스코프가
- * 있으면 건너뛴다. 이 practice 의 에이전트는 로그인(openid)으로 토큰을 받으므로 그 경로가
- * 비어 버린다. 아래 토큰 커스터마이저가 모듈 것 뒤에 실행되어 스코프와 무관하게
- * {@code aud} 를 채운다.
+ * <p>모듈의 {@code ResourceIdentifierAudienceTokenCustomizer} 는 access token 이면서 {@code openid} 가
+ * 승인됐을 때만 건너뛰고, ID token 에는 {@code aud} 를 {@code resource} 로 덮어쓴다. 이 practice 의
+ * agent 는 로그인(openid)으로 token 을 받으므로 access token 의 {@code aud} 가 비고 ID token 의
+ * {@code aud} 는 틀어진다. 아래 {@code ResourceAudienceTokenCustomizer} 가 모듈 것 뒤에 실행되어
+ * access token 에 {@code aud=resource} 를 넣고 ID token 의 {@code aud} 를 client_id 로 되돌린다.
  *
  * <p>메타데이터·OIDC 디스커버리 커스터마이저는 이 클래스 안에서 한 번에 구성해야 한다.
  * {@code OAuth2AuthorizationServerMetadataEndpointConfigurer#authorizationServerMetadataCustomizer}
@@ -104,10 +104,14 @@ public class McpAuthorizationStandardConfig {
                 new IssuerIdentifyingAuthorizationResponseHandler();
 
         return configurer -> configurer
-                // RFC 8707: 기본 검증(redirect_uri·scope) 뒤에 resource 검증을 잇는다.
+                // 기본 검증(redirect_uri·scope) 뒤에 RFC 8707 resource 검증과
+                // public client 의 scope 검증(OAuth 2.1 §7.3.1)을 잇는다.
                 .authorizationCodeRequestValidator(new OAuth2AuthorizationCodeRequestAuthenticationValidator()
-                        .andThen(new ResourceIndicatorValidator(resources)))
+                        .andThen(new ResourceIndicatorValidator(resources))
+                        .andThen(new PublicClientScopeValidator()))
                 .authorizationServer(authorizationServer -> authorizationServer
+                        // RFC 8707: 모듈 customizer 의 (String) 캐스트보다 먼저 resource 개수를 본다.
+                        .tokenEndpoint(token -> token.accessTokenRequestConverter(new SingleResourceTokenRequestConverter()))
                         // RFC 9207: 성공·오류 응답 모두에 iss 를 싣는다.
                         .authorizationEndpoint(authorization -> authorization
                                 .authorizationResponseHandler(responseHandler)

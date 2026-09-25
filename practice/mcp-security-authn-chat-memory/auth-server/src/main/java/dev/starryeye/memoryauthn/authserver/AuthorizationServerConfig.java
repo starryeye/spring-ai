@@ -80,6 +80,7 @@ public class AuthorizationServerConfig {
 		IssuerIdentifyingAuthorizationResponseHandler responseHandler =
 				new IssuerIdentifyingAuthorizationResponseHandler();
 		ResourceIndicatorValidator resourceValidator = new ResourceIndicatorValidator(resources);
+		PublicClientScopeValidator publicClientScopeValidator = new PublicClientScopeValidator();
 
 		http.oauth2AuthorizationServer(authorizationServer -> {
 					http.securityMatcher(authorizationServer.getEndpointsMatcher());
@@ -88,12 +89,14 @@ public class AuthorizationServerConfig {
 									// RFC 9207: 성공·오류 응답 모두에 iss 를 싣는다.
 									.authorizationResponseHandler(responseHandler)
 									.errorResponseHandler(responseHandler)
-									// RFC 8707: 기본 검증(redirect_uri·scope) 뒤에 resource 검증을 잇는다.
+									// 기본 검증(redirect_uri·scope) 뒤에 RFC 8707 resource 검증과
+									// public client 의 scope 검증(OAuth 2.1 §7.3.1)을 잇는다.
 									.authenticationProviders(providers -> providers.forEach(provider -> {
 										if (provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider codeProvider) {
 											codeProvider.setAuthenticationValidator(
 													new OAuth2AuthorizationCodeRequestAuthenticationValidator()
-															.andThen(resourceValidator));
+															.andThen(resourceValidator)
+															.andThen(publicClientScopeValidator));
 										}
 									})))
 							.authorizationServerMetadataEndpoint(metadata -> metadata

@@ -15,9 +15,10 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
  * 누구나 댈 수 있으므로 신원을 확인할 수 없다.
  *
  * <p>Spring 은 한 번 받은 동의를 이 서비스에 저장하고, 다음 인가 요청에서 저장된 동의가
- * 요청 scope 를 모두 덮으면 동의 화면을 건너뛴다. 공개 클라이언트의 동의를 저장하지 않으면
- * 매 요청이 동의 화면을 거친다. 동의를 받은 그 요청은 저장 여부와 상관없이 방금 고른
- * scope 로 코드를 발급하므로 흐름은 그대로다. 기밀 클라이언트는 위임한 서비스에 그대로 남긴다.
+ * 요청 scope 를 모두 덮으면 동의 화면을 건너뛴다. 공개 클라이언트면 저장하지 않고 조회에도
+ * {@code null} 을 돌려준다. 동의를 받은 그 요청은 저장 여부와 상관없이 방금 고른 scope 로 코드를
+ * 발급한다. Spring 이 저장과 무관하게 건너뛰는 경로(scope 가 {@code openid} 하나)는
+ * {@link PublicClientScopeValidator} 가 막는다. 기밀 클라이언트는 위임한 서비스에 그대로 남긴다.
  */
 public class PublicClientConsentService implements OAuth2AuthorizationConsentService {
 

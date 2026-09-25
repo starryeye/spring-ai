@@ -217,6 +217,40 @@ class AuthorizationServerStandardTest {
         return parameters;
     }
 
+    /** public client 가 scope 만 바꿔 인가 요청한다. scope 가 null 이면 파라미터를 빼고 보낸다. */
+    UriComponents 공개클라이언트_scope_인가요청(String scope) throws Exception {
+        UriComponentsBuilder uri = 공개클라이언트_인가요청_URI(true, RESOURCE);
+        if (scope == null) {
+            uri.replaceQueryParam("scope");
+        }
+        else {
+            uri.replaceQueryParam("scope", scope);
+        }
+        String location = this.mockMvc.perform(get(uri.encode().build().toUri()).session(this.session))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        return UriComponentsBuilder.fromUriString(location).build();
+    }
+
+    /** 기밀 client 의 인가 요청에서 scope 와 resource 값을 바꿔 보낸다. */
+    UriComponents 인가요청(String scope, String... resources) throws Exception {
+        UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/oauth2/authorize")
+                .queryParam("response_type", "code")
+                .queryParam("client_id", CLIENT_ID)
+                .queryParam("redirect_uri", REDIRECT_URI)
+                .queryParam("scope", scope)
+                .queryParam("state", "state-1")
+                .queryParam("code_challenge", CODE_CHALLENGE)
+                .queryParam("code_challenge_method", "S256");
+        if (resources.length > 0) {
+            uri.queryParam("resource", (Object[]) resources);
+        }
+        String location = this.mockMvc.perform(get(uri.encode().build().toUri()).session(this.session))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        return UriComponentsBuilder.fromUriString(location).build();
+    }
+
     @Test
     void 메타데이터가_PKCE_S256_과_RFC9207_iss_지원을_광고한다() throws Exception {
         this.mockMvc.perform(get("/.well-known/oauth-authorization-server"))
@@ -582,5 +616,85 @@ class AuthorizationServerStandardTest {
 
         assertThat(second.getResponse().getStatus()).isEqualTo(200);
         assertThat(second.getResponse().getContentAsString()).contains("Consent required");
+    }
+
+    @Test
+    void 공개_클라이언트가_openid_만_요청하면_invalid_scope_다() throws Exception {
+        // Spring 은 scope 가 openid 하나면 consent 를 건너뛴다. public client 가 그 길로 consent 없이
+        // code 를 받으면 안 되므로(OAuth 2.1 §7.3.1) PublicClientScopeValidator 가 먼저 거부한다.
+        UriComponents response = 공개클라이언트_scope_인가요청("openid");
+
+        assertThat(응답파라미터(response, "error")).isEqualTo("invalid_scope");
+        assertThat(응답파라미터(response, "code")).isNull();
+        assertThat(응답파라미터(response, "state")).isEqualTo("state-1");
+        assertThat(응답파라미터(response, "iss")).isEqualTo(ISSUER);
+    }
+
+    @Test
+    void 공개_클라이언트가_scope_없이_요청하면_invalid_scope_다() throws Exception {
+        // RFC 6749 §3.3 — scope 를 생략하면 기본값으로 처리하거나 invalid_scope 로 거부해야 한다(MUST).
+        UriComponents response = 공개클라이언트_scope_인가요청(null);
+
+        assertThat(응답파라미터(response, "error")).isEqualTo("invalid_scope");
+        assertThat(응답파라미터(response, "code")).isNull();
+    }
+
+    @Test
+    void 공개_클라이언트가_openid_없이_profile_만_요청해도_consent_화면을_거친다() throws Exception {
+        MvcResult response = this.mockMvc
+                .perform(get(공개클라이언트_인가요청_URI(true, RESOURCE).replaceQueryParam("scope", "profile")
+                        .encode().build().toUri()).session(this.session))
+                .andReturn();
+
+        assertThat(response.getResponse().getStatus()).isEqualTo(200);
+        assertThat(response.getResponse().getContentAsString()).contains("Consent required");
+    }
+
+    @Test
+    void 기밀_클라이언트는_openid_만_요청해도_곧장_code_를_받는다() throws Exception {
+        UriComponents response = 인가요청("openid", RESOURCE);
+
+        assertThat(응답파라미터(response, "code")).isNotBlank();
+    }
+
+    @Test
+    void 인가_요청에_없던_resource_를_토큰_요청에서_정하면_invalid_target_이다() throws Exception {
+        // resource 는 사용자가 consent 한 대상이다. 인가 요청에 없던 대상을 token 요청에서 새로 정하지 못한다.
+        String body = 토큰요청(인가코드교환(인가코드(null), RESOURCE), 400);
+
+        assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
+    }
+
+    @Test
+    void 인가_요청의_resource_가_여러_개면_invalid_target_이다() throws Exception {
+        // 이 Authorization Server 는 보호 리소스 하나만 다룬다. 값이 여러 개면 String[] 이 되어 허용 목록과 맞지 않는다.
+        UriComponents response = 인가요청("openid profile", RESOURCE, OTHER_RESOURCE);
+
+        assertThat(응답파라미터(response, "error")).isEqualTo("invalid_target");
+        assertThat(응답파라미터(response, "code")).isNull();
+    }
+
+    @Test
+    void 토큰_요청의_resource_가_여러_개면_invalid_target_이다() throws Exception {
+        MultiValueMap<String, String> parameters = 인가코드교환(인가코드(RESOURCE), RESOURCE);
+        parameters.add("resource", OTHER_RESOURCE);
+
+        String body = 토큰요청(parameters, 400);
+
+        assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
+    }
+
+    @Test
+    void openid_없는_토큰_요청의_resource_가_여러_개여도_invalid_target_이다() throws Exception {
+        // 모듈 ResourceIdentifierAudienceTokenCustomizer 는 openid 가 없으면 resource 를 (String) 으로
+        // 캐스트한다. 값이 여러 개면 String[] 이라 캐스트가 실패하므로, SingleResourceTokenRequestConverter
+        // 가 그 전에 invalid_target 으로 막는다.
+        String code = 응답파라미터(인가요청("profile", RESOURCE), "code");
+        MultiValueMap<String, String> parameters = 인가코드교환(code, RESOURCE);
+        parameters.add("resource", OTHER_RESOURCE);
+
+        String body = 토큰요청(parameters, 400);
+
+        assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
     }
 }

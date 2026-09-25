@@ -40,6 +40,10 @@ public class ResourceAudienceTokenCustomizer implements OAuth2TokenCustomizer<Jw
 		if (requested != null && authorized != null && !requested.equals(authorized)) {
 			throw invalidTarget("The requested resource does not match the authorization request");
 		}
+		// 인가 요청에 없던 리소스를 token 요청에서 새로 정하지 못하게 한다 — 사용자가 consent 한 대상이 아니다.
+		if (requested != null && authorized == null) {
+			throw invalidTarget("The authorization request did not include a resource");
+		}
 
 		Object resource = (requested != null) ? requested : authorized;
 		if (resource == null) {
