@@ -20,9 +20,10 @@ main(8a3e11c) 전체 리뷰에서 나온 결함·문서 오류·준수표 누락
 ### 1.1 public client consent 우회 (세 practice)
 
 - 원인: Spring `OAuth2AuthorizationCodeRequestAuthenticationProvider#isAuthorizationConsentRequired` 는 scope 가 `openid` 하나면 consent 를 건너뛴다. community 는 모듈 `McpNoScopeClientConsentNotRequired` 가 scope 가 없을 때도 건너뛴다. `PublicClientConsentService` 는 저장된 consent 만 막는다.
-- 수정: authorization code request provider 의 consent 판정(`setAuthorizationConsentRequired`)을 바꾼다. 등록된 client 의 인증 방식이 `none` 이면 scope 와 관계없이 `true`, 아니면 기존 판정. official·chat-memory 는 `AuthorizationServerConfig` 의 provider 설정에서, community 는 모듈의 post-processor 뒤에 적용되는 경로에서 건다.
+- consent 판정만 "항상 필요"로 바꾸면 안 된다. Spring `OAuth2AuthorizationConsentAuthenticationProvider` 는 사용자가 승인한 scope 가 없으면 `openid` 도 붙이지 않고 `access_denied` 로 끝낸다. 기본 consent 화면에는 `openid` 체크박스가 없어, `openid` 단독·scope 없는 요청은 consent 화면을 보여 준 뒤 항상 거부된다.
+- 수정: authorization request 검증기에 `PublicClientScopeValidator` 를 잇는다. 등록된 client 의 인증 방식이 `none` 이고 요청 scope 에서 `openid` 를 뺀 것이 비어 있으면 `invalid_scope` 로 거부한다(redirect + `state`·`iss`). 근거: RFC 6749 §3.3 — scope 가 없으면 인가 서버는 기본값으로 처리하거나 `invalid_scope` 로 거부해야 한다(MUST). 이 검증기는 consent 판정보다 먼저 돌기 때문에 Spring 기본 판정(openid 단독 건너뜀)과 community 모듈 판정(scope 없음 건너뜀) 두 경로를 모두 막는다. official·chat-memory 는 `AuthorizationServerConfig` 의 검증기 체인, community 는 `McpAuthorizationStandardConfig` 의 `authorizationCodeRequestValidator` 체인에 잇는다.
 - `PublicClientConsentService` 는 유지한다(저장된 consent 무시 — 이전 consent 로 건너뛰는 경로를 막음). 두 장치의 역할을 javadoc 과 yml 주석에 나눠 적는다.
-- 테스트: public client 의 `scope=openid` 단독 요청과 scope 없는 요청이 200 consent 화면을 받는다. confidential client 흐름은 그대로다.
+- 테스트: public client 의 `scope=openid` 단독 요청과 scope 없는 요청이 `invalid_scope` redirect 를 받는다. `openid profile` 요청은 그대로 200 consent 화면. confidential client 의 `openid` 단독 요청은 영향이 없다.
 
 ### 1.2 `stop.sh`·`run.sh` (세 practice)
 
@@ -109,7 +110,8 @@ authorization request 에 `resource` 가 없었는데 token request 가 `resourc
 ### 3.6 chat-memory MCP session 을 사용자에 묶기
 
 - **MCP Server**: 인증 뒤에 도는 session binding 필터. 요청의 `Mcp-Session-Id` 가 다른 사용자(token 의 `sub`)에 묶여 있으면 403. `initialize` 응답의 `Mcp-Session-Id` 를 현재 사용자에 묶는다. `DELETE` 로 끝난 session 은 묶음을 지운다. 참고 구현: 모듈 `McpSessionFilter`(community 는 쓰지 않음).
-- **agent**: 사용자별 `McpSyncClient`. Spring AI MCP client 자동 구성의 공유 client 를 쓰지 않고, 로그인한 사용자(principal 이름)마다 transport 와 client 를 만들어 첫 채팅 때 `initialize` 한다. `ChatController` 는 요청마다 그 사용자의 client 에서 tool callback 을 얻어 넘긴다. 로그아웃과 HTTP session 종료 때 그 사용자의 client 를 닫는다(`DELETE` 로 session 종료). token 부착(`OAuth2TokenAttachingRequestCustomizer`)과 SecurityContext 전달은 그대로 쓴다.
+- **agent**: 사용자별 `McpSyncClient`. Spring AI MCP client 자동 구성(`spring.ai.mcp.client.enabled: false`)의 공유 client 를 쓰지 않고, 로그인한 사용자(principal 이름)마다 transport 와 client 를 만들어 첫 채팅 때 `initialize` 한다. `ChatController` 는 요청마다 그 사용자의 client 에서 tool callback 을 얻어 넘긴다. 로그아웃과 HTTP session 종료 때 그 사용자의 client 를 닫는다(`DELETE` 로 session 종료).
+- **token 은 client 의 주인에게 묶는다**: 사용자별 client 는 만들 때 주인(`Authentication`)을 받고, transport 의 request customizer 가 그 주인의 authorized client token 을 붙인다(현재 요청의 SecurityContext 를 보지 않음). 이유: MCP SDK 의 `McpSyncClient#closeGracefully` 는 transport context 를 넘기지 않아, SecurityContext 방식으로는 session 을 끝내는 `DELETE` 에 token 이 붙지 않는다. 주인에게 묶으면 `DELETE` 에도 token 이 붙고, 한 사용자의 session 에 다른 사용자의 token 이 실릴 수 없다. 그래서 chat-memory 에서는 `SecurityMcpTransportContextProvider` 와 `Hooks.enableAutomaticContextPropagation()` 이 필요 없어진다(제거하고 문서에 적는다).
 - **테스트**: 서버 — alice 의 session 에 bob 의 token → 403, 같은 사용자는 통과, DELETE 뒤 묶음 해제. agent — alice·bob 이 서로 다른 client(다른 session)를 받고, 로그아웃이 client 를 닫는다.
 - **문서**: chat-memory README·SEQUENCES·API-SPEC 에 반영(대화 격리에 이어 MCP session 도 사용자별). 준수표 새 행 chat-memory "예".
 
