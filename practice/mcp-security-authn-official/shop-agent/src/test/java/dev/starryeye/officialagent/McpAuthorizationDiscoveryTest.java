@@ -186,4 +186,29 @@ class McpAuthorizationDiscoveryTest {
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
 				.withMessageContaining("token_endpoint");
 	}
+
+	@Test
+	void authorization_endpoint_가_loopback_이_아닌_http_URL_이면_진행하지_않는다() {
+		// MCP Security Best Practices — http 는 loopback 주소에만 허용된다(MUST). 스킴만 보는 검사로는 막을 수 없는 URL 이다.
+		챌린지("Bearer resource_metadata=\"http://localhost:8111/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8111/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9010/.well-known/oauth-authorization-server",
+				AUTHORIZATION_SERVER_METADATA.replace("http://localhost:9010/oauth2/authorize", "http://evil.example/oauth2/authorize"));
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.withMessageContaining("authorization_endpoint");
+	}
+
+	@Test
+	void https_authorization_endpoint_는_host_와_상관없이_받는다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8111/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8111/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9010/.well-known/oauth-authorization-server",
+				AUTHORIZATION_SERVER_METADATA.replace("http://localhost:9010/oauth2/authorize", "https://auth.example/oauth2/authorize"));
+
+		assertThat(this.discovery.discover(RESOURCE, ISSUER).authorizationEndpoint())
+				.isEqualTo("https://auth.example/oauth2/authorize");
+		this.server.verify();
+	}
 }
