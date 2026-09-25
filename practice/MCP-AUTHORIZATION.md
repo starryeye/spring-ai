@@ -7,20 +7,25 @@
 | 문서 | 담는 것 |
 |---|---|
 | 이 문서 | 범위, 구성요소, 단계별 규칙과 구현, 보안, 준수표 |
-| [MCP-API-SPEC.md](MCP-API-SPEC.md) | 엔드포인트마다 요청·응답 필드 표, 오류, 캡처 예시 |
+| [MCP-API-SPEC.md](MCP-API-SPEC.md) | endpoint 마다 요청·응답 필드 표, 오류, 캡처 예시 |
 | [MCP-SEQUENCES.md](MCP-SEQUENCES.md) | 등록과 런타임 흐름의 sequence 다이어그램과 단계 설명 |
 
 - [`mcp-security-authn-official`](mcp-security-authn-official) — Spring Security · Spring Authorization Server · Spring AI MCP 를 직접 조립
 - [`mcp-security-authn-chat-memory`](mcp-security-authn-chat-memory) — official 과 같은 구조에 사용자별 대화 기억을 더한 것
-- [`mcp-security-authn-community`](mcp-security-authn-community) — spring-ai-community `mcp-security` 모듈(0.1.14) 자동설정 위에서 구현
+- [`mcp-security-authn-community`](mcp-security-authn-community) — spring-ai-community `mcp-security` module(0.1.14) 자동설정 위에서 구현
 
 ## 목차
 
 1. [범위와 기준 리비전](#s1)
 2. [구성요소](#s2)
 3. [전체 흐름](#s3)
-4. [단계별](#s4) — [4.1 401 challenge](#s4-1) · [4.2 PRM](#s4-2) · [4.3 Authorization Server Metadata](#s4-3) · [4.4 Client 등록](#s4-4) · [4.5 Authorization request 와 consent](#s4-5) · [4.6 Callback 과 `iss`](#s4-6) · [4.7 Token request](#s4-7) · [4.8 MCP 호출과 session](#s4-8) · [4.9 Token 검증](#s4-9) · [4.10 만료와 refresh](#s4-10)
+4. [단계별](#s4)
+   - [4.1 401 challenge](#s4-1) · [4.2 PRM](#s4-2) · [4.3 Authorization Server Metadata](#s4-3) · [4.4 Client 등록](#s4-4)
+   - [4.5 Authorization request 와 consent](#s4-5) · [4.6 Callback 과 `iss`](#s4-6) · [4.7 Token request](#s4-7)
+   - [4.8 MCP 호출과 session](#s4-8) · [4.9 Token 검증](#s4-9) · [4.10 만료와 refresh](#s4-10)
 5. [보안 고려사항](#s5)
+   - [5.1 Token passthrough](#s5-1) · [5.2 Confused deputy](#s5-2) · [5.3 Mix-up](#s5-3) · [5.4 Discovery SSRF](#s5-4)
+   - [5.5 Redirect URI 와 PKCE](#s5-5) · [5.6 Public client 사칭과 re-consent](#s5-6) · [5.7 전송 계층](#s5-7) · [5.8 MCP session](#s5-8)
 6. [준수표](#s6)
 7. [2026-07-28 전송에서 달라지는 점](#s7)
 8. [다루지 않는 것](#s8)
@@ -54,13 +59,13 @@ MCP 명세는 날짜로 리비전을 나누고, 이 문서는 전송·수명주�
 
 protected MCP Server 는 OAuth 2.1 resource server, MCP client 는 OAuth 2.1 client 다([MCP 2025-11-25 Authorization — Roles](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#roles)).
 Authorization Server 는 사용자와 상호작용하고 MCP Server 에서 쓸 access token 을 발급하며, resource server 와 같이 둘 수도 별도로 둘 수도 있다.
-세 practice 는 Authorization Server·MCP Server·Agent 를 서로 다른 프로세스(포트)로 띄운다.
+세 practice 는 Authorization Server·MCP Server·Agent 를 서로 다른 프로세스(포트)로 띄우고, 모두 `127.0.0.1` 에만 bind 한다([5.7](#s5-7)).
 
 ### 역할
 
 | 역할 | OAuth 용어 | 프로젝트 | 하는 일 |
 |---|---|---|---|
-| Browser | user-agent (resource owner 가 조작) | 브라우저 | Agent 화면을 열고 Authorization Server 에 로그인하며, authorization code 가 담긴 redirect 를 나른다. token 은 보지 않는다 |
+| Browser | user-agent (resource owner 가 조작) | browser | Agent 화면을 열고 Authorization Server 에 로그인하며, authorization code 가 담긴 redirect 를 나른다. token 은 보지 않는다 |
 | Agent | confidential client ([OAuth 2.1 §2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.1)) | `shop-agent` | 사용자 대신 MCP Server 를 부른다. discovery, code 교환, token 보관을 서버 쪽에서 하고, token endpoint 에서 `client_secret_basic` 으로 인증한다 |
 | Local MCP Client | public client | 없음 — 캡처 스크립트(`curl`)가 대신한다 | 사용자 기기의 데스크톱 앱·CLI 를 가정한다. 비밀 없이 `local-mcp-client` 로 등록돼 있다 |
 | MCP Server | resource server | `shop-mcp-server` | PRM 을 공개하고, 요청마다 token 을 검증하고, tool(`getStock`, `searchProducts`)을 실행한다 |
@@ -68,7 +73,7 @@ Authorization Server 는 사용자와 상호작용하고 MCP Server 에서 쓸 a
 
 ### 두 client
 
-Agent 는 브라우저 안의 앱이 아니라 서버에서 도는 웹 앱이라 `client_secret` 을 안전하게 보관하고, MCP Server 로 가는 요청에 브라우저의 `Origin` 이 붙지 않는다.
+Agent 는 browser 안의 앱이 아니라 서버에서 도는 웹 앱이라 `client_secret` 을 안전하게 보관하고, MCP Server 로 가는 요청에 browser 의 `Origin` 이 붙지 않는다.
 사용자 기기의 MCP client 는 배포본에서 비밀이 드러나므로 public client 로 등록한다.
 두 client 는 모두 pre-registration 이고, 차이는 [4.4](#s4-4)에 있다.
 
@@ -76,7 +81,7 @@ Agent 는 브라우저 안의 앱이 아니라 서버에서 도는 웹 앱이라
 
 | 누가 | 미리 아는 것(설정) | 실행 중에 알아내거나 검증하는 것 |
 |---|---|---|
-| Agent | MCP Server URL(`mcp.authorization.resource-url`), pre-registration 자격증명(client_id·secret·redirect URI·scope), 그 자격증명의 issuer(`mcp.authorization.credentials-issuer`) | Authorization Server 위치와 endpoint 는 설정에 없고 MCP Server 에게서 discovery 한다([4.2](#s4-2), [4.3](#s4-3)). issuer 가 `credentials-issuer` 와 다르면 자격증명을 보내지 않는다([4.4](#s4-4)) |
+| Agent | MCP Server URL(`mcp.authorization.resource-url`), pre-registration 자격증명(client_id·secret·redirect URI·scope), 그 자격증명의 issuer(`mcp.authorization.credentials-issuer`) | Authorization Server 위치와 endpoint 는 MCP Server 에게서 discovery 한다([4.2](#s4-2), [4.3](#s4-3)). issuer 가 `credentials-issuer` 와 다르면 metadata 도 요청하지 않는다([4.4](#s4-4)) |
 | MCP Server | 신뢰할 issuer(`issuer-uri`), 자기 resource 식별자(audience) | 서명 key 는 metadata 의 `jwks_uri` 에서 받고, 요청마다 서명·`iss`·`aud`·`exp` 를 검증한다([4.9](#s4-9)) |
 | Authorization Server | 등록된 client 둘 — Agent(confidential, PKCE 필수)와 `local-mcp-client`(public, loopback redirect URI, PKCE·consent 필수), token 을 발급할 resource 목록(`mcp.authorization.resources`), 사용자 계정 | authorization request 의 `resource` 가 목록에 있는지, token request 의 `resource` 가 authorization request 와 같은지 본다([4.5](#s4-5), [4.7](#s4-7)) |
 | Browser | 없음 | Authorization Server 와 Agent 각각의 session cookie 만 가진다 |
@@ -87,7 +92,11 @@ Agent 는 브라우저 안의 앱이 아니라 서버에서 도는 웹 앱이라
 [MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog) 가 MCP Server 를 OAuth Resource Server 로 분류하고, PRM 과 RFC 8707 Resource Indicators 를 요구하며 역할을 나눴다.
 그래서 MCP Server 는 token 을 검증만 하고, 여러 resource 가 한 Authorization Server 를 함께 쓸 때 `resource` 와 audience 검증으로 token 의 대상을 가린다([4.7](#s4-7), [4.9](#s4-9)).
 
+<a id="s2-ports"></a>
+
 ### practice 별 포트·계정
+
+포트·client_id·계정은 이 표 한 곳에만 둔다. 다른 절과 문서는 이 표로 링크한다.
 
 | | official | chat-memory | community |
 |---|---|---|---|
@@ -98,38 +107,40 @@ Agent 는 브라우저 안의 앱이 아니라 서버에서 도는 웹 앱이라
 | redirect URI | `http://localhost:8110/login/oauth2/code/authserver` | `http://localhost:8130/login/oauth2/code/authserver` | `http://localhost:8100/login/oauth2/code/authserver` |
 | public client | `local-mcp-client`, redirect URI `http://127.0.0.1:8123/callback` | 같음 | 같음 |
 | 로그인 계정 | `user` / `password` | `alice` / `alice`, `bob` / `bob` | `user` / `password` |
-| 구성 방식 | filter chain·bean 을 직접 정의 | official 과 같은 클래스 구성 | 모듈 자동설정 + 확장점, 막히는 곳만 직접 정의 |
+| 구성 방식 | filter chain·bean 을 직접 정의 | official 과 같은 클래스 구성 | module 자동설정 + 확장점, 막히는 곳만 직접 정의 |
 
 ### 구현 위치 지도
 
 chat-memory 의 Authorization Server·MCP Server 클래스는 official 과 패키지만 다르다(`dev.starryeye.memoryauthn.*`).
+예외는 MCP session 을 사용자에 묶는 클래스와 Agent 의 MCP client 구성이고, 표에 따로 적었다([5.8](#s5-8)).
 뒤 절의 "이 practice" 는 이 표의 이름으로 가리킨다.
 
 | 관심사 | official · chat-memory | community |
 |---|---|---|
-| PRM 공개 | `shop-mcp-server` `SecurityConfig` — `protectedResourceMetadata(...)` | 모듈 `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer` |
-| 401 challenge 의 `resource_metadata` | `SecurityConfig#resourceMetadataEntryPoint` (Spring `BearerTokenAuthenticationEntryPoint`) | 같은 진입점을 모듈 기본 진입점 대신 건다 |
-| token 검증(서명·`iss`·`aud`·`exp`) | `application.yml` 의 `spring.security.oauth2.resourceserver.jwt.issuer-uri` · `audiences` | Boot `JwtDecoder` + 모듈 `validateAudienceClaim(true)`(`AudienceValidationJwtDecoder`) |
-| `Origin`·`Host` 검증 | `McpTransportConfig` — SDK `DefaultServerTransportSecurityValidator` | 모듈 `allowedOrigins` · `allowedHosts` → `OriginValidationFilter` |
+| PRM 공개 | `shop-mcp-server` `SecurityConfig` — `protectedResourceMetadata(...)` | module `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer` |
+| 401 challenge 의 `resource_metadata` | `SecurityConfig#resourceMetadataEntryPoint` (Spring `BearerTokenAuthenticationEntryPoint`) | 같은 진입점을 module 기본 진입점 대신 건다 |
+| token 검증(서명·`iss`·`aud`·`exp`) | `application.yml` 의 `spring.security.oauth2.resourceserver.jwt.issuer-uri` · `audiences` | Boot `JwtDecoder` + module `validateAudienceClaim(true)`(`AudienceValidationJwtDecoder`) |
+| `Origin`·`Host` 검증(인증 앞) | `McpTransportSecurityFilter` + `McpTransportConfig#mcpTransportSecurityFilter` — SDK `DefaultServerTransportSecurityValidator` 를 Spring Security 앞에서 부른다 | module `allowedOrigins` · `allowedHosts` → `OriginValidationFilter`(filter chain 안, 인증 앞) |
 | `MCP-Protocol-Version` 검증 | `McpProtocolVersionFilter` + `McpTransportConfig#mcpProtocolVersionFilter` | `McpProtocolVersionFilter` + `McpProtocolVersionFilterConfig` |
 | Authorization Server 설정 진입점 | `AuthorizationServerConfig` (filter chain 직접 정의) | `McpAuthorizationStandardConfig` (`Customizer<McpAuthorizationServerConfigurer>`), `OidcDiscoveryConfig` |
 | PKCE 강제 | `auth-server` `application.yml` — `require-proof-key: true` | 같음 |
 | `resource` 허용 목록과 authorization request 검증 | `McpResourceProperties`, `ResourceIndicatorValidator` | 같음 |
-| access token `aud` 발급과 token request `resource` 검증 | `ResourceAudienceTokenCustomizer` | 같음 + ID token `aud` 를 client_id 로 되돌리는 분기 |
+| access token `aud` 발급과 token request `resource` 검증 | `ResourceAudienceTokenCustomizer` | 같음 + ID token `aud` 를 client_id 로 되돌리는 분기, `SingleResourceTokenRequestConverter`(`resource` 여러 개 거부) |
 | authorization response 의 `iss`, metadata 광고(`iss` 지원 + client 인증 서명 알고리즘 세 claim) | `IssuerIdentifyingAuthorizationResponseHandler` + `AuthorizationServerConfig` | `IssuerIdentifyingAuthorizationResponseHandler` + `McpAuthorizationStandardConfig` |
 | client 인증 실패의 `WWW-Authenticate` | `ClientAuthenticationChallengeFailureHandler` + `AuthorizationServerConfig#clientAuthentication` | `ClientAuthenticationChallengeFailureHandler` + `McpAuthorizationStandardConfig#clientAuthentication` |
 | public client 등록 | `auth-server` `application.yml` — `local-mcp-client` | 같음 |
 | metadata 의 `none` 광고 | `AuthorizationServerConfig` — `tokenEndpointAuthenticationMethods(...)` | `McpAuthorizationStandardConfig` |
-| public client 의 consent 를 기록하지 않음 | `PublicClientConsentService` + `AuthorizationServerConfig#authorizationConsentService` | `PublicClientConsentService` + `McpAuthorizationStandardConfig#authorizationConsentService` |
+| public client 의 consent 를 건너뛰지 않음 | `PublicClientScopeValidator`(검증기 체인) + `PublicClientConsentService`(`AuthorizationServerConfig#authorizationConsentService`) | 같은 두 클래스를 `McpAuthorizationStandardConfig` 에 건다 |
 | Dynamic Client Registration(DCR) | 켜지 않음 — Spring Authorization Server 기본값 | 끔 — `spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false` |
-| PRM·Authorization Server Metadata discovery | `McpAuthorizationDiscovery`, `DiscoveredAuthorization` | `McpAuthorizationDiscovery` + 모듈 `McpMetadataDiscoveryService`(401 challenge 와 PRM) |
-| pre-registration 자격증명과 issuer binding | `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties` | 같음 |
+| PRM·Authorization Server Metadata discovery | `McpAuthorizationDiscovery`, `DiscoveredAuthorization` | `McpAuthorizationDiscovery` + module `McpMetadataDiscoveryService`(401 challenge 와 PRM) |
+| pre-registration 자격증명과 issuer binding | `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties`, `McpAuthorizationDiscovery#discover(String, String)` | 같음 |
 | authorization request 의 PKCE·`resource` | `SecurityConfig#authorizationRequestResolver`, `ResourceIndicators` | 같음 |
 | token·refresh request 의 `resource` | `McpSecurityConfig` — `RestClientAuthorizationCodeTokenResponseClient`, `RestClientRefreshTokenTokenResponseClient` + `ResourceIndicators` | 같음 |
 | authorization response `iss` 검증 | `AuthorizationResponseIssuerFilter` (+ `LoginFailureHandler`) | 같음 |
-| MCP 요청에 token 부착 | `OAuth2TokenAttachingRequestCustomizer`, `SecurityMcpTransportContextProvider` | 모듈 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`, `ChatController` 의 `AuthenticationMcpTransportContextProvider.writeToReactorContext()` |
+| MCP 요청에 token 부착 | official: `OAuth2TokenAttachingRequestCustomizer`, `SecurityMcpTransportContextProvider`. chat-memory: client 주인에 묶인 `OAuth2TokenAttachingRequestCustomizer` | module `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`, `ChatController` 의 `AuthenticationMcpTransportContextProvider.writeToReactorContext()` |
 | 만료 token refresh | `McpSecurityConfig#authorizedClientManager` (`AuthorizedClientServiceOAuth2AuthorizedClientManager`) | `McpSecurityConfig#authorizedClientManager` (`DefaultOAuth2AuthorizedClientManager`) |
 | MCP 전송(client) | SDK `HttpClientStreamableHttpTransport` — `Accept`·`Mcp-Session-Id`·`MCP-Protocol-Version` 을 붙인다 | 같음 |
+| MCP session 을 사용자에 묶기 | official: 묶지 않음. chat-memory: `McpSessionBindingFilter`(MCP Server) + `UserMcpClients`(Agent) | 묶지 않음 — module `sessionBinding()` 을 켜지 않는다 |
 
 ---
 
@@ -194,15 +205,15 @@ token 없이 그 URL 을 부르면 MCP Server 가 `401` 과 PRM 의 위치로 �
 
 #### 명세
 
-- [MCP 2025-11-25 Authorization — Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements) — MCP Server 는 `401` 의 `WWW-Authenticate` 에 `resource_metadata` 를 싣거나([RFC 9728 §5.1](https://www.rfc-editor.org/rfc/rfc9728#section-5.1)) well-known URI 에 PRM 을 두는 것 중 하나를 구현한다(**MUST**). client 는 둘 다 지원하고, header 의 URL 을 먼저 쓰고 없으면 경로형 → 루트형 순서로 well-known URI 를 만든다(**MUST**).
+- [MCP 2025-11-25 Authorization — Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements) — MCP Server 는 PRM 위치를 알리는 두 방법 중 하나를 구현한다(**MUST**). 방법은 `401` 의 `WWW-Authenticate` 에 `resource_metadata` 를 싣는 것([RFC 9728 §5.1](https://www.rfc-editor.org/rfc/rfc9728#section-5.1))과 well-known URI 에 PRM 을 두는 것이다. client 는 둘 다 지원하고, header 의 URL 을 먼저 쓰고 없으면 경로형 → 루트형 순서로 well-known URI 를 만든다(**MUST**).
 - 같은 절 — MCP Server 는 challenge 에 필요한 `scope` 를 넣는 것이 좋다(**SHOULD**, [RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)). 없으면 client 는 [Scope Selection Strategy](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-selection-strategy)를 따라(**SHOULD**) PRM 의 `scopes_supported` 전체를 요청하고, 그것도 없으면 `scope` 를 생략한다. client 는 `WWW-Authenticate` 를 해석해 `401` 에 대응할 수 있어야 한다(**MUST**).
 - [RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3) · [OAuth 2.1 §5.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.3.1) — 인증 정보나 허용되는 token 이 없으면 resource server 는 스킴 `Bearer` 의 `WWW-Authenticate` 를 포함한다(**MUST**). `realm` 은 MAY, `scope` 는 OPTIONAL 이다. 인증 정보가 아예 없던 요청에는 `error` 를 넣지 않는 것이 좋다(**SHOULD NOT**, [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1)).
 - [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110#section-11.2) — `auth-param` 값이 `:`·`/` 를 담으면 `token` 이 될 수 없으므로([§5.6.2](https://www.rfc-editor.org/rfc/rfc9110#section-5.6.2)) URL 은 `quoted-string` 으로 보낸다.
 
 #### 이 practice
 
-- MCP Server: `SecurityConfig#resourceMetadataEntryPoint` 가 Spring `BearerTokenAuthenticationEntryPoint` 로 요청 경로 `/mcp` 앞에 `/.well-known/oauth-protected-resource` 를 끼운 URL 을 싣는다([RFC 9728 §3.1](https://www.rfc-editor.org/rfc/rfc9728#section-3.1)). community 도 이 진입점을 모듈 기본 진입점 대신 건다. 테스트: `McpAuthorizationStandardTest#토큰_없는_요청의_챌린지가_경로형_메타데이터를_가리킨다`.
-- Agent: `McpAuthorizationDiscovery` 가 token 없이 `initialize` 를 POST 하고, `401` 이 아니면 discovery 를 멈춘다. community 는 모듈 `McpMetadataDiscoveryService#getWwwAuthenticateParameters` 가 같은 일을 한다.
+- MCP Server: `SecurityConfig#resourceMetadataEntryPoint` 가 Spring `BearerTokenAuthenticationEntryPoint` 로 요청 경로 `/mcp` 앞에 `/.well-known/oauth-protected-resource` 를 끼운 URL 을 싣는다([RFC 9728 §3.1](https://www.rfc-editor.org/rfc/rfc9728#section-3.1)). community 도 이 진입점을 module 기본 진입점 대신 건다. 테스트: `McpAuthorizationStandardTest#토큰_없는_요청의_챌린지가_경로형_메타데이터를_가리킨다`.
+- Agent: `McpAuthorizationDiscovery` 가 token 없이 `initialize` 를 POST 하고, `401` 이 아니면 discovery 를 멈춘다. community 는 module `McpMetadataDiscoveryService#getWwwAuthenticateParameters` 가 같은 일을 한다.
 
 관측: C1 은 `401` 과 `WWW-Authenticate: Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource/mcp"` 다(chat-memory `http://localhost:8131/.well-known/oauth-protected-resource/mcp`, community `http://localhost:8101/.well-known/oauth-protected-resource/mcp`). 값은 따옴표로 감쌌고 `error`·`realm`·`scope` 는 없다. `scope` 가 없는 것은 scope 를 설계하지 않았기 때문이고([8절](#s8)), Agent 는 로그인 설정의 `openid profile` 을 요청한다.
 
@@ -218,17 +229,17 @@ client 는 PRM 의 `resource` 를 검증한 뒤 `authorization_servers` 에서 i
 #### 명세
 
 - [MCP 2025-11-25 Authorization — Authorization Server Location](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-location) — MCP Server 는 RFC 9728 을 구현하고(**MUST**), `authorization_servers` 에 Authorization Server 를 하나 이상 넣는다(**MUST**). RFC 9728 자체에서 이 필드는 OPTIONAL 이다. 여럿이면 client 가 [RFC 9728 §7.6](https://www.rfc-editor.org/rfc/rfc9728#section-7.6)에 따라 고른다.
-- [MCP 2026-07-28 Authorization Server Discovery — Authorization Server Location](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-location) — client 는 나열된 Authorization Server 마다 등록 상태를 따로 가져야 하고(**MUST**), 한 서버의 자격증명이 다른 서버에서 통한다고 가정하면 안 된다(**MUST NOT**).
+- [MCP 2026-07-28 Authorization Server Discovery — Authorization Server Location](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-location) — client 는 나열된 Authorization Server 마다 등록 상태를 따로 가져야 한다(**MUST**). 한 서버의 자격증명이 다른 서버에서 통한다고 가정하면 안 된다(**MUST NOT**).
 - [RFC 9728 §3](https://www.rfc-editor.org/rfc/rfc9728#section-3) · [§3.1](https://www.rfc-editor.org/rfc/rfc9728#section-3.1) — metadata URL 은 resource 식별자의 host 와 path 사이에 `/.well-known/oauth-protected-resource` 를 끼워 만들고, 요청은 `GET` 이다(**MUST**). 성공 응답은 `200` + `application/json` 이다(**MUST**, [§3.2](https://www.rfc-editor.org/rfc/rfc9728#section-3.2)).
 - [RFC 9728 §3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3) — 응답의 `resource` 는 URL 을 만든 resource 식별자와, `resource_metadata` 로 받았다면 client 가 요청한 URL 과 정확히 같아야 한다. 다르면 응답을 쓰면 안 된다(**MUST NOT**). 다른 resource 의 metadata 로 엉뚱한 Authorization Server 에 유도하는 사칭([§7.3](https://www.rfc-editor.org/rfc/rfc9728#section-7.3))을 막는다.
 - [MCP 2025-11-25 Authorization — Canonical Server URI](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#canonical-server-uri) — canonical URI 는 RFC 8707 resource 식별자이자 RFC 9728 의 `resource` 다. scheme 이 있고 fragment 가 없어야 하며, 끝 `/` 는 의미가 없으면 붙이지 않는 것이 좋다(**SHOULD**).
 
 #### 이 practice
 
-- MCP Server: `SecurityConfig` 의 `protectedResourceMetadata(...)` 가 issuer 를 설정하고, Spring Security 가 경로형·루트형 두 곳에 문서를 낸다. community 는 모듈 `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer` 로 같은 값과 `resourceName` 을 준다. 테스트: `McpAuthorizationStandardTest#보호_리소스_메타데이터를_경로형으로_공개한다`.
-- `tls_client_certificate_bound_access_tokens`: Spring 기본 동작은 PRM 에 이 값을 `true` 로 내고(`OAuth2ProtectedResourceMetadataFilter`), 명세는 이 resource 가 mTLS 에 묶인 access token 을 지원하는지 알리는 OPTIONAL 필드로 생략하면 `false` 로 보며([RFC 9728 §2](https://www.rfc-editor.org/rfc/rfc9728#section-2)), 이 practice 는 그런 token 을 요구하지도 검증하지도 않으므로 `tlsClientCertificateBoundAccessTokens(false)` 로 끈다.
+- MCP Server: `SecurityConfig` 의 `protectedResourceMetadata(...)` 가 issuer 를 설정하고, Spring Security 가 경로형·루트형 두 곳에 문서를 낸다. community 는 module `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer` 로 같은 값과 `resourceName` 을 준다. 테스트: `McpAuthorizationStandardTest#보호_리소스_메타데이터를_경로형으로_공개한다`.
+- `tls_client_certificate_bound_access_tokens`: Spring 기본 동작은 PRM 에 이 값을 `true` 로 낸다(`OAuth2ProtectedResourceMetadataFilter`). 명세에서 이 필드는 mTLS 에 묶인 access token 지원을 알리는 OPTIONAL 필드이고, 생략하면 `false` 다([RFC 9728 §2](https://www.rfc-editor.org/rfc/rfc9728#section-2)). 이 practice 는 그런 token 을 요구하지도 검증하지도 않으므로 `tlsClientCertificateBoundAccessTokens(false)` 로 끈다.
 - Agent: `McpAuthorizationDiscovery#protectedResourceMetadata` 가 challenge URL → 경로형 → 루트형 순서로 시도하고, `resource` 를 `resource-url`(루트형은 origin)과 비교한다. issuer 는 `authorization_servers` 의 첫 값이다. 테스트: `McpAuthorizationDiscoveryTest#메타데이터의_resource_가_요청한_URL_과_다르면_실패한다`.
-- community Agent: 모듈 `McpMetadataDiscoveryService#getMcpMetadata` 가 같은 순서와 같은 비교를 하고, issuer 선택부터는 `McpAuthorizationDiscovery` 가 이어받는다.
+- community Agent: module `McpMetadataDiscoveryService#getMcpMetadata` 가 같은 순서와 같은 비교를 하고, issuer 선택부터는 `McpAuthorizationDiscovery` 가 이어받는다.
 
 관측: C2 의 `resource` 는 `http://localhost:8111/mcp`, `authorization_servers` 는 `["http://localhost:9010"]` 이고 challenge 를 받은 URL 과 같다. 루트형 `http://localhost:8111/.well-known/oauth-protected-resource` 의 `resource` 는 `http://localhost:8111` 이다(S2). `scopes_supported`(RECOMMENDED)는 없고 `resource_name`(RECOMMENDED)은 community 에만 있다.
 
@@ -243,9 +254,9 @@ authorization·token endpoint 주소와 지원 기능은 Authorization Server Me
 
 #### 명세
 
-- [MCP 2025-11-25 Authorization — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview) — Authorization Server 는 RFC 8414 와 OpenID Connect Discovery 1.0 중 하나 이상을 제공하고(**MUST**), client 는 둘 다 지원한다(**MUST**).
+- [MCP 2025-11-25 Authorization — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview) — Authorization Server 는 RFC 8414 와 OpenID Connect Discovery 1.0 중 하나 이상을 제공한다(**MUST**). client 는 둘 다 지원한다(**MUST**).
 - [MCP 2025-11-25 Authorization — Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-metadata-discovery) — client 는 아래 표의 순서로 시도한다(**MUST**). RFC 8414 를 먼저 보는 근거는 [RFC 8414 §5](https://www.rfc-editor.org/rfc/rfc8414#section-5)이고, 경로가 있는 issuer 에서 두 규격의 URL 변환이 다르다.
-- [MCP 2026-07-28 Authorization Server Discovery — Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery) — 응답의 `issuer` 는 URL 을 만든 issuer 와 같아야 하고(**MUST**, [RFC 8414 §3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3) · [OIDC Discovery §4.3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationValidation)), 다르면 그 문서를 쓰면 안 된다(**MUST NOT**).
+- [MCP 2026-07-28 Authorization Server Discovery — Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery) — 응답의 `issuer` 는 URL 을 만든 issuer 와 같아야 한다(**MUST**). 다르면 그 문서를 쓰면 안 된다(**MUST NOT**, [RFC 8414 §3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3) · [OIDC Discovery §4.3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationValidation)).
 - [MCP 2025-11-25 Authorization — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection) — client 는 metadata 로 PKCE 지원을 확인해야 하고(**MUST**), `code_challenge_methods_supported` 가 없으면 진행을 거부해야 한다(**MUST**). OIDC Discovery 를 제공하는 Authorization Server 는 이 필드를 넣어야 한다(**MUST**). 가능하면 `S256` 을 써야 한다(**MUST**).
 - [RFC 9207 §3](https://www.rfc-editor.org/rfc/rfc9207#section-3) — `authorization_response_iss_parameter_supported` 는 authorization response 에 `iss` 를 싣는지 알린다. 생략하면 `false` 다.
 
@@ -257,7 +268,8 @@ authorization·token endpoint 주소와 지원 기능은 Authorization Server Me
 #### 이 practice
 
 - Agent: `McpAuthorizationDiscovery#metadataUrls` 가 위 순서로 URL 을 만든다(official 은 `http://localhost:9010/.well-known/oauth-authorization-server` 다음 `http://localhost:9010/.well-known/openid-configuration`). 처음 `200` 이 온 문서의 `issuer` 와 `S256` 을 확인하고, 어긋나면 `McpDiscoveryException` 으로 멈추며 다음 후보로 넘어가지 않는다. 테스트: `McpAuthorizationDiscoveryTest#PKCE_S256_을_광고하지_않으면_진행하지_않는다`.
-- Authorization Server: `AuthorizationServerConfig`(community 는 `McpAuthorizationStandardConfig`)가 두 metadata 문서에 `authorization_response_iss_parameter_supported: true`, `none`, client 인증 서명 알고리즘 세 claim 을 더한다. community 는 모듈이 OIDC endpoint 를 켜지 않아 `OidcDiscoveryConfig` 가 `oidc()` 를 켠다. 테스트: `AuthorizationServerStandardTest#메타데이터가_PKCE_S256_과_RFC9207_iss_지원을_광고한다`.
+- Agent 의 순서: `McpAuthorizationDiscovery#discover(String, String)` 는 PRM 의 issuer 가 `credentials-issuer` 인지 먼저 보고, 아니면 metadata 를 GET 하지 않는다([4.4](#s4-4)). 받은 metadata 의 `authorization_endpoint`·`token_endpoint` 는 `http`·`https` URL 이어야 한다(`#requireHttpUrl`, [5.4](#s5-4)). 테스트: `#authorization_endpoint_가_http_URL_이_아니면_진행하지_않는다`, `#token_endpoint_가_http_URL_이_아니면_진행하지_않는다`.
+- Authorization Server: `AuthorizationServerConfig`(community 는 `McpAuthorizationStandardConfig`)가 두 metadata 문서에 `authorization_response_iss_parameter_supported: true`, `none`, client 인증 서명 알고리즘 세 claim 을 더한다. community 는 module 이 OIDC endpoint 를 켜지 않아 `OidcDiscoveryConfig` 가 `oidc()` 를 켠다. 테스트: `AuthorizationServerStandardTest#메타데이터가_PKCE_S256_과_RFC9207_iss_지원을_광고한다`.
 - 세 서명 알고리즘 claim 의 값은 Spring 의 `JwtClientAssertionDecoderFactory` 가 `client_secret_jwt`·`private_key_jwt` 에서 실제로 검증하는 12개(HS·RS·ES·PS 256/384/512)다. Spring Security 에 이 claim 상수가 없어 문자열로 넣는다. 테스트: `#메타데이터에_클라이언트_인증_서명_알고리즘이_광고된다`.
 
 관측: C3 의 `issuer` 는 `http://localhost:9010` 이고 `code_challenge_methods_supported: ["S256"]`·`authorization_response_iss_parameter_supported: true` 가 두 문서 모두에 있다(S1). `token_endpoint_auth_methods_supported` 에는 여섯 방식과 `none` 이 있고(P1), `registration_endpoint`·`client_id_metadata_document_supported` 는 없다. `grant_types_supported` 의 `client_credentials`·token exchange 는 서버 전체 능력이고, 등록된 grant 는 `authorization_code`·`refresh_token` 뿐이다.
@@ -274,7 +286,7 @@ authorization request 를 만들려면 Authorization Server 가 아는 `client_i
 
 #### 명세 — 등록 방식
 
-[MCP 2025-11-25 Authorization — Client Registration Approaches](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-registration-approaches) · [MCP 2026-07-28 Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration) — 모든 방식을 지원하는 client 는 아래 우선순위를 따르는 것이 좋다(**SHOULD**).
+[MCP 2025-11-25 Authorization — Client Registration Approaches](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-registration-approaches) · [2026-07-28 Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration) — 모든 방식을 지원하는 client 는 아래 우선순위를 따르는 것이 좋다(**SHOULD**).
 
 | 순위 | 방식 | 언제 | 요구 수준 | 이 practice |
 |---|---|---|---|---|
@@ -305,21 +317,22 @@ authorization request 를 만들려면 Authorization Server 가 아는 `client_i
 
 | | confidential client (Agent) | public client |
 |---|---|---|
-| client_id | `official-shop-agent` · `memory-agent` · `shop-agent` | `local-mcp-client` (세 practice 같음) |
+| client_id | [포트·계정 표](#s2-ports)의 Agent client_id | `local-mcp-client` (세 practice 같음) |
 | token endpoint 인증 | `client_secret_basic` | `none` — 본문에 `client_id` 만(P5) |
-| redirect URI | [포트 표](#s2)의 Agent callback | `http://127.0.0.1:8123/callback` — loopback, 포트는 요청마다 달라도 된다(P10) |
+| redirect URI | [포트·계정 표](#s2-ports)의 Agent callback | `http://127.0.0.1:8123/callback` — loopback, 포트는 요청마다 달라도 된다(P10) |
 | PKCE | 필수(`require-proof-key: true`) | 필수(P9·P11) |
-| consent | 없음(`require-authorization-consent: false`) | 매 요청(`require-authorization-consent: true` + `PublicClientConsentService`, P3·P8) |
+| consent | 없음(`require-authorization-consent: false`) | 매 요청(`require-authorization-consent: true` + `PublicClientScopeValidator` + `PublicClientConsentService`, P3·P8·P8-1) |
 | refresh token | 발급, 회전 없음(C11) | 발급하지 않음(P7) |
 | access token `aud` | `resource`(C6-1) | `resource`(P5-1) |
 | MCP Server 의 검증 | 서명·`iss`·`aud`·`exp` | 같다 — MCP Server 는 client 유형을 보지 않는다(P6) |
 
-- Agent 설정에는 자격증명(`spring.security.oauth2.client.registration.authserver`)과 `mcp.authorization.resource-url`·`credentials-issuer` 만 있다. `DiscoveredClientRegistrationRepository#registration` 은 discovery 로 얻은 issuer 가 `credentials-issuer` 와 다르면 `McpDiscoveryException` 을 던지고 `ClientRegistration` 을 만들지 않아, `client_secret` 이 어디로도 나가지 않는다. 테스트: `DiscoveredClientRegistrationRepositoryTest#자격증명이_묶인_인가_서버가_아니면_쓰지_않는다`.
+- Agent 설정에는 자격증명(`spring.security.oauth2.client.registration.authserver`)과 `mcp.authorization.resource-url`·`credentials-issuer` 만 있다. `DiscoveredClientRegistrationRepository` 가 `credentials-issuer` 를 `McpAuthorizationDiscovery#discover(String, String)` 에 넘기고, PRM 의 issuer 가 다르면 discovery 가 metadata GET 전에 멈춰 `client_secret` 이 어디로도 나가지 않는다. 테스트: `McpAuthorizationDiscoveryTest#PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다`, `DiscoveredClientRegistrationRepositoryTest#자격증명이_묶인_issuer_를_discovery_에_넘긴다`.
 - discovery 는 처음 필요할 때 한 번 하고 성공한 결과만 프로세스 수명 동안 캐시하며, 실패한 discovery 는 캐시하지 않아 다음 요청에서 다시 시도한다(`DiscoveredClientRegistrationRepositoryTest#발견은_한_번만_한다`, `#실패는_캐시하지_않는다`). 그래서 PRM 의 Authorization Server 가 바뀐 것은 Agent 를 다시 시작할 때 드러나고, 그때 위 검사가 오류를 낸다.
+- consent: `local-mcp-client` 는 매 authorization request 에서 consent 를 거친다. Spring 기본 동작이 consent 를 건너뛰는 두 경로를 `PublicClientScopeValidator`·`PublicClientConsentService` 가 막고, 규칙은 [5.6](#s5-6)에 있다.
 - `local-mcp-client` 는 `auth-server` `application.yml` 설정만으로 등록된다(`client-authentication-methods: [none]`, `require-proof-key: true`, `require-authorization-consent: true`). Spring 의 `PublicClientAuthenticationProvider` 가 `none` 등록을 확인하고 `CodeVerifierAuthenticator` 로 PKCE 를 검증하므로, public client 에게는 PKCE 검증이 곧 client 인증이다.
 - Spring 기본 metadata 는 `none` 을 광고하지 않고, 명세에서 이 광고는 OPTIONAL 이다. 이 practice 는 `tokenEndpointAuthenticationMethods(methods -> methods.add("none"))` 로 기존 목록 끝에 덧붙인다. 테스트: `AuthorizationServerStandardTest#메타데이터에_공개_클라이언트_인증_방식_none_이_광고되고_기존_방식도_유지된다`.
 - `OAuth2RefreshTokenGenerator` 는 `authorization_code` grant 에서 인증 방식이 `none` 이면 refresh token 을 만들지 않는다. loopback 포트는 `OAuth2AuthorizationCodeRequestAuthenticationValidator` 가 등록 URI 의 포트를 요청 포트로 바꿔 비교한다. 테스트: `#루프백_리다이렉트는_등록된_포트와_달라도_허용되고_경로가_다르면_거부된다`.
-- community Authorization Server 는 모듈이 기본으로 켜는 DCR 을 `dynamic-client-registration.enabled: false` 로 끈다. 테스트: `AuthorizationServerStandardTest#동적_클라이언트_등록은_켜지_않는다`.
+- community Authorization Server 는 module 이 기본으로 켜는 DCR 을 `dynamic-client-registration.enabled: false` 로 끈다. 테스트: `AuthorizationServerStandardTest#동적_클라이언트_등록은_켜지_않는다`.
 
 관측: C3·S1 metadata 에 `registration_endpoint` 와 `client_id_metadata_document_supported` 가 없어, 이 Authorization Server 에서 가능한 등록 방식은 pre-registration 뿐이다.
 
@@ -337,7 +350,7 @@ Authorization Server 는 client·redirect URI·PKCE·`resource` 를 검증하고
 - [OAuth 2.1 §4.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.1) — `response_type=code`·`client_id` 는 REQUIRED, `code_challenge` 는 REQUIRED 또는 RECOMMENDED(§7.5.1), `code_challenge_method` 는 OPTIONAL(기본 `plain`), `scope`·`state` 는 OPTIONAL 이다. `redirect_uri` 는 등록값과 단순 문자열로 정확히 대조해야 한다(**MUST**). [RFC 6749 §4.1.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.1) 에서 `state` 는 RECOMMENDED 였다.
 - [RFC 7636 §4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.1)–§4.3 — `code_verifier` 는 43~128자의 고엔트로피 무작위 문자열이고, `S256` 이면 `code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))` 다. `S256` 을 쓸 수 있는 client 는 써야 한다(**MUST**). PKCE 를 요구하는 서버는 `code_challenge` 없는 요청에 `invalid_request` 를 돌려줘야 한다(**MUST**, [§4.4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.4.1)).
 - [OAuth 2.1 §7.5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.5.2) — PKCE 생략은 confidential client 이면서 OIDC `nonce` 를 올바르게 쓴다는 확신이 있을 때뿐이고, 그때도 PKCE 는 RECOMMENDED 다. MCP 는 이 예외 없이 client 가 PKCE 를 구현하고(**MUST**) 진행 전에 지원을 확인하라고 한다(**MUST**, [4.3](#s4-3)).
-- [MCP 2025-11-25 Authorization — Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation) — client 는 RFC 8707 을 구현하고(**MUST**), authorization request 와 token request 둘 다에 MCP Server 의 canonical URI 를 `resource` 로 넣는다(**MUST**). Authorization Server 가 지원하는지와 무관하게 보낸다(**MUST**).
+- [MCP 2025-11-25 Authorization — Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation) — client 는 RFC 8707 을 구현한다(**MUST**). authorization request 와 token request 둘 다에 MCP Server 의 canonical URI 를 `resource` 로 넣는다(**MUST**). Authorization Server 가 지원하는지와 무관하게 보낸다(**MUST**).
 - [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) · [§2.1](https://www.rfc-editor.org/rfc/rfc8707#section-2.1) — `resource` 는 절대 URI 이고 fragment 가 없어야 한다(**MUST**). 받아들일 수 없는 값은 `invalid_target` 이고, `resource` 를 생략한 요청은 기본값으로 처리할 수도(**MAY**) `invalid_target` 으로 거부할 수도(**MAY**) 있다.
 - [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection) · [RFC 6749 §4.1.2.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1) — client 는 redirect URI 를 등록하고(**MUST**) `state` 를 쓰고 검증하는 것이 좋다(**SHOULD**). redirect URI 나 client_id 가 없거나 틀리면 Authorization Server 는 그 URI 로 자동 redirect 하면 안 된다(**MUST NOT**).
 - [OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) · [§7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) — Authorization Server 는 사용자를 명시적으로 인증하고 client·scope·수명 정보를 보여 주는 것이 좋다(**SHOULD**). client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않는 것이 좋고(**SHOULD NOT**), 이전 consent 가 있어도 처음처럼 처리하는 것이 좋다(**SHOULD**).
@@ -347,9 +360,9 @@ Authorization Server 는 client·redirect URI·PKCE·`resource` 를 검증하고
 
 - Agent: `SecurityConfig#authorizationRequestResolver` 가 `OAuth2AuthorizationRequestCustomizers.withPkce()` 와 `ResourceIndicators.authorizationRequest(...)` 를 잇는다. 요청 기록은 `HttpSessionOAuth2AuthorizationRequestRepository` 에 저장된다. 테스트: `ShopAgentApplicationTests#인가_요청에_PKCE_와_resource_가_실린다`.
 - Authorization Server: `require-proof-key: true` 가 `code_challenge` 없는 요청을 거부하고, `ResourceIndicatorValidator` 가 허용 목록 밖 `resource` 에 `invalid_target` 을 던진다. `resource` 가 없는 요청은 거부하지 않는다(RFC 8707 §2.1 의 MAY). 테스트: `AuthorizationServerStandardTest#등록되지_않은_resource_는_invalid_target_이다`.
-- consent: confidential client 는 consent 를 생략하고(`require-authorization-consent: false`), public client 는 매번 받는다. Spring 기본은 받은 consent 를 저장해 다음부터 건너뛰지만, `PublicClientConsentService` 가 인증 방식이 `none` 인 client 의 consent 를 저장하지 않는다. 테스트: `AuthorizationServerStandardTest#공개_클라이언트는_이전에_동의했어도_매번_동의_화면을_거친다`.
+- consent: confidential client 는 consent 를 생략하고(`require-authorization-consent: false`), public client 는 매번 받는다([5.6](#s5-6)). scope 가 없거나 `openid` 하나뿐인 public client 요청은 consent 판정 전에 `invalid_scope` 로 거부된다. 테스트: `AuthorizationServerStandardTest#공개_클라이언트는_이전에_동의했어도_매번_동의_화면을_거친다`, `#공개_클라이언트가_openid_만_요청하면_invalid_scope_다`.
 
-관측: S17 요청에 `code_challenge_method=S256` 과 `resource=http://localhost:8111/mcp` 가 실린다. 허용 목록 밖 `resource=http://localhost:9999/mcp` 는 `error=invalid_target`(C16), `code_challenge` 누락은 `error=invalid_request`(C17), 등록되지 않은 redirect URI 는 redirect 없는 `400`(S4)이다. public client 는 이전 consent 가 있어도 `200` consent 화면을 받는다(P3·P8).
+관측: S17 요청에 `code_challenge_method=S256` 과 `resource=http://localhost:8111/mcp` 가 실린다. 허용 목록 밖 `resource=http://localhost:9999/mcp` 는 `error=invalid_target`(C16), `code_challenge` 누락은 `error=invalid_request`(C17), 등록되지 않은 redirect URI 는 redirect 없는 `400`(S4)이다. public client 는 이전 consent 가 있어도 `200` consent 화면을 받고(P3·P8), `openid` 하나만 요청하면 `302` `error=invalid_scope` 다(P8-1).
 
 자세히: [API](MCP-API-SPEC.md#authorize) · [consent API](MCP-API-SPEC.md#authorize-consent) · 시퀀스 [confidential](MCP-SEQUENCES.md#rt-authz-confidential) · [public](MCP-SEQUENCES.md#rt-authz-public)
 
@@ -382,7 +395,7 @@ callback 의 `iss` 를 기록해 둔 issuer 와 비교하면 다른 서버의 �
 
 - Authorization Server: `IssuerIdentifyingAuthorizationResponseHandler` 를 authorization endpoint 의 성공·오류 응답 핸들러로 걸어 모든 redirect 에 `iss` 를 붙인다. 값은 `AuthorizationServerContextHolder` 의 issuer 로 metadata 의 `issuer` 와 같다. 테스트: `AuthorizationServerStandardTest#인가_응답에_code_state_iss_가_실린다`.
 - Agent: `AuthorizationResponseIssuerFilter` 가 code 를 교환하는 `OAuth2LoginAuthenticationFilter` 앞에서 `state` 로 요청 기록을 찾고, 그 `registrationId` 의 `issuerUri` 와 `iss` 를 `String.equals` 로 비교한다. 실패하면 기록을 지우고 `LoginFailureHandler` 가 `401` 을 보내며, Authorization Server 가 보낸 `error` 계열 파라미터는 보여 주지 않는다. 테스트: `AuthorizationResponseIssuerFilterTest#iss_가_다르면_코드를_교환하지_않는다`.
-- 기록 방식: 명세는 issuer 를 `code_verifier` 와 같은 요청별 기록에 넣으라고 하고, 이 practice 는 요청별 기록에 `registrationId` 를 넣고 issuer 는 그 등록(프로세스 수명 동안 캐시한 discovery 결과)에서 꺼낸다. Authorization Server 가 하나이고 discovery 결과가 실행 중 바뀌지 않아 비교 대상은 같지만, 문구 그대로의 구현은 아니다([6절](#s6) 10번).
+- 기록 방식: 명세는 issuer 를 `code_verifier` 와 같은 요청별 기록에 넣으라고 하고, 이 practice 는 요청별 기록에 `registrationId` 를 넣고 issuer 는 그 등록(프로세스 수명 동안 캐시한 discovery 결과)에서 꺼낸다. Authorization Server 가 하나이고 discovery 결과가 실행 중 바뀌지 않아 비교 대상은 같지만, 문구 그대로의 구현은 아니다([6절](#s6) 9번).
 
 ```mermaid
 sequenceDiagram
@@ -427,8 +440,8 @@ Authorization Server 는 client 인증·PKCE·`resource` 를 확인한 뒤 audie
 #### 이 practice
 
 - Agent: `McpSecurityConfig#authorizationCodeTokenResponseClient` 가 `RestClientAuthorizationCodeTokenResponseClient` 에 `ResourceIndicators.tokenRequest(...)` 를 더해 `resource` 를 싣는다. `code_verifier`·`redirect_uri` 는 저장된 요청 기록에서, 인증 방식 `CLIENT_SECRET_BASIC` 은 `DiscoveredClientRegistrationRepository` 에서 온다. 테스트: `AuthorizationCodeTokenRequestTest#코드_교환_요청에_resource_를_실어_보낸다`.
-- Authorization Server: `ResourceAudienceTokenCustomizer` 는 token request 와 authorization request 의 `resource` 가 다르거나 허용 목록 밖이면 `invalid_target` 을 던지고, 통과하면 `aud` 를 그 값 하나로 둔다. 둘 다 없으면 `aud` 를 바꾸지 않고, 그 token 은 MCP Server 에서 거부된다. 테스트: `AuthorizationServerStandardTest#access_token_의_aud_는_resource_이고_id_token_은_client_id_다`.
-- community: 모듈 `ResourceIdentifierAudienceTokenCustomizer` 는 ID token 의 `aud` 도 `resource` 로 덮어쓴다. community 의 `ResourceAudienceTokenCustomizer` 는 그 뒤에 실행돼 ID token `aud` 를 client_id 로 되돌린다(OIDC Core §2).
+- Authorization Server: `ResourceAudienceTokenCustomizer` 는 token request 의 `resource` 가 authorization request 와 다르거나, authorization request 에 없던 값이거나, 허용 목록 밖이면 `invalid_target` 을 던진다. 통과하면 `aud` 를 그 값 하나로 두고, 둘 다 없으면 `aud` 를 바꾸지 않아 그 token 은 MCP Server 에서 거부된다. 테스트: `AuthorizationServerStandardTest#access_token_의_aud_는_resource_이고_id_token_은_client_id_다`, `#인가_요청에_없던_resource_를_토큰_요청에서_정하면_invalid_target_이다`.
+- community: module `ResourceIdentifierAudienceTokenCustomizer` 는 ID token 의 `aud` 도 `resource` 로 덮어쓰고, community 의 `ResourceAudienceTokenCustomizer` 가 그 뒤에 실행돼 client_id 로 되돌린다(OIDC Core §2). module 은 token request 의 `resource` 를 `(String)` 으로 캐스트해 값이 여러 개면 `500` 이 되므로, `SingleResourceTokenRequestConverter` 가 먼저 `invalid_target` 으로 거부한다. 테스트: `#토큰_요청의_resource_가_여러_개면_invalid_target_이다`.
 - `invalid_client` 의 `WWW-Authenticate`: Spring 기본 `OAuth2ClientAuthenticationFilter#onAuthenticationFailure` 는 이 헤더를 붙이지 않는다([spring-security #18285](https://github.com/spring-projects/spring-security/issues/18285), 7.2.0-M1 도 같다). 명세는 `401` 과 스킴에 맞는 `WWW-Authenticate` 를 요구하므로, `ClientAuthenticationChallengeFailureHandler` 가 요청의 스킴과 issuer realm 으로 채운다. 스킴이 `token` 문법에 맞지 않으면 `Basic` 으로 되돌리고, `Authorization` 헤더 없이 실패하면 헤더를 붙이지 않는다.
 - access token 은 RFC 9068 프로파일이 아니다: 헤더에 `typ` 이 없고(C6), `client_id` claim 이 없으며 `scope` 가 JSON 배열이다(C6-1). MCP 는 이 프로파일을 요구하지 않아 MCP 준수에는 영향이 없다([6절](#s6) 17번).
 
@@ -455,13 +468,13 @@ authorization 은 HTTP 계층의 일이라 JSON-RPC 메시지는 인증이 없�
 
 #### 이 practice
 
-- Agent: SDK `HttpClientStreamableHttpTransport` 가 POST 마다 `Accept`·`Content-Type`·`MCP-Protocol-Version`·`Mcp-Session-Id` 를 붙이고, session ID 를 받으면 `GET /mcp` stream 을 연다. `Authorization` 은 요청마다 불리는 커스터마이저(`OAuth2TokenAttachingRequestCustomizer`, community 는 모듈 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`)가 붙인다. token 은 로그인한 사용자의 것이고, Agent 자신의 client credentials token 은 쓰지 않는다.
-- Agent 는 기동 시점에 `initialize` 를 하지 않는다(`spring.ai.mcp.client.initialized: false`). 기동 시점에는 대신 호출할 사용자가 없어 `401` 이 오기 때문이고, handshake 는 첫 채팅 요청 중에 일어난다.
-- MCP Server: Spring AI `WebMvcStreamableServerTransportProvider` 가 session(UUID)과 `400`/`404` 를 판단한다. `McpProtocolVersionFilter` 가 SDK 가 하지 않는 `MCP-Protocol-Version` 검증을 하고(없으면 통과), `Origin`·`Host` 는 SDK `DefaultServerTransportSecurityValidator`(community 는 모듈 `OriginValidationFilter`)가 보고, `Origin` 헤더가 없는 요청은 통과시킨다. 테스트: `McpAuthorizationStandardTest#지원하지_않는_MCP_Protocol_Version_헤더는_400이다`.
-- 검사 순서: official·chat-memory 는 `McpProtocolVersionFilter` 가 먼저, community 는 `OriginValidationFilter` 가 먼저다. 그래서 잘못된 버전과 허용되지 않은 `Origin` 을 함께 실으면 official·chat-memory 는 `400`, community 는 `403` 이다. 허용 Origin 은 official·chat-memory 가 없음, community 가 `http://localhost:8101` 이다.
+- Agent: SDK `HttpClientStreamableHttpTransport` 가 POST 마다 `Accept`·`Content-Type`·`MCP-Protocol-Version`·`Mcp-Session-Id` 를 붙이고, session ID 를 받으면 `GET /mcp` stream 을 연다. `Authorization` 은 요청마다 불리는 커스터마이저(`OAuth2TokenAttachingRequestCustomizer`, community 는 module `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`)가 붙인다. token 은 로그인한 사용자의 것이고, Agent 자신의 client credentials token 은 쓰지 않는다.
+- Agent 는 기동 시점에 `initialize` 를 하지 않고, handshake 는 첫 채팅 요청 중에 일어난다. 기동 시점에는 대신 호출할 사용자가 없어 `401` 이 오기 때문이다. official·community 는 `spring.ai.mcp.client.initialized: false` 로, chat-memory 는 사용자별 client 를 첫 채팅 때 여는 `UserMcpClients` 로 이렇게 한다([5.8](#s5-8)).
+- MCP Server: Spring AI `WebMvcStreamableServerTransportProvider` 가 session(UUID)과 `400`/`404` 를 판단한다. `McpProtocolVersionFilter` 는 SDK 가 하지 않는 `MCP-Protocol-Version` 검증을 인증 뒤에서 하고, 헤더가 없으면 통과시킨다. 테스트: `McpAuthorizationStandardTest#지원하지_않는_MCP_Protocol_Version_헤더는_400이다`.
+- 검사 순서: 세 practice 모두 `Origin`·`Host` → token 인증 → `MCP-Protocol-Version` 순서다([5.7](#s5-7)). 그래서 잘못된 버전과 허용되지 않은 `Origin` 을 함께 실으면 `403` 이다. 허용 Origin 은 official·chat-memory 가 없음, community 가 `http://localhost:8101` 이다.
 - SSE 이벤트 `id`: SDK 서버 전송은 이벤트 `id` 로 session ID 를 써서 한 session 의 이벤트가 같은 `id` 를 가진다(C9·C10). 그 값을 정하는 `WebMvcStreamableMcpSessionTransport` 가 `private` 이고 이를 감싼 `WebMvcStreamableServerTransportProvider` 가 `public final` 이라, 전송 구현 전체를 포크하지 않고는 바꿀 수 없다([6절](#s6) 19번).
 
-관측: C7 `initialize` 는 `200` 과 `Mcp-Session-Id`, 협상 버전 `2025-11-25` 이고, C8 `notifications/initialized` 는 `202` 다. 지원하지 않는 버전은 `400` `-32600`(C15), session ID 없는 POST 는 `400`(C14), 끝난 session 은 `404`(S13·S16)이다. `Origin: http://evil.example` 은 `403`(C13), `Host: evil.example:8111` 은 `421`(S14)이다.
+관측: C7 `initialize` 는 `200` 과 `Mcp-Session-Id`, 협상 버전 `2025-11-25` 이고, C8 `notifications/initialized` 는 `202` 다. 지원하지 않는 버전은 `400` `-32600`(C15), session ID 없는 POST 는 `400`(C14), 모르는 session 은 `404`(S13), DELETE 로 끝낸 session 도 `404`(S16)이다. `Origin: http://evil.example` 은 `403`(C13), `Host: evil.example:8111` 은 `421`(S14)이다.
 
 자세히: [API](MCP-API-SPEC.md#mcp-post) · [GET](MCP-API-SPEC.md#mcp-get) · [DELETE](MCP-API-SPEC.md#mcp-delete) · [시퀀스](MCP-SEQUENCES.md#rt-mcp-session)
 
@@ -474,7 +487,7 @@ MCP Server 는 요청을 처리하기 전에 access token 을 검증하고, 자�
 
 #### 명세
 
-- [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) — MCP Server 는 [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2) 대로 검증하고(**MUST**), token 이 자기를 audience 로 발급됐는지 확인해야 한다(**MUST**, RFC 8707 §2). 실패하면 OAuth 2.1 §5.3 대로 응답하고, 유효하지 않거나 만료된 token 에는 `401` 이어야 한다(**MUST**). 자기 resource 에 유효한 token 만 받고(**MUST**), 다른 token 은 받거나 전달하면 안 된다(**MUST NOT**).
+- [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) — MCP Server 는 [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2) 대로 검증한다(**MUST**). token 이 자기를 audience 로 발급됐는지 확인하고(**MUST**, RFC 8707 §2), 자기 resource 용이 아닌 token 은 받거나 전달하면 안 된다(**MUST NOT**). 실패하면 OAuth 2.1 §5.3 대로 응답하고, 유효하지 않거나 만료된 token 에는 `401` 이어야 한다(**MUST**).
 - [MCP 2025-11-25 Authorization — Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction) — 요청 처리 전에 검증하고(**MUST**), audience 에 자기가 없는 token 은 거부해야 한다(**MUST**).
 - [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2) — resource server 는 token 이 만료되지 않았는지, 요청한 resource 에 권한이 있는지, 알맞은 scope 로 발급됐는지, 그 밖의 정책을 만족하는지 확인해야 한다(**MUST**).
 - [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4) — `typ` 이 `at+jwt`·`application/at+jwt` 인지, `iss` 가 정확히 같은지, `aud` 에 자기가 있는지, 서명이 맞고 `alg: none` 이 아닌지, `exp` 전인지 확인해야 한다(**MUST**). 실패하면 `invalid_token` 이고, [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) 에서 `invalid_token` 은 `401` 이다(**SHOULD**).
@@ -483,15 +496,16 @@ MCP Server 는 요청을 처리하기 전에 access token 을 검증하고, 자�
 
 | 검증 | 명세 | official · chat-memory | community | 관측 |
 |---|---|---|---|---|
-| 서명 | RFC 9068 §4 MUST | `issuer-uri` 로 metadata 의 `jwks_uri` key 를 쓴다(`NimbusJwtDecoder.withIssuerLocation`) | Boot 가 만든 같은 decoder 를 모듈에 넘긴다 | S3 `not-a-jwt` → `401 invalid_token` |
+| 서명 | RFC 9068 §4 MUST | `issuer-uri` 로 metadata 의 `jwks_uri` key 를 쓴다(`NimbusJwtDecoder.withIssuerLocation`) | Boot 가 만든 같은 decoder 를 module 에 넘긴다 | S3 `not-a-jwt` → `401 invalid_token` |
 | `iss` | MUST, 정확히 일치 | `JwtIssuerValidator(issuer-uri)` | 같음 | 테스트 `McpAuthorizationStandardTest#iss_가_다른_토큰은_거부한다` |
-| `aud` | MCP MUST · RFC 9068 MUST | `jwt.audiences: http://localhost:8111/mcp` | 모듈 `AudienceValidationJwtDecoder` 가 요청 URL 로 계산한 `http://localhost:8101/mcp` | C12 ID token → `401 The aud claim is not valid` |
+| `aud` | MCP MUST · RFC 9068 MUST | `jwt.audiences: http://localhost:8111/mcp` | module `AudienceValidationJwtDecoder` 가 요청 URL 로 계산한 `http://localhost:8101/mcp` | C12 ID token → `401 The aud claim is not valid` |
 | `exp`·`nbf` | MUST | `JwtTimestampValidator`(허용 오차 60초) | 같음 | 캡처 없음 |
 | `typ` | RFC 9068 MUST `at+jwt` | `JwtTypeValidator.jwt()` — `typ` 이 없거나 `JWT` 일 때만 통과 | 같음 | C7 `typ` 없는 token 통과 |
 | scope | OAuth 2.1 §5.2 MUST(알맞은 scope) | 검사하지 않는다. 인증된 요청은 모든 tool 허용 | 같음 | — |
 
-community 는 기대 audience 를 요청 URL 로 계산하므로, 허용 Host `127.0.0.1:8101` 로 부르면 기대값이 `http://127.0.0.1:8101/mcp` 가 되어 `localhost` 로 발급된 token 을 거부한다.
-거부되는 쪽으로 어긋나 안전하지만, 기대값을 설정으로 고정하는 official 방식이 canonical URI 하나를 기준으로 삼는 명세에 더 가깝다.
+community 는 기대 audience 를 요청 URL(Host)로 계산하므로, `OriginValidationFilter` 의 Host 검증이 인증보다 먼저 와야 한다.
+Host 를 바꾸고 그 Host 용 token 을 실은 요청은 audience 계산 전에 `421` 로 막힌다(`McpAuthorizationStandardTest#Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다`).
+허용 Host `127.0.0.1:8101` 로 부르면 기대값이 `http://127.0.0.1:8101/mcp` 가 되어 `localhost` 로 발급된 token 을 거부하므로, 설정으로 고정하는 official 방식이 canonical URI 하나를 기준으로 삼는 명세에 더 가깝다.
 
 관측: C12 의 ID token 은 서명과 `iss` 가 맞아도 `aud` 가 달라 `401` 이고, 오류 응답에도 `resource_metadata` 가 남아 client 는 discovery 를 다시 할 수 있다. RFC 9068 §5 가 경고하는 ID token 오용을 이 practice 는 `aud` 검사로 막는다.
 
@@ -539,17 +553,25 @@ public client 는 refresh token 을 받지 않아, 만료되면 authorization re
 
 ### 5.1 Token passthrough
 
-[MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) 은 client 가 그 MCP Server 의 Authorization Server 가 발급하지 않은 token 을 보내는 것(**MUST NOT**)과, MCP Server 가 자기 resource 용이 아닌 token 을 받거나 전달하는 것(**MUST NOT**)을 금한다.
-[Security Best Practices — Token Passthrough](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#token-passthrough) 는 검증 없이 하류 API 로 token 을 넘기는 것을 안티패턴으로 규정하고, 자기 앞으로 발급되지 않은 token 은 받으면 안 된다고 한다(**MUST NOT**).
+MCP Server 가 자기 앞으로 발급되지 않은 token 을 받거나 하류 API 로 넘기면, audience 로 나눈 신뢰 경계가 무너진다.
 이 practice 의 MCP Server 는 하류 API 를 부르지 않고, Agent 는 로그인한 사용자의 access token 하나만 보낸다([4.8](#s4-8)).
+
+#### 명세
+
+- [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) — client 는 그 MCP Server 의 Authorization Server 가 발급하지 않은 token 을 보내면 안 된다(**MUST NOT**). MCP Server 도 자기 resource 용이 아닌 token 을 받거나 전달하면 안 된다(**MUST NOT**).
+- [Security Best Practices — Token Passthrough](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#token-passthrough) — 검증 없이 하류 API 로 token 을 넘기는 것을 안티패턴으로 규정한다. MCP Server 는 자기 앞으로 발급되지 않은 token 을 받으면 안 된다(**MUST NOT**).
 
 <a id="s5-2"></a>
 
 ### 5.2 Confused deputy
 
-[Security Best Practices — Confused Deputy Problem](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#confused-deputy-problem) 의 공격은 MCP Server 가 static client_id 로 제3자 Authorization Server 에 등록된 OAuth proxy 이고, consent cookie 가 남으며 client 별 consent 를 따로 받지 않을 때 성립한다.
-이 practice 의 MCP Server 는 proxy 가 아니어서 이 조건이 없다.
-대신 [MCP 2026-07-28 Security Considerations — Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#access-token-privilege-restriction) 의 일반 방어, 곧 자기 앞으로 발급된 token 만 받고(**MUST**) audience 에 자기가 없는 token 은 거부하는 것(**MUST**)을 [4.7](#s4-7)·[4.9](#s4-9)가 구현한다(C12).
+Confused deputy 는 OAuth proxy 인 MCP Server 가 사용자의 이전 consent 를 공격자 client 에게 넘겨주는 공격이다.
+이 practice 의 MCP Server 는 proxy 가 아니어서 이 조건이 없고, 일반 방어인 audience 검증을 [4.7](#s4-7)·[4.9](#s4-9)가 구현한다(C12).
+
+#### 명세
+
+- [Security Best Practices — Confused Deputy Problem](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#confused-deputy-problem) — MCP Server 가 static client_id 로 제3자 Authorization Server 에 등록된 OAuth proxy 일 때 성립한다. consent cookie 가 남고 client 별 consent 를 따로 받지 않는 것도 조건이다.
+- [MCP 2026-07-28 Security Considerations — Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#access-token-privilege-restriction) — 자기 앞으로 발급된 token 만 받아야 한다(**MUST**). audience 에 자기가 없는 token 은 거부해야 한다(**MUST**).
 
 <a id="s5-3"></a>
 
@@ -562,15 +584,21 @@ public client 는 refresh token 을 받지 않아, 만료되면 authorization re
 
 ### 5.4 Discovery SSRF
 
-discovery 에서 client 가 여는 URL 은 모두 MCP Server 가 알려 준 값이라, 악성 MCP Server 는 이를 내부망이나 `http://169.254.169.254/` 같은 cloud metadata 주소로 채울 수 있다([Security Best Practices — Server-Side Request Forgery (SSRF)](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)).
-server 에 배포된 MCP client 는 OAuth 관련 URL 을 가져올 때 SSRF 위험을 고려하고 알맞은 대응을 구현해야 하며(**MUST**), 대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), redirect 대상 검증, egress proxy 를 든다(모두 **SHOULD**).
-Agent 는 서버에서 도는 client 라 이 MUST 의 대상이고, 세 practice 의 판정은 [준수표 27번](#s6)이다.
+discovery 에서 client 가 여는 URL 은 모두 MCP Server 가 알려 준 값이다.
+악성 MCP Server 는 이를 내부망이나 `http://169.254.169.254/` 같은 cloud metadata 주소로 채울 수 있다.
+Agent 는 서버에서 도는 client 라 아래 MUST 의 대상이고, 세 practice 의 판정은 [준수표](#s6) 27·33번이다.
+
+#### 명세
+
+- [Security Best Practices — Server-Side Request Forgery (SSRF)](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) — server 에 배포된 MCP client 는 OAuth 관련 URL 을 가져올 때 SSRF 위험을 고려하고 대응을 구현해야 한다(**MUST**). 대응으로 HTTPS 강제, 사설 IP 대역 차단([RFC 9728 §7.7](https://www.rfc-editor.org/rfc/rfc9728#section-7.7)), redirect 대상 검증, egress proxy 를 든다(모두 **SHOULD**).
+- [Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation) — client 는 authorization URL 의 스킴으로 `http`·`https` 만 허용해야 한다(**MUST**). `http` 는 로컬 개발의 loopback 주소에만 쓸 수 있고, `javascript:`·`data:`·`file:` 같은 스킴은 거부해야 한다(**MUST**).
 
 #### 이 practice
 
-- official·chat-memory 는 이 대응을 하지 않는다. `McpAuthorizationDiscovery` 가 `resource_metadata` 와 metadata URL 을 검증 없이 GET 한다.
-- community 는 `McpSecurityConfig` 가 모듈 `McpMetadataDiscoveryService` 에 `new DefaultUrlValidator(true)` 를 주어, PRM URL 을 가져오기 전에 HTTPS 이거나 loopback HTTP 인지 본다. Authorization Server Metadata URL 은 세 practice 모두 검증하지 않는다.
-- 대신 PRM `resource` 가 요청한 URL 과 같아야 하고([4.2](#s4-2)) metadata `issuer` 가 요청한 issuer 와 같아야 한다는([4.3](#s4-3)) 두 일치 검증이 신뢰 범위를 좁힌다. `https://attacker.example/.well-known/oauth-authorization-server` 가 `"issuer": "https://honest.example"` 를 내밀어도 거부된다([MCP 2026-07-28 Authorization Server Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery)). 두 검증은 요청 자체가 아니라, SSRF 로 얻은 응답을 신뢰해 다음 단계로 넘어가는 것을 막는다.
+- 순서: `McpAuthorizationDiscovery#discover(String, String)` 는 PRM 의 issuer 가 `credentials-issuer` 인지 먼저 보고, 아니면 Authorization Server Metadata 를 GET 하지 않는다. 그래서 metadata URL 은 설정한 issuer 에서만 만들어진다. 테스트: `McpAuthorizationDiscoveryTest#PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다`.
+- authorization URL 스킴: `#requireHttpUrl` 은 metadata 의 `authorization_endpoint`·`token_endpoint` 가 `http`·`https` URL 이 아니면 discovery 를 멈춘다. `http` 를 loopback 주소로 제한하지는 않는다([5.7](#s5-7)의 localhost HTTP 와 같은 선택).
+- challenge·PRM URL: official·chat-memory 는 `resource_metadata` 와 PRM URL 을 스킴·사설 IP·redirect 제한 없이 GET 한다. community 는 module `McpMetadataDiscoveryService` 에 `new DefaultUrlValidator(true)` 를 주어, PRM URL 을 가져오기 전에 HTTPS 이거나 loopback HTTP 인지 본다.
+- 일치 검증: PRM `resource` 는 요청한 URL 과([4.2](#s4-2)), metadata `issuer` 는 요청한 issuer 와([4.3](#s4-3)) 같아야 한다. 두 검증은 요청 자체가 아니라, SSRF 로 얻은 응답을 신뢰해 다음 단계로 넘어가는 것을 막는다.
 
 <a id="s5-5"></a>
 
@@ -578,6 +606,7 @@ Agent 는 서버에서 도는 client 라 이 MUST 의 대상이고, 세 practice
 
 [MCP 2026-07-28 Security Considerations — Open Redirection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#open-redirection) 은 Authorization Server 가 `redirect_uri` 를 등록값과 정확히 대조하라고 한다(**MUST**).
 [Authorization Code Protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-code-protection) 의 PKCE 는 code 를 가로챈 공격자가 `code_verifier` 없이 token 으로 바꾸지 못하게 한다.
+이 practice 는 Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator` 의 정확 일치 검사를 그대로 쓴다.
 
 관측: 등록되지 않은 `redirect_uri=http://evil.example/callback` 은 redirect 없이 `400` 이고(S4), `code_challenge` 없는 요청은 거부되어(C17) 모든 code 가 PKCE 로 보호된다.
 
@@ -590,45 +619,102 @@ loopback redirect 는 기기 밖으로 나가지 않지만 같은 기기의 다�
 
 <a id="s5-6"></a>
 
-### 5.6 Public client 사칭과 재동의
+### 5.6 Public client 사칭과 re-consent
 
-[OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) · [§7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) 은 client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않는 것이 좋고(**SHOULD NOT**), 이전 consent 가 있어도 처음처럼 처리하는 것이 좋다고 한다(**SHOULD**).
 public client 의 `client_id` 는 비밀이 아니라, 같은 기기의 다른 프로그램이 `local-mcp-client` 를 대며 요청할 수 있다.
 매번 consent 를 받으면 사용자가 자기가 시작하지 않은 요청을 알아챌 수 있고, code 가 새더라도 PKCE 가 막는다.
-
-Spring 기본 동작은 consent 를 저장해 두 번째 요청부터 건너뛰고, 명세는 매번 처음처럼 처리하기를 권한다.
-이 practice 는 `PublicClientConsentService` 로 public client 의 consent 를 저장하지 않아, 두 번째 요청도 `200` consent 화면이 온다(P8).
 confidential client 는 비밀로 신원을 증명하므로 이 절의 대상이 아니고, consent 를 켜지 않는다.
+
+#### 명세
+
+- [OAuth 2.1 §7.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3) · [§7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) — client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않는 것이 좋다(**SHOULD NOT**). 이전 consent 가 있어도 처음처럼 처리하는 것이 좋다(**SHOULD**).
+- [RFC 6749 §3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) — client 가 `scope` 를 생략하면 Authorization Server 는 미리 정한 기본값으로 처리하거나 `invalid_scope` 로 거부해야 한다(**MUST**).
+
+#### 이 practice
+
+Spring 기본 동작은 아래 두 경로에서 consent 를 건너뛰고, 명세는 매번 처음처럼 처리하기를 권한다(**SHOULD**).
+이 practice 는 경로마다 장치 하나를 두어 public client 가 consent 를 건너뛸 수 없게 한다.
+
+| 경로 | Spring 기본 동작 | 이 practice | 관측 |
+|---|---|---|---|
+| 이전 consent | 저장한 consent 가 요청 scope 를 모두 덮으면 consent 를 건너뛴다 | `PublicClientConsentService` 가 public client 의 consent 를 저장하지 않고, `findById` 는 public client 일 때만 `null` 을 돌려준다 | 두 번째 요청도 `200` consent 화면(P8) |
+| consent 할 scope 없음 | 요청 scope 가 `openid` 하나면 건너뛴다. community module `McpNoScopeClientConsentNotRequired` 는 scope 가 없을 때도 건너뛴다 | `PublicClientScopeValidator` 가 consent 판정 전에 `invalid_scope` 로 거부한다(`error_uri` 는 RFC 6749 §3.3) | `302` `error=invalid_scope`(P8-1) |
+
+- 거부를 고르는 이유: 기본 consent 화면에는 `openid` 체크박스가 없어, 이 요청은 consent 를 받더라도 `access_denied` 로 끝난다. 그래서 RFC 6749 §3.3 의 두 선택 중 `invalid_scope` 거부를 쓰고, `openid` 하나뿐인 요청도 같은 오류로 막는다.
+- `PublicClientScopeValidator` 는 `ResourceIndicatorValidator` 뒤에 이어 붙어 Spring 판정과 community module 판정을 모두 앞선다. `profile` 처럼 consent 할 scope 가 있는 요청은 그대로 consent 화면을 거친다. 테스트: `AuthorizationServerStandardTest#공개_클라이언트가_scope_없이_요청하면_invalid_scope_다`, `#공개_클라이언트가_openid_없이_profile_만_요청해도_consent_화면을_거친다`.
 
 <a id="s5-7"></a>
 
-### 5.7 localhost HTTP, session 오류 정보 노출, Origin·Host
+### 5.7 전송 계층 — localhost HTTP, bind 주소, Origin·Host
 
 로컬 데모라서 생기는 위반과 약점, 전송 계층의 방어를 모았다.
-HTTPS 는 명세 위반이고, 나머지는 명세 위반이 아닌 관찰이다.
+HTTPS 는 명세 위반이고, session 오류 본문은 명세 위반이 아닌 약점이다.
 
 #### localhost HTTP
 
-[MCP 2026-07-28 Security Considerations — Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security) 는 OAuth 2.1 §1.5 를 따라 모든 Authorization Server endpoint 가 HTTPS 여야 하고(**MUST**), 모든 redirect URI 는 `localhost` 이거나 HTTPS 여야 한다고 한다(**MUST**).
-`localhost` 예외는 redirect URI 에만 있으므로, `http://localhost` 로 Authorization Server·MCP Server·Agent 를 띄우는 세 practice 는 이 MUST 를 어긴다([6절](#s6) 12번).
+[MCP 2026-07-28 Security Considerations — Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security) 는 모든 Authorization Server endpoint 가 HTTPS 여야 한다고 한다(**MUST**, OAuth 2.1 §1.5).
+모든 redirect URI 는 `localhost` 이거나 HTTPS 여야 한다(**MUST**).
+`localhost` 예외는 redirect URI 에만 있으므로, `http://localhost` 로 세 구성요소를 띄우는 세 practice 는 이 MUST 를 어긴다([6절](#s6) 12번).
+
 요청·응답을 그대로 관측하려는 로컬 학습용 선택이고, 평문 HTTP 에서는 access token·refresh token·client_secret 이 네트워크 경로에 그대로 실린다.
+
+#### 로컬 bind 주소
+
+[Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) 은 로컬에서 도는 server 가 모든 인터페이스(`0.0.0.0`)가 아니라 127.0.0.1 에만 bind 하는 것이 좋다고 한다(**SHOULD**).
+세 practice 의 9개 앱은 `server.address: 127.0.0.1` 로 이 기기 안의 연결만 받는다.
+
+관측: 9개 앱이 모두 `127.0.0.1:<port>` 에서 LISTEN 한다([2026-09-25-listen-addresses.txt](../docs/superpowers/captures/2026-09-25-listen-addresses.txt) S21).
 
 #### Session 오류 응답의 정보 노출
 
-`Mcp-Session-Id` 없는 요청의 `400`(C14)과 없는 session 의 `404`(S13)는 명세대로지만, 본문의 `stackTrace` 에 Java 스택트레이스가 담긴다.
+`Mcp-Session-Id` 없는 요청의 `400`(C14)과 모르는 session 의 `404`(S13)는 명세대로지만, 본문의 `stackTrace` 에 Java 스택트레이스가 담긴다.
 전송 명세는 이 본문 형식을 정하지 않아(`id` 없는 JSON-RPC 오류는 MAY) 위반은 아니지만, 내부 구현이 드러나는 information disclosure 약점이다.
 오류 코드는 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) 의 값과 서버 정의 범위(`-32000`~`-32099`)이고, session 누락에 `-32601` 을 쓰는 것은 SDK 의 선택이다.
 
 #### Origin·Host 와 DNS rebinding
 
-[Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) 의 `Origin` 검증(**MUST**)은 공격자 웹페이지가 Browser 를 거쳐 `localhost` MCP Server 에 요청하게 만드는 DNS rebinding 을 막는다.
-관측: `Origin: http://evil.example` 은 `403` 이다(C13).
-Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:8111` 을 `421` 로 막는다(S14, [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)).
+[Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) 의 `Origin` 검증(**MUST**)은 공격자 웹페이지가 browser 를 거쳐 `localhost` MCP Server 에 요청하게 만드는 DNS rebinding 을 막는다.
+Host 는 MCP 명세에 규칙이 없지만 같은 검증기가 허용 목록 밖 Host 를 `421` 로 막는다([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)).
 
-#### 캡처 원본의 token
+관측: `Origin: http://evil.example` 은 `403`(C13), `Host: evil.example:8111` 은 `421` 이다(S14).
 
-`2026-09-12-*.txt`·`2026-09-16-official-supplement.txt` 원본에는 access token·refresh token·ID token·authorization code 가 줄이지 않은 채 남아 있다.
-모두 로컬 Authorization Server 가 발급한 5~30분 수명의 token 이지만, 원본을 저장소 밖으로 옮길 때는 줄여서 옮긴다.
+SDK 검증기는 transport 안에서 돌아, Spring Security 뒤에 두면 token 없는 요청이 `Origin` 검사 전에 `401` 을 받는다.
+명세는 모든 연결의 `Origin` 검증을 요구하므로(**MUST**), 세 practice 모두 인증 앞에서 검사한다.
+
+- official·chat-memory: `McpTransportSecurityFilter` 를 `FilterRegistrationBean` 으로 MCP endpoint 에만 걸고, 순서를 `SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1` 로 둔다. 그래서 SDK `DefaultServerTransportSecurityValidator` 가 Spring Security 앞에서 돈다. 테스트: `McpAuthorizationStandardTest#token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다`, `#token_이_없어도_허용되지_않은_Host_는_인증보다_먼저_421이다`.
+- community: module `OriginValidationFilter` 가 security filter chain 안에서 인증 filter 앞에 선다. 기대 `aud` 를 요청 URL 로 계산하므로 이 순서가 audience 검증의 전제다([4.9](#s4-9)).
+- `Origin` 헤더가 없는 서버 간 요청은 통과한다. 테스트: `#Origin_없는_서버간_요청은_통과한다`.
+
+<a id="s5-8"></a>
+
+### 5.8 MCP session
+
+`Mcp-Session-Id` 는 요청을 한 session 으로 묶는 표시일 뿐, 인증을 대신하지 않는다.
+session ID 를 얻은 공격자가 그 session 으로 요청하는 session hijacking 은 매 요청 인증과 session 의 사용자 binding 으로 막는다.
+
+#### 명세
+
+- [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — authorization 을 구현한 MCP Server 는 모든 요청을 검증하고(**MUST**), session 을 인증에 쓰면 안 된다(**MUST NOT**). session ID 는 안전하고 예측할 수 없는 값이어야 한다(**MUST**). session ID 를 사용자 고유 정보에 묶는 것이 좋다(**SHOULD**).
+- [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) — protocol-level session 과 `Mcp-Session-Id` 가 없다([SEP-2567](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567), [7절](#s7)). 호출 사이 상태는 서버가 만든 handle 을 tool 인자로 넘기고, 매 호출 `(handle, 인증 정보)` 를 검증하는 설계 권고(비규범)로 옮겨 갔다.
+
+#### 이 practice
+
+| | official | chat-memory | community |
+|---|---|---|---|
+| 모든 요청 인증 | `anyRequest().authenticated()` — session ID 가 있어도 token 을 검증한다 | 같음 | 같음 |
+| session ID 생성 | SDK `DefaultMcpStreamableServerSessionFactory` 의 `UUID.randomUUID()` | 같음 | 같음 |
+| session 을 사용자에 묶기 | 묶지 않음 — Agent 가 MCP client 하나를 모든 사용자와 공유한다 | `McpSessionBindingFilter` + `UserMcpClients` | 묶지 않음 — official 과 같은 이유, module `sessionBinding()` 은 켜지 않는다 |
+
+chat-memory 는 session 을 그 session 을 연 사용자에 묶는다.
+
+- MCP Server: `McpSessionBindingFilter` 는 `AuthorizationFilter` 뒤에서 돌며, transport 가 응답에 `Mcp-Session-Id` 를 쓰는 순간 그 session 을 token 의 `sub` 에 묶는다. 다른 사용자의 요청은 `DELETE` 를 포함해 `403` 이고, 성공한 `DELETE` 는 묶음을 푼다. 테스트: `McpAuthorizationStandardTest#다른_사용자가_남의_MCP_session_ID_를_쓰면_403이다`, `#다른_사용자는_남의_MCP_session_을_끝낼_수_없다`.
+- Agent: `UserMcpClients` 는 사용자(principal 이름)마다 `McpSyncClient` 를 따로 만들어 첫 채팅 때 `initialize` 하고, 로그아웃·HTTP session 종료 때 닫는다. 각 client 의 `OAuth2TokenAttachingRequestCustomizer` 는 만들 때 받은 주인의 token 만 실어, session 을 끝내는 `DELETE` 에도 같은 사용자의 token 이 붙는다. 테스트: `UserMcpClientsTest#HTTP_session_이_끝나면_그_session_사용자의_client_를_닫는다`, `OAuth2TokenAttachingRequestCustomizerTest#transport_context_없이_나가는_session_종료_DELETE_에도_토큰을_붙인다`.
+
+official·community 는 Spring AI 자동 구성의 MCP client 하나를 모든 사용자가 나눠 쓴다.
+한 session 에 여러 사용자의 token 이 실리므로, session 을 사용자에 묶으면 두 번째 사용자의 요청이 막힌다.
+그래서 묶지 않고, 매 요청의 token 검증으로 session ID 가 인증을 대신하지 않게 한다.
+
+이 practice 의 tool(`getStock`, `searchProducts`)은 상태가 없어, 2026-07-28 의 handle 도 필요 없다.
 
 ---
 
@@ -641,22 +727,22 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 
 | # | 항목 | 요구 수준 | official | chat-memory | community | 근거 |
 |---|---|---|---|---|---|---|
-| 1 | PRM 제공, `resource` 일치 | MUST (MCP · RFC 9728 §3.3) | 예 — `SecurityConfig#protectedResourceMetadata`, C2 | 예 — 같음 | 예 — 모듈 `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer`, C2 | [4.2](#s4-2) |
-| 2 | `401` 의 `resource_metadata` | MUST (MCP) | 예 — `resourceMetadataEntryPoint`, C1 | 예 — 같음 | 예 — 모듈 진입점 대신 같은 Spring 진입점, C1 | [4.1](#s4-1) |
-| 3 | client 의 PRM discovery 와 fallback 순서 | MUST | 예 — `McpAuthorizationDiscovery#protectedResourceMetadata` | 예 — 같음 | 예 — 모듈 `McpMetadataDiscoveryService#getMcpMetadata` | [4.2](#s4-2) |
+| 1 | PRM 제공, `resource` 일치 | MUST (MCP · RFC 9728 §3.3) | 예 — `SecurityConfig#protectedResourceMetadata`, C2 | 예 — 같음 | 예 — module `McpServerOAuth2Configurer#protectedResourceMetadataCustomizer`, C2 | [4.2](#s4-2) |
+| 2 | `401` 의 `resource_metadata` | MUST (MCP) | 예 — `resourceMetadataEntryPoint`, C1 | 예 — 같음 | 예 — module 진입점 대신 같은 Spring 진입점, C1 | [4.1](#s4-1) |
+| 3 | client 의 PRM discovery 와 fallback 순서 | MUST | 예 — `McpAuthorizationDiscovery#protectedResourceMetadata` | 예 — 같음 | 예 — module `McpMetadataDiscoveryService#getMcpMetadata` | [4.2](#s4-2) |
 | 4 | Authorization Server Metadata discovery 순서와 `issuer` 검증 | MUST | 예 — `McpAuthorizationDiscovery#metadataUrls` | 예 — 같음 | 예 — `McpAuthorizationDiscovery` 가 이어받음 | [4.3](#s4-3) |
 | 5 | `code_challenge_methods_supported` 확인 | MUST | 예 — `#PKCE_S256_을_광고하지_않으면_진행하지_않는다` | 예 — 같음 | 예 — 같음 | [4.3](#s4-3) |
 | 6 | PKCE `S256` | MUST | 예 — `withPkce()` + `require-proof-key: true`, C17 | 예 — 같음 | 예 — 같음 | [4.5](#s4-5) |
 | 7 | `resource` — authorization·token·refresh request | MUST | 예 — `ResourceIndicators`, C5·C6·C11 | 예 — 같음 | 예 — 같음 | [4.5](#s4-5), [4.7](#s4-7), [4.10](#s4-10) |
-| 8 | token audience 발급과 검증 | MUST | 예 — `ResourceAudienceTokenCustomizer` + `audiences`, C12 | 예 — 같음 | 예 — 모듈 `AudienceValidationJwtDecoder`(기대값을 요청 URL 로 계산) | [4.7](#s4-7), [4.9](#s4-9) |
-| 9 | RFC 9207 `iss` — 보내기·광고·client 검증 | SHOULD (보내기, MCP 2026-07-28) · MUST (보내면 광고, RFC 9207 §2.3) · MUST (있으면 검증) | 예 — `IssuerIdentifyingAuthorizationResponseHandler`·`AuthorizationResponseIssuerFilter`, S18·S19 | 예 — 같음 | 예 — 같음(`McpAuthorizationStandardConfig`) | [4.6](#s4-6) |
-| 10 | 자격증명의 issuer binding | MUST (MCP 2026-07-28) | 예(기록 방식은 문구와 다름) — `DiscoveredClientRegistrationRepository` | 예(기록 방식은 문구와 다름) — 같음 | 예(기록 방식은 문구와 다름) — 같음 | [4.4](#s4-4), [4.6](#s4-6) |
-| 11 | `Origin` 검증, `Host` 검증 | MUST (`Origin`) · 규정 없음 (`Host`) | 예 — SDK `DefaultServerTransportSecurityValidator`, C13·S14 | 예 — 같음 | 예 — 모듈 `OriginValidationFilter`, 테스트로 `421` | [4.8](#s4-8), [5.7](#s5-7) |
+| 8 | token audience 발급과 검증 | MUST | 예 — `ResourceAudienceTokenCustomizer` + `audiences`, C12 | 예 — 같음 | 예 — module `AudienceValidationJwtDecoder` 가 기대 `aud` 를 요청 URL 로 계산한다. Host 검증(`OriginValidationFilter`)이 먼저 와야 한다, 테스트 `Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다` | [4.7](#s4-7), [4.9](#s4-9) |
+| 9 | RFC 9207 `iss` — 보내기·광고·요청별 issuer 기록·client 검증 | SHOULD (보내기, MCP 2026-07-28) · MUST (보내면 광고, RFC 9207 §2.3) · MUST (요청별 기록, [Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)) · MUST (있으면 검증) | 예(요청별 기록 방식은 문구와 다름) — `IssuerIdentifyingAuthorizationResponseHandler`·`AuthorizationResponseIssuerFilter`, S18·S19 | 예(기록 방식은 문구와 다름) — 같음 | 예(기록 방식은 문구와 다름) — 같음(`McpAuthorizationStandardConfig`) | [4.6](#s4-6) |
+| 10 | 자격증명의 issuer binding | MUST (MCP 2026-07-28) | 예 — `DiscoveredClientRegistrationRepository`, `McpAuthorizationDiscovery#discover(String, String)` | 예 — 같음 | 예 — 같음 | [4.4](#s4-4) |
+| 11 | `Origin` 검증, `Host` 검증 | MUST (`Origin`) · 규정 없음 (`Host`) | 예 — `McpTransportSecurityFilter`(Spring Security 앞), 테스트 `token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다`, C13·S14 | 예 — 같음 | 예 — module `OriginValidationFilter`(인증 앞), 테스트로 `403`·`421` | [4.8](#s4-8), [5.7](#s5-7) |
 | 12 | HTTPS | MUST | **아니오** — 모두 `http://localhost` | **아니오** — 같음 | **아니오** — 같음 | [5.7](#s5-7) |
-| 13 | token passthrough 금지 | MUST · MUST NOT | 예 — 하류 API 없음, `OAuth2TokenAttachingRequestCustomizer` | 예 — 같음 | 예 — 모듈 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer` | [5.1](#s5-1) |
+| 13 | token passthrough 금지 | MUST · MUST NOT | 예 — 하류 API 없음, `OAuth2TokenAttachingRequestCustomizer` | 예 — 같음 | 예 — module `OAuth2AuthorizationCodeSyncHttpRequestCustomizer` | [5.1](#s5-1) |
 | 14 | Dynamic Client Registration(RFC 7591) | MAY · 2026-07-28 deprecated | 다루지 않음 — 켜지 않음, C3 `registration_endpoint` 없음 | 다루지 않음 — 같음 | 다루지 않음 — `dynamic-client-registration.enabled: false` | [4.4](#s4-4) |
 | 15 | Client ID Metadata Document(CIMD) | SHOULD | 다루지 않음 — HTTPS `client_id` 가 전제 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.4](#s4-4), [8절](#s8) |
-| 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.9](#s4-9), [8절](#s8) |
+| 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용. PRM 에 `scopes_supported` 가 없으면 scope 를 생략한다(SHOULD) — agent 는 OIDC 로그인 때문에 `openid profile` 을 보낸다 | 다루지 않음 — 같음 | 다루지 않음 — 같음 | [4.1](#s4-1), [4.9](#s4-9), [8절](#s8) |
 | 17 | RFC 9068 access token 프로파일 | 참고 — MCP 는 요구하지 않음 | 아니오(불일치) — 헤더에 `typ` 없음(C6), `client_id` claim 없음, `scope` 가 JSON 배열(C6-1) | 아니오(불일치) — 같음 | 아니오(불일치) — 같음 | [4.7](#s4-7) |
 | 18 | `invalid_client` `401` 의 `WWW-Authenticate` | MUST (RFC 6749 §5.2 · OAuth 2.1 §3.2.4) | 예 — `ClientAuthenticationChallengeFailureHandler`, S8 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig` 가 같은 handler 를 건다 | [4.7](#s4-7) |
 | 19 | SSE 이벤트 `id` 의 session 내 유일성 | MUST (MCP Resumability and Redelivery) | **아니오** — 이벤트 `id` 가 session ID, C9·C10 | **아니오** — 같음(같은 SDK) | **아니오** — 같음(같은 SDK) | [4.8](#s4-8) |
@@ -665,13 +751,22 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 | 22 | `GET /mcp` stream 의 응답 시작 확인 | 참고 — 규정 없음 | 해당 없음 — 첫 이벤트 전까지 헤더가 나가지 않는다(S11) | 해당 없음 — 같음 | 해당 없음 — 같음 | [API](MCP-API-SPEC.md#mcp-get) |
 | 23 | public client 의 `client_id`, PKCE 강제, `none` 광고 | REQUIRED · MUST · OPTIONAL | 예 — `local-mcp-client` + `none` 광고, P5 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig`, P5 | [4.4](#s4-4) |
 | 24 | loopback redirect 의 포트 허용 | MUST (RFC 8252 §7.3 · OAuth 2.1 §8.4.2) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator`, P10 | 예 — 같음 | 예 — 같음 | [4.4](#s4-4), [5.5](#s5-5) |
-| 25 | 신원을 확인할 수 없는 client 의 재동의 | SHOULD · SHOULD NOT (OAuth 2.1 §7.3.1) | 예 — `PublicClientConsentService`, P8 | 예 — 같음 | 예 — 같음 | [5.6](#s5-6) |
+| 25 | 신원을 확인할 수 없는 client 의 re-consent | SHOULD · SHOULD NOT (OAuth 2.1 §7.3.1) | 예 — `PublicClientScopeValidator`(scope 없음·`openid` 하나 → `invalid_scope`, P8-1) + `PublicClientConsentService`(저장된 consent 무시, P8) | 예 — 같음 | 예 — 같음 | [5.6](#s5-6) |
 | 26 | public client refresh token 의 회전 또는 sender-constrained | MUST (OAuth 2.1 §4.3.1) | 해당 없음 — refresh token 을 발급하지 않음, P7 | 해당 없음 — 같음 | 해당 없음 — 같음 | [4.10](#s4-10) |
-| 27 | 서버에 배포된 MCP client 의 SSRF 위험 고려와 대응 | MUST, 대응 네 가지는 SHOULD ([Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)) | **아니오** — `McpAuthorizationDiscovery` 가 challenge·PRM 이 준 URL 을 스킴·사설 IP·redirect 제한 없이 GET 한다(구성요소가 모두 localhost 인 학습 환경) | **아니오** — 같음 | **아니오** — PRM URL 만 `DefaultUrlValidator(true)` 로 HTTPS·loopback HTTP 검사, Authorization Server Metadata URL 과 사설 IP 는 제한 없음 | [5.4](#s5-4) |
+| 27 | 서버에 배포된 MCP client 의 SSRF 위험 고려와 대응 | MUST, 대응 네 가지는 SHOULD ([Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)) | **아니오** — issuer binding 확인이 Authorization Server Metadata GET 앞이다(`PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다`). challenge·PRM URL 은 스킴·사설 IP·redirect 제한 없이 GET 한다 | **아니오** — 같음 | **아니오** — issuer binding 순서는 같다. PRM URL 만 `DefaultUrlValidator(true)` 로 HTTPS·loopback HTTP 검사, 사설 IP 는 제한 없음 | [5.4](#s5-4) |
+| 28 | MCP session 을 사용자에 묶기 | SHOULD ([Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking)) | **아니오** — Agent 가 MCP client 하나를 모든 사용자와 공유한다 | 예 — `McpSessionBindingFilter` + `UserMcpClients` | **아니오** — official 과 같은 이유, module `sessionBinding()` 은 켜지 않음 | [5.8](#s5-8) |
+| 29 | session ID 가 인증을 대신하지 않음, 예측할 수 없는 값 | MUST · MUST NOT (Session Hijacking) | 예 — 모든 요청 token 검증, SDK 가 `UUID.randomUUID()` 로 session ID 생성 | 예 — 같음 | 예 — 같음 | [5.8](#s5-8) |
+| 30 | 로컬 서버는 127.0.0.1 에 bind | SHOULD ([Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning)) | 예 — `server.address: 127.0.0.1`, S21([2026-09-25-listen-addresses.txt](../docs/superpowers/captures/2026-09-25-listen-addresses.txt)) | 예 — 같음 | 예 — 같음 | [5.7](#s5-7) |
+| 31 | 지원하지 않는 `MCP-Protocol-Version` 에 `400` | MUST ([Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)) | 예 — `McpProtocolVersionFilter`, C15 | 예 — 같음 | 예 — `McpProtocolVersionFilterConfig` | [4.8](#s4-8) |
+| 32 | redirect URI 정확 일치 | MUST ([Open Redirection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#open-redirection) · OAuth 2.1 §4.1.1) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator`, S4·P10-1 | 예 — 같음 | 예 — 같음 | [4.5](#s4-5), [5.5](#s5-5) |
+| 33 | authorization URL 스킴 검증 | MUST ([Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation)) | 예 — `McpAuthorizationDiscovery#requireHttpUrl`(`http`·`https` 만, `http` host 는 제한하지 않음) | 예 — 같음 | 예 — 같음 | [4.3](#s4-3), [5.4](#s5-4) |
 
 남은 MUST 위반은 12번(HTTPS), 19번(SSE 이벤트 `id`), 27번(SSRF 대응) 셋이다.
-12번은 로컬 관측을 위한 선택이고, 19번은 SDK 전송 클래스 구조 때문에 포크 없이는 바꿀 수 없으며, 27번은 구성요소가 모두 localhost 인 학습 환경이라 대응을 두지 않았다(community 는 PRM URL 만 일부 검증).
-18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 이 practice 가 직접 채운 것이고, 21번은 SHOULD 를 이행하지 않으며, 17·22번은 MCP 가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
+
+- 12번은 로컬 관측을 위한 선택이고, 19번은 SDK 전송 클래스 구조 때문에 포크 없이는 바꿀 수 없다.
+- 27번은 구성요소가 모두 localhost 인 학습 환경이라 대응을 두지 않았다(issuer binding 순서와 community 의 PRM URL 검증만 있다).
+- 18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 이 practice 가 직접 채운 것이다.
+- 21번과 28번(official·community)은 SHOULD 를 이행하지 않는다. 17·22번은 MCP 가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
 
 ---
 
@@ -680,12 +775,12 @@ Host 는 MCP 명세에 규칙이 없지만 SDK 검증기가 `Host: evil.example:
 ## 7. 2026-07-28 전송에서 달라지는 점
 
 [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog) 는 전송·수명주기를 stateless 로 바꾼다.
-authorization 은 HTTP 계층이라 그대로이고, 이 practice 의 MCP Java SDK 2.0.0 은 이 전송을 구현하지 않아 아래는 명세만의 정리다.
+authorization 은 HTTP 계층이라 그대로이고, 이 practice 의 SDK 는 이 전송을 구현하지 않아([1절](#s1)) 아래는 명세만의 정리다.
 
 | 항목 | 2025-11-25 (이 practice) | 2026-07-28 |
 |---|---|---|
 | handshake | `initialize` → `notifications/initialized` | 없음. 요청마다 `_meta` 에 `io.modelcontextprotocol/protocolVersion`·`clientCapabilities` 를 싣는다 |
-| session | `Mcp-Session-Id` 발급·검증 | 없음. 상태가 필요하면 tool 인자로 주고받는 서버 발급 handle 을 쓴다 |
+| session | `Mcp-Session-Id` 발급·검증 | 없음([SEP-2567](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567)). 상태가 필요하면 tool 인자로 주고받는 서버 발급 handle 을 쓴다([5.8](#s5-8)) |
 | 버전 전달 | `MCP-Protocol-Version` 헤더(없으면 구버전 가정) | 헤더와 본문 `_meta` 가 정확히 같아야 하고, 어긋나면 `400` `HeaderMismatch`(`-32020`) MUST ([Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)) |
 | 신원 | `initialize` 의 `clientInfo`·`serverInfo` 한 번 | 매 요청 `clientInfo`(SHOULD), 매 결과 `serverInfo`(SHOULD) |
 | 서버발 stream | `GET /mcp` SSE | `subscriptions/listen`(opt-in 알림 전용) |
@@ -696,7 +791,7 @@ authorization 은 HTTP 계층이라 그대로이고, 이 practice 의 MCP Java S
 | 오류 코드 | SDK 관례 | `-32000`~`-32019` 는 SDK 관례, `-32020`~`-32099` 는 MCP 예약(`UnsupportedProtocolVersion` `-32022`) |
 
 `server/discover` 응답의 `serverInfo` 는 자체 신고 값이라 client 가 보안 판단에 쓰면 안 된다(SHOULD NOT).
-SDK 2.0.0 의 `ProtocolVersions` 가 `2025-11-25` 까지만 알아, 이 절은 캡처로 확인할 수 없다([8절](#s8)).
+이 절은 SDK 가 이 전송을 구현하지 않아 캡처로 확인할 수 없다([8절](#s8)).
 
 ---
 
@@ -706,7 +801,7 @@ SDK 2.0.0 의 `ProtocolVersions` 가 `2025-11-25` 까지만 알아, 이 절은 �
 
 | 항목 | 다루지 않는 이유 |
 |---|---|
-| 2026-07-28 전송(stateless) | 세 practice 의 MCP Java SDK 2.0.0 `ProtocolVersions` 가 `2025-11-25` 까지만 안다([1절](#s1), [7절](#s7)). `_meta` 기반 요청, `server/discover`, `Mcp-Method`·`Mcp-Name` 헤더를 SDK 가 만들거나 받지 않는다 |
+| 2026-07-28 전송(stateless) | 세 practice 의 SDK 가 이 리비전을 모른다([1절](#s1), [7절](#s7)). `_meta` 기반 요청, `server/discover`, `Mcp-Method`·`Mcp-Name` 헤더를 SDK 가 만들거나 받지 않는다 |
 | Client ID Metadata Document(CIMD) | `client_id` 문서 URL 이 `https` 여야 하고(MUST, [4.4](#s4-4)) Authorization Server 가 그 문서를 가져와야 한다. 전부 `http://localhost` 로 띄우는 이 practice 와 맞지 않아 별도 practice 로 둔다. CIMD client 가 결국 되는 모습(비밀 없는 public client, PKCE, consent)은 `local-mcp-client` 로 볼 수 있다 |
 | Dynamic Client Registration(DCR) | 2026-07-28 에서 deprecated 로 표시되고 CIMD 로 대체됐다([4.4](#s4-4)). pre-registration 만으로 흐름을 다 보일 수 있어 켜지 않는다 |
 | public client 프로그램 | `local-mcp-client` 로 붙는 실제 프로그램(loopback callback 서버, `state`·`iss` 검증, token 보관)은 없다. Authorization Server 가 public client 를 어떻게 다루는지가 주제라, client 쪽은 캡처 스크립트(`curl`)가 흉내 낸다([4.4](#s4-4)) |
@@ -729,7 +824,9 @@ SDK 2.0.0 의 `ProtocolVersions` 가 `2025-11-25` 까지만 알아, 이 절은 �
 - 2025-03-26 Authorization(비교용, [2절](#s2)): https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization
 - 2025-06-18 Changelog(비교용, [2절](#s2)): https://modelcontextprotocol.io/specification/2025-06-18/changelog
 - 2026-07-28 Key Changes: https://modelcontextprotocol.io/specification/2026-07-28/changelog
+- 2026-07-28 Transports: https://modelcontextprotocol.io/specification/2026-07-28/basic/transports
 - 2026-07-28 Streamable HTTP: https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http
+- SEP-2567 Sessionless MCP via Explicit State Handles: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567
 - 2026-07-28 Authorization: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
 - 2026-07-28 Authorization Server Discovery: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery
 - 2026-07-28 Client Registration: https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration
