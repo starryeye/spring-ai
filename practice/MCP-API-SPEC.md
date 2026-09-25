@@ -287,7 +287,7 @@ access token 을 실어 JSON-RPC 메시지를 하나씩 보낸다. 한 MCP sessi
 | scope 부족 | `403` + `insufficient_scope`·`scope`·`resource_metadata` SHOULD — 이 practice 는 쓰지 않음 | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
 | 끝난 session 의 ID | `404` MUST, 받은 client 는 새 `initialize` MUST — S13, S16 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정 없음, DNS rebinding 방어 — S14. token 과 무관하게 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
-| 다른 사용자가 연 `Mcp-Session-Id` (chat-memory) | `403` — `McpSessionBindingFilter` 가 session 을 연 사용자(token 의 `sub`)와 비교한다 | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자에 묶기 SHOULD |
+| 다른 사용자가 연 `Mcp-Session-Id` (chat-memory) | `403` — `McpSessionBindingFilter` 가 session 을 연 사용자(token 의 `sub`)와 비교한다. 테스트 `McpAuthorizationStandardTest#다른_사용자가_남의_MCP_session_ID_를_쓰면_403이다` | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자에 묶기 SHOULD |
 
 검사 순서는 `Origin`·`Host` → token → session binding(chat-memory) → `MCP-Protocol-Version` → transport(`Accept`·session)다([시퀀스](MCP-SEQUENCES.md#rt-token-validation)).
 `Origin`·`Host` 를 인증 앞에서 보는 테스트는 `McpAuthorizationStandardTest#token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다` 다.

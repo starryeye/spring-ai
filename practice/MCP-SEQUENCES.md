@@ -514,7 +514,7 @@ sequenceDiagram
 
 1. 모든 요청이 `Authorization: Bearer` 를 싣는다. 헤더가 아예 없으면 `error` 없는 `401` challenge 이고, 이것이 [discovery](#rt-discovery) 의 시작이다.
 2. 서버는 모든 연결에서 `Origin` 을 검증하고, 있는데 무효면 `403` 이어야 한다(MUST, [허브 4.8](MCP-AUTHORIZATION.md#s4-8)). 세 practice 는 이 검사를 인증 앞에 두어 token 이 없어도 `403` 이다(C13, [허브 5.7](MCP-AUTHORIZATION.md#s5-7)).
-3. 허용하지 않은 `Host` 는 token 과 무관하게 `421` 이다(S14). MCP 는 이 경우를 규정하지 않고, DNS rebinding 을 막는 장치다([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)). official·chat-memory 의 SDK 검증기는 헤더를 받은 순서대로 보므로 `Origin`·`Host` 사이에 정해진 순서가 없다.
+3. 허용하지 않은 `Host` 는 token 과 무관하게 `421` 이다(S14). MCP 는 이 경우를 규정하지 않고, DNS rebinding 을 막는 장치다([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)). 세 practice 는 두 헤더를 `HashMap` 에 담아 SDK 검증기에 넘기고, 검증기는 그 map 을 차례로 보므로 `Origin`·`Host` 사이에 정해진 순서가 없다.
 4. MCP Server 는 신뢰할 issuer 만 설정으로 안다. 서명 key 가 없으면 issuer 의 metadata 를 읽는다.
 5. metadata 의 `jwks_uri` 가 key 위치다. Authorization Server 는 metadata 로 `jwks_uri` 와 `issuer` 를 알리는 것이 좋다(SHOULD, [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4)).
 6. MCP Server 가 JWK Set 을 요청한다. 형식은 [`GET /oauth2/jwks`](MCP-API-SPEC.md#jwks) 에 있다.
