@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +33,8 @@ public class Discovery {
 
 	private static final Pattern LOOPBACK_IPV4 = Pattern.compile("127(\\.\\d{1,3}){3}");
 
+	private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+
 	private static final String INITIALIZE = """
 			{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",\
 			"capabilities":{},"clientInfo":{"name":"local-mcp-client","version":"0.0.1"}}}""";
@@ -46,19 +49,24 @@ public class Discovery {
 	 * @param trustedIssuer 이 client(`local-mcp-client`)가 등록된 Authorization Server
 	 */
 	public AuthorizationServer discover(String resourceUrl, String trustedIssuer) {
-		Map<String, Object> prm = protectedResourceMetadata(resourceUrl);
-		if (!(prm.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
-			throw new LocalClientException("PRM에 authorization_servers가 없다");
+		try {
+			Map<String, Object> prm = protectedResourceMetadata(resourceUrl);
+			if (!(prm.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
+				throw new LocalClientException("PRM에 authorization_servers가 없다");
+			}
+			// 등록된 issuer가 목록 어디에 있든 상관없다. 순서는 신뢰의 근거가 아니다.
+			if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
+				throw new LocalClientException("이 client는 %s에 등록돼 있는데, PRM의 authorization_servers는 %s뿐이다"
+						.formatted(trustedIssuer, servers));
+			}
+			Map<String, Object> metadata = authorizationServerMetadata(trustedIssuer);
+			return new AuthorizationServer((String) prm.get("resource"), trustedIssuer,
+					requireEndpoint(metadata, "authorization_endpoint"), requireEndpoint(metadata, "token_endpoint"),
+					Boolean.TRUE.equals(metadata.get("authorization_response_iss_parameter_supported")));
 		}
-		String issuer = String.valueOf(servers.get(0));
-		if (!issuer.equals(trustedIssuer)) {
-			throw new LocalClientException("이 client는 %s에 등록돼 있는데, MCP Server가 가리키는 Authorization Server는 %s다"
-					.formatted(trustedIssuer, issuer));
+		catch (IllegalArgumentException ex) {
+			throw new LocalClientException("resource나 issuer의 주소 형식이 잘못됐다: " + ex.getMessage(), ex);
 		}
-		Map<String, Object> metadata = authorizationServerMetadata(issuer);
-		return new AuthorizationServer((String) prm.get("resource"), issuer,
-				requireEndpoint(metadata, "authorization_endpoint"), requireEndpoint(metadata, "token_endpoint"),
-				Boolean.TRUE.equals(metadata.get("authorization_response_iss_parameter_supported")));
 	}
 
 	private Map<String, Object> protectedResourceMetadata(String resourceUrl) {
@@ -91,6 +99,7 @@ public class Discovery {
 		HttpResponse<String> response = Http.send(this.http, HttpRequest.newBuilder(URI.create(resourceUrl))
 				.header("Content-Type", "application/json")
 				.header("Accept", "application/json, text/event-stream")
+				.timeout(REQUEST_TIMEOUT)
 				.POST(HttpRequest.BodyPublishers.ofString(INITIALIZE))
 				.build());
 		if (response.statusCode() != 401) {
@@ -170,8 +179,11 @@ public class Discovery {
 	}
 
 	private Map<String, Object> getJson(String url) {
-		HttpResponse<String> response = Http.send(this.http,
-				HttpRequest.newBuilder(URI.create(url)).header("Accept", "application/json").GET().build());
+		HttpResponse<String> response = Http.send(this.http, HttpRequest.newBuilder(URI.create(url))
+				.header("Accept", "application/json")
+				.timeout(REQUEST_TIMEOUT)
+				.GET()
+				.build());
 		return response.statusCode() == 200 ? Json.object(response.body()) : null;
 	}
 }

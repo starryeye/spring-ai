@@ -38,10 +38,18 @@ public final class McpCalls {
 			out.println("    initialize: protocolVersion=" + initialized.protocolVersion()
 					+ ", server=" + initialized.serverInfo().name());
 			client.listTools().tools().forEach(tool -> out.println("    tool: " + tool.name()));
-			McpSchema.CallToolResult result = client
-					.callTool(new McpSchema.CallToolRequest("getStock", Map.of("productId", "p1"), null));
+			McpSchema.CallToolResult result = client.callTool(
+					McpSchema.CallToolRequest.builder("getStock").arguments(Map.of("productId", "p1")).build());
 			result.content().forEach(content -> out.println("    getStock(p1): "
 					+ (content instanceof McpSchema.TextContent text ? text.text() : content)));
+		}
+		catch (LocalClientException ex) {
+			throw ex;
+		}
+		catch (RuntimeException ex) {
+			// SDK가 던지는 McpError(401·403, tool 오류 등)를 포함해 여기서 나는 모든 RuntimeException을
+			// LocalClientException으로 바꾼다. Main이 항상 "실패: ..." 한 줄만 찍게 하기 위해서다.
+			throw new LocalClientException("MCP 호출이 실패했다: " + ex.getMessage(), ex);
 		}
 		finally {
 			client.closeGracefully();

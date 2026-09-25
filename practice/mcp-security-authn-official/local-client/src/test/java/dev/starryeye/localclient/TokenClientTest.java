@@ -71,4 +71,12 @@ class TokenClientTest {
 
 		assertThatThrownBy(this::exchange).isInstanceOf(LocalClientException.class).hasMessageContaining("401");
 	}
+
+	@Test
+	void HTML_오류_응답도_상태_코드를_잃지_않는다() {
+		this.as.on("POST", "/oauth2/token", new FakeServer.Reply(502, Map.of("Content-Type", "text/html"),
+				"<html><body>Bad Gateway</body></html>"));
+
+		assertThatThrownBy(this::exchange).isInstanceOf(LocalClientException.class).hasMessageContaining("502");
+	}
 }

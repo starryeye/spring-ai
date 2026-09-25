@@ -22,6 +22,8 @@ public final class Main {
 
 	static final Duration LOGIN_TIMEOUT = Duration.ofMinutes(5);
 
+	static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private Main() {
@@ -63,7 +65,10 @@ public final class Main {
 	}
 
 	static void run(Options options, PrintStream out) {
-		HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+		HttpClient http = HttpClient.newBuilder()
+				.followRedirects(HttpClient.Redirect.NEVER)
+				.connectTimeout(CONNECT_TIMEOUT)
+				.build();
 
 		out.println("[1] discovery: " + options.resourceUrl());
 		AuthorizationServer server = new Discovery(http).discover(options.resourceUrl(), options.issuer());

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.net.http.HttpClient;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,13 +86,55 @@ class DiscoveryTest {
 	}
 
 	@Test
-	void PRM이_모르는_Authorization_Server를_가리키면_metadata를_요청하지_않는다() {
-		challenge();
-		prm(resource(), "http://127.0.0.1:1");
+	void PRM이_모르는_Authorization_Server를_가리키면_metadata를_요청하지_않는다() throws Exception {
+		// PRM이 가리키는 곳이 실제로 응답할 수 있는 server여도(공격자가 진짜 Authorization Server 흉내를 낼 수도 있으니)
+		// 신뢰하는 issuer가 아니면 그 server에는 요청 자체를 보내지 않아야 한다. 그래야 `if` 검사를 지워도
+		// as.requests만 보는 부실한 assertion으로는 잡지 못하는 실수를 막을 수 있다.
+		try (FakeServer untrusted = new FakeServer()) {
+			challenge();
+			prm(resource(), untrusted.origin());
+			untrusted.on("GET", "/.well-known/oauth-authorization-server", FakeServer.Reply.json("""
+					{"issuer":"%s","authorization_endpoint":"%s/oauth2/authorize","token_endpoint":"%s/oauth2/token",\
+					"code_challenge_methods_supported":["S256"],"authorization_response_iss_parameter_supported":true}"""
+					.formatted(untrusted.origin(), untrusted.origin(), untrusted.origin())));
 
-		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("http://127.0.0.1:1");
-		assertThat(this.as.requests).isEmpty();
+			assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
+					.isInstanceOf(LocalClientException.class)
+					.hasMessageContaining(this.as.origin())
+					.hasMessageContaining(untrusted.origin());
+			assertThat(untrusted.requests).isEmpty();
+		}
+	}
+
+	@Test
+	void authorization_servers_목록의_어디에_있어도_등록된_issuer면_받아들인다() {
+		challenge();
+		this.mcp.on("GET", "/.well-known/oauth-protected-resource/mcp", FakeServer.Reply.json(
+				"{\"resource\":\"%s\",\"authorization_servers\":[\"http://127.0.0.1:1\",\"%s\"]}"
+						.formatted(resource(), this.as.origin())));
+		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
+
+		assertThat(this.discovery.discover(resource(), this.as.origin()).issuer()).isEqualTo(this.as.origin());
+	}
+
+	@Test
+	void resource_주소_형식이_잘못되면_LocalClientException으로_알린다() {
+		assertThatThrownBy(() -> this.discovery.discover("이것은 주소가 아니다", this.as.origin()))
+				.isInstanceOf(LocalClientException.class);
+	}
+
+	@Test
+	void path_형_well_known이_없으면_root_형_well_known으로_찾는다() {
+		this.mcp.on("POST", "/mcp", FakeServer.Reply.status(401));
+		// path 형(/.well-known/oauth-protected-resource/mcp)은 등록하지 않는다 → FakeServer가 기본 404를 준다.
+		this.mcp.on("GET", "/.well-known/oauth-protected-resource", FakeServer.Reply.json(
+				"{\"resource\":\"%s\",\"authorization_servers\":[\"%s\"]}"
+						.formatted(this.mcp.origin(), this.as.origin())));
+		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
+
+		AuthorizationServer server = this.discovery.discover(resource(), this.as.origin());
+
+		assertThat(server.resource()).isEqualTo(this.mcp.origin());
 	}
 
 	@Test
@@ -130,5 +173,14 @@ class DiscoveryTest {
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
 				.isInstanceOf(LocalClientException.class).hasMessageContaining("401");
+	}
+
+	@Test
+	void metadataUrls는_issuer에_path가_있으면_RFC_8414와_OpenID_Discovery_세_주소를_순서대로_만든다() {
+		List<String> urls = Discovery.metadataUrls("https://issuer.example/tenant1");
+
+		assertThat(urls).containsExactly("https://issuer.example/.well-known/oauth-authorization-server/tenant1",
+				"https://issuer.example/.well-known/openid-configuration/tenant1",
+				"https://issuer.example/tenant1/.well-known/openid-configuration");
 	}
 }

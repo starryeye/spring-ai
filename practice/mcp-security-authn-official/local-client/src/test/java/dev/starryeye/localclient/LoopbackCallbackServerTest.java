@@ -50,6 +50,20 @@ class LoopbackCallbackServerTest {
 	}
 
 	@Test
+	void callback_아래의_하위_경로는_handler_안에서_직접_404가_된다() throws Exception {
+		// `/favicon.ico`는 HttpServer에 등록된 context가 아예 없어 handler를 타지 않고도 404가 난다.
+		// `/callback/x`는 `/callback` context와 경로가 겹쳐 handler까지 들어온 뒤, PATH가 정확히 같은지
+		// 보는 handler 자신의 guard에서 404가 나야 한다. 이 guard가 없으면 첫 callback으로 잘못 받아들인다.
+		try (LoopbackCallbackServer server = LoopbackCallbackServer.start()) {
+			assertThat(get(URI.create(server.redirectUri() + "/x"))).isEqualTo(404);
+
+			get(URI.create(server.redirectUri() + "?code=abc&state=xyz"));
+
+			assertThat(server.await(Duration.ofSeconds(5))).containsEntry("code", "abc");
+		}
+	}
+
+	@Test
 	void await가_시간_안에_callback을_못_받으면_login_시간_초과를_알린다() throws Exception {
 		try (LoopbackCallbackServer server = LoopbackCallbackServer.start()) {
 			assertThatThrownBy(() -> server.await(Duration.ofMillis(200)))
