@@ -144,7 +144,7 @@ Spring은 `localhost`라는 이름에는 이 예외를 두지 않으므로, `loc
 callback server는 처음 온 callback만 결과로 쓰고, browser가 함께 보내는 `/favicon.ico` 같은 요청에는 `404`로 답한다.
 `Main`은 callback을 5분 동안 기다리고, 그 안에 login이 끝나지 않으면 멈춘다.
 
-## 7.5 3단계: authorization request를 연다 — `AuthorizationRequest`
+## 7.5 3단계: authorization request 주소를 만든다 — `AuthorizationRequest`
 
 주소를 만들기 전에 `Main`은 요청 하나에만 쓸 값 두 개를 만든다.
 `Pkce.generate()`는 `code_verifier`와 `code_challenge`를 만든다(코드는 5장).
@@ -168,7 +168,6 @@ public static URI uri(AuthorizationServer server, String clientId, URI redirectU
 ```
 
 parameter의 뜻은 5장과 같다.
-`client_secret`은 어디에도 없다.
 같은 기기의 다른 프로그램이 loopback redirect의 code를 가로채도, `code_verifier`가 없으므로 token으로 바꾸지 못한다(5장).
 
 **scope**
@@ -180,10 +179,11 @@ parameter의 뜻은 5장과 같다.
 static final String SCOPE = "openid profile";
 ```
 
-MCP 명세는 client가 scope를 고르는 순서를 정해 둔다.
+범용 MCP client는 MCP Server마다 어떤 scope가 필요한지 미리 알지 못한다.
+그래서 MCP 명세는 서버가 알려 주는 값으로 scope를 고르게 하고, 그 순서를 정해 둔다.
 `401`의 `WWW-Authenticate` header에 `scope`가 있으면 그 값을 쓴다.
 없으면 PRM의 `scopes_supported`를 모두 쓰고, 그것도 없으면 `scope` parameter를 빼고 보낸다.
-official의 MCP Server는 `401`에도, PRM에도 scope를 알려 주지 않는다(3장).
+official의 MCP Server는 `401`에도, PRM에도 scope를 알려 주지 않는다(3장의 `401`과 PRM 예시).
 이 순서를 그대로 따르면 `local-client`는 `scope` 없이 요청하게 된다.
 그런데 official의 Authorization Server는 `openid` 말고 consent할 scope가 없는 public client의 요청을 `invalid_scope`로 거절한다(5장).
 그래서 `local-client`는 이 순서를 따르지 않고 `openid profile`을 보낸다.
@@ -313,17 +313,19 @@ MCP Server는 session을 끝내는 `DELETE`의 token도 검사하므로, 이 요
 `run.sh`는 official의 세 앱을 모두 띄운다.
 
 ```bash
+# 저장소 최상위 폴더에서
 cd practice/mcp-security-authn-official
 ./run.sh
 ```
 
 `run.sh`는 `shop-agent`가 쓸 ollama와 `qwen3:8b` 모델도 준비한다.
 두 서버만 띄우려면 terminal 두 개에서 `practice/mcp-security-authn-official/auth-server`와 `practice/mcp-security-authn-official/shop-mcp-server`로 가서 각각 `./gradlew bootRun`을 실행한다.
-이때는 `JAVA_HOME`을 Java 21로 맞춘다.
+`run.sh`는 Java 21을 스스로 찾지만, `./gradlew bootRun`과 아래의 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 돈다.
 
 **`local-client` 실행**
 
 ```bash
+# 저장소 최상위 폴더에서
 cd practice/mcp-security-authn-official/local-client
 ./gradlew run
 ```
@@ -408,8 +410,9 @@ token의 `aud`가 MCP Server마다 다르므로, token도 MCP Server마다 따�
 **만료 뒤 다시 login**
 
 `local-client`는 token이 만료되기 전에 할 일을 마치고 끝난다.
-실제 앱은 MCP Server에서 `401 invalid_token`을 받으면 authorization request부터 다시 한다.
-official의 Authorization Server는 public client에 refresh token을 주지 않기 때문이다(4장).
+실제 앱은 MCP Server에서 `401 invalid_token`을 받으면 새 token을 받는다.
+refresh token이 없으면 authorization request부터 다시 한다.
+official의 Authorization Server가 그런 경우로, public client에 refresh token을 주지 않는다(4장).
 browser에 Authorization Server의 login session이 남아 있으면, login 화면 없이 consent 화면이 바로 나온다.
 public client에도 refresh token을 주는 Authorization Server라면, 앱은 refresh token으로 새 token을 받고 refresh token도 비밀 저장소에 둔다.
 
@@ -417,7 +420,7 @@ public client에도 refresh token을 주는 Authorization Server라면, 앱은 r
 
 `local-mcp-client`는 official의 Authorization Server 한 곳에 미리 등록한 `client_id`다.
 Claude Desktop 같은 앱은 사용자가 어떤 MCP Server를 넣을지 모르므로, Authorization Server마다 미리 등록해 둘 수 없다.
-그래서 앱의 metadata 문서를 자기 `https` 주소에 올리고, 어느 Authorization Server에서든 그 주소를 `client_id`로 쓴다(4장).
+그래서 앱의 metadata 문서를 자기 `https` 주소에 올리고, CIMD를 지원하는 Authorization Server에서는 그 주소를 `client_id`로 쓴다(4장).
 문서의 `redirect_uris`에는 `local-client`처럼 loopback 주소를 적는다.
 
 **issuer별 등록 상태**
@@ -430,7 +433,7 @@ PRM이 저장된 것과 다른 issuer를 가리키면, 저장된 `client_id`를 
 ## 7.11 정리
 
 - 사용자 기기의 MCP client는 비밀이 없는 public client다. 기본 browser를 열고, `127.0.0.1`의 빈 포트에 연 callback server로 code를 받는다.
-- `local-client`는 3·5·6장의 흐름을 클래스 하나에 한 단계씩 밟는다: discovery → callback server → authorization request → callback 확인 → token request → MCP 호출.
+- `local-client`에서는 클래스 하나가 한 단계씩 맡아, 3·5·6장의 흐름을 차례로 밟는다: discovery → callback server → authorization request → callback 확인 → token request → MCP 호출.
 - token request에는 `client_secret` 대신 `client_id`와 `code_verifier`를 넣는다. MCP 요청에는 transport의 기본 요청에 넣은 `Authorization` header가 `DELETE`까지 모두 붙는다.
 - official은 scope를 알려 주지 않으므로, `local-client`는 consent할 scope로 `profile`을 정해 보낸다.
 - 실제 앱은 여기에 더해 token을 운영체제의 비밀 저장소에 두고, CIMD로 `client_id`를 정하고, 등록 상태를 issuer별로 나눠 둔다.
