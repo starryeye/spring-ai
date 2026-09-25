@@ -12,10 +12,11 @@ session ID는 어느 연결인지 가리킬 뿐, 보낸 사람을 증명하지 �
 
 token 검사는 보통의 API 서버가 Bearer token을 검사하는 것과 같다.
 MCP는 여기에 전송 단계의 검사를 더한다.
-사용자 기기에서 도는 MCP Server가 browser를 거친 요청을 받지 않도록, token을 보기 전에 `Origin`과 `Host`를 확인한다.
+MCP Server는 `Origin` header로 browser를 거친 요청을 거절한다.
+official은 `Host`도 보고, 이 검사를 token보다 먼저 한다.
 
 이 장에서는 token을 붙인 요청의 형식을 보고, MCP Server가 그 요청을 어떤 순서로 검사하는지 따라간다.
-마지막으로 agent가 요청마다 그 요청을 보낸 사용자의 token을 골라 붙이는 방법을 본다.
+마지막으로 agent가 MCP 요청마다 그 요청을 일으킨 사용자의 token을 골라 붙이는 방법을 본다.
 
 ## 6.2 Bearer token으로 부르기
 
@@ -65,15 +66,16 @@ sequenceDiagram
         M-->>C: 421 Invalid Host header
     end
     Note over M: 2단계 token
-    opt 처음 검증할 때 한 번
+    alt token이 없다
+        M-->>C: 401 + resource_metadata
+    end
+    opt token이 있고, 처음 검증할 때 한 번
         M->>A: GET metadata
         A-->>M: issuer, jwks_uri
         M->>A: GET /oauth2/jwks
         A-->>M: public key (JWK Set)
     end
-    alt token이 없다
-        M-->>C: 401 + resource_metadata
-    else signature, iss, aud, exp 중 하나가 틀리다
+    alt signature, iss, aud, exp 중 하나가 틀리다
         M-->>C: 401 error=invalid_token
     end
     Note over M: 3단계 MCP-Protocol-Version, 4단계 session
@@ -110,7 +112,7 @@ sequenceDiagram
 DNS rebinding은 web page가 browser를 거쳐 이런 서버를 부르게 만드는 공격이다.
 
 1. 공격자는 자기 domain의 web page를 `http://evil.example:8111`에 올린다.
-2. 사용자가 이 page를 열면, 공격자는 `evil.example`의 DNS 기록을 `127.0.0.1`로 바꾼다.
+2. 사용자가 이 page를 열면, 공격자는 `evil.example`의 DNS record를 `127.0.0.1`로 바꾼다.
 3. page의 script가 `http://evil.example:8111/mcp`로 요청을 보낸다. page와 출처(scheme·host·port)가 같아서 browser는 막지 않는다.
 4. `evil.example`은 이제 `127.0.0.1`을 가리키므로, 요청은 사용자 기기의 MCP Server로 간다.
 
@@ -129,7 +131,7 @@ official은 두 header를 모두 본다.
 `Host`까지 보는 이유가 있다.
 browser는 같은 출처로 보내는 `GET`에는 `Origin`을 붙이지 않지만, `Host`는 모든 요청에 있다.
 
-token 없이 보내도 두 요청은 이렇게 거절된다.
+`Origin`이 붙은 요청과 `Host`가 다른 요청은 token이 없어도 이렇게 거절된다.
 
 ```http
 HTTP/1.1 403
@@ -149,16 +151,15 @@ Invalid Host header
 
 **인증보다 먼저 검사하는 이유**
 
-MCP Java SDK에는 이 검사를 하는 `DefaultServerTransportSecurityValidator`가 있고, SDK는 이 검사를 transport 안에서 한다.
-Spring에서 transport는 Spring Security의 filter를 모두 지난 요청만 받는다.
-그러면 token이 없는 요청은 Spring Security에서 `401`을 받고 끝나, `Origin` 검사까지 가지 못한다.
-`Origin` 검사는 token과 상관없이, browser를 거친 요청이라는 사실만으로 거절하는 방어다.
-authorization을 쓰지 않는 MCP Server라면 이 검사가 유일한 방어이기도 하다(2장).
+MCP Java SDK에는 `Origin`·`Host`를 검사하는 `DefaultServerTransportSecurityValidator`가 있다.
+SDK transport는 이 검증기를 받아 쓸 수 있지만, Spring AI 자동 구성은 transport에 검증기를 넣지 않는다.
+넣더라도 transport는 Spring Security를 지난 요청만 받아서, token 없는 요청은 `Origin`을 보기 전에 `401`로 끝난다.
+`Origin` 검사는 token과 상관없이 browser를 거친 요청을 `403`으로 거절하는 방어다.
 그래서 official은 같은 검증기를 `McpTransportSecurityFilter`라는 servlet filter로 감싸 Spring Security 앞에 둔다(6.9).
 
 **`127.0.0.1`에만 bind한다**
 
-로컬에서 도는 서버는 모든 네트워크 interface(`0.0.0.0`)가 아니라 `127.0.0.1`에서만 연결을 받는다.
+로컬에서 도는 서버는 모든 네트워크 interface(`0.0.0.0`)가 아니라 `127.0.0.1`에서만 연결을 받게 한다.
 그러면 같은 네트워크의 다른 기기는 연결조차 할 수 없다.
 official의 세 앱은 `application.yml`에 이렇게 적는다.
 
@@ -187,7 +188,7 @@ official의 access token은 JWT라서, MCP Server는 Authorization Server에 묻
 
 **signature: `jwks_uri`의 public key**
 
-token의 첫 부분(header)을 base64url로 풀면 signature 정보가 있다.
+token의 첫 부분(header)을 base64url로 풀면 signature를 확인하는 데 쓰는 정보가 들어 있다.
 
 ```json
 {"kid":"269c4f65-3590-4e66-948b-4a7844f2efce","alg":"RS256"}
@@ -214,10 +215,9 @@ curl http://localhost:9010/oauth2/jwks
 ```
 
 MCP Server는 header의 `kid`와 같은 key를 골라 signature를 확인한다.
-Authorization Server는 private key로 signature를 만들고, public key만 공개한다.
-public key로는 signature를 확인할 수만 있고 만들 수는 없다.
 metadata와 public key는 처음 token을 검증할 때 받아 두고, 그 뒤로는 요청마다 Authorization Server에 묻지 않는다.
 official의 Authorization Server는 뜰 때마다 key를 새로 만들어서, `kid`와 `n`은 실행마다 다르다.
+그래서 위의 `kid`는 6.2 요청의 token과 다른 실행에서 받은 값이다.
 
 **`iss`와 `aud`: Spring 설정 두 줄**
 
@@ -239,7 +239,7 @@ Spring은 이 줄이 없으면 `aud`를 검사하지 않고, 같은 Authorizatio
 
 ID token을 Bearer로 보내 보면 `aud` 검사가 하는 일이 보인다.
 ID token은 access token과 같은 key로 signature를 만들었고 `iss`도 같다.
-`aud`만 `official-shop-agent`다(5장).
+다른 것은 `aud`뿐이고, 값은 `official-shop-agent`다(5장).
 
 ```http
 HTTP/1.1 401
@@ -268,7 +268,6 @@ token까지 통과한 요청만 MCP의 규칙을 검사받는다.
 규칙과 오류 본문은 1장에서 봤으므로, 여기서는 어디서 검사하는지만 본다.
 
 `MCP-Protocol-Version`은 official의 `McpProtocolVersionFilter`가 본다.
-Spring AI의 transport는 이 header를 검사하지 않아서, official이 filter로 이 검사를 더한다(1장).
 모르는 버전이면 `400`이고, header가 없으면 통과시킨다.
 session은 Spring AI의 transport가 본다.
 `initialize`가 아닌 요청에 `Mcp-Session-Id`가 없으면 `400`, 끝났거나 모르는 session이면 `404`다.
@@ -279,7 +278,6 @@ session은 Spring AI의 transport가 본다.
 
 ## 6.7 session과 사용자
 
-session ID는 어느 연결인지 가리킬 뿐, 누가 보냈는지를 증명하지 않는다(1장).
 session ID를 알아낸 사람이 그 값을 보내면, 서버는 원래 client와 구별하지 못한다.
 이 공격이 session hijacking이다.
 official의 MCP Server는 두 가지로 이를 막는다.
@@ -293,15 +291,15 @@ official의 MCP Server는 session을 연 사용자를 기억하지 않기 때문
 
 명세는 session ID를 사용자 정보에 묶어 두기를 권한다.
 session 데이터를 `<user_id>:<session_id>` 같은 key로 두고, `user_id`는 token에서 꺼낸다.
-그러면 session ID를 알아내도 다른 사용자의 token으로는 그 session에 닿지 못한다.
+그러면 session ID를 알아내도 다른 사용자의 token으로는 그 session을 쓰지 못한다.
 
 official이 session을 사용자에 묶지 않는 데는 이유가 있다.
 agent는 Spring AI 자동 구성이 만든 MCP client 하나를 모든 사용자가 같이 쓴다.
-그래서 session은 첫 채팅을 보낸 사용자의 token으로 열리고(1장), 그 뒤의 요청에는 그때그때 채팅한 사용자의 token이 붙는다.
+그래서 session은 첫 채팅을 보낸 사용자의 token으로 열리고, 그 뒤의 요청에는 그때그때 채팅한 사용자의 token이 붙는다(6.8).
 session을 처음 연 사용자에 묶으면, 두 번째 사용자부터는 요청이 막힌다.
 
 session을 사용자에 묶는 방법은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md)에 있다.
-그 agent는 사용자마다 MCP client를 따로 열고, MCP Server는 session을 그 session을 연 사용자(token의 `sub`)에 묶는다.
+그 agent는 사용자마다 MCP client를 따로 열고, MCP Server는 각 session을 처음 연 사용자(token의 `sub`)에 묶는다.
 다른 사용자의 token으로 그 session ID를 쓰면 `403`이다.
 
 MCP 2026-07-28에서는 protocol 수준의 session과 `Mcp-Session-Id`가 없어졌다.
@@ -389,6 +387,8 @@ public static void main(String[] args) {
 
 두 실수 모두 기동할 때 오류가 나지 않는다.
 MCP 요청에서 token만 빠지고, MCP Server가 `401`로 답한 뒤에야 알 수 있다.
+`Hooks` 줄이 빠진 경우에는 `practice/mcp-security-authn-official/logs/shop-agent.log`에 DEBUG 줄 하나가 남는다.
+`SecurityMcpTransportContextProvider`가 남기는 `인증 없음 — 빈 전송 컨텍스트를 만든다 (토큰이 붙지 않는다)`다.
 
 **`local-client`는 한 번만 붙인다**
 
@@ -405,14 +405,18 @@ SDK는 이 기본 요청을 복사해 `initialize`부터 session을 끝내는 `D
 `shop-mcp-server`의 `SecurityConfig`는 모든 요청에 token을 요구하고, token을 JWT로 검증한다.
 
 ```java
-return http
-        .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())   // session ID가 있어도 token을 본다
-        .oauth2ResourceServer(resourceServer -> resourceServer
-                .jwt(Customizer.withDefaults())                             // signature, iss, aud, exp
-                .authenticationEntryPoint(resourceMetadataEntryPoint())     // 401에 resource_metadata (3장)
-                .protectedResourceMetadata(/* PRM (3장) */))
-        .csrf(csrf -> csrf.disable())                                       // cookie가 아니라 token으로만 인증한다
-        .build();
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http,
+        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) throws Exception {
+    return http
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())   // session ID가 있어도 token을 본다
+            .oauth2ResourceServer(resourceServer -> resourceServer
+                    .jwt(Customizer.withDefaults())                             // signature, iss, aud, exp
+                    .authenticationEntryPoint(resourceMetadataEntryPoint())     // 401에 resource_metadata (3장)
+                    .protectedResourceMetadata(/* ... PRM (3장) */))
+            .csrf(csrf -> csrf.disable())                                       // cookie가 아니라 token으로만 인증한다
+            .build();
+}
 ```
 
 `jwt(Customizer.withDefaults())`는 Spring Boot가 `issuer-uri`와 `audiences`로 만든 `JwtDecoder`를 쓴다.
@@ -442,12 +446,7 @@ public FilterRegistrationBean<McpTransportSecurityFilter> mcpTransportSecurityFi
 1을 빼면 그보다 먼저 돈다.
 `mcpProtocolVersionFilter` bean은 순서를 정하지 않는다.
 `FilterRegistrationBean`의 기본 순서는 가장 뒤라서, 이 filter는 Spring Security 다음에 돈다.
-
-**`McpTransportSecurityFilter`: 1단계**
-
-`McpTransportSecurityFilter`는 요청의 header를 SDK 검증기의 `validateHeaders(...)`에 넘긴다.
-검증기가 `ServerTransportSecurityException`을 던지면 그 상태 코드(`403`·`421`)와 메시지로 바로 응답한다.
-그 요청은 Spring Security로 가지 않는다.
+`McpTransportSecurityFilter`는 검증기가 거절하면 `403`·`421`로 바로 응답하고, 그 요청을 Spring Security로 넘기지 않는다.
 
 **`McpProtocolVersionFilter`: 3단계**
 
@@ -519,7 +518,7 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 | server는 모든 연결의 `Origin`을 검증하고, 있는데 유효하지 않으면 `403`으로 답한다. 로컬 server는 `127.0.0.1`에만 bind하고, 모든 연결에 인증을 둔다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST, SHOULD |
 | 이 서버로 올 요청이 아니면 `421 Misdirected Request`로 답할 수 있다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) | — |
 | MCP Server는 요청을 처리하기 전에 token을 검증하고, 자신을 audience로 발급된 token만 받는다. 유효하지 않거나 만료된 token에는 `401`로 답한다 | [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT |
-| JWT access token은 `iss`가 정확히 같은지, `aud`에 자신이 있는지, signature가 맞고 `alg`가 `none`이 아닌지, `exp` 전인지 확인한다. 실패하면 `invalid_token`이고 `401`로 답한다. Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
+| RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
 | 지원하지 않는 `MCP-Protocol-Version`에는 `400`, session ID가 없으면 `400`, 끝난 session에는 `404`로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MUST, SHOULD |
 | authorization을 구현한 MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없는 값으로 만들고, 사용자 정보에 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
 | 2026-07-28은 protocol 수준의 session과 `Mcp-Session-Id`를 없앤다 | [MCP 2026-07-28 Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | — |
