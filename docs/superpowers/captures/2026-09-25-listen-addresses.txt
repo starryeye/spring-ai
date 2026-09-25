@@ -1,0 +1,13 @@
+# 수신 주소 — 2026-09-25 (lsof -nP -iTCP -sTCP:LISTEN)
+
+
+===== S21. 세 practice 9개 앱의 수신 주소 (lsof) =====
+java TCP 127.0.0.1:8100 (LISTEN)
+java TCP 127.0.0.1:8101 (LISTEN)
+java TCP 127.0.0.1:8110 (LISTEN)
+java TCP 127.0.0.1:8111 (LISTEN)
+java TCP 127.0.0.1:8130 (LISTEN)
+java TCP 127.0.0.1:8131 (LISTEN)
+java TCP 127.0.0.1:9000 (LISTEN)
+java TCP 127.0.0.1:9010 (LISTEN)
+java TCP 127.0.0.1:9020 (LISTEN)

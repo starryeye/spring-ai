@@ -93,6 +93,15 @@ public_authorize() {
   fi
 }
 
+# 공개 클라이언트의 인가 요청(PKCE 포함)에서 scope 만 바꾼다. $1 = scope 값
+public_authorize_scope() {
+  curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
+    --data-urlencode 'response_type=code' --data-urlencode "client_id=$PUBLIC_CLIENT_ID" \
+    --data-urlencode "redirect_uri=$PUBLIC_REDIRECT_URI" --data-urlencode "scope=$1" \
+    --data-urlencode 'state=public-state' --data-urlencode "code_challenge=$CHALLENGE" \
+    --data-urlencode 'code_challenge_method=S256' --data-urlencode "resource=$MCP"
+}
+
 # 동의 화면이 돌려준 hidden state 를 읽는다. 원래 인가 요청의 state 가 아니라,
 # 대기 중인 인가를 찾으려고 인가 서버가 새로 발급한 값이다.
 consent_state() { printf '%s' "$1" | grep -o 'name="state" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"$//'; }
@@ -215,6 +224,10 @@ step "P8. 같은 클라이언트로 다시 인가 — 이전에 동의했어도 
 AGAIN=$(public_authorize yes "$PUBLIC_REDIRECT_URI")
 printf '%s\n' "$AGAIN" | tidy | grep -iE '^(HTTP|Location)'
 printf '%s' "$AGAIN" | tr -d '\r' | grep -oE '<title>[^<]*</title>'
+
+step "P8-1. 오류: openid 하나만 요청 — 공개 클라이언트는 invalid_scope (RFC 6749 §3.3 · OAuth 2.1 §7.3.1)"
+# Spring 은 scope 가 openid 하나면 동의를 건너뛴다. PublicClientScopeValidator 가 그 전에 거부한다.
+public_authorize_scope openid | tidy | grep -iE '^(HTTP|Location)'
 
 step "P9. 오류: PKCE 없는 인가 요청 (RFC 7636 · MCP MUST)"
 public_authorize no "$PUBLIC_REDIRECT_URI" | tidy | grep -iE '^(HTTP|Location)'
