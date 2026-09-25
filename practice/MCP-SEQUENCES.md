@@ -384,7 +384,7 @@ sequenceDiagram
 10. browser 가 authorization endpoint 를 다시 연다. 로그인 session 은 남아 있다.
 11. 이전에 consent 했어도 다시 consent 화면이 온다(P8). client 신원을 확인할 수 없으면 이전 consent 가 없던 것처럼 처리하는 것이 좋다(SHOULD, [허브 5.6](MCP-AUTHORIZATION.md#s5-6)).
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#registration) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
 
 <a id="rt-token"></a>
 
@@ -627,4 +627,4 @@ sequenceDiagram
 13. public client 가 scope 없이, 또는 `openid` 하나만 요청한다. `openid` 하나뿐이면 Spring 기본 동작은 consent 를 건너뛰고, community module 은 scope 가 없을 때도 건너뛴다.
 14. Authorization Server 는 consent 판정 전에 `error=invalid_scope` 로 redirect 한다(P8-1). scope 생략에는 기본값 처리나 `invalid_scope` 거부 중 하나를 해야 하고(MUST), 이 practice 가 거부를 고른 이유는 [허브 5.6](MCP-AUTHORIZATION.md#s5-6) 에 있다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#registration) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)

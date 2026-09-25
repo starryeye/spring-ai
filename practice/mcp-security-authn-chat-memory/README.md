@@ -97,6 +97,7 @@ cd practice/mcp-security-authn-chat-memory
 
 두 사용자를 동시에 로그인하려면 browser 프로필을 나눈다.
 같은 프로필의 창 두 개는 session cookie(`MEMAGENTSESSIONID`)를 공유해, 나중에 로그인한 사용자가 앞 사용자를 덮어쓴다.
+앱마다 cookie 이름(`MEMAUTHSESSIONID`·`MEMAGENTSESSIONID`)을 나누는 이유는 [official](../mcp-security-authn-official/README.md#localhost-의-두-oauth2-앱은-session-cookie-이름을-나눈다) 과 같다.
 
 public client(`local-mcp-client`) 흐름은 curl 캡처 스크립트로 밟는다. Authorization Server 와 MCP Server 만 떠 있으면 된다.
 
@@ -181,7 +182,6 @@ tool 이 조회한 값은 모델이 옮겨 적은 assistant 텍스트로만 남�
 
 기동 시점에는 대신 호출할 사용자가 없어 MCP Server 가 `401` 을 준다([4.8](../MCP-AUTHORIZATION.md#s4-8)).
 `UserMcpClients` 는 사용자의 첫 채팅 때 client 를 만들고 `initialize` 하므로, 사용자마다 첫 질문이 느리다.
-session cookie 이름은 앱마다 나눈다(`MEMAUTHSESSIONID`·`MEMAGENTSESSIONID`, [official](../mcp-security-authn-official/README.md#localhost-의-두-oauth2-앱은-session-cookie-이름을-나눈다)).
 
 ## 비목표
 

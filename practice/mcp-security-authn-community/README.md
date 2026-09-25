@@ -78,7 +78,7 @@ official 이 손으로 쓴 클래스마다, community 는 module 이 자동으�
 | `AuthorizationServerConfig`(filter chain 두 개) | `McpAuthorizationServerAutoConfiguration` | module 자동 구성 |
 | `ResourceIndicatorValidator` | `McpAuthorizationStandardConfig#authorizationCodeRequestValidator(...).andThen(...)` 로 등록 | 같은 클래스 |
 | `PublicClientScopeValidator` | 같은 체인에서 `ResourceIndicatorValidator` 뒤에 건다. module `McpNoScopeClientConsentNotRequired` 가 consent 를 건너뛰는 scope 없는 요청도 막는다 | 직접 얹은 확장 |
-| `ResourceAudienceTokenCustomizer` | `OAuth2TokenCustomizer<JwtEncodingContext>` bean, module 기본 customizer 뒤에 실행. module 이 `resource` 로 덮어쓴 ID token `aud` 를 client_id 로 되돌리는 분기를 더했다 | 직접 얹은 확장 |
+| `ResourceAudienceTokenCustomizer` | `OAuth2TokenCustomizer<JwtEncodingContext>` bean, module 기본 customizer 뒤에 실행. ID token 이면 module 이 `resource` 로 덮어쓴 `aud` 를 client_id 로 되돌린다 | 직접 얹은 확장 |
 | token request 의 `resource` 여러 개 거부(`ResourceAudienceTokenCustomizer`) | `SingleResourceTokenRequestConverter` 를 `tokenEndpoint.accessTokenRequestConverter` 로 건다. module customizer 의 `(String)` 캐스트보다 먼저 `invalid_target` 을 낸다 | 직접 얹은 확장 |
 | `IssuerIdentifyingAuthorizationResponseHandler` | `McpAuthorizationStandardConfig` 가 `authorizationResponseHandler`·`errorResponseHandler` 로 등록 | 같은 클래스 |
 | `ClientAuthenticationChallengeFailureHandler` | `McpAuthorizationStandardConfig` 가 `clientAuthentication.errorResponseHandler` 로 등록 | 같은 클래스 |
@@ -94,9 +94,9 @@ official 이 손으로 쓴 클래스마다, community 는 module 이 자동으�
 | official 의 클래스 또는 설정 | community 의 설정·확장점 | 제공 |
 |---|---|---|
 | `SecurityConfig`(filter chain 직접 정의, PRM·`401`·`iss`·`exp` 검증) | `SecurityConfig` 가 `McpServerOAuth2Configurer` 를 적용하고, Boot 의 `JwtDecoder` 를 넘긴다 | 직접 얹은 확장 |
-| `aud` 검증(`jwt.audiences` 고정 값) | `validateAudienceClaim(true)` — `AudienceValidationJwtDecoder` 가 기대 `aud` 를 요청 URL 로 계산한다. 그래서 Host 검증이 먼저 와야 한다 | module 자동 구성(설정으로 켬) |
+| `aud` 검증(`jwt.audiences` 고정 값) | `validateAudienceClaim(true)` — `AudienceValidationJwtDecoder` 가 기대 `aud` 를 요청 URL 로 계산한다. 그래서 Host 검증이 먼저 와야 한다 | 직접 얹은 확장 |
 | `McpTransportConfig`(MCP endpoint 에 filter 두 개 등록) | `SecurityConfig` 의 `mcp.allowedOrigins(...)`/`allowedHosts(...)` 와 `McpProtocolVersionFilterConfig` 로 나뉜다 | 직접 얹은 확장 |
-| `McpTransportSecurityFilter`(Spring Security 앞의 `Origin`·`Host` 검증) | module `OriginValidationFilter` — filter chain 안, 인증 filter 앞 | module 자동 구성 |
+| `McpTransportSecurityFilter`(Spring Security 앞의 `Origin`·`Host` 검증) | `SecurityConfig` 의 `mcp.allowedOrigins(...)`/`allowedHosts(...)` 로 켜는 module `OriginValidationFilter` — filter chain 안, 인증 filter 앞 | 직접 얹은 확장 |
 | `issuer-uri` 동작([official 학습 포인트](../mcp-security-authn-official/README.md#issuer-uri-는-없으면-기동이-실패하고-틀리면-첫-token-검증에서-실패한다)) | 없으면 Boot 가 `JwtDecoder` bean 을 만들지 않아 `SecurityConfig` 가 기동에 실패한다. 닿지 않으면 기동은 되고 첫 token 검증에서 실패한다 | 같은 동작 |
 | `McpProtocolVersionFilter` | 같은 이름·같은 로직, `McpProtocolVersionFilterConfig` 가 `FilterRegistrationBean` 으로 등록 | 같은 클래스 |
 | `ProductTools` | 같은 코드 | 같은 클래스 |
@@ -175,7 +175,7 @@ module 의 `ResourceIdentifierAudienceTokenCustomizer` 는 `openid` 가 승인�
 
 ### 기대 `aud` 를 요청 URL 로 계산하면 Host 검증이 먼저다
 
-module 의 `AudienceValidationJwtDecoder` 는 설정 값이 아니라 요청 URL 에서 기대 `aud` 를 만든다. official 은 `jwt.audiences` 고정 값과 비교한다.
+module 의 `AudienceValidationJwtDecoder` 는 설정 값이 아니라 요청 URL 에서 기대 `aud` 를 만든다([대체 표](#shop-mcp-server)).
 Host 를 바꾼 요청은 그 Host 용 token 과 `aud` 가 맞아 버리므로, `OriginValidationFilter` 의 Host 검증이 인증 전에 `421` 로 막아야 한다([허브 4.9](../MCP-AUTHORIZATION.md#s4-9)).
 
 테스트: `McpAuthorizationStandardTest#Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다`.

@@ -28,6 +28,7 @@ flowchart LR
     classDef customExt fill:#fcf8e3,stroke:#8a6d3b
     subgraph as["auth-server (:9000)"]
         ASAC["McpAuthorizationServerAutoConfiguration"]:::moduleAuto
+        MASC["McpAuthorizationServerConfigurer"]:::moduleAuto
         NSC["McpNoScopeClientConsentNotRequired"]:::moduleAuto
         RIATC["ResourceIdentifierAudienceTokenCustomizer"]:::moduleAuto
         OIDC["OidcDiscoveryConfig"]:::customExt
@@ -59,8 +60,9 @@ flowchart LR
         ARIF["AuthorizationResponseIssuerFilter"]:::customExt
         CC["ChatController"]:::customExt
     end
-    ASAC -->|"init() 에서 consent 판정으로 건다"| NSC
-    ASAC -->|"기본 token customizer"| RIATC
+    ASAC -->|"filter chain 에 적용"| MASC
+    MASC -->|"init() 에서 consent 판정으로 건다"| NSC
+    MASC -->|"getTokenGenerator 의 기본 token customizer"| RIATC
     OIDC -->|"Order(0), oidc() 를 켠다"| ASAC
     MSTD -->|"Order(1), authorizationCodeRequestValidator"| RIV
     RIV -->|"andThen"| PSV
@@ -233,7 +235,7 @@ sequenceDiagram
 5. 통과하면 Bearer token 인증으로 넘어간다.
 6. 위임 decoder(Boot `JwtDecoder`)가 서명·`iss`·`exp` 를 먼저 보고, `AudienceValidationJwtDecoder` 가 `aud` 를 본다.
 7. `ResourceIdentifier#getResource()` 가 기대 `aud` 를 계산한다. 저장된 설정이 아니라 요청마다 요청 URL 의 scheme·Host 에 resource 경로를 붙여 만든다.
-8. official 은 `jwt.audiences` 고정 값과 비교한다([허브 4.9](../MCP-AUTHORIZATION.md#s4-9)). 여기서는 Host 를 바꾸고 그 Host 용 token 을 실으면 계산한 값과 `aud` 가 맞아 버려, 4번의 Host 검증이 audience 계산 전에 `421` 로 막아야 한다(테스트 `#Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다`).
+8. 그래서 Host 를 바꾸고 그 Host 용 token 을 실으면 계산한 값과 `aud` 가 맞아 버려, 4번의 Host 검증이 audience 계산 전에 `421` 로 막아야 한다([허브 4.9](../MCP-AUTHORIZATION.md#s4-9), 테스트 `#Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다`).
 9. token 의 `aud` 가 계산한 값과 다르면 `JwtValidationException` 이다.
 10. 결과는 `401` 이다(테스트 `#aud_가_다른_토큰은_거부한다`).
 11. 같으면 `Jwt` 를 돌려준다.

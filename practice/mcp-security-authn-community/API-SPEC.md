@@ -43,7 +43,7 @@
 | Client ID Metadata Document | 쓰지 않음 — module 에 `cimd(true)` 가 있지만 켜지 않는다 | — |
 | `POST /mcp`(token 없음, `401`) | module 자동 구성, entry point 는 직접 얹은 확장 | `SecurityConfig#resourceMetadataEntryPoint`(module 기본값에 인용부호를 더한 entry point 로 교체) |
 | `GET /.well-known/oauth-protected-resource[/mcp]` | module 자동 구성(값은 직접 얹은 확장) | `SecurityConfig`(`protectedResourceMetadataCustomizer`) |
-| `POST /mcp`(Bearer, `aud` 검증) | module 자동 구성(설정으로 켬) — 자동 구성 filter chain 에는 audience 검증을 켜는 길이 없어 `SecurityConfig` 가 직접 켠다 | `SecurityConfig`(`McpServerOAuth2Configurer#validateAudienceClaim(true)`) |
+| `POST /mcp`(Bearer, `aud` 검증) | 직접 얹은 확장 — 자동 구성 filter chain 에는 audience 검증을 켜는 길이 없어 `SecurityConfig` 가 직접 켠다 | `SecurityConfig`(`McpServerOAuth2Configurer#validateAudienceClaim(true)`) |
 | `/mcp`(Origin/Host 검증) | module 자동 구성(설정으로 켬) | `SecurityConfig`(`allowedOrigins`/`allowedHosts`) |
 | `POST /mcp`(`MCP-Protocol-Version` 검증) | 직접 얹은 확장 — module 에 대응 기능이 없다 | `McpProtocolVersionFilterConfig` |
 | `GET /` · `GET /oauth2/authorization/authserver` · `GET /login/oauth2/code/authserver` | 직접 얹은 확장(로그인 배선) + module 자동 구성(token 부착) | `SecurityConfig`(agent), `AuthorizationResponseIssuerFilter` |
