@@ -33,15 +33,16 @@ class ShopMcpServerApplicationTests {
 	}
 
 	/**
-	 * 상태 코드만으로는 "이 리소스 서버 설정이 막은 것"인지 "Boot 기본 Basic 인증이
-	 * 대신 막은 것"인지 구분할 수 없다 — 둘 다 401 이다(community 에서 실측했다).
-	 * 스킴이 {@code Bearer} 여야 OAuth2 리소스 서버가 실제로 동작한다는 증거가 된다.
+	 * 401 과 함께 {@code WWW-Authenticate} 스킴이 {@code Bearer} 인지 본다. Boot 기본 보안(Basic)으로
+	 * 막혀도 401 이므로, 스킴이 OAuth2 Resource Server 가 연결됐다는 증거다.
+	 * {@code Host} 는 {@code McpTransportSecurityFilter} 가 인증보다 먼저 보므로 허용 값으로 싣는다.
 	 */
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {
 		mockMvc.perform(post("/mcp")
 						.with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
+						.header("Host", "localhost:8131")
 						.content("""
 								{"jsonrpc":"2.0","id":1,"method":"tools/list"}
 								"""))

@@ -1,11 +1,10 @@
 package dev.starryeye.memoryauthn.mcpserver;
 
-import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
-import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStreamableServerTransportProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,30 +13,31 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 
 /**
- * Streamable HTTP 전송을 직접 만든다. 자동설정 빈과 같되
- * {@code Origin}/{@code Host} 검증기를 하나 더 단다(MCP 2025-11-25 전송 §보안).
+ * MCP endpoint 에만 거는 servlet filter 두 개를 등록한다.
  *
- * <p>브라우저가 로컬 MCP 서버로 요청을 보내는 DNS 리바인딩 공격을 막는 장치다.
- * 서버 간 호출에는 {@code Origin} 이 없고, 없는 요청은 그대로 통과한다.
+ * <ul>
+ *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host} 검증. Spring Security 보다 먼저 돈다.</li>
+ *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version} 검증. 인증 뒤에 돈다.</li>
+ * </ul>
+ *
+ * <p>Streamable HTTP transport 는 Spring AI 자동 구성 bean 을 그대로 쓴다.
  */
 @Configuration
 public class McpTransportConfig {
 
 	@Bean
-	public WebMvcStreamableServerTransportProvider webMvcStreamableServerTransportProvider(
-			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
+	public FilterRegistrationBean<McpTransportSecurityFilter> mcpTransportSecurityFilter(
 			McpServerStreamableHttpProperties properties, @Value("${server.port}") int port) {
-		return WebMvcStreamableServerTransportProvider.builder()
-				.jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
-				.mcpEndpoint(properties.getMcpEndpoint())
-				.keepAliveInterval(properties.getKeepAliveInterval())
-				.disallowDelete(properties.isDisallowDelete())
-				.securityValidator(DefaultServerTransportSecurityValidator.builder()
-						// 브라우저에서 직접 호출할 일이 없으므로 허용 Origin 을 두지 않는다.
-						// Origin 이 실려 오면 403 이다.
-						.allowedHosts(List.of("localhost:" + port, "127.0.0.1:" + port))
-						.build())
+		DefaultServerTransportSecurityValidator validator = DefaultServerTransportSecurityValidator.builder()
+				// browser 에서 직접 부를 일이 없으므로 허용 Origin 을 두지 않는다. Origin 이 실려 오면 403 이다.
+				.allowedHosts(List.of("localhost:" + port, "127.0.0.1:" + port))
 				.build();
+		FilterRegistrationBean<McpTransportSecurityFilter> registration =
+				new FilterRegistrationBean<>(new McpTransportSecurityFilter(validator));
+		registration.addUrlPatterns(properties.getMcpEndpoint());
+		// Spring Security filter chain 보다 먼저 돈다 — 인증 전에 막는다.
+		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1);
+		return registration;
 	}
 
 	/**

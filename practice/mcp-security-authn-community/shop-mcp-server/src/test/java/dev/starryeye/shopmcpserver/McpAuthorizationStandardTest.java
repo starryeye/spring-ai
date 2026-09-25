@@ -49,14 +49,14 @@ class McpAuthorizationStandardTest {
     static final String HOST = "localhost:8101";
     static final String KEY_ID = "test-key";
 
-    static final RSAKey KEY;
+    static final RSAKey KEY = rsaKey();
 
-    static {
+    static RSAKey rsaKey() {
         try {
             KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
             generator.initialize(2048);
             var keyPair = generator.generateKeyPair();
-            KEY = new RSAKey.Builder((RSAPublicKey) keyPair.getPublic())
+            return new RSAKey.Builder((RSAPublicKey) keyPair.getPublic())
                     .privateKey((RSAPrivateKey) keyPair.getPrivate())
                     .keyID(KEY_ID)
                     .build();
@@ -94,13 +94,21 @@ class McpAuthorizationStandardTest {
     MockMvc mockMvc;
 
     static String 토큰(String issuer, String audience) {
-        NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(KEY)));
+        return 토큰(issuer, audience, "user");
+    }
+
+    static String 토큰(String issuer, String audience, String subject) {
+        return 토큰(issuer, audience, subject, Instant.now().plusSeconds(300), KEY);
+    }
+
+    static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key) {
+        NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
-                .subject("user")
+                .subject(subject)
                 .audience(List.of(audience))
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(300))
+                .issuedAt(expiresAt.minusSeconds(600))
+                .expiresAt(expiresAt)
                 .build();
         return encoder.encode(JwtEncoderParameters.from(
                 JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims)).getTokenValue();
@@ -191,7 +199,49 @@ class McpAuthorizationStandardTest {
     @Test
     void iss_가_다른_토큰은_거부한다() throws Exception {
         this.mockMvc.perform(mcp(토큰("http://localhost:9999", RESOURCE), null, HOST))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString("error=\"invalid_token\"")));
+    }
+
+    @Test
+    void 만료된_토큰은_거부한다() throws Exception {
+        // Spring JwtTimestampValidator 의 기본 clock skew 는 60초다. 그보다 오래 지난 token 을 쓴다.
+        this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().minusSeconds(120), KEY), null, HOST))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate",
+                        org.hamcrest.Matchers.containsString("error=\"invalid_token\"")));
+    }
+
+    @Test
+    void 다른_키로_서명한_토큰은_거부한다() throws Exception {
+        // kid 는 같지만 JWKS 의 공개 키로 서명이 맞지 않는다.
+        this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().plusSeconds(300), rsaKey()), null, HOST))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate",
+                        org.hamcrest.Matchers.containsString("error=\"invalid_token\"")));
+    }
+
+    @Test
+    void token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다() throws Exception {
+        // 모듈 OriginValidationFilter 는 Spring Security 앞에서 돈다 — token 없는 요청도 403 을 본다.
+        this.mockMvc.perform(mcp(null, "http://evil.example", HOST))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+    }
+
+    @Test
+    void token_이_없어도_허용되지_않은_Host_는_인증보다_먼저_421이다() throws Exception {
+        this.mockMvc.perform(mcp(null, null, "evil.example:8101"))
+                .andExpect(status().is(421))
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+    }
+
+    @Test
+    void Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다() throws Exception {
+        // 모듈 AudienceValidationJwtDecoder 는 기대 aud 를 요청 URL 로 계산한다. Host 검증이 없으면
+        // evil Host 로 계산한 aud 와 token 의 aud 가 맞아 통과한다 — OriginValidationFilter 가 먼저 막는다.
+        this.mockMvc.perform(mcp(토큰(ISSUER, "http://evil.example:8101/mcp"), null, "evil.example:8101"))
+                .andExpect(status().is(421));
     }
 
     @Test

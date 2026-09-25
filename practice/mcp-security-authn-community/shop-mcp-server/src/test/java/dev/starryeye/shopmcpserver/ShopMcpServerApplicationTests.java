@@ -37,23 +37,9 @@ class ShopMcpServerApplicationTests {
 	}
 
 	/**
-	 * 이 practice 의 존재 이유. agent-mcps 에서는 이 요청이 통했다.
-	 *
-	 * <p>{@code SecurityConfig} 가 필터체인을 직접 정의하면서 CSRF 는 명시적으로 끈다
-	 * (무상태 리소스 서버라 세션 기반 CSRF 토큰을 쓰지 않는다). 대신 Origin/Host 검증
-	 * ({@code OriginValidationFilter}, {@code allowedHosts} 를 켰다)이 이 필터체인이 지키는
-	 * 모든 경로에 걸리므로, {@code Host} 헤더가 허용 목록과 일치해야 그 다음 인증 단계까지
-	 * 도달해 401 을 본다 — 없으면 421(Invalid Host header)로 먼저 막힌다.
-	 *
-	 * <p><b>{@code WWW-Authenticate} 헤더까지 검증하는 이유:</b> 상태 코드 401 만으로는
-	 * "이 MCP 보안 모듈이 실제로 동작해서 막은 것"인지, 아니면 단순히 {@code spring-boot-starter-security}
-	 * 가 기본으로 켜주는 Basic 인증(무작위 생성 비밀번호)이 대신 막은 것인지 구분할 수 없다 —
-	 * 둘 다 401 을 반환한다. 실제로 {@code issuer-uri} 설정을 지워도 이 상태 코드 검증만으로는
-	 * 통과해 버린다 (검증됨). 두 경우를 가르는 신호는 인증 스킴이다: 이 모듈이 살아있으면
-	 * {@code WWW-Authenticate: Bearer resource_metadata=...} 를, Boot 기본 보안으로 대체되면
-	 * {@code WWW-Authenticate: Basic realm=...} 를 반환한다. 따라서 스킴이 {@code Bearer} 로
-	 * 시작하는지까지 검증해야 이 테스트가 "MCP OAuth2 보호가 실제로 연결되어 있다"는 것을
-	 * 증명한다.
+	 * 401 과 함께 {@code WWW-Authenticate} 스킴이 {@code Bearer} 인지 본다. Boot 기본 보안(Basic)으로
+	 * 막혀도 401 이므로, 스킴이 모듈의 OAuth2 Resource Server 설정이 연결됐다는 증거다.
+	 * {@code Host} 는 모듈 {@code OriginValidationFilter} 가 인증보다 먼저 보므로 허용 값으로 싣는다.
 	 */
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {
