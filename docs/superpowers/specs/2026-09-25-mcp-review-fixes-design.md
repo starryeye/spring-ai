@@ -134,8 +134,8 @@ authorization request 에 `resource` 가 없었는데 token request 가 `resourc
 
 ## 캡처
 
-- public client 스크립트에 단계 하나(`P8-1`): `scope=openid` 단독 요청도 200 consent. 세 practice P 캡처를 다시 뜬다(단계 번호는 그대로).
-- 수신 주소: 세 practice 를 띄워 `lsof -nP -iTCP -sTCP:LISTEN` 결과를 새 캡처 파일로 남긴다(S21 대체). 문서에서 S21 을 인용한 곳은 새 파일로 바꾼다.
+- public client 스크립트에 단계 하나(`P8-1`): `scope=openid` 단독 요청은 `invalid_scope` redirect. 세 practice P 캡처를 다시 뜬다(기존 단계 번호는 그대로).
+- 수신 주소: 세 practice 를 띄워 `lsof -nP -iTCP -sTCP:LISTEN` 결과를 새 캡처 파일로 남긴다(단계 ID 는 S21 을 이어 쓴다). 준수표의 bind 행이 이 캡처를 인용한다.
 - chat-memory session 묶기와 Origin 검증 위치는 테스트를 근거로 문서에 적는다(캡처 추가 없음).
 - 다른 C/S 캡처는 다시 뜨지 않는다.
 
