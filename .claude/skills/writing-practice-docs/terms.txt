@@ -33,4 +33,4 @@ MCP 서버	MCP Server
 커뮤니티	community
 모듈	module
 필드	field
-빈(?=[\s을를은는이가의에와과도로]|$)	bean
+(?<![가-힣])빈(?=[을를은는이가의에와과도로]|$)	bean

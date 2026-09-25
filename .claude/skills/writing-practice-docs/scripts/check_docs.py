@@ -42,9 +42,11 @@ CELL_SPLIT = re.compile(r"(?<!\\)\|")
 STYLE_PHRASES = ["싣는", "싣고", "싣는다", "실린다", "배선", "물러나", "물러난", "드러나", "드러난"]
 PARTICLE_SPACE = re.compile(
     r"(`[^`]+`|[A-Za-z0-9)\]])\s+(을|를|이|가|은|는|의|에|에서|에게|로|으로|와|과|도|만|까지|부터|처럼|보다)(?=[\s.,:;)!?]|$)")
-LEVEL_WORD = re.compile(r"\b(MUST|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)\b")
-CAPTURE_ID = re.compile(r"(?<![A-Za-z0-9#])[CSP]\d+(?:-\d+)?(?![A-Za-z0-9])")
-TEST_NAME = re.compile(r"\b[A-Z][A-Za-z0-9]*Test#")
+# 한글은 \w 라서 \b 를 쓰면 "MUST로" 를 놓친다. 앞뒤가 영문자가 아닌지만 본다.
+LEVEL_WORD = re.compile(r"(?<![A-Za-z])(MUST|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)(?![A-Za-z])")
+# 캡처 번호는 두 자리까지(C18, P8-1). S256 같은 값은 캡처 번호가 아니다.
+CAPTURE_ID = re.compile(r"(?<![A-Za-z0-9#])[CSP]\d{1,2}(?:-\d+)?(?![A-Za-z0-9])")
+TEST_NAME = re.compile(r"\b[A-Z][A-Za-z0-9]*Tests?#")
 HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?/?>")
 SPEC_SECTION = re.compile(r"^#{1,6}\s+(?:[\d.]+\s+)?명세 근거\s*$")
 DIAGRAM_LINK = re.compile(r"^\[다이어그램 그림으로 보기\]\(diagrams/([^)]+\.png)\)\s*$")

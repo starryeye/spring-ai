@@ -47,11 +47,13 @@ field, redirect, endpoint, session, metadata, issuer, scope, callback, filter, b
 PKCE 는 `application.yml` 의 `require-proof-key: true` 로 강제하고, `AuthorizationServerConfig` 가 filter chain 두 개를 직접 정의해 `resource` 검증([4.5](../MCP-AUTHORIZATION.md#s4-5)), access token `aud` 발급([4.7](../MCP-AUTHORIZATION.md#s4-7)), authorization response 의 `iss`([4.6](../MCP-AUTHORIZATION.md#s4-6))를 건다.
 ```
 
-좋은 예 1: 같은 내용을 세 문장으로 풀었다.
+좋은 예 1: 같은 내용을 한 문장에 개념 하나씩 풀었다.
 
 > PKCE는 `application.yml`의 `require-proof-key: true`로 반드시 쓰게 한다.
 > `AuthorizationServerConfig`는 filter chain 두 개를 직접 정의한다.
-> 이 filter chain이 `resource`를 검증하고, access token의 `aud`를 정하고, authorization response에 `iss`를 넣는다.
+> 첫 번째 filter chain은 authorization request의 `resource`를 검증한다.
+> 같은 filter chain은 authorization response에 `iss`를 넣는다.
+> access token의 `aud`는 `ResourceAudienceTokenCustomizer`가 `resource` 값으로 정한다.
 
 나쁜 예 2: 번역 어투이고, 이유 없이 요구 수준 단어만 있다.
 
@@ -89,7 +91,22 @@ client 는 `resource` 를 token request 에도 싣는다(**MUST**).
 - GitHub·IntelliJ는 mermaid를 그리고, Claude Code desktop은 그림 링크를 연다.
 - desktop이 mermaid와 로컬 그림을 그리지 않는 이유는 [anthropics/claude-code#52517](https://github.com/anthropics/claude-code/issues/52517)에 있다.
 - 다이어그램 안에는 식별자·경로·field 이름 위주로 짧게 쓴다.
-- PNG는 `render_diagrams.py`로만 만든다. 그림 링크가 없으면 넣고, 원본 해시를 `diagrams/.sources.json`에 적는다.
+- PNG는 `render_diagrams.py`로만 만든다. 그림 링크를 넣거나 이름을 고치고, 원본 해시를 `diagrams/.sources.json`에 적는다.
+
+`render_diagrams.py`는 아래 모양의 블록만 찾는다.
+여는 줄은 줄 맨 앞에서 backtick 세 개와 `mermaid`만 쓴다. 들여 쓰거나 뒤에 다른 글자를 붙이면 찾지 못한다.
+닫는 줄은 줄 맨 앞에 backtick 세 개만 쓴다.
+
+````markdown
+```mermaid
+sequenceDiagram
+    participant C as MCP client
+    participant M as MCP Server
+    C->>M: POST /mcp
+```
+
+[다이어그램 그림으로 보기](diagrams/03-discovery-1.png)
+````
 
 ```bash
 python3 .claude/skills/writing-practice-docs/scripts/render_diagrams.py FILE...
@@ -122,7 +139,7 @@ python3 -m unittest discover -s .claude/skills/writing-practice-docs/scripts -p 
 | `html` | HTML 태그와 앵커 태그를 지운다. 링크는 제목 자동 앵커로 한다 |
 | `link` | 없는 파일이나 앵커로 가는 링크를 고친다 |
 | `mermaid` | 선언 안 된 participant, 짝 없는 블록, 괄호 짝을 고친다 |
-| `diagram-link` | `render_diagrams.py`를 돌려 그림 링크를 넣는다. 이름이 틀린 링크는 지우고 다시 돌린다 |
+| `diagram-link` | `render_diagrams.py`를 돌려 그림 링크를 넣거나 이름을 고친다. 그래도 걸리면 fence 모양을 본다 |
 | `diagram-missing`, `diagram-stale` | `render_diagrams.py`를 돌려 PNG와 해시를 새로 만든다 |
 | `cell-length` | 표 칸을 2문장 이하로 줄인다 |
 | `sentence-chars` | 150자를 넘는 문장을 나눈다 |

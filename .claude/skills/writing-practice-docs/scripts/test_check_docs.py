@@ -104,7 +104,7 @@ class MermaidTest(unittest.TestCase):
 
     def test_flowchart_괄호_짝(self):
         self.assertEqual([], mermaid_rules("```mermaid\nflowchart LR\n  A[Agent] --> B[MCP Server]\n```\n"))
-        self.assertTrue(rules("```mermaid\nflowchart LR\n  A[Agent --> B\n```\n"))
+        self.assertTrue(mermaid_rules("```mermaid\nflowchart LR\n  A[Agent --> B\n```\n"))
 
 
 class CellTest(unittest.TestCase):
@@ -151,6 +151,11 @@ class NarrativeMoreTest(unittest.TestCase):
 
 
 class TermsMoreTest(unittest.TestCase):
+    def test_bean_의_빈은_조사가_붙을_때만_걸린다(self):
+        self.assertEqual([], rules("빈 줄을 둔다.\n"))
+        self.assertEqual([], rules("빈 값과 빈 포트를 본다.\n"))
+        self.assertIn("term:1", rules("`ChatModel` 빈을 만든다.\n"))
+
     def test_새_용어는_걸린다(self):
         for word in ["재동의", "인가된", "브라우저", "엔드포인트", "커뮤니티", "모듈"]:
             with self.subTest(word=word):
@@ -182,6 +187,11 @@ class BodyTest(unittest.TestCase):
     def test_본문의_요구_수준_단어는_걸린다(self):
         self.assertIn("body-level:3", rules("# 제목\n\nclient는 확인해야 한다(**MUST**).\n"))
 
+    def test_조사가_붙은_요구_수준_단어도_걸린다(self):
+        for phrase in ["MUST로 정한다", "요구 수준은 MUST다", "REQUIRED로 둔다", "SHOULD이므로 따른다"]:
+            with self.subTest(phrase=phrase):
+                self.assertIn("body-level:1", rules(f"{phrase}.\n"))
+
     def test_명세_근거_절의_요구_수준_단어는_통과한다(self):
         doc = "# 제목\n\n### 3.10 명세 근거\n\n| 내용 | 명세 | 요구 수준 |\n|---|---|---|\n| x | y | MUST |\n"
         self.assertEqual([], rules(doc))
@@ -192,6 +202,14 @@ class BodyTest(unittest.TestCase):
 
     def test_본문의_캡처_번호는_걸린다(self):
         self.assertIn("body-capture:1", rules("C3 응답을 본다.\n"))
+
+    def test_두_자리까지만_캡처_번호로_본다(self):
+        self.assertEqual([], rules("PKCE S256을 쓴다.\n"))
+        self.assertIn("body-capture:1", rules("C18 응답을 본다.\n"))
+        self.assertIn("body-capture:1", rules("P8-1 응답을 본다.\n"))
+
+    def test_Tests_로_끝나는_테스트_이름도_걸린다(self):
+        self.assertIn("body-test:1", rules("`ShopAgentApplicationTests#contextLoads`가 확인한다.\n"))
 
     def test_본문의_테스트_이름은_걸린다(self):
         self.assertIn("body-test:1", rules("`McpAuthorizationDiscoveryTest#발견은_한_번만_한다` 가 확인한다.\n"))

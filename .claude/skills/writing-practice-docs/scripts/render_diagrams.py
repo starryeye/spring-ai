@@ -20,6 +20,8 @@ from typing import Callable
 
 BLOCK = re.compile(r"^```mermaid\n(.*?)^```\n", re.S | re.M)
 LINK_TEXT = "다이어그램 그림으로 보기"
+# 블록 바로 뒤(빈 줄 사이)에 이미 있는 그림 링크 줄. 이름이 틀려도 이 줄을 바꿔 쓴다.
+EXISTING_LINK = re.compile(r"\n*\[" + re.escape(LINK_TEXT) + r"\]\([^)\n]*\)[ \t]*(?:\n|$)")
 
 
 def diagram_hash(source: str) -> str:
@@ -48,7 +50,7 @@ def render_file(path: Path, runner: Callable[[str, Path], None] = mmdc_runner) -
     out_dir.mkdir(exist_ok=True)
     sources_file = out_dir / ".sources.json"
     sources = json.loads(sources_file.read_text(encoding="utf-8")) if sources_file.exists() else {}
-    prefix = f"{path.stem}-"
+    own = re.compile(rf"^{re.escape(path.stem)}-\d+\.png$")
 
     pieces, last, names = [], 0, []
     for n, m in enumerate(BLOCK.finditer(text), 1):
@@ -57,15 +59,15 @@ def render_file(path: Path, runner: Callable[[str, Path], None] = mmdc_runner) -
         runner(m.group(1), out_dir / name)
         sources[name] = diagram_hash(m.group(1))
         pieces.append(text[last:m.end()])
-        rest = text[m.end():]
-        if not rest.lstrip("\n").startswith(f"[{LINK_TEXT}]"):
-            pieces.append("\n" + link_line(name) + "\n")
-        last = m.end()
+        pieces.append("\n" + link_line(name) + "\n")
+        existing = EXISTING_LINK.match(text, m.end())
+        last = existing.end() if existing else m.end()
     pieces.append(text[last:])
     path.write_text("".join(pieces), encoding="utf-8")
 
-    for stale in [k for k in sources if k.startswith(prefix) and k not in names]:
-        sources.pop(stale)
+    on_disk = {p.name for p in out_dir.iterdir()}
+    for stale in sorted({k for k in sources.keys() | on_disk if own.match(k) and k not in names}):
+        sources.pop(stale, None)
         (out_dir / stale).unlink(missing_ok=True)
     sources_file.write_text(json.dumps(dict(sorted(sources.items())), ensure_ascii=False, indent=2) + "\n",
                             encoding="utf-8")
