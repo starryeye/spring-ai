@@ -2382,6 +2382,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | 32 | redirect URI 정확 일치 | MUST (Security Best Practices) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator`, P10-1 | 예 — 같음 | 예 — 같음 |
 | 33 | authorization URL 스킴 검증 | MUST (Security Best Practices) | 예 — `McpAuthorizationDiscovery#requireHttpUrl` | 예 — 같음 | 예 — 같음 |
 
+28행 아래(또는 session 을 다루는 §5 절)에 한 문장을 더한다: MCP 2026-07-28 은 protocol-level session 과 `Mcp-Session-Id` 를 없앴고([SEP-2567](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567), [2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)), 호출 사이 상태는 서버가 만든 핸들을 tool 인자로 넘기며 매 호출 `(핸들, 인증 정보)` 를 검증하는 설계 권고(비규범)로 옮겨 갔다. 이 practice 의 tool 은 상태가 없어 핸들이 필요 없다.
+
 29행의 "UUID" 는 SDK 소스(`McpStreamableServerSession` 또는 session factory)에서 확인한 뒤 쓴다. 32행 캡처 ID 는 P 캡처에서 경로가 다른 루프백 redirect 거부 단계 번호를 확인해 쓴다. 각 행의 "절" 칸은 관련 절 앵커로 링크한다.
 
 - [ ] **Step 2: 본문을 고친다**
