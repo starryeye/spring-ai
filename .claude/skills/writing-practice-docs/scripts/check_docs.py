@@ -3,7 +3,8 @@
 
 사용: python3 check_docs.py [--links-from OLD.md] [--dropped DROPPED.txt] FILE...
 위반이 하나라도 있으면 `경로:줄: [규칙] 설명` 을 출력하고 종료 코드 1 로 끝난다.
-규칙 이름: setext, length, narrative, term, link, mermaid, field-count, links-from, missing.
+규칙 이름: setext, length, narrative, term, link, mermaid, field-count, links-from, missing,
+cell-length, sentence-chars, observation.
 """
 from __future__ import annotations
 
@@ -18,8 +19,11 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 TERMS_FILE = SKILL_DIR / "terms.txt"
 
 # 개발 과정 이야기를 드러내는 표현. 문서에는 결과와 명세만 남긴다.
-BANNED_PHRASES = ["처음엔", "처음에는", "고쳤", "수정했", "Task ", "실측했", "착각", "버그를"]
+BANNED_PHRASES = ["처음엔", "처음에는", "고쳤", "수정했", "Task ", "실측했", "착각", "버그를",
+                  "바꿨", "추가했", "옮겼", "없앴", "확인했", "드러났"]
 SENTENCE_LIMIT = 3
+CELL_SENTENCE_LIMIT = 2
+SENTENCE_CHAR_LIMIT = 150
 
 FENCE = re.compile(r"^\s*(```+|~~~+)(.*)$")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -33,6 +37,10 @@ FIELD_COUNT_NONE = re.compile(r"^없음\b")
 FIELD_COUNT_PATTERN = re.compile(r"(\d+)\s*개\s*→\s*표\s*(\d+)\s*행")
 TABLE_ROW = re.compile(r"^\s*\|.+\|\s*$")
 TABLE_SEP = re.compile(r"^[\s|:-]+$")
+OBSERVATION = re.compile(r"^\s*(?:[-*]\s+)?관측:")
+CAPTURE_ID = re.compile(r"(?<![A-Za-z0-9])[CSP]\d+(?:-\d+)?(?![A-Za-z0-9])")
+SENTENCE_END = re.compile(r"(?<!\d)[.?!](?=\s|$|[)\]\"'])")
+CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
 
 @dataclass(frozen=True)
@@ -98,7 +106,13 @@ def clean(line: str) -> str:
 
 def sentence_count(text: str) -> int:
     """문장 끝(. ? !)을 센다. 숫자 사이의 점(2.1, §4.3)은 세지 않는다."""
-    return len(re.findall(r"(?<!\d)[.?!](?=\s|$|[)\]\"'])", clean(text)))
+    return len(SENTENCE_END.findall(clean(text)))
+
+
+def sentences(text: str) -> list[str]:
+    """inline code·링크 대상·URL 을 지운 뒤 문장 끝으로 나눈다."""
+    flat = re.sub(r"\s+", " ", clean(text))
+    return [s.strip() for s in SENTENCE_END.split(flat) if s.strip()]
 
 
 def units(prose):
@@ -157,6 +171,48 @@ def check_words(path: str, prose, terms) -> list[Issue]:
             for m in pattern.finditer(text):
                 issues.append(Issue(path, no, "term", f"'{m.group(0)}' 대신 '{english}'"))
     return issues
+
+
+def table_cells(prose):
+    """표 데이터 행의 칸: [(줄 번호, 칸 글)]. 구분 행은 뺀다."""
+    for no, line in prose:
+        stripped = line.strip()
+        if TABLE_ROW.match(line) and not TABLE_SEP.match(stripped):
+            for cell in CELL_SPLIT.split(stripped.strip("|")):
+                yield no, cell
+
+
+def check_cells(path: str, prose) -> list[Issue]:
+    issues = []
+    for no, cell in table_cells(prose):
+        if (n := sentence_count(cell)) > CELL_SENTENCE_LIMIT:
+            issues.append(Issue(path, no, "cell-length", f"표 칸이 {n}문장이다(최대 {CELL_SENTENCE_LIMIT})"))
+        issues += _long_sentences(path, no, cell)
+    return issues
+
+
+def check_sentence_chars(path: str, prose) -> list[Issue]:
+    issues = []
+    for no, text in units(prose):
+        issues += _long_sentences(path, no, text)
+    return issues
+
+
+def _long_sentences(path: str, no: int, text: str) -> list[Issue]:
+    return [
+        Issue(path, no, "sentence-chars", f"문장이 {len(s)}자다(최대 {SENTENCE_CHAR_LIMIT}): {s[:30]}…")
+        for s in sentences(text)
+        if len(s) > SENTENCE_CHAR_LIMIT
+    ]
+
+
+def check_observations(path: str, prose) -> list[Issue]:
+    """'관측:' 줄은 근거가 된 캡처 단계 ID(C<n>·S<n>·P<n>, 하위 단계는 P8-1)를 담아야 한다."""
+    return [
+        Issue(path, no, "observation", "관측 줄에 캡처 단계 ID(C<n>·S<n>·P<n>)가 없다")
+        for no, line in prose
+        if OBSERVATION.match(line) and not CAPTURE_ID.search(line)
+    ]
 
 
 def _table_rows_ending_at(prose, idx: int) -> int | None:
@@ -306,6 +362,7 @@ def check_file(path: Path, terms) -> list[Issue]:
     prose, blocks = split_blocks(text)
     rel = str(path)
     issues = check_setext(rel, prose) + check_units(rel, prose) + check_words(rel, prose, terms)
+    issues += check_cells(rel, prose) + check_sentence_chars(rel, prose) + check_observations(rel, prose)
     issues += check_field_counts(rel, prose)
     issues += check_links(path.resolve(), prose)
     for start, lang, lines in blocks:

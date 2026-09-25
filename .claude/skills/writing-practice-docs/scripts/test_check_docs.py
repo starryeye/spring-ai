@@ -152,6 +152,58 @@ class FieldCountTest(unittest.TestCase):
         self.assertTrue(any(r.startswith("field-count") for r in found))
 
 
+class CellTest(unittest.TestCase):
+    def test_세_문장_표_칸은_걸린다(self):
+        doc = "| a | b |\n|---|---|\n| x | 하나다. 둘이다. 셋이다. |\n"
+        self.assertIn("cell-length:3", rules(doc))
+
+    def test_두_문장_표_칸은_통과한다(self):
+        doc = "| a | b |\n|---|---|\n| x | 하나다. 둘이다. |\n"
+        self.assertEqual([], rules(doc))
+
+    def test_이스케이프한_파이프는_칸을_나누지_않는다(self):
+        doc = "| a | b |\n|---|---|\n| x \\| y | 하나다. |\n"
+        self.assertEqual([], rules(doc))
+
+
+class SentenceCharsTest(unittest.TestCase):
+    def test_150자를_넘는_문장은_걸린다(self):
+        self.assertIn("sentence-chars:1", rules("가" * 151 + "다.\n"))
+
+    def test_150자_이하_문장은_통과한다(self):
+        self.assertEqual([], rules("가" * 148 + "다.\n"))
+
+    def test_inline_code_와_URL_은_글자_수에_넣지_않는다(self):
+        self.assertEqual([], rules("`" + "x" * 200 + "` 를 https://example.com/" + "y" * 200 + " 로 보낸다.\n"))
+
+    def test_표_칸의_긴_문장도_걸린다(self):
+        doc = "| a | b |\n|---|---|\n| x | " + "가" * 151 + "다. |\n"
+        self.assertIn("sentence-chars:3", rules(doc))
+
+
+class ObservationTest(unittest.TestCase):
+    def test_캡처_ID_없는_관측은_걸린다(self):
+        self.assertIn("observation:1", rules("관측: 재기동마다 값이 바뀐다.\n"))
+
+    def test_캡처_ID_가_있는_관측은_통과한다(self):
+        self.assertEqual([], rules("관측: C1 은 `401` 을 받는다.\n"))
+        self.assertEqual([], rules("관측: P8-1 은 `invalid_scope` 를 받는다.\n"))
+
+
+class NarrativeMoreTest(unittest.TestCase):
+    def test_과거형_작업_서술은_걸린다(self):
+        for phrase in ["바꿨", "추가했", "옮겼", "없앴", "확인했", "드러났"]:
+            with self.subTest(phrase=phrase):
+                self.assertIn("narrative:1", rules(f"설정을 {phrase}다.\n"))
+
+
+class TermsMoreTest(unittest.TestCase):
+    def test_새_용어는_걸린다(self):
+        for word in ["재동의", "인가된", "브라우저", "엔드포인트", "커뮤니티", "모듈"]:
+            with self.subTest(word=word):
+                self.assertIn("term:1", rules(f"{word} 를 본다.\n"))
+
+
 class LinksFromTest(unittest.TestCase):
     def test_옮기지_않은_링크와_뺀_이유(self):
         with tempfile.TemporaryDirectory() as d:

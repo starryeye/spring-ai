@@ -1,7 +1,7 @@
 # 한국어로 옮기면 안 되는 전문 용어. 형식: 정규식<TAB>써야 할 영어 표기. 주제가 늘면 여기에 더한다.
 토큰	token
 클라이언트	client
-(?<![가-힣])인가(?=[\s을를은는이가의에와과도로]|$)	authorization
+(?<![가-힣])인가(?=[\s을를은는이가의에와과도로된]|$)	authorization
 리소스 서버	Resource Server
 보호 리소스	Protected Resource
 메타데이터	metadata
@@ -18,3 +18,8 @@
 필터 ?체인	filter chain
 에이전트	agent
 MCP 서버	MCP Server
+재동의	re-consent
+브라우저	browser
+엔드포인트	endpoint
+커뮤니티	community
+모듈	module
