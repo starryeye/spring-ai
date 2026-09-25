@@ -29,6 +29,8 @@ import java.security.interfaces.RSAPublicKey;
 import java.time.Instant;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -293,5 +295,88 @@ class McpAuthorizationStandardTest {
 				.andExpect(jsonPath("$.error.message")
 						.value("Unsupported MCP-Protocol-Version: " + 악성_헤더_값))
 				.andExpect(jsonPath("$.injected").doesNotExist());
+	}
+
+	static final String INITIALIZED = "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}";
+
+	static MockHttpServletRequestBuilder mcpSession(String token, String sessionId, String body) {
+		return post("/mcp")
+				.contentType(MediaType.APPLICATION_JSON)
+				.header("Accept", "application/json, text/event-stream")
+				.header("Host", HOST)
+				.header("Authorization", "Bearer " + token)
+				.header("Mcp-Session-Id", sessionId)
+				.header("MCP-Protocol-Version", "2025-11-25")
+				.content(body);
+	}
+
+	static MockHttpServletRequestBuilder mcpDelete(String token, String sessionId) {
+		return delete("/mcp")
+				.header("Host", HOST)
+				.header("Authorization", "Bearer " + token)
+				.header("Mcp-Session-Id", sessionId)
+				.header("MCP-Protocol-Version", "2025-11-25");
+	}
+
+	String session_을_연다(String user) throws Exception {
+		String sessionId = this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, user), null, HOST))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getHeader("Mcp-Session-Id");
+		assertThat(sessionId).isNotBlank();
+		return sessionId;
+	}
+
+	/*
+	 * MCP Security Best Practices — Session Hijacking: session ID 를 사용자에 묶는다(SHOULD).
+	 * McpSessionBindingFilter 가 session 을 연 사용자(token 의 sub)와 요청한 사용자를 비교한다.
+	 */
+
+	@Test
+	void 다른_사용자가_남의_MCP_session_ID_를_쓰면_403이다() throws Exception {
+		String sessionId = session_을_연다("alice");
+
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "bob"), sessionId, INITIALIZED))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void session_을_연_사용자는_그_session_을_계속_쓴다() throws Exception {
+		String sessionId = session_을_연다("alice");
+
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "alice"), sessionId, INITIALIZED))
+				.andExpect(status().isAccepted());
+	}
+
+	@Test
+	void 한_사용자가_연_여러_session_은_모두_그_사용자에_묶인다() throws Exception {
+		String first = session_을_연다("alice");
+		String second = session_을_연다("alice");
+
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "alice"), first, INITIALIZED))
+				.andExpect(status().isAccepted());
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "alice"), second, INITIALIZED))
+				.andExpect(status().isAccepted());
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "bob"), second, INITIALIZED))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void 다른_사용자는_남의_MCP_session_을_끝낼_수_없다() throws Exception {
+		String sessionId = session_을_연다("alice");
+
+		this.mockMvc.perform(mcpDelete(토큰(ISSUER, RESOURCE, "bob"), sessionId))
+				.andExpect(status().isForbidden());
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "alice"), sessionId, INITIALIZED))
+				.andExpect(status().isAccepted());
+	}
+
+	@Test
+	void DELETE_로_끝난_session_은_묶음이_풀리고_transport_가_모르는_session_으로_404_를_준다() throws Exception {
+		String sessionId = session_을_연다("alice");
+
+		this.mockMvc.perform(mcpDelete(토큰(ISSUER, RESOURCE, "alice"), sessionId))
+				.andExpect(status().isOk());
+		this.mockMvc.perform(mcpSession(토큰(ISSUER, RESOURCE, "bob"), sessionId, INITIALIZED))
+				.andExpect(status().isNotFound());
 	}
 }

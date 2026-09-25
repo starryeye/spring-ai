@@ -19,24 +19,19 @@ public class ChatController {
 
     private final ChatClient chatClient;
 
-    public ChatController(ChatClient chatClient) {
+    private final UserMcpClients userMcpClients;
+
+    public ChatController(ChatClient chatClient, UserMcpClients userMcpClients) {
         this.chatClient = chatClient;
+        this.userMcpClients = userMcpClients;
     }
 
     /**
-     * community 버전은 여기에
-     * {@code .contextWrite(AuthenticationMcpTransportContextProvider.writeToReactorContext())}
-     * 가 있었다. 그 메서드가 Spring AI 의 internal 패키지에 의존한다.
+     * {@code conversationId} 는 client 가 보내지 않고 {@link Authentication} 에서 만든다
+     * ({@link ConversationId}). client 가 고를 수 있는 것은 label 뿐이다.
      *
-     * <p>이 practice 는 {@code Hooks.enableAutomaticContextPropagation()}(애플리케이션
-     * 시작 시)으로 같은 일을 하려 한다 — Spring Security 가 제공하는 공식
-     * {@code ThreadLocalAccessor} 를 쓰는 경로다.
-     * <b>실제로 통하는지는 Step 10 에서 종단으로 확인한다.</b>
-     *
-     * <p>{@code conversationId} 를 클라이언트가 보내지 않는다. 서버가
-     * {@link Authentication} 에서 파생시킨다 — 부모 practice {@code chat-memory} 와
-     * 정확히 반대다. 클라이언트가 고를 수 있는 것은 label 뿐이고,
-     * 접두사는 {@link ConversationId} 가 강제한다.
+     * <p>MCP tool 은 요청한 사용자의 MCP client 에서 가져온다({@link UserMcpClients}). 그 client 의
+     * MCP session 과 token 은 이 사용자에게만 묶여 있다.
      */
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public Flux<String> chat(Authentication authentication,
@@ -48,6 +43,7 @@ public class ChatController {
         return chatClient.prompt()
                 .user(message)
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .toolCallbacks(this.userMcpClients.toolsFor(authentication))
                 .stream()
                 .content();
     }

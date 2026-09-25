@@ -8,17 +8,19 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.util.UrlUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 /**
  * MCP 서버는 OAuth 2.0 보호 리소스다(MCP 2025-11-25 인가 §1).
  *
- * <p>여기서 켜는 것은 세 가지다.
+ * <p>여기서 켜는 것은 네 가지다.
  * <ul>
  *   <li>RFC 9728 보호 리소스 메타데이터 — 클라이언트가 인가 서버를 찾는 출발점</li>
  *   <li>401 챌린지의 {@code resource_metadata} — 그 메타데이터의 위치를 알려준다</li>
  *   <li>토큰 검증 — 서명·{@code iss}(issuer-uri)와 {@code aud}(audiences 속성)</li>
+ *   <li>MCP session 을 token 의 사용자에 묶기 — {@link McpSessionBindingFilter}</li>
  * </ul>
  */
 @Configuration
@@ -40,6 +42,8 @@ public class SecurityConfig {
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다(Spring 기본값은 true).
 										.tlsClientCertificateBoundAccessTokens(false))))
+				// MCP session 을 token 의 사용자에 묶는다. 인증·인가를 마친 요청만 이 filter 에 닿는다.
+				.addFilterAfter(new McpSessionBindingFilter(), AuthorizationFilter.class)
 				// 무상태 리소스 서버다. 토큰으로만 인증하므로 CSRF 토큰을 쓰지 않는다.
 				.csrf(csrf -> csrf.disable())
 				.build();

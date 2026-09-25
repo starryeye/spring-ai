@@ -5,8 +5,8 @@ import org.springframework.security.core.Authentication;
 /**
  * {@code conversationId} 를 <b>서버가</b> 만든다. 클라이언트는 label 만 고른다.
  *
- * <p>부모 practice {@code chat-memory} 는 {@code conversationId} 를 통째로
- * 클라이언트에게 받았다. 사용자가 한 명이라 성립했던 것이고, 사용자가 둘이 되는 순간
+ * <p>{@code chat-memory} practice(MCP 없는 메모리 practice)는 {@code conversationId} 를 통째로
+ * 클라이언트에게 받는다. 사용자가 한 명이라 성립하는 것이고, 사용자가 둘이 되는 순간
  * 남의 대화 ID 를 넣으면 그대로 읽히는 구멍이 된다.
  *
  * <p>여기서는 접두사({@code <사용자>:})를 서버가 강제하므로 label 에 무엇을 넣어도

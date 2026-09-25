@@ -137,7 +137,7 @@ class ConversationControllerTest {
 
 	/**
 	 * {@link SecurityConfig} 는 이 practice 전체에서 CSRF 예외를 단 하나도 두지 않는다
-	 * (두 부모 practice 는 {@code /api/chat} 을 예외로 뒀다). 그 결정을 코드 리뷰만으로
+	 * (official·community practice 도 같다). 그 결정을 코드 리뷰만으로
 	 * 지키는 것은 취약하다 — 누군가 나중에 "귀찮으니 이 엔드포인트만" 하며 예외를 다시
 	 * 넣어도 아무 테스트도 실패하지 않을 것이다. 이 테스트가 그 회귀를 잡는다.
 	 */

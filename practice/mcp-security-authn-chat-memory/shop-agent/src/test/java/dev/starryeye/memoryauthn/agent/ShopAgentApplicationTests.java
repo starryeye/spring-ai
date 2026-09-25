@@ -1,6 +1,5 @@
 package dev.starryeye.memoryauthn.agent;
 
-import io.modelcontextprotocol.client.McpClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
@@ -73,8 +72,8 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * 서블릿 요청 없이 Authentication 만으로 토큰을 꺼낼 수 있어야
-     * 리액터 스레드에서 토큰을 붙일 수 있다. 매니저 타입이 바뀌면 그 성질이 깨진다.
+     * 요청 thread 밖(tool 호출, session 종료 {@code DELETE})에서도 주인의 token 을 꺼낼 수 있어야 한다.
+     * 매니저 타입이 바뀌면 그 성질이 깨진다.
      */
     @Test
     void 서블릿_요청이_필요없는_인가_매니저를_쓴다() {
@@ -83,11 +82,11 @@ class ShopAgentApplicationTests {
                         .AuthorizedClientServiceOAuth2AuthorizedClientManager.class);
     }
 
+    /** MCP client 는 사용자마다 따로 만든다. 자동 구성의 공유 client 는 없어야 한다. */
     @Test
-    void MCP_클라이언트에_인증_커스터마이저가_꽂힌다() {
-        assertThat(applicationContext.getBeansOfType(
-                org.springframework.ai.mcp.customizer.McpClientCustomizer.class))
-                .hasSizeGreaterThanOrEqualTo(2);
+    void 공유_MCP_client_없이_사용자별_client_저장소를_쓴다() {
+        assertThat(applicationContext.getBeansOfType(io.modelcontextprotocol.client.McpSyncClient.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(UserMcpClients.class)).hasSize(1);
     }
 
     /**

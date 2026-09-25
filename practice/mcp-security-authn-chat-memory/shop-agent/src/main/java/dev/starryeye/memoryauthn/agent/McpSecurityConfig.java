@@ -2,7 +2,7 @@ package dev.starryeye.memoryauthn.agent;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
-import org.springframework.ai.mcp.customizer.McpClientCustomizer;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +17,11 @@ import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGra
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.web.client.RestClient;
+
+import java.net.URI;
+import java.time.Duration;
 
 /**
  * MCP 호출에 쓸 토큰을 마련하는 배선.
@@ -37,6 +41,10 @@ public class McpSecurityConfig {
     /** application.yml 의 registration 키와 같아야 한다. */
     static final String REGISTRATION_ID = "authserver";
 
+    private static final McpSchema.Implementation CLIENT_INFO = new McpSchema.Implementation("memory-shop-agent", "0.0.1");
+
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+
     @Bean
     public McpAuthorizationDiscovery mcpAuthorizationDiscovery() {
         return new McpAuthorizationDiscovery(RestClient.create());
@@ -50,7 +58,7 @@ public class McpSecurityConfig {
 
     /**
      * 인가된 클라이언트를 세션이 아니라 서비스에 저장한다. 서블릿 요청 없이
-     * {@code Authentication} 만으로 토큰을 꺼낼 수 있어야 리액터 스레드에서도 토큰을 붙인다.
+     * {@code Authentication} 만으로 토큰을 꺼낼 수 있어야 요청 밖(tool 호출, session 종료)에서도 토큰을 붙인다.
      */
     @Bean
     public OAuth2AuthorizedClientService authorizedClientService(
@@ -100,17 +108,28 @@ public class McpSecurityConfig {
         return manager;
     }
 
-    /** 모든 MCP 동기 클라이언트에 인증 전달용 컨텍스트 공급자를 꽂는다. */
+    /**
+     * 사용자별 MCP client. 각 client 의 transport 는 주인의 token 만 싣는다.
+     * 연결 주소는 발견의 출발점인 {@code mcp.authorization.resource-url} 이다.
+     */
     @Bean
-    public McpClientCustomizer<McpClient.SyncSpec> mcpAuthenticationCustomizer() {
-        return (name, spec) -> spec.transportContextProvider(new SecurityMcpTransportContextProvider());
+    public UserMcpClients userMcpClients(McpAuthorizationProperties properties,
+            OAuth2AuthorizedClientManager authorizedClientManager) {
+        URI resource = URI.create(properties.resourceUrl());
+        String origin = resource.getScheme() + "://" + resource.getRawAuthority();
+        return new UserMcpClients(owner -> McpClient.sync(HttpClientStreamableHttpTransport.builder(origin)
+                        .endpoint(resource.getRawPath())
+                        .httpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager,
+                                REGISTRATION_ID, owner))
+                        .build())
+                .clientInfo(CLIENT_INFO)
+                .requestTimeout(REQUEST_TIMEOUT)
+                .build());
     }
 
-    /** 모든 streamable-HTTP 전송에 토큰 부착 커스터마이저를 꽂는다. */
+    /** HTTP session 종료를 {@code SessionDestroyedEvent} 로 알린다. {@link UserMcpClients} 가 이 event 로 client 를 닫는다. */
     @Bean
-    public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder> mcpTokenAttachingCustomizer(
-            OAuth2AuthorizedClientManager authorizedClientManager) {
-        return (name, transport) -> transport.httpRequestCustomizer(
-                new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID));
+    public static HttpSessionEventPublisher httpSessionEventPublisher() {
+        return new HttpSessionEventPublisher();
     }
 }

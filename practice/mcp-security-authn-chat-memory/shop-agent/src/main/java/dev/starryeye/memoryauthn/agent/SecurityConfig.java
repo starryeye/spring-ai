@@ -25,8 +25,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             DiscoveredClientRegistrationRepository registrations,
-            OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> authorizationCodeTokenResponseClient)
-            throws Exception {
+            OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> authorizationCodeTokenResponseClient,
+            UserMcpClients userMcpClients) throws Exception {
         // iss 검증 필터와 로그인 필터가 같은 저장소를 봐야 한다.
         var authorizationRequests = new HttpSessionOAuth2AuthorizationRequestRepository();
         var failureHandler = new LoginFailureHandler();
@@ -44,6 +44,12 @@ public class SecurityConfig {
                 .addFilterBefore(new AuthorizationResponseIssuerFilter(authorizationRequests, registrations,
                         failureHandler), OAuth2LoginAuthenticationFilter.class)
                 .oauth2Client(Customizer.withDefaults())
+                // 로그아웃하면 그 사용자의 MCP client 를 닫는다(DELETE 로 MCP session 종료).
+                .logout(logout -> logout.addLogoutHandler((request, response, authentication) -> {
+                    if (authentication != null) {
+                        userMcpClients.close(authentication.getName());
+                    }
+                }))
                 .csrf(csrf -> csrf.spa())
                 .build();
     }
