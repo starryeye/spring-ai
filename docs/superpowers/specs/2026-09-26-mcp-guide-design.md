@@ -88,7 +88,7 @@ Claude Desktop·Cursor처럼 사용자 기기에서 도는 MCP client의 흐름�
   6. MCP SDK로 `initialize`, `tools/list`, `tools/call`을 한다.
 - token은 메모리에만 둔다. refresh token은 Authorization Server가 public client에 발급하지 않는다.
 - 등록: 이미 있는 `local-mcp-client`를 쓴다. redirect URI는 `http://127.0.0.1:8123/callback`으로 등록돼 있고, 루프백은 포트가 달라도 허용된다.
-- 설계 원칙: 한 클래스가 한 단계를 맡는다(`Discovery`, `Pkce`, `LoopbackCallbackServer`, `AuthorizationFlow`, `TokenClient`, `McpSession`, `Main`). 각 클래스는 7장에서 그대로 인용할 수 있을 만큼 짧게 쓴다.
+- 설계 원칙: 한 클래스가 한 단계를 맡는다(`Discovery`, `Pkce`, `LoopbackCallbackServer`, `AuthorizationRequest`, `AuthorizationResponse`, `TokenClient`, `McpCalls`, `Main`). 각 클래스는 7장에서 그대로 인용할 수 있을 만큼 짧게 쓴다.
 - 테스트: 단계별 단위 테스트(PKCE 값, callback의 `state`·`iss` 검증, token 요청 모양, discovery 확인 규칙). 전체 흐름은 자동 테스트로 만들지 않는다. auth-server·shop-mcp-server를 띄워 한 번 돌리고 그 출력을 캡처로 남긴다. 캡처할 때는 `--no-browser`로 돌리고 browser 대신 curl이 login·consent를 한다(local-client 코드는 사람이 browser로 쓸 때와 같다).
 - `run.sh`·`stop.sh`는 바꾸지 않는다. local-client 실행 방법은 7장과 official README에 쓴다.
 
