@@ -2,6 +2,7 @@ package dev.starryeye.officialagent;
 
 import io.modelcontextprotocol.common.McpTransportContext;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -69,6 +70,11 @@ class OAuth2TokenAttachingRequestCustomizerTest {
         HttpRequest request = builder.build();
         assertThat(request.headers().firstValue(HttpHeaders.AUTHORIZATION))
                 .contains("Bearer abc123");
+
+        ArgumentCaptor<OAuth2AuthorizeRequest> authorizeRequest = ArgumentCaptor.forClass(OAuth2AuthorizeRequest.class);
+        verify(manager).authorize(authorizeRequest.capture());
+        assertThat(authorizeRequest.getValue().getClientRegistrationId()).isEqualTo(REGISTRATION_ID);
+        assertThat(authorizeRequest.getValue().getPrincipal()).isSameAs(authentication);
     }
 
     @Test

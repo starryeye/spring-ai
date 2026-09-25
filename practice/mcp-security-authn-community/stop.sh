@@ -5,7 +5,8 @@ cd "$(dirname "$0")"
 
 stopped=0
 for port in 8100 8101 9000; do
-  pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+  # -sTCP:LISTEN: 그 포트에서 수신하는 프로세스만 고른다. 연결만 한 프로세스(browser, 다른 서버)는 건드리지 않는다.
+  pids=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true)
   if [ -n "$pids" ]; then
     echo "포트 $port 종료: $pids"
     # shellcheck disable=SC2086
@@ -23,7 +24,7 @@ done
 if [ "$stopped" = "1" ]; then
   sleep 3
   for port in 8100 8101 9000; do
-    pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
+    pids=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true)
     if [ -n "$pids" ]; then
       echo "포트 $port 강제 종료: $pids"
       # shellcheck disable=SC2086

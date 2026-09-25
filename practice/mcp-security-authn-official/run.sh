@@ -34,7 +34,7 @@ fi
 
 start() {
   local dir="$1" port="$2"
-  if lsof -ti tcp:"$port" > /dev/null 2>&1; then
+  if lsof -ti tcp:"$port" -sTCP:LISTEN > /dev/null 2>&1; then
     echo "  [건너뜀] $dir — 포트 $port 가 이미 사용 중입니다"
     return
   fi

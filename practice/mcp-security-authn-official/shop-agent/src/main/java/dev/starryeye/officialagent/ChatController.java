@@ -17,14 +17,10 @@ public class ChatController {
     }
 
     /**
-     * community 버전은 여기에
-     * {@code .contextWrite(AuthenticationMcpTransportContextProvider.writeToReactorContext())}
-     * 가 있었다. 그 메서드가 Spring AI 의 internal 패키지에 의존한다.
-     *
-     * <p>이 practice 는 {@code Hooks.enableAutomaticContextPropagation()}(애플리케이션
-     * 시작 시)으로 같은 일을 하려 한다 — Spring Security 가 제공하는 공식
-     * {@code ThreadLocalAccessor} 를 쓰는 경로다.
-     * <b>실제로 통하는지는 Step 10 에서 종단으로 확인한다.</b>
+     * MCP tool 호출은 요청 thread 밖(reactor)에서 돈다. {@code ShopAgentApplication} 이 켠
+     * {@code Hooks.enableAutomaticContextPropagation()} 이 Spring Security 의 {@code ThreadLocalAccessor} 로
+     * SecurityContext 를 그 thread 에 옮기고, {@link SecurityMcpTransportContextProvider} 가 거기서 사용자를 읽는다.
+     * community practice 는 같은 일을 모듈의 {@code .contextWrite(...)} 로 한다.
      */
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public Flux<String> chat(@RequestBody String message) {

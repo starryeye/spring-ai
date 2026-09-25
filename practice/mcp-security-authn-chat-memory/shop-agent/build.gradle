@@ -29,9 +29,6 @@ dependencies {
 	// io.modelcontextprotocol.sdk 의 클래스를 import 하는 데 별도 선언이 필요 없다.
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
-	// 리액터 컨텍스트 자동 전파용. Spring Security 가 ThreadLocalAccessor 를
-	// ServiceLoader 로 등록해 두었고, 이 라이브러리가 그것을 읽는다.
-	implementation 'io.micrometer:context-propagation'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 	testImplementation 'org.springframework.security:spring-security-test'
