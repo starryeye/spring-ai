@@ -60,7 +60,7 @@ flowchart LR
 
 누가 무엇을 설정으로 미리 알고 무엇을 실행 중에 알아내는지는 [허브 2절 신뢰 관계](MCP-AUTHORIZATION.md#s2) 에 있다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#modules) · [community](mcp-security-authn-community/SEQUENCES.md#modules) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#modules) · [community](mcp-security-authn-community/SEQUENCES.md#modules) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#modules)
 
 ---
 
@@ -107,7 +107,7 @@ sequenceDiagram
 7. Agent 는 그 issuer 로 Authorization Server Metadata 를 요청한다. 요청 경로는 [Authorization Server Metadata](MCP-API-SPEC.md#as-metadata) 에 있다.
 8. 응답의 `issuer` 가 요청한 issuer 와 같고 endpoint 가 `https` 이거나 loopback 주소의 `http` 인지 본다([허브 5.4](MCP-AUTHORIZATION.md#s5-4)). 통과하면 응답의 endpoint 로 등록 정보를 완성한다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#registration) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#registration) · [community](mcp-security-authn-community/SEQUENCES.md#registration) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#registration)
 
 <a id="reg-public"></a>
 
@@ -137,7 +137,7 @@ sequenceDiagram
 4. Local MCP Client 도 Agent 와 같은 discovery 로 Authorization Server Metadata 를 읽는다. 요청 경로는 [Authorization Server Metadata](MCP-API-SPEC.md#as-metadata) 에 있다.
 5. `token_endpoint_auth_methods_supported` 에 `none` 이 있어 public client 를 받는다는 것을 알 수 있다(P1·P2). 이후 흐름은 [Authorization — public client](#rt-authz-public) 와 [Token request](#rt-token) 이다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#registration) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#registration) · [community](mcp-security-authn-community/SEQUENCES.md#registration) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#registration)
 
 <a id="reg-cimd"></a>
 
@@ -231,7 +231,7 @@ sequenceDiagram
 6. 확인을 통과하면 그 자격증명으로 authorization request 를 만든다. 이후 흐름은 [Authorization — confidential client](#rt-authz-confidential) 이다.
 7. 다르면 metadata 를 요청하지 않고 등록 정보도 만들지 않아, `client_secret` 이 어떤 token endpoint 로도 나가지 않는다. 다른 Authorization Server 의 자격증명을 재사용하면 안 되고(MUST NOT) 새 서버에 다시 등록해야 하며(MUST), 오류를 드러내는 것이 좋다(SHOULD, [허브 4.4](MCP-AUTHORIZATION.md#s4-4)). CIMD 의 `client_id` 는 Authorization Server 사이에서 옮겨 쓸 수 있어 다시 등록할 필요가 없다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#agent-login) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#discovery) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
 
 ---
 
@@ -288,7 +288,7 @@ sequenceDiagram
 11. RFC 8414 문서가 없으면 OpenID Connect Discovery 문서를 시도한다(S1). 요청 형식은 [OpenID Provider Metadata](MCP-API-SPEC.md#oidc-discovery) 에 있다.
 12. OIDC Discovery 는 `code_challenge_methods_supported` 를 정의하지 않는다. 그래서 MCP 는 OIDC Discovery 를 제공하는 Authorization Server 에 이 필드를 넣으라고 요구한다(MUST, [허브 4.3](MCP-AUTHORIZATION.md#s4-3)).
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#agent-login) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#discovery) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
 
 <a id="rt-authz-confidential"></a>
 
@@ -339,7 +339,7 @@ sequenceDiagram
 13. Authorization Server 가 access token·refresh token·ID token 을 준다. Agent 는 ID token 으로 로그인을 끝내고 token 은 Agent 프로세스에 보관한다.
 14. Agent 가 사용자를 첫 화면으로 돌려보낸다(S20 `302`). browser 는 token 을 보지 않는다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#agent-login) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#agent-login) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
 
 <a id="rt-authz-public"></a>
 
@@ -384,7 +384,7 @@ sequenceDiagram
 10. browser 가 authorization endpoint 를 다시 연다. 로그인 session 은 남아 있다.
 11. 이전에 consent 했어도 다시 consent 화면이 온다(P8). client 신원을 확인할 수 없으면 이전 consent 가 없던 것처럼 처리하는 것이 좋다(SHOULD, [허브 5.6](MCP-AUTHORIZATION.md#s5-6)).
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
 
 <a id="rt-token"></a>
 
@@ -416,7 +416,7 @@ sequenceDiagram
 3. public client 는 `Authorization` 헤더 없이 `client_id` 를 본문에 싣는다(P5, REQUIRED, [허브 4.4](MCP-AUTHORIZATION.md#s4-4)). 등록 방식이 `none` 인 client 에 비밀을 보내면 `401 invalid_client` 이고(P12), 반대로 confidential client 가 `client_id` 만 보내도 `401 invalid_client` 다(P14).
 4. 응답에 refresh token 이 없고, access token 의 `aud` 는 confidential client 와 같은 `resource` 다(P5·P5-1·P7). refresh token 발급은 Authorization Server 재량이고, public client 에 발급한다면 회전이나 sender-constrained token 을 써야 한다(MUST, [허브 4.10](MCP-AUTHORIZATION.md#s4-10)). `code_verifier` 가 틀리면 `400 invalid_grant` 다(P11).
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
 
 <a id="rt-mcp-session"></a>
 
@@ -461,7 +461,7 @@ sequenceDiagram
 10. 더 쓰지 않을 session 은 `Mcp-Session-Id` 를 실은 `DELETE` 로 끝내는 것이 좋다(SHOULD, [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)). 서버는 이 요청을 `405` 로 거절할 수도 있다(MAY). chat-memory 는 다른 사용자가 보낸 `DELETE` 를 `403` 으로 막는다.
 11. 이 서버는 `200` 으로 session 을 끝낸다(C18). 끝난 session ID 로 다시 요청하면 `404` 이고(S16), client 는 새 `initialize` 로 다시 시작해야 한다(MUST, [허브 4.8](MCP-AUTHORIZATION.md#s4-8)). 요청 형식은 [`DELETE /mcp`](MCP-API-SPEC.md#mcp-delete) 에 있다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#mcp-call) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#mcp-call) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#mcp-call) · [chat-memory 종료](mcp-security-authn-chat-memory/SEQUENCES.md#mcp-session-end)
 
 <a id="rt-token-validation"></a>
 
@@ -528,7 +528,7 @@ sequenceDiagram
 14. 끝났거나 모르는 session ID 에는 `404` 여야 한다(MUST, [허브 4.8](MCP-AUTHORIZATION.md#s4-8)). S13 이 `404` 다.
 15. 모두 통과하면 request 는 `200`, notification 은 `202` 다. 명세는 검사 순서를 정하지 않는다. 세 practice 의 순서는 `Origin`·`Host` → token → session binding(chat-memory) → `MCP-Protocol-Version` → `Accept` → session 이다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#mcp-server-validation) · [community](mcp-security-authn-community/SEQUENCES.md#diff-mcp-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#mcp-server-validation) · [community](mcp-security-authn-community/SEQUENCES.md#diff-mcp-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#mcp-server-validation)
 
 <a id="rt-refresh"></a>
 
@@ -571,7 +571,7 @@ sequenceDiagram
 7. 새 `code_verifier` 와 `state` 로 authorization endpoint 를 연다. 흐름은 [Authorization — public client](#rt-authz-public) 와 같다.
 8. 다시 consent 화면을 거친다(P8). refresh token 이 만료·폐기돼 `invalid_grant` 를 받은 confidential client 도 authorization request 부터 다시 한다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#mcp-call) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#mcp-call) · [community](mcp-security-authn-community/SEQUENCES.md#diff-agent) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#mcp-call)
 
 <a id="rt-errors"></a>
 
@@ -627,4 +627,4 @@ sequenceDiagram
 13. public client 가 scope 없이, 또는 `openid` 하나만 요청한다. `openid` 하나뿐이면 Spring 기본 동작은 consent 를 건너뛰고, community module 은 scope 가 없을 때도 건너뛴다.
 14. Authorization Server 는 consent 판정 전에 `error=invalid_scope` 로 redirect 한다(P8-1). scope 생략에는 기본값 처리나 `invalid_scope` 거부 중 하나를 해야 하고(MUST), 이 practice 가 거부를 고른 이유는 [허브 5.6](MCP-AUTHORIZATION.md#s5-6) 에 있다.
 
-구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md)
+구현: [official](mcp-security-authn-official/SEQUENCES.md#as-internals) · [community](mcp-security-authn-community/SEQUENCES.md#diff-authorization-server) · [chat-memory](mcp-security-authn-chat-memory/SEQUENCES.md#authorization)
