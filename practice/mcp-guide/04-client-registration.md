@@ -6,22 +6,19 @@
 이제 사용자를 login 화면으로 보내면 될 것 같지만, 하나가 더 필요하다.
 authorization request에는 `client_id`가 들어가고, Authorization Server는 자기가 아는 `client_id`만 받는다.
 
-Authorization Server는 등록된 정보로 세 가지를 정한다.
+Authorization Server는 등록된 정보를 다음 세 곳에 쓴다.
 
 | 등록 정보 | Authorization Server가 쓰는 곳 |
 |---|---|
-| redirect URI 목록 | authorization code를 이 목록의 주소로만 보낸다 |
+| redirect URI 목록 | authorization code를 이 목록의 주소로만 보낸다. 아무 주소로나 보내면 공격자가 자기 주소를 적어 code를 받아 간다 |
 | token endpoint 인증 방식 | token request를 보낸 client가 진짜인지 확인한다 |
 | 이름 | consent 화면에서 누가 권한을 요청하는지 보여 준다 |
 
 official의 Authorization Server는 등록되지 않은 `client_id`로 온 authorization request에 redirect 없이 `400`으로 답한다.
-이 client의 redirect URI를 모르므로, code는 물론이고 오류도 redirect로 돌려보내지 않는다.
-요청에 적힌 아무 주소로나 보내면, 공격자가 자기 주소를 적어 code를 받아 갈 수 있기 때문이다.
+이 client의 redirect URI를 모르므로 믿고 보낼 주소가 없다.
+요청에 적힌 주소로 오류를 보내 주면, 공격자가 Authorization Server를 거쳐 사용자를 아무 사이트로나 보내는 데 쓸 수 있다.
 
-보통의 OAuth 앱은 개발자가 Authorization Server의 관리 화면에서 앱을 등록하고, 받은 `client_id`를 설정에 적는다.
-MCP client는 사용자가 넣은 어느 MCP Server에든 붙는다.
-세상의 모든 Authorization Server에 미리 등록해 둘 수는 없다.
-그래서 MCP는 미리 등록하는 방법 말고도, 처음 만난 자리에서 `client_id`를 마련하는 방법을 둔다.
+2장에서 본 대로 MCP client는 처음 보는 Authorization Server를 만나므로, MCP는 미리 등록하는 방법 말고도 처음 만난 자리에서 `client_id`를 마련하는 방법을 둔다.
 
 등록은 3장의 Authorization Server Metadata를 읽은 뒤에 한다.
 그 Authorization Server가 어떤 등록 방식을 받는지 metadata가 알려 주기 때문이다.
@@ -39,7 +36,7 @@ flowchart TD
     Q2 -->|있다| C["2. CIMD<br/>metadata 문서 주소를 client_id로 쓴다"]
     Q2 -->|없다| Q3(["metadata에 registration_endpoint?"])
     Q3 -->|있다| D["3. DCR<br/>registration_endpoint에서 client_id를 받는다"]
-    Q3 -->|없다| U["4. 사용자 입력<br/>사용자에게<br/>client 정보를 묻는다"]
+    Q3 -->|없다| U["4. 사용자 입력<br/>사용자가 직접 등록해 받은<br/>client_id를 넣는다"]
 ```
 
 [다이어그램 그림으로 보기](diagrams/04-client-registration-1.png)
@@ -49,13 +46,13 @@ flowchart TD
 | pre-registration | client와 Authorization Server가 이미 아는 사이다 |
 | CIMD(Client ID Metadata Document) | 서로 처음 만난다. MCP에서 가장 흔한 경우다 |
 | DCR(Dynamic Client Registration) | CIMD를 모르는 Authorization Server와 호환해야 한다 |
-| 사용자 입력 | 위 셋을 모두 쓸 수 없다 |
+| 사용자 입력 | 위 셋을 모두 쓸 수 없다. 사용자가 그 Authorization Server에서 client를 직접 등록하고, 받은 `client_id`(와 비밀)를 MCP client에 넣는다 |
 
-pre-registration이 가장 앞에 오는 이유는 그 Authorization Server와 이미 합의해 둔 정보라서다.
+pre-registration이 가장 앞에 오는 것은 그 Authorization Server와 이미 합의해 둔 정보이기 때문이다.
 CIMD와 DCR은 둘 다 처음 만난 Authorization Server에서 `client_id`를 얻는 방법이다.
 2026-07-28 버전은 DCR을 deprecated로 정하고, 새 구현에는 CIMD를 쓰라고 한다.
 
-등록 방식과 client 종류(2장의 confidential·public)는 서로 다른 축이다.
+등록 방식과 client 종류(2장의 confidential·public)는 따로 정한다.
 official은 두 종류를 모두 pre-registration으로 등록하고, CIMD와 DCR은 쓰지 않는다.
 
 ## 4.3 pre-registration: official의 두 client
@@ -130,32 +127,19 @@ Authorization Server는 요청을 보낸 것이 진짜 `local-client`인지 확�
 |---|---|---|
 | 비밀 없이 등록한다(`none`) | `client-authentication-methods: [none]` | 배포 파일의 비밀은 누구나 꺼낼 수 있다. 꺼낸 비밀로 다른 프로그램이 이 client 행세를 한다 |
 | PKCE를 반드시 쓴다 | `require-proof-key: true` | loopback redirect로 온 code를 같은 기기의 다른 프로그램이 가로채 token으로 바꾼다(5장) |
-| loopback redirect의 포트는 자유다 | Spring이 loopback 주소의 포트를 빼고 비교한다 | 포트를 고정하면 그 포트를 다른 프로그램이 쓰고 있을 때 login이 실패한다 |
-| consent를 매번 받는다 | `require-authorization-consent: true`와 두 클래스 | 다른 프로그램이 `local-mcp-client`를 대고 요청해도, 사용자 모르게 code가 발급된다 |
+| loopback redirect의 포트는 자유다 | Spring이 loopback IP 주소의 포트를 빼고 비교한다 | 포트를 고정하면 그 포트를 다른 프로그램이 쓰고 있을 때 login이 실패한다 |
+| consent를 매번 받는다 | `require-authorization-consent: true`와 두 클래스 | 다른 프로그램이 `local-mcp-client`를 대고 요청하면 사용자 모르게 code가 발급된다 |
 | refresh token을 주지 않는다 | Spring 기본 동작 | 새어 나간 refresh token 하나로 누구든 오랫동안 새 token을 받는다 |
 
 **비밀 없음: `none`**
 
-Authorization Server는 metadata의 `token_endpoint_auth_methods_supported`로 받는 인증 방식을 알린다.
-official의 목록 끝에 있는 `none`은 비밀 없는 public client를 받는다는 뜻이다.
-
-```json
-{
-  "token_endpoint_auth_methods_supported": [
-    "client_secret_basic", "client_secret_post", "client_secret_jwt",
-    "private_key_jwt", "tls_client_auth", "self_signed_tls_client_auth", "none"
-  ],
-  "...": "그 밖의 field는 생략"
-}
-```
-
-Authorization Server는 client마다 종류를 기록해 두고 그 종류대로 처리한다.
-그래서 `local-mcp-client`가 token request에 `client_secret`을 넣으면 오히려 `401` `invalid_client`로 거절된다.
+official은 metadata의 `token_endpoint_auth_methods_supported`에 `none`을 넣어, 비밀 없는 public client를 받는다고 알린다(4.8, 4.9).
+Authorization Server는 client마다 종류를 기록해 두므로, `local-mcp-client`가 token request에 비밀을 보내면 오히려 `401` `invalid_client`로 거절된다.
 
 **loopback redirect의 포트**
 
 `local-client`는 `127.0.0.1`에서 운영체제가 골라 준 빈 포트로 callback을 받는다.
-실행할 때마다 포트가 달라지므로, Authorization Server는 loopback 주소의 redirect URI를 비교할 때 포트를 뺀다.
+실행할 때마다 포트가 달라지므로, Authorization Server는 loopback IP 주소(`127.x.x.x`, `[::1]`)의 redirect URI를 비교할 때 포트를 뺀다.
 등록한 포트는 `8123`이지만, `9999`로 보내도 그 주소로 code가 온다.
 
 ```http
@@ -165,7 +149,8 @@ Location: http://127.0.0.1:9999/callback?code=CMoLrbqdsRXI...&state=public-state
 
 포트 말고는 등록한 주소와 정확히 같아야 한다.
 path가 다르면 redirect 없이 `400`으로 끝난다.
-`localhost`라는 이름 대신 `127.0.0.1`을 쓰면, callback server가 실수로 loopback 밖의 네트워크에서 요청을 받는 일이 없다.
+`localhost`라는 이름은 이 예외에 들지 않아서, Spring은 `localhost` redirect URI를 포트까지 정확히 비교한다.
+`127.0.0.1`을 쓰면 callback server가 실수로 loopback 밖의 네트워크에서 요청을 받는 일도 없다.
 
 **consent를 매번 받는 이유**
 
@@ -176,32 +161,13 @@ Authorization Server가 그 consent를 기억해 화면 없이 넘어가면, cod
 요청을 시작한 쪽이 그 프로그램이라 `code_verifier`도 그 프로그램에게 있기 때문이다.
 consent 화면을 매번 보여 주면, 사용자는 자기가 시작하지 않은 요청을 알아챌 수 있다.
 
-Spring Authorization Server는 두 경우에 consent 화면을 건너뛴다.
-official은 경우마다 클래스 하나로 막는다.
-
-| Spring이 consent를 건너뛰는 경우 | 막는 클래스 | 하는 일 |
-|---|---|---|
-| 저장된 consent가 요청한 scope를 모두 덮는다 | `PublicClientConsentService` | public client의 consent는 저장하지 않고, 찾을 때도 없다고 답한다 |
-| 요청한 scope가 `openid` 하나뿐이다 | `PublicClientScopeValidator` | consent할 scope가 없는 요청을 consent 판단 전에 `invalid_scope`로 거절한다 |
-
-`openid` 하나만 요청하면 이 응답이 온다.
-
-```http
-HTTP/1.1 302
-Location: http://127.0.0.1:8123/callback?error=invalid_scope&error_description=A%20public%20client%20must%20request%20at%20least%20one%20scope%20other%20than%20openid&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
-```
-
-consent 화면으로 보내지 않고 거절하는 것은, Spring의 기본 consent 화면에 `openid` 체크박스가 없어서다.
-이런 요청은 consent 화면을 거쳐도 `access_denied`로 끝난다.
-`local-client`는 `openid profile`을 요청하고, 사용자는 consent 화면에서 `profile`을 고른다.
+public client는 consent할 scope가 하나는 있어야 하고, 그 이유와 동작은 [5장](05-authorization-and-token.md)에서 본다.
 
 **refresh token**
 
 `local-mcp-client`의 등록에는 `refresh_token` grant가 있지만, Spring은 인증 방식이 `none`인 client에게 refresh token을 주지 않는다.
-refresh token은 오래 쓰이는데, public client는 그것을 쓸 때도 자기를 증명하지 못한다.
-public client에게 준다면 쓸 때마다 새 것으로 바꿔 주거나(rotation) 그 기기에 묶어야 한다.
-official은 Spring의 이 기본 동작을 따른다.
-그래서 `local-client`는 token이 만료되면 login부터 다시 한다.
+refresh token은 오래 쓰이는데, public client는 그것을 쓸 때도 자기를 증명하지 못해서 새어 나가면 누구든 쓸 수 있다.
+그래서 `local-client`는 token이 만료되면 authorization 흐름을 처음부터 다시 밟는다.
 
 ## 4.5 CIMD
 
@@ -234,7 +200,7 @@ MCP 명세의 예시 문서는 다음과 같다.
 | `redirect_uris` | code를 받을 주소 목록이다. Authorization Server는 요청의 `redirect_uri`를 이 목록과 비교한다 |
 | `token_endpoint_auth_method` | `none`이면 public client다. 문서는 누구나 읽을 수 있어서 `client_secret_basic` 같은 공유 비밀 방식은 쓸 수 없다 |
 
-앞의 세 field는 꼭 있어야 한다.
+`client_id`·`client_name`·`redirect_uris` 세 field는 꼭 있어야 한다.
 
 ```mermaid
 sequenceDiagram
@@ -263,7 +229,7 @@ sequenceDiagram
 |---|---|
 | 문서의 `client_id`가 문서를 가져온 주소와 같다 | 남의 문서를 복사해 자기 주소에 올린 client가 그 client 행세를 한다 |
 | 요청의 `redirect_uri`가 문서의 `redirect_uris`에 있다 | code가 문서에 없는 공격자 주소로 간다 |
-| 사설·loopback 주소는 가져오지 않고, 응답 크기를 제한한다 | 공격자가 `client_id`에 내부망 주소를 적어 Authorization Server가 그 주소로 요청하게 만든다(SSRF) |
+| 사설·loopback 주소는 가져오지 않고, 응답 크기를 제한한다 | 공격자가 `client_id`에 내부망 주소를 적어 Authorization Server가 그 주소로 요청하게 만든다(SSRF). 아주 큰 문서로 Authorization Server의 자원을 소모시켜 서비스를 멈추게 한다 |
 
 통과한 문서는 HTTP cache header에 따라 cache하고, 가져오지 못했거나 잘못된 문서는 cache하지 않는다.
 
@@ -285,7 +251,7 @@ client는 받은 `client_id`를 저장해 두고 쓴다.
 DCR로 등록된 client는 Authorization Server에 계속 쌓인다.
 누가 등록했는지도 Authorization Server는 알 수 없다.
 CIMD라면 Authorization Server가 저장할 것이 없다.
-`client_id`의 host가 문서를 올린 곳을 알려 주기도 한다.
+`client_id`의 host를 보면 이 client를 누가 올렸는지도 알 수 있다.
 2026-07-28 버전은 DCR을 deprecated로 정했다.
 DCR은 CIMD를 모르는 Authorization Server와 호환하려고 남아 있다.
 
@@ -298,7 +264,7 @@ metadata에도 `registration_endpoint`가 없다.
 
 ## 4.7 credentials를 issuer에 묶기
 
-미리 등록한 `client_id`와 `client_secret`은 그것을 발급한 Authorization Server에서만 뜻이 있다.
+미리 등록한 `client_id`와 `client_secret`은 그것을 발급한 Authorization Server에서만 통한다.
 그런데 MCP client는 Authorization Server를 PRM에서 알아낸다(3장).
 PRM이 다른 Authorization Server를 가리키면, client는 가진 비밀을 그 서버의 token endpoint로 보낼 수 있다.
 PRM이 위조되었다면 비밀은 공격자에게 간다.
@@ -312,7 +278,7 @@ PRM이 위조되었다면 비밀은 공격자에게 간다.
 | Authorization Server가 정말 바뀌었다 | 새 Authorization Server에 다시 등록한다 |
 
 DCR로 받아 저장해 둔 credentials도 같은 규칙을 따른다.
-CIMD의 `client_id`는 어느 Authorization Server든 문서를 직접 가져가므로, 서버가 바뀌어도 다시 등록할 필요가 없다.
+CIMD는 어느 Authorization Server든 `client_id` 주소에서 문서를 직접 가져가므로, 서버가 바뀌어도 다시 등록할 필요가 없다.
 
 official의 agent는 `mcp.authorization.credentials-issuer`에, `local-client`는 `--issuer` 옵션(기본값 `http://localhost:9010`)에 이 issuer를 둔다.
 discovery는 PRM의 `authorization_servers`를 이 값과 먼저 비교하고, 다르면 metadata도 요청하지 않고 멈춘다(3장).
@@ -335,8 +301,9 @@ OpenID Connect discovery 문서(`/.well-known/openid-configuration`)에도 같�
 ```
 
 같은 클래스는 `PublicClientConsentService`를 consent 저장소 bean으로 등록한다.
-`PublicClientScopeValidator`는 authorization request 검증의 마지막 단계로 잇는다.
-두 클래스는 등록된 `client-authentication-methods`에 `none`이 있는 client만 다르게 처리한다.
+이 bean은 public client의 consent를 저장하지 않아서, public client는 매번 consent 화면을 거친다.
+authorization request 검증의 마지막 단계에는 `PublicClientScopeValidator`를 붙인다.
+두 클래스는 등록된 `client-authentication-methods`에 `none`이 있는 client만 다르게 처리하고, 자세한 동작은 5장에서 본다.
 
 **shop-agent: 설정의 credentials와 discovery 결과를 합친다**
 
@@ -350,10 +317,13 @@ private ClientRegistration registration(DiscoveredAuthorization authorization) {
             .clientId(this.credentials.getClientId())
             .clientSecret(this.credentials.getClientSecret())
             .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+            /* ... */
             .redirectUri(this.credentials.getRedirectUri())
+            /* ... */
             // discovery: credentials-issuer와 같은 issuer에서만 온다
             .authorizationUri(authorization.authorizationEndpoint())
             .tokenUri(authorization.tokenEndpoint())
+            /* ... */
             .issuerUri(authorization.issuer())
             /* ... */
             .build();
@@ -385,8 +355,7 @@ curl -s http://localhost:9010/.well-known/oauth-authorization-server \
 ```
 
 public client의 규칙을 curl로 한 단계씩 기록하는 스크립트도 있다: `docs/superpowers/captures/mcp-authorization-public-client.sh`.
-출력의 처음 두 단계가 위의 metadata 확인이다.
-뒤의 단계에서 매번 나오는 consent 화면, `invalid_scope`, 포트가 다른 loopback redirect, refresh token 없는 token 응답을 볼 수 있다.
+출력의 처음 두 단계가 위의 metadata 확인이고, 뒤 단계에서 포트가 다른 loopback redirect와 refresh token 없는 token 응답을 볼 수 있다.
 
 ## 4.10 정리
 
@@ -405,7 +374,6 @@ public client의 규칙을 curl로 한 단계씩 기록하는 스크립트도 �
 | Authorization Server는 redirect URI의 host를 보여 주고, `localhost`로만 돌아가는 요청에는 경고를 더한다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks) | MUST, SHOULD |
 | DCR은 선택이고, 2026-07-28에서 deprecated다. DCR을 쓰는 client는 알맞은 `application_type`을 넣는다 | [MCP 2025-11-25 Authorization — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#dynamic-client-registration), [MCP 2026-07-28 Client Registration — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#dynamic-client-registration) | MAY, MUST |
 | 기기별 비밀이 없는 native 앱은 public client로 등록하고, Authorization Server는 client 종류를 기록한다. `none`은 비밀 없는 public client다 | [OAuth 2.1 §8.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.1), [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2), [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) | MUST |
-| client는 PKCE를 쓰고, Authorization Server는 PKCE를 강제한다 | [OAuth 2.1 §7.5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.5.2), [MCP 2025-11-25 Authorization — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection) | REQUIRED, MUST |
 | redirect URI는 등록하고 정확히 비교한다. loopback 주소는 요청의 어느 포트든 허용하고, 이름 `localhost`는 권하지 않는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2), [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) | MUST, NOT RECOMMENDED |
 | client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않고, 이전 consent가 있어도 처음처럼 처리한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) | SHOULD NOT, SHOULD |
 | refresh token 발급은 Authorization Server가 정한다. public client에 주면 rotation이나 sender-constrained token으로 재사용을 잡아낸다 | [OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2), [§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) | MUST |
