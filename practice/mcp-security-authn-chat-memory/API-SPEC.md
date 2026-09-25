@@ -43,8 +43,8 @@ Authorization Server metadata·discovery·authorize·token·agent 로그인(`GET
 
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
-| `label` | 쿼리 | OPTIONAL — 이 practice 고유 API | 대화를 구분하는 이름. 비어 있으면 `default` | 씀 — `@RequestParam(required = false) String label` |
-| 본문 | 본문 | 표시 없음 — 이 practice 고유 API | 사용자 메시지 평문(JSON 아님) | 씀 — `@RequestBody String message` |
+| `label` | 쿼리 | 선택 — 이 practice 고유 API | 대화를 구분하는 이름. 비어 있으면 `default` | 씀 — `@RequestParam(required = false) String label` |
+| 본문 | 본문 | 필수 — 이 practice 고유 API | 사용자 메시지 평문(JSON 아님) | 씀 — `@RequestBody String message` |
 
 원문 필드: 없음(이 practice 고유 API)
 

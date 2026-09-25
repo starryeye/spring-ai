@@ -93,6 +93,7 @@ official 이 손으로 쓴 클래스마다, community 는 모듈이 자동으로
 |---|---|---|
 | `SecurityConfig`(filter chain 직접 정의, PRM·`401`·`aud`·`iss`·`exp` 검증) | `SecurityConfig` 가 `McpServerOAuth2Configurer` 를 적용, `validateAudienceClaim(true)` | 직접 얹은 확장 |
 | `McpTransportConfig`(Origin/Host 검증기 직접 등록) | `SecurityConfig` 의 `mcp.allowedOrigins(...)`/`allowedHosts(...)` 호출로 module 의 `OriginValidationFilter` 가 자동 등록 | 모듈 자동 구성 |
+| `issuer-uri` 동작([official 학습 포인트](../mcp-security-authn-official/README.md#issuer-uri-는-없으면-기동이-실패하고-틀리면-첫-token-검증에서-실패한다)) | 없으면 Boot 가 `JwtDecoder` bean 을 만들지 않아 `SecurityConfig` 가 기동에 실패한다(`issuer` 를 받는 `@Value` 에도 기본값이 없다). 닿지 않으면 기동은 되고 첫 token 검증에서 실패한다 | 같은 동작 |
 | `McpProtocolVersionFilter` | 같은 이름 · 같은 로직, `McpProtocolVersionFilterConfig` 가 `FilterRegistrationBean` 으로 등록 | 같은 클래스 |
 | `ProductTools` | 같은 코드 | 같은 클래스 |
 
@@ -130,7 +131,8 @@ cd practice/mcp-security-authn-community
 ./run.sh
 ```
 
-`auth-server(:9000) → shop-mcp-server(:8101) → shop-agent(:8100)` 순서로 뜬다.
+`run.sh` 는 `auth-server(:9000) → shop-mcp-server(:8101) → shop-agent(:8100)` 순서로 띄운다.
+이 순서가 필수가 아닌 점은 official 과 같다([official 실행과 확인](../mcp-security-authn-official/README.md#실행과-확인)).
 browser 에서 `http://localhost:8100/` 을 열고 **`user` / `password`** 로 로그인한다.
 
 public client(`local-mcp-client`) 흐름은 curl 캡처 스크립트로 밟는다. 비밀 없는 client 로 붙는 프로그램은 없으므로 스크립트가 그 역할을 하고, Authorization Server 와 MCP Server 만 떠 있으면 된다.
@@ -152,7 +154,7 @@ AS=http://localhost:9000 MCP_BASE=http://localhost:8101 \
 | session 없이 `http://localhost:8100/` 접근 | `auth-server`(`:9000`)의 로그인 화면으로 redirect |
 | 로그인 후 `노트북 재고 있어?` / `무선 기계식 키보드 살 수 있어?` | 재고 숫자가 정확히 나오고(p1=7개, p2=23개), 품절 상품은 품절이라고 답한다 |
 | `grep '호출' logs/shop-mcp-server.log` | `사용자=user` — MCP Server 에 도착한 신원은 agent 가 아니라 로그인한 사람이다 |
-| `./gradlew test`(각 모듈, `auth-server` 가 떠 있어야 한다) | `auth-server` 33개 · `shop-mcp-server` 22개 · `shop-agent` 21개 통과 |
+| `./gradlew test`(각 모듈) | `auth-server` 33개 · `shop-mcp-server` 22개 · `shop-agent` 21개 통과 |
 
 ## 학습 포인트
 
@@ -162,15 +164,11 @@ client 측 tool 필터는 agent 에게 무엇을 보여줄지 고르는 장치�
 MCP 프로토콜 절차(`initialize` → session ID)만 지키면 보안 계층이 없는 서버는 누구든 tool 목록을 받아간다.
 이 practice 의 `shop-mcp-server` 는 `initialize` 시도 자체가 인증 단계에서 막힌다.
 
-### `issuer-uri` 를 지워도 "열리지" 않는다
+### Boot 의 JWT decoder 를 넘기면 issuer metadata 를 첫 token 검증 때 가져온다
 
-`spring-boot-starter-security` 가 클래스패스에 있으면, MCP 보안 자동 구성이 꺼져도 Boot 기본 보안(HTTP Basic + 무작위 비밀번호)이 대신 들어와 여전히 `401` 을 준다.
-상태 코드만 보는 테스트는 보안 모듈을 통째로 지워도 초록이므로, 이 practice 의 테스트는 `WWW-Authenticate` 헤더 스킴(`Bearer` vs `Basic`)까지 검증한다.
-
-### JWT decoder 는 issuer metadata 를 즉시 가져온다
-
-`NimbusJwtDecoder.withIssuerLocation(issuer).build()` 의 `.build()` 는 filter chain 빈을 만드는 시점에 HTTP 로 discovery 문서를 조회한다.
-`auth-server` 없이 `shop-mcp-server` 를 띄우면 `ConnectException` 으로 기동 자체가 실패하고, `./gradlew test` 도 `auth-server` 가 떠 있어야 통과한다.
+`McpServerOAuth2Configurer` 는 decoder 를 받지 않으면 `NimbusJwtDecoder.withIssuerLocation(issuer).build()` 로 만들고, 이 `.build()` 는 bean 을 만드는 시점에 issuer metadata 를 조회한다.
+`SecurityConfig` 는 `mcp.jwtDecoder(jwtDecoder)` 로 Boot 자동 구성의 `SupplierJwtDecoder` 를 넘기므로 그 경로를 타지 않는다.
+그래서 `shop-mcp-server` 는 `auth-server` 없이도 뜨고, 그 테스트도 `auth-server` 없이 통과한다(`McpAuthorizationStandardTest` 는 `JwkSetUriJwtDecoderBuilderCustomizer` 로 가짜 metadata·JWKS 를 쓴다).
 
 ### token 으로 보호된 MCP Server 는 부팅 시점에 handshake 를 못 한다
 
@@ -199,7 +197,6 @@ tool 이 실제로 등록되는지 확인하는 테스트가 이 사고를 잡�
 | 조건 | 안 지키면 |
 |---|---|
 | `spring.ai.mcp.client.type: SYNC` | client 보안 자동 구성이 통째로 사라진다(token 이 안 붙음) |
-| `spring.security.oauth2.resourceserver.jwt.issuer-uri` | MCP Server 보안이 아예 안 뜬다(Boot 기본 보안이 대신) |
 | OAuth2 client 등록이 정확히 1개 | 0개·2개 이상이면 커스터마이저가 WARN 한 줄 남기고 no-op |
 | `shop-mcp-server`·`auth-server` 에 `SecurityFilterChain` 직접 정의 | `@ConditionalOnDefaultWebSecurity` 가 꺼져 모듈 설정이 물러난다(`shop-agent` 는 이 조건이 없어 예외) |
 | `ChatController` 의 `.contextWrite(...)` | token 이 안 붙는다(DEBUG 한 줄만) |

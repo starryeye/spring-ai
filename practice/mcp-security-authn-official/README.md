@@ -98,7 +98,8 @@ cd practice/mcp-security-authn-official
 ./run.sh
 ```
 
-`auth-server(:9010) → shop-mcp-server(:8111) → shop-agent(:8110)` 순서로 뜬다.
+`run.sh` 는 `auth-server(:9010) → shop-mcp-server(:8111) → shop-agent(:8110)` 순서로 띄운다.
+세 앱은 순서와 관계없이 뜨고, 첫 로그인·첫 채팅 때 Authorization Server 와 MCP Server 가 떠 있으면 된다(MCP Server 의 JWT decoder 와 agent 의 discovery·`initialize` 가 모두 첫 사용 때 동작한다).
 브라우저에서 `http://localhost:8110/` 을 열고 **`user` / `password`** 로 로그인한다.
 
 confidential client(agent) 흐름과 public client(`local-mcp-client`) 흐름을 curl 캡처 스크립트로도 밟을 수 있다.
@@ -135,7 +136,8 @@ RFC 9728 Protected Resource Metadata 는 community 에서 라이브러리의 대
 ### 공식으로 가면 코드는 늘고 조건부 자동설정은 준다
 
 official 은 31개 파일(1,902줄)로 community 의 30개 파일(1,727줄)보다 많은 코드를 직접 쓴다.
-그 대신 조건부 자동설정이 없어 무엇이 왜 켜지는지 전부 소스에 드러나고, 조용히 죽는 스위치도 community 의 5개에서 2개로 줄어든다.
+그 대신 조건부 자동설정이 없어 무엇이 왜 켜지는지 전부 소스에 드러나고, 조용히 죽는 스위치도 community 의 4개([조건표](../mcp-security-authn-community/README.md#모듈이-조용히-물러나는-조건))에서 2개로 준다.
+그 2개는 `ShopAgentApplication` 의 `Hooks.enableAutomaticContextPropagation()` 을 빼는 것과 `spring.ai.mcp.client.type` 을 `ASYNC` 로 바꾸는 것이고, 둘 다 오류 없이 token 만 안 붙는다(DEBUG 한 줄).
 
 ### 공식 스트리밍 전파 경로는 `internal` 패키지 없이 동작한다
 
@@ -151,12 +153,15 @@ Boot 4.1 의 `OAuth2AuthorizationServerWebSecurityConfiguration` 은 `.oidc(with
 
 `SecurityConfig` 는 `issuer-uri` 를 기본값 없는 `@Value` 로 받아, 값이 없으면 placeholder 를 풀지 못해 기동이 실패한다.
 JWT decoder 는 Boot 자동 구성의 `SupplierJwtDecoder` 라 issuer metadata 를 첫 token 검증 때 가져온다.
-그래서 닿지 않는 issuer 로도 기동은 되고, 첫 token 요청이 `JwtDecoderInitializationException` 과 함께 `401` 로 끝난다.
+그래서 닿지 않는 issuer 로도 기동은 되고, 첫 token 요청이 `JwtDecoderInitializationException` 으로 끝난다.
 
-### community 에서 배운 것 중 라이브러리와 무관한 것은 그대로였다
+그 요청의 오류 페이지 재디스패치(`/error`)가 익명이라 `401` 을 받으며, token 검증 실패와 달리 `error="invalid_token"` 이 없다.
+관측: 그 `WWW-Authenticate` 의 `resource_metadata` 는 `/.well-known/oauth-protected-resource/error` 를 가리킨다.
 
-기동 순서(`auth-server`→`shop-mcp-server`→`shop-agent`), `spring.ai.mcp.client.initialized: false` 의 필요성, `localhost` 멀티 앱의 session cookie 이름 분리는 `org.springaicommunity` 라이브러리의 특성이 아니라 문제 자체의 구조에서 나온다.
-라이브러리를 걷어내도 사라지지 않았다.
+### community 에서 배운 것 중 라이브러리와 무관한 것은 그대로다
+
+`spring.ai.mcp.client.initialized: false` 의 필요성과 `localhost` 멀티 앱의 session cookie 이름 분리는 `org.springaicommunity` 라이브러리의 특성이 아니라 문제 자체의 구조에서 나온다.
+라이브러리 없이 쓴 이 practice 에도 그대로 필요하다.
 
 ## 비목표
 

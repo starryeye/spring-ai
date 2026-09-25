@@ -25,7 +25,7 @@
 | endpoint | 역할 | 이 practice 값 | 명세 |
 |---|---|---|---|
 | `GET /.well-known/oauth-authorization-server` | Authorization Server Metadata 제공 | `issuer=http://localhost:9010`, `code_challenge_methods_supported=["S256"]`, `token_endpoint_auth_methods_supported` 에 `none` 추가(`AuthorizationServerConfig`) | [`as-metadata`](../MCP-API-SPEC.md#as-metadata) |
-| `GET /.well-known/openid-configuration` | OIDC provider metadata 제공 | Boot 자동설정이 기본으로 켠다. 위 값에 `userinfo_endpoint`·`end_session_endpoint` 추가 | [`oidc-discovery`](../MCP-API-SPEC.md#oidc-discovery) |
+| `GET /.well-known/openid-configuration` | OIDC provider metadata 제공 | `AuthorizationServerConfig` 가 `.oidc(...)` 로 직접 켠다(filter chain 을 직접 정의해 Boot 기본 chain 이 물러나므로, [README](README.md#filter-chain-을-직접-정의하면-oidc-discovery-도-직접-켠다)). 위 값에 `userinfo_endpoint`·`end_session_endpoint` 추가 | [`oidc-discovery`](../MCP-API-SPEC.md#oidc-discovery) |
 | `GET /oauth2/authorize` | authorization request 접수, PKCE·`resource` 검증 | `require-proof-key: true`, `ResourceIndicatorValidator` 가 `resource` 를 검사 | [`authorize`](../MCP-API-SPEC.md#authorize) |
 | `POST /oauth2/authorize` | public client 의 consent 제출 | `PublicClientConsentService` 가 저장하지 않아 매 요청 consent 화면을 거친다 | [`authorize-consent`](../MCP-API-SPEC.md#authorize-consent) |
 | authorization response(redirect) | code·`state`·`iss` 전달 | `IssuerIdentifyingAuthorizationResponseHandler` 가 성공·오류 모두에 `iss` 를 싣는다 | [`authorization-response`](../MCP-API-SPEC.md#authorization-response) |
@@ -126,7 +126,7 @@ MCP 표준이 아니라 이 practice 의 UI 배선이고, 인증은 `SecurityCon
 
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
-| 본문 | 본문 | 표시 없음 — 이 practice 고유 API | 사용자 메시지 평문(JSON 아님) | 씀 — `index.html` 의 `fetch('/api/chat', {method: 'POST', body: message})` |
+| 본문 | 본문 | 필수 — 이 practice 고유 API | 사용자 메시지 평문(JSON 아님) | 씀 — `index.html` 의 `fetch('/api/chat', {method: 'POST', body: message})` |
 
 원문 필드: 없음(이 practice 고유 API)
 

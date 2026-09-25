@@ -66,7 +66,7 @@ discovery·PKCE·`resource`·`aud`·`Origin`/`Host` 검증을 포함한 인증 �
 
 ## 실행과 확인
 
-준비물과 기동 순서(`auth-server`→`shop-mcp-server`→`shop-agent`)는 official 과 같다([README.md](../mcp-security-authn-official/README.md)). `http://localhost:8130/` 에서 `alice`/`alice` 또는 `bob`/`bob` 으로 로그인한다.
+준비물은 official 과 같다([official 실행과 확인](../mcp-security-authn-official/README.md#실행과-확인)). `run.sh` 가 `auth-server`→`shop-mcp-server`→`shop-agent` 순서로 띄우지만, 이 순서가 필수가 아닌 점도 official 과 같다. `http://localhost:8130/` 에서 `alice`/`alice` 또는 `bob`/`bob` 으로 로그인한다.
 
 ```bash
 cd practice/mcp-security-authn-chat-memory
@@ -138,7 +138,7 @@ AS=http://localhost:9020 MCP_BASE=http://localhost:8131 \
 
 ### official 과 같은 운영 관례는 그대로다
 
-기동 순서, `spring.ai.mcp.client.initialized: false` 로 인한 첫 요청 지연, 앱마다 session cookie 이름을 분리하는 관례는 official 과 같다.
+기동 순서가 필수가 아닌 점, `spring.ai.mcp.client.initialized: false` 로 인한 첫 요청 지연, 앱마다 session cookie 이름을 분리하는 관례는 official 과 같다.
 
 ## 비목표
 
