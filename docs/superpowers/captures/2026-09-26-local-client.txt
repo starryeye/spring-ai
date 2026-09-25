@@ -3,11 +3,10 @@
 [1] discovery: http://localhost:8111/mcp
     Authorization Server: http://localhost:9010
 [2] browser에서 login과 consent를 한다
-    http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A59093%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:59093/callback
+    http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A59597%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:59597/callback
 [4] client_secret 없이 access token을 받았다(299초 뒤 만료)
 [5] MCP 호출
-[HttpClient-2-Worker-0] INFO io.modelcontextprotocol.client.LifecycleInitializer - Server response with Protocol: 2025-11-25, Capabilities: ServerCapabilities[completions=CompletionCapabilities[], experimental=null, logging=LoggingCapabilities[], prompts=PromptCapabilities[listChanged=true], resources=ResourceCapabilities[subscribe=false, listChanged=true], tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=official-shop-mcp-server, title=null, version=0.0.1, description=null, icons=null, websiteUrl=null] and Instructions null
     initialize: protocolVersion=2025-11-25, server=official-shop-mcp-server
     tool: getStock
     tool: searchProducts

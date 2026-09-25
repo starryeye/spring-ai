@@ -32,10 +32,20 @@ fi
 # browser 대신: login → authorization 주소 → consent 제출 → loopback callback 으로 redirect 따라가기
 FORM=$(curl -s -c "$JAR" -b "$JAR" "$AS/login")
 CSRF=$(printf '%s' "$FORM" | grep -o '<input[^>]*name="_csrf"[^>]*>' | head -1 | grep -o 'value="[^"]*"' | sed 's/^value="//;s/"$//')
+if [ -z "$CSRF" ]; then
+  echo "[오류] CSRF token을 찾지 못했다" >&2
+  kill "$CLIENT_PID" 2>/dev/null
+  exit 1
+fi
 curl -s -o /dev/null -c "$JAR" -b "$JAR" -X POST "$AS/login" \
   --data-urlencode "username=$LOGIN_USERNAME" --data-urlencode "password=$LOGIN_PASSWORD" --data-urlencode "_csrf=$CSRF"
 PAGE=$(curl -s -c "$JAR" -b "$JAR" "$URL")
 STATE=$(printf '%s' "$PAGE" | grep -o 'name="state" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"$//')
+if [ -z "$STATE" ]; then
+  echo "[오류] state를 찾지 못했다" >&2
+  kill "$CLIENT_PID" 2>/dev/null
+  exit 1
+fi
 curl -s -o /dev/null -L -c "$JAR" -b "$JAR" -X POST "$AS/oauth2/authorize" \
   --data-urlencode 'client_id=local-mcp-client' --data-urlencode "state=$STATE" --data-urlencode 'scope=profile'
 
