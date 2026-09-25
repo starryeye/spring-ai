@@ -39,9 +39,8 @@
     const q = document.getElementById('q');
     const send = document.getElementById('send');
 
-    // CookieCsrfTokenRepository 가 심어둔 XSRF-TOKEN 쿠키를 읽어 요청 헤더로 되돌려 보낸다.
-    // 이 값이 없으면(첫 페이지 로드가 CsrfCookieFilter 를 거치지 않은 경우) 헤더를 생략한다 —
-    // 서버가 401/403 으로 알려준다.
+    // csrf.spa() 가 심어 둔 XSRF-TOKEN 쿠키를 읽어 요청 헤더로 되돌려 보낸다.
+    // 값이 없으면 헤더를 생략한다 — 서버가 403 으로 알려준다.
     function csrfToken() {
         const match = document.cookie.match('(?:^|;\\s*)XSRF-TOKEN=([^;]*)');
         return match ? decodeURIComponent(match[1]) : null;

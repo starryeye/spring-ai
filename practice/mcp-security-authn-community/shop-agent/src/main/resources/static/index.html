@@ -21,13 +21,19 @@
     const send = document.getElementById('send');
     const q = document.getElementById('q');
 
+    // csrf.spa() 가 심어 둔 XSRF-TOKEN 쿠키를 읽어 X-XSRF-TOKEN 헤더로 되돌려 보낸다.
+    function csrfHeaders() {
+        const match = document.cookie.match('(?:^|;\\s*)XSRF-TOKEN=([^;]*)');
+        return match ? {'X-XSRF-TOKEN': decodeURIComponent(match[1])} : {};
+    }
+
     async function ask() {
         const message = q.value.trim();
         if (!message) return;
         send.disabled = true;
         out.textContent = '생각 중... (로컬 모델은 30~100초 걸립니다)';
         try {
-            const res = await fetch('/api/chat', {method: 'POST', body: message});
+            const res = await fetch('/api/chat', {method: 'POST', headers: csrfHeaders(), body: message});
             if (!res.ok) {
                 out.textContent = '오류: HTTP ' + res.status;
                 return;

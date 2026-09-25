@@ -47,13 +47,10 @@ public class SecurityConfig {
                         failureHandler), OAuth2LoginAuthenticationFilter.class)
                 // MCP 호출 시 토큰을 얻으려면 oauth2Client 가 필요하다.
                 .oauth2Client(Customizer.withDefaults())
-                // 학습용 단순화: index.html 의 fetch 가 CSRF 토큰을 싣지 않으므로
-                // 이 엔드포인트만 예외로 둔다. 대가: 로그인한 사용자가 다른 탭에서 악성
-                // 페이지를 열어 두면, 그 페이지가 세션 쿠키만으로 /api/chat 에 임의의
-                // 질문(=MCP 툴 호출)을 사용자 모르게 시킬 수 있다 — CSRF 로 인한 툴 오남용.
-                // 실제 서비스라면 fetch 에 CSRF 토큰(XSRF-TOKEN 쿠키 등)을 실어 보내
-                // 이 예외를 없애야 한다. 여기서는 그 처리를 구현하지 않았다.
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/chat"))
+                // /api/chat 도 CSRF 를 검사한다. csrf.spa() 는 JS 가 읽을 수 있는 XSRF-TOKEN 쿠키를
+                // 응답에 싣고, index.html 이 그 값을 X-XSRF-TOKEN 헤더로 되돌려 보낸다. 다른 사이트의
+                // 페이지는 이 쿠키를 읽지 못하므로 사용자 몰래 채팅(=MCP tool 호출)을 보낼 수 없다.
+                .csrf(csrf -> csrf.spa())
                 .build();
     }
 
