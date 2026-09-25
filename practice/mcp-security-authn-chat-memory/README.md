@@ -169,7 +169,7 @@ tool 이 조회한 값은 모델이 옮겨 적은 assistant 텍스트로만 남�
 ### CSRF 는 예외 없이 검사한다
 
 `SecurityConfig` 의 `csrf.spa()` 는 JS 가 읽을 수 있는 `XSRF-TOKEN` 쿠키를 싣고, `index.html` 이 그 값을 `X-XSRF-TOKEN` 헤더로 되돌려 보낸다.
-`POST /api/chat`·`DELETE /api/conversations/{label}`·`POST /logout` 모두 이 헤더가 있어야 한다.
+`POST /api/chat`·`DELETE /api/conversations/{label}`·`POST /logout` 모두 CSRF token(헤더 또는 logout 페이지의 `_csrf`)이 있어야 한다.
 테스트: `ConversationControllerTest#CSRF_토큰_없이_채팅하면_403`, `#페이지가_준_XSRF_TOKEN_을_헤더로_보내면_지울_수_있다`.
 
 ### 로그아웃은 `shop-agent` 만으로 끝나지 않는다

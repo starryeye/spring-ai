@@ -499,7 +499,7 @@ MCP Server 는 요청을 처리하기 전에 access token 을 검증하고, 자�
 | 서명 | RFC 9068 §4 MUST | `issuer-uri` 로 metadata 의 `jwks_uri` key 를 쓴다(`NimbusJwtDecoder.withIssuerLocation`) | Boot 가 만든 같은 decoder 를 module 에 넘긴다 | S3 `not-a-jwt` → `401 invalid_token` |
 | `iss` | MUST, 정확히 일치 | `JwtIssuerValidator(issuer-uri)` | 같음 | 테스트 `McpAuthorizationStandardTest#iss_가_다른_토큰은_거부한다` |
 | `aud` | MCP MUST · RFC 9068 MUST | `jwt.audiences: http://localhost:8111/mcp` | module `AudienceValidationJwtDecoder` 가 요청 URL 로 계산한 `http://localhost:8101/mcp` | C12 ID token → `401 The aud claim is not valid` |
-| `exp`·`nbf` | MUST | `JwtTimestampValidator`(허용 오차 60초) | 같음 | 캡처 없음 |
+| `exp`·`nbf` | MUST | `JwtTimestampValidator`(허용 오차 60초) | 같음 | 세 practice 모두 `McpAuthorizationStandardTest#만료된_토큰은_거부한다` |
 | `typ` | RFC 9068 MUST `at+jwt` | `JwtTypeValidator.jwt()` — `typ` 이 없거나 `JWT` 일 때만 통과 | 같음 | C7 `typ` 없는 token 통과 |
 | scope | OAuth 2.1 §5.2 MUST(알맞은 scope) | 검사하지 않는다. 인증된 요청은 모든 tool 허용 | 같음 | — |
 

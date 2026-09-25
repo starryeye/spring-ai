@@ -26,8 +26,8 @@ import java.util.List;
  *
  * <p>모듈의 {@code ResourceIdentifierAudienceTokenCustomizer} 는 access token 이면서 {@code openid} 가
  * 승인됐을 때만 건너뛰고, ID token 에는 {@code aud} 를 {@code resource} 로 덮어쓴다. 이 practice 의
- * agent 는 로그인(openid)으로 token 을 받으므로 access token 의 {@code aud} 가 비고 ID token 의
- * {@code aud} 는 틀어진다. 아래 {@code ResourceAudienceTokenCustomizer} 가 모듈 것 뒤에 실행되어
+ * agent 는 로그인(openid)으로 token 을 받으므로 access token 의 {@code aud} 가 {@code resource} 가
+ * 아니라 client_id 로 남고 ID token 의 {@code aud} 는 틀어진다. 아래 {@code ResourceAudienceTokenCustomizer} 가 모듈 것 뒤에 실행되어
  * access token 에 {@code aud=resource} 를 넣고 ID token 의 {@code aud} 를 client_id 로 되돌린다.
  *
  * <p>메타데이터·OIDC 디스커버리 커스터마이저는 이 클래스 안에서 한 번에 구성해야 한다.
