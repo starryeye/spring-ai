@@ -26,7 +26,7 @@ discovery·PKCE·`resource`·`aud`·`iss`·전송 보안처럼 [MCP-AUTHORIZATIO
 ### Authorization Server
 
 `auth-server` 는 사용자를 로그인시키고 MCP Server 용 access token 을 발급한다.
-`AuthorizationServerConfig` 가 filter chain 두 개를 직접 정의해 PKCE 강제, `resource` 검증([4.5](../MCP-AUTHORIZATION.md#s4-5)), access token `aud` 발급([4.7](../MCP-AUTHORIZATION.md#s4-7)), authorization response 의 `iss`([4.6](../MCP-AUTHORIZATION.md#s4-6))를 건다.
+PKCE 는 `application.yml` 의 `require-proof-key: true` 로 강제하고, `AuthorizationServerConfig` 가 filter chain 두 개를 직접 정의해 `resource` 검증([4.5](../MCP-AUTHORIZATION.md#s4-5)), access token `aud` 발급([4.7](../MCP-AUTHORIZATION.md#s4-7)), authorization response 의 `iss`([4.6](../MCP-AUTHORIZATION.md#s4-6))를 건다.
 두 client 는 `application.yml` 의 pre-registration 이고([4.4](../MCP-AUTHORIZATION.md#s4-4)), public client 는 두 장치로 매 요청 consent 를 거친다([5.6](../MCP-AUTHORIZATION.md#s5-6)).
 자세히: [API-SPEC.md](API-SPEC.md#auth-server) · [등록](SEQUENCES.md#registration) · [내부 호출 순서](SEQUENCES.md#as-internals)
 
@@ -79,7 +79,7 @@ MCP authorization 표준(PKCE·`resource`·`aud`·`iss`·전송 보안)이 요�
 
 | 클래스 | 역할 | 명세 |
 |---|---|---|
-| `AuthorizationServerConfig` | filter chain 두 개를 직접 정의해 PKCE 강제와 아래 확장점을 건다 | [4.3](../MCP-AUTHORIZATION.md#s4-3), [4.5](../MCP-AUTHORIZATION.md#s4-5)–[4.7](../MCP-AUTHORIZATION.md#s4-7), [5.6](../MCP-AUTHORIZATION.md#s5-6) |
+| `AuthorizationServerConfig` | filter chain 두 개를 직접 정의해 아래 확장점을 건다. PKCE 강제는 이 클래스가 아니라 `application.yml` 의 `require-proof-key: true` 다 | [4.3](../MCP-AUTHORIZATION.md#s4-3), [4.5](../MCP-AUTHORIZATION.md#s4-5)–[4.7](../MCP-AUTHORIZATION.md#s4-7), [5.6](../MCP-AUTHORIZATION.md#s5-6) |
 | `ResourceIndicatorValidator` | authorization request 의 `resource` 가 허용 목록의 값 하나가 아니면 `invalid_target` 을 던진다 | [4.5](../MCP-AUTHORIZATION.md#s4-5) |
 | `PublicClientScopeValidator` | public client 가 `openid` 말고 consent 할 scope 를 요청하지 않으면 `invalid_scope` 를 던진다 | [4.5](../MCP-AUTHORIZATION.md#s4-5), [5.6](../MCP-AUTHORIZATION.md#s5-6) |
 | `ResourceAudienceTokenCustomizer` | access token 의 `aud` 를 `resource` 로 발급한다. authorization request 와 다르거나 거기 없던 `resource` 는 `invalid_target` 이다 | [4.7](../MCP-AUTHORIZATION.md#s4-7) |

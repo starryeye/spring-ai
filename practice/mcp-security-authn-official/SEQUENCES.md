@@ -329,7 +329,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as Agent
+    participant C as Client
     participant TSF as McpTransportSecurityFilter
     participant S as SecurityConfig filter chain
     participant JD as JwtDecoder
@@ -337,7 +337,7 @@ sequenceDiagram
     participant PVF as McpProtocolVersionFilter
     participant T as WebMvcStreamableServerTransportProvider
     C->>TSF: POST /mcp, Authorization: Bearer, MCP-Protocol-Version, Mcp-Session-Id
-    Note over TSF: DefaultServerTransportSecurityValidator 로 Origin·Host 검사
+    Note over TSF: DefaultServerTransportSecurityValidator 로 Origin·Host 검사<br/>두 검사의 순서는 헤더 HashMap 순서를 따른다
     alt Origin 이 있는데 허용 목록 밖
         TSF-->>C: 403 Invalid Origin header
     else Host 가 허용 목록 밖
@@ -375,9 +375,9 @@ sequenceDiagram
 
 **단계**
 
-1. Agent 의 transport 가 모든 요청에 `Authorization: Bearer` 를 싣는다. discovery 탐침만 token 이 없다([Discovery](#discovery)).
-2. `McpTransportSecurityFilter` 는 `McpTransportConfig` 가 `SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1` 순서로 MCP endpoint 에만 건 servlet filter 다. 허용 Origin 을 두지 않아, `Origin` 이 실리면 `403` 이다(C13).
-3. `Host` 가 `localhost:8111`·`127.0.0.1:8111` 이 아니면 `421` 이다(S14). 두 검사 사이의 순서는 헤더를 담은 `HashMap` 순서를 따른다. 테스트: `McpAuthorizationStandardTest#token_이_없어도_허용되지_않은_Host_는_인증보다_먼저_421이다`.
+1. Agent 의 transport 는 모든 요청에 `Authorization: Bearer` 를 싣고 `Origin` 은 싣지 않는다. `Origin`·`Host` 가 틀린 요청은 browser 등 다른 client 가 보내는 경우다.
+2. `McpTransportSecurityFilter` 는 `McpTransportConfig` 가 `SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1` 순서로 MCP endpoint 에만 건 servlet filter 다. 허용 Origin 을 두지 않아, `Origin` 이 실리면 token 과 무관하게 `403` 이다(C13). 테스트: `McpAuthorizationStandardTest#token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다`.
+3. `Host` 가 `localhost:8111`·`127.0.0.1:8111` 이 아니면 인증 전에 `421` 이다(S14, 테스트 `#token_이_없어도_허용되지_않은_Host_는_인증보다_먼저_421이다`). 두 검사 사이의 순서는 SDK 가 헤더를 담은 `HashMap` 을 도는 순서를 따르고, 정해져 있지 않다.
 4. 통과하면 Spring Security filter chain 으로 넘어간다. `SecurityConfig` 는 `anyRequest().authenticated()` 와 `oauth2ResourceServer(jwt)` 를 건다.
 5. `Authorization` 헤더가 없으면 `SecurityConfig#resourceMetadataEntryPoint` 가 `error` 없는 `401` challenge 를 준다(C1).
 6. Bearer token 은 Boot 자동 구성의 `JwtDecoder` 가 검증한다. `issuer-uri` 가 신뢰할 issuer, `audiences` 가 기대 `aud` 다([허브 4.9](../MCP-AUTHORIZATION.md#s4-9)).
@@ -418,9 +418,9 @@ sequenceDiagram
         AE->>IIH: errorResponseHandler
         IIH-->>C: 302 redirect_uri?error, iss
     else 통과
-        opt public client
-            AE->>PCS: findById(registeredClientId, principal)
-            PCS-->>AE: null (public client 의 consent 는 없다)
+        AE->>PCS: findById(registeredClientId, principal)
+        PCS-->>AE: public client 면 null, confidential client 면 저장소 값
+        opt consent 가 필요 (public client)
             AE-->>C: 200 consent 화면
             C->>AE: POST /oauth2/authorize (scope 선택)
             AE->>PCS: save(...)
@@ -449,8 +449,8 @@ sequenceDiagram
 
 1. authorization request 가 Browser 를 거쳐 온다. `AuthorizationServerConfig` 가 바꿔 둔 `authenticationValidator` 가 기본 검증 뒤에 `ResourceIndicatorValidator`·`PublicClientScopeValidator` 를 차례로 부른다.
 2. `resource` 가 허용 목록 밖(C16)이거나 여러 개면 `invalid_target`, public client 에 consent 할 scope 가 없으면 `invalid_scope`(P8-1)다. `IssuerIdentifyingAuthorizationResponseHandler` 의 `errorResponseHandler` 가 `error` 와 `iss` 를 실어 redirect 한다.
-3. 통과하면 client 유형에 따라 갈린다. public client(`local-mcp-client`)면 `PublicClientConsentService#findById` 가 `null` 을 돌려줘 저장된 consent 를 무시한다(P8).
-4. `null` 이면 consent 화면을 보여 주고, 사용자가 scope 를 골라 제출하면 `PublicClientConsentService#save` 가 불리지만 public client 면 저장하지 않는다. confidential client(`official-shop-agent`)는 `require-authorization-consent: false` 라 이 단계 전체를 건너뛴다.
+3. 통과하면 `OAuth2AuthorizationCodeRequestAuthenticationProvider` 는 client 유형과 관계없이 `PublicClientConsentService#findById` 를 부른다. public client(`local-mcp-client`)면 `null` 을 돌려줘 저장된 consent 를 무시하고(P8), confidential client 면 위임한 저장소의 값을 돌려준다.
+4. 이어서 consent 필요 여부를 판정한다. confidential client(`official-shop-agent`)는 `require-authorization-consent: false` 라 consent 가 필요 없다. public client 는 consent 화면을 받고, 제출 때 `PublicClientConsentService#save` 가 불리지만 저장하지 않는다.
 5. authorization code 발급이 확정되면 `IssuerIdentifyingAuthorizationResponseHandler` 의 `authorizationResponseHandler` 가 code·`state`·`iss` 를 실어 redirect 한다(C5). 이 handler 하나가 성공·오류 두 경로 모두를 맡는다.
 6. token request 가 온다. client 인증에 실패하면(예: 잘못된 `client_secret`, public client 에 실린 비밀) `OAuth2ClientAuthenticationFilter` 가 `ClientAuthenticationChallengeFailureHandler` 를 부른다.
 7. 이 handler 는 요청이 `Authorization` 헤더로 인증을 시도했을 때만 `WWW-Authenticate` 를 붙이고(RFC 6749 §5.2), 오류 코드가 `invalid_client` 일 때만 `401` 이다(S8, P12, P14).
