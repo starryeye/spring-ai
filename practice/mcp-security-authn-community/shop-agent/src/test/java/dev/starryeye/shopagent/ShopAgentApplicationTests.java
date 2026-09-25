@@ -26,7 +26,7 @@ class ShopAgentApplicationTests {
 
 	@org.junit.jupiter.api.BeforeEach
 	void 발견_결과를_고정한다() {
-		org.mockito.BDDMockito.given(this.discovery.discover(DiscoveryFixtures.RESOURCE))
+		org.mockito.BDDMockito.given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
 				.willReturn(DiscoveryFixtures.discovered());
 	}
 

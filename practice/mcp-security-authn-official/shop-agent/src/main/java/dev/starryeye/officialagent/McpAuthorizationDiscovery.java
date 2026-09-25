@@ -19,8 +19,10 @@ import java.util.regex.Pattern;
  *   <li>토큰 없이 MCP 서버를 호출해 401 과 {@code WWW-Authenticate} 를 받는다</li>
  *   <li>헤더의 {@code resource_metadata} 를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
  *   <li>메타데이터의 {@code resource} 가 우리가 부른 URL 과 같은지 확인한다(RFC 9728 §3.3)</li>
- *   <li>{@code authorization_servers} 의 인가 서버 메타데이터를 RFC 8414 → OIDC 순서로 찾는다</li>
- *   <li>메타데이터의 {@code issuer} 가 같은지, PKCE {@code S256} 을 지원하는지 확인한다</li>
+ *   <li>{@code authorization_servers} 가 자격증명이 등록된 issuer 인지 먼저 확인한다(아니면 더 요청하지 않는다)</li>
+ *   <li>인가 서버 메타데이터를 RFC 8414 → OIDC 순서로 찾는다</li>
+ *   <li>메타데이터의 {@code issuer} 가 같은지, PKCE {@code S256} 을 지원하는지,
+ *       {@code authorization_endpoint}·{@code token_endpoint} 가 http(s) 인지 확인한다</li>
  * </ol>
  *
  * <p>이 단계들이 있어야 "MCP 서버 주소 하나만 알면 나머지는 서버가 알려준다"가 성립한다.
@@ -51,13 +53,22 @@ public class McpAuthorizationDiscovery {
 		this.restClient = restClient;
 	}
 
-	public DiscoveredAuthorization discover(String resourceUrl) {
+	/**
+	 * @param trustedIssuer 자격증명이 등록된 Authorization Server. PRM 이 다른 곳을 가리키면 그 metadata 도
+	 *                      요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
+	 */
+	public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
 		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl);
 
 		if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
 			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
 		}
 		String issuer = String.valueOf(servers.get(0));
+		if (!trustedIssuer.equals(issuer)) {
+			throw new McpDiscoveryException(
+					"자격증명은 %s 에 등록된 것인데 PRM 이 가리키는 인가 서버는 %s 다 — 메타데이터를 요청하지 않는다"
+							.formatted(trustedIssuer, issuer));
+		}
 
 		return new DiscoveredAuthorization((String) protectedResource.get("resource"), issuer,
 				authorizationServerMetadata(issuer));
@@ -140,9 +151,28 @@ public class McpAuthorizationDiscovery {
 					|| !methods.contains("S256")) {
 				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
 			}
+			// MCP Security Best Practices: authorization URL 을 열기 전에 스킴을 확인한다(MUST).
+			requireHttpUrl(metadata, "authorization_endpoint");
+			requireHttpUrl(metadata, "token_endpoint");
 			return metadata;
 		}
 		throw new McpDiscoveryException("인가 서버 메타데이터를 찾지 못했다: " + issuer);
+	}
+
+	private static void requireHttpUrl(Map<String, Object> metadata, String name) {
+		Object value = metadata.get(name);
+		String scheme = null;
+		if (value instanceof String url) {
+			try {
+				scheme = URI.create(url).getScheme();
+			}
+			catch (IllegalArgumentException ex) {
+				scheme = null;
+			}
+		}
+		if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+			throw new McpDiscoveryException("인가 서버 메타데이터의 %s 가 http(s) URL 이 아니다: %s".formatted(name, value));
+		}
 	}
 
 	/** RFC 8414 §3.1 과 OIDC 디스커버리의 경로 규칙. MCP 는 RFC 8414 를 먼저 시도하라고 한다. */

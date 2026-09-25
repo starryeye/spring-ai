@@ -37,7 +37,8 @@ class DiscoveredClientRegistrationRepositoryTest {
 
 	@Test
 	void 발견한_엔드포인트로_등록을_만든다() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE)).willReturn(DiscoveryFixtures.discovered());
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+				.willReturn(DiscoveryFixtures.discovered());
 
 		var registration = repository().findByRegistrationId("authserver");
 
@@ -63,29 +64,30 @@ class DiscoveredClientRegistrationRepositoryTest {
 
 	@Test
 	void 발견은_한_번만_한다() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE)).willReturn(DiscoveryFixtures.discovered());
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+				.willReturn(DiscoveryFixtures.discovered());
 		DiscoveredClientRegistrationRepository repository = repository();
 
 		repository.findByRegistrationId("authserver");
 		repository.findByRegistrationId("authserver");
 		repository.discovered();
 
-		then(this.discovery).should(times(1)).discover(anyString());
+		then(this.discovery).should(times(1)).discover(anyString(), anyString());
 	}
 
 	@Test
-	void 자격증명이_묶인_인가_서버가_아니면_쓰지_않는다() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE))
-				.willReturn(DiscoveryFixtures.discovered("http://evil.example"));
+	void 자격증명이_묶인_issuer_를_discovery_에_넘긴다() {
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+				.willReturn(DiscoveryFixtures.discovered());
 
-		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> repository().findByRegistrationId("authserver"))
-				.withMessageContaining("http://evil.example");
+		repository().findByRegistrationId("authserver");
+
+		then(this.discovery).should().discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER);
 	}
 
 	@Test
 	void 실패는_캐시하지_않는다() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE))
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
 				.willThrow(new McpDiscoveryException("서버가 아직 뜨지 않았다"))
 				.willReturn(DiscoveryFixtures.discovered());
 		DiscoveredClientRegistrationRepository repository = repository();

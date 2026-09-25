@@ -8,7 +8,6 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
-import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
@@ -23,6 +22,8 @@ import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -69,9 +70,11 @@ class TokenRefreshTest {
                 .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler());
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
-        var refreshTokenClient = new RestClientRefreshTokenTokenResponseClient();
+        // 운영과 같은 bean 메서드로 refresh client 를 만든다 — resource 파라미터를 싣는 것도 그 메서드의 일이다.
+        DiscoveredClientRegistrationRepository discovered = mock(DiscoveredClientRegistrationRepository.class);
+        given(discovered.discovered()).willReturn(DiscoveryFixtures.discovered());
+        var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered);
         refreshTokenClient.setRestClient(builder.build());
-        refreshTokenClient.addParametersConverter(ResourceIndicators.tokenRequest(() -> RESOURCE));
 
         server.expect(requestTo(ISSUER + "/oauth2/token"))
                 .andExpect(method(HttpMethod.POST))

@@ -17,8 +17,9 @@ import java.util.Map;
  * MCP 서버가 아직 떠 있지 않아도 에이전트는 떠야 하기 때문이다. 실패한 발견은
  * 캐시하지 않으므로 다음 요청에서 다시 시도한다.
  *
- * <p>자격증명(client_id/secret)은 특정 인가 서버에 등록된 것이다. 발견 결과가 다른 인가
- * 서버를 가리키면 자격증명을 보내지 않고 멈춘다 — 가짜 인가 서버로 비밀을 흘리지 않기 위해서다.
+ * <p>자격증명(client_id/secret)은 특정 인가 서버에 등록된 것이다. 발견이 다른 인가 서버를 가리키면
+ * 그 메타데이터도 요청하지 않고 멈춘다({@link McpAuthorizationDiscovery#discover(String, String)}) —
+ * 가짜 인가 서버로 비밀을 흘리지도, 공격자가 고른 주소로 요청을 보내지도 않기 위해서다.
  */
 public class DiscoveredClientRegistrationRepository implements ClientRegistrationRepository {
 
@@ -61,7 +62,8 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
         }
         synchronized (this) {
             if (this.discovered == null) {
-                DiscoveredAuthorization authorization = this.discovery.discover(this.properties.resourceUrl());
+                DiscoveredAuthorization authorization = this.discovery.discover(this.properties.resourceUrl(),
+                        this.properties.credentialsIssuer());
                 this.discovered = new Discovered(authorization, registration(authorization));
             }
             return this.discovered;
@@ -69,11 +71,6 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
     }
 
     private ClientRegistration registration(DiscoveredAuthorization authorization) {
-        if (!this.properties.credentialsIssuer().equals(authorization.issuer())) {
-            throw new McpDiscoveryException(
-                    "자격증명은 %s 에 등록된 것인데 발견한 인가 서버는 %s 다 — 자격증명을 보내지 않는다"
-                            .formatted(this.properties.credentialsIssuer(), authorization.issuer()));
-        }
         return ClientRegistration.withRegistrationId(this.registrationId)
                 .clientId(this.credentials.getClientId())
                 .clientSecret(this.credentials.getClientSecret())
