@@ -3,12 +3,14 @@
 
 사용: python3 check_docs.py [--links-from OLD.md] [--dropped DROPPED.txt] FILE...
 위반이 하나라도 있으면 `경로:줄: [규칙] 설명` 을 출력하고 종료 코드 1 로 끝난다.
-규칙 이름: setext, length, narrative, term, link, mermaid, field-count, links-from, missing,
-cell-length, sentence-chars, observation.
+규칙 이름: setext, narrative, term, particle-space, style, body-level, body-capture, body-test, html,
+link, mermaid, diagram-link, diagram-missing, diagram-stale, cell-length, sentence-chars, links-from, missing.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -21,7 +23,6 @@ TERMS_FILE = SKILL_DIR / "terms.txt"
 # 개발 과정 이야기를 드러내는 표현. 문서에는 결과와 명세만 남긴다.
 BANNED_PHRASES = ["처음엔", "처음에는", "고쳤", "수정했", "Task ", "실측했", "착각", "버그를",
                   "바꿨", "추가했", "옮겼", "없앴", "확인했", "드러났"]
-SENTENCE_LIMIT = 3
 CELL_SENTENCE_LIMIT = 2
 SENTENCE_CHAR_LIMIT = 150
 
@@ -32,15 +33,21 @@ LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 LIST_ITEM = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
 RULE_LINE = re.compile(r"^\s*(-{3,}|={3,})\s*$")
 URL = re.compile(r"https?://[^\s)\]>`\"']+")
-FIELD_COUNT_LINE = re.compile(r"^\s*원문 필드:\s*(.*)$")
-FIELD_COUNT_NONE = re.compile(r"^없음\b")
-FIELD_COUNT_PATTERN = re.compile(r"(\d+)\s*개\s*→\s*표\s*(\d+)\s*행")
 TABLE_ROW = re.compile(r"^\s*\|.+\|\s*$")
 TABLE_SEP = re.compile(r"^[\s|:-]+$")
-OBSERVATION = re.compile(r"^\s*(?:[-*]\s+)?관측:")
-CAPTURE_ID = re.compile(r"(?<![A-Za-z0-9])[CSP]\d+(?:-\d+)?(?![A-Za-z0-9])")
 SENTENCE_END = re.compile(r"(?<!\d)[.?!](?=\s|$|[)\]\"'])")
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
+
+# 기계적 번역 어투. 자연스러운 한국어로 바꿔 쓴다(SKILL.md "문체").
+STYLE_PHRASES = ["싣는", "싣고", "싣는다", "실린다", "배선", "물러나", "물러난", "드러나", "드러난"]
+PARTICLE_SPACE = re.compile(
+    r"(`[^`]+`|[A-Za-z0-9)\]])\s+(을|를|이|가|은|는|의|에|에서|에게|로|으로|와|과|도|만|까지|부터|처럼|보다)(?=[\s.,:;)!?]|$)")
+LEVEL_WORD = re.compile(r"\b(MUST|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)\b")
+CAPTURE_ID = re.compile(r"(?<![A-Za-z0-9#])[CSP]\d+(?:-\d+)?(?![A-Za-z0-9])")
+TEST_NAME = re.compile(r"\b[A-Z][A-Za-z0-9]*Test#")
+HTML_TAG = re.compile(r"</?[A-Za-z][A-Za-z0-9]*(\s[^>]*)?/?>")
+SPEC_SECTION = re.compile(r"^#{1,6}\s+(?:[\d.]+\s+)?명세 근거\s*$")
+DIAGRAM_LINK = re.compile(r"^\[다이어그램 그림으로 보기\]\(diagrams/([^)]+\.png)\)\s*$")
 
 
 @dataclass(frozen=True)
@@ -150,14 +157,6 @@ def check_setext(path: str, prose) -> list[Issue]:
     return issues
 
 
-def check_units(path: str, prose) -> list[Issue]:
-    return [
-        Issue(path, no, "length", f"한 문단·항목이 {n}문장이다(최대 {SENTENCE_LIMIT})")
-        for no, text in units(prose)
-        if (n := sentence_count(text)) > SENTENCE_LIMIT
-    ]
-
-
 def check_words(path: str, prose, terms) -> list[Issue]:
     issues = []
     for no, line in prose:
@@ -204,59 +203,6 @@ def _long_sentences(path: str, no: int, text: str) -> list[Issue]:
         for s in sentences(text)
         if len(s) > SENTENCE_CHAR_LIMIT
     ]
-
-
-def check_observations(path: str, prose) -> list[Issue]:
-    """'관측:' 줄은 근거가 된 캡처 단계 ID(C<n>·S<n>·P<n>, 하위 단계는 P8-1)를 담아야 한다."""
-    return [
-        Issue(path, no, "observation", "관측 줄에 캡처 단계 ID(C<n>·S<n>·P<n>)가 없다")
-        for no, line in prose
-        if OBSERVATION.match(line) and not CAPTURE_ID.search(line)
-    ]
-
-
-def _table_rows_ending_at(prose, idx: int) -> int | None:
-    """prose[idx] 바로 위(빈 줄 0~1개 사이)에서 끝나는 markdown 표의 데이터 행 수. 표가 없으면 None."""
-    j, blanks = idx - 1, 0
-    while j >= 0 and not prose[j][1].strip():
-        blanks += 1
-        j -= 1
-        if blanks > 1:
-            return None
-    if j < 0 or not TABLE_ROW.match(prose[j][1]):
-        return None
-    end = j
-    start = j
-    while start - 1 >= 0 and TABLE_ROW.match(prose[start - 1][1]):
-        start -= 1
-    rows = [prose[k][1] for k in range(start, end + 1)]
-    if len(rows) < 2 or not TABLE_SEP.match(rows[1].strip()) or "-" not in rows[1]:
-        return None
-    return len(rows) - 2
-
-
-def check_field_counts(path: str, prose) -> list[Issue]:
-    """'원문 필드: <N>개 → 표 <M>행' 줄의 N·M 과 실제 표 데이터 행 수가 맞는지 본다."""
-    issues = []
-    for i, (no, line) in enumerate(prose):
-        m = FIELD_COUNT_LINE.match(line)
-        if not m:
-            continue
-        rest = m.group(1).strip()
-        if FIELD_COUNT_NONE.match(rest):
-            continue
-        pm = FIELD_COUNT_PATTERN.search(rest)
-        if not pm:
-            issues.append(Issue(path, no, "field-count", f"'<N>개 → 표 <M>행' 형식이 아니다: {rest[:60]}"))
-            continue
-        n, m_rows = int(pm.group(1)), int(pm.group(2))
-        if n != m_rows:
-            issues.append(Issue(path, no, "field-count", f"명시한 개수 {n} 과 표 {m_rows}행이 다르다"))
-            continue
-        actual = _table_rows_ending_at(prose, i)
-        if actual is not None and actual != m_rows:
-            issues.append(Issue(path, no, "field-count", f"표의 실제 데이터 행({actual})이 명시한 {m_rows}행과 다르다"))
-    return issues
 
 
 def slugify(heading: str) -> str:
@@ -357,14 +303,87 @@ def lint_mermaid(path: str, start: int, lines: list[str]) -> list[Issue]:
     return issues
 
 
+def diagram_hash(source: str) -> str:
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+
+def check_style(path: str, prose) -> list[Issue]:
+    issues = []
+    for no, line in prose:
+        if TABLE_SEP.match(line.strip()):
+            continue
+        without_urls = URL.sub(" ", re.sub(r"\]\([^)]*\)", "]", line))
+        if PARTICLE_SPACE.search(without_urls):
+            issues.append(Issue(path, no, "particle-space", "영어·코드 뒤 조사는 붙여 쓴다"))
+        for phrase in STYLE_PHRASES:
+            if phrase in clean(line):
+                issues.append(Issue(path, no, "style", f"번역 어투 '{phrase}'"))
+                break
+        if HTML_TAG.search(re.sub(r"`[^`]*`", " ", line)):
+            issues.append(Issue(path, no, "html", "HTML 태그·앵커 태그를 쓰지 않는다"))
+    return issues
+
+
+def check_body(path: Path, prose) -> list[Issue]:
+    """안내서 본문 금지 항목. '명세 근거' 절과 reference-*.md 는 예외다."""
+    if path.name.startswith("reference-"):
+        return []
+    issues, in_spec, spec_level = [], False, 0
+    for no, line in prose:
+        h = HEADING.match(line)
+        if h:
+            level = len(h.group(1))
+            if SPEC_SECTION.match(line):
+                in_spec, spec_level = True, level
+            elif in_spec and level <= spec_level:
+                in_spec = False
+            continue
+        if in_spec:
+            continue
+        text = clean(line)
+        if LEVEL_WORD.search(text):
+            issues.append(Issue(str(path), no, "body-level", "요구 수준 단어는 '명세 근거' 표에만 쓴다"))
+        if CAPTURE_ID.search(text):
+            issues.append(Issue(str(path), no, "body-capture", "캡처 번호는 본문에 쓰지 않는다"))
+        if TEST_NAME.search(line):
+            issues.append(Issue(str(path), no, "body-test", "테스트 이름은 본문에 쓰지 않는다"))
+    return issues
+
+
+def check_diagrams(path: Path, lines: list[str], blocks) -> list[Issue]:
+    issues = []
+    sources_file = path.parent / "diagrams" / ".sources.json"
+    sources = json.loads(sources_file.read_text(encoding="utf-8")) if sources_file.exists() else {}
+    n = 0
+    for start, lang, body in blocks:
+        if lang != "mermaid":
+            continue
+        n += 1
+        expected = f"{path.stem}-{n}.png"
+        end = start + len(body) + 1
+        link_no = next((i for i in range(end + 1, len(lines) + 1) if lines[i - 1].strip()), None)
+        m = DIAGRAM_LINK.match(lines[link_no - 1]) if link_no else None
+        if not m or m.group(1) != expected:
+            issues.append(Issue(str(path), start, "diagram-link",
+                                f"mermaid 블록 아래에 [다이어그램 그림으로 보기](diagrams/{expected}) 가 없다"))
+            continue
+        if not (path.parent / "diagrams" / expected).exists():
+            issues.append(Issue(str(path), link_no, "diagram-missing", f"그림이 없다: {expected} — render_diagrams.py 를 돌린다"))
+        elif sources.get(expected) != diagram_hash("".join(l + "\n" for l in body)):
+            issues.append(Issue(str(path), link_no, "diagram-stale", f"그림이 원본과 다르다: {expected} — render_diagrams.py 를 돌린다"))
+    return issues
+
+
 def check_file(path: Path, terms) -> list[Issue]:
-    text = strip_front_matter(path.read_text(encoding="utf-8"))
+    raw = path.read_text(encoding="utf-8")
+    text = strip_front_matter(raw)
     prose, blocks = split_blocks(text)
     rel = str(path)
-    issues = check_setext(rel, prose) + check_units(rel, prose) + check_words(rel, prose, terms)
-    issues += check_cells(rel, prose) + check_sentence_chars(rel, prose) + check_observations(rel, prose)
-    issues += check_field_counts(rel, prose)
+    issues = check_setext(rel, prose) + check_words(rel, prose, terms) + check_style(rel, prose)
+    issues += check_cells(rel, prose) + check_sentence_chars(rel, prose)
+    issues += check_body(path, prose)
     issues += check_links(path.resolve(), prose)
+    issues += check_diagrams(path, text.splitlines(), blocks)
     for start, lang, lines in blocks:
         if lang == "mermaid":
             issues += lint_mermaid(rel, start, lines)

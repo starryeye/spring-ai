@@ -1,13 +1,14 @@
-# 한국어로 옮기면 안 되는 전문 용어. 형식: 정규식<TAB>써야 할 영어 표기. 주제가 늘면 여기에 더한다.
+# 한국어로 쓰면 안 되는 기술 용어. 형식: 정규식<TAB>써야 할 영어 표기. 흔한 말도 영어로 쓴다(SKILL.md "용어").
 토큰	token
 클라이언트	client
 (?<![가-힣])인가(?=[\s을를은는이가의에와과도로된]|$)	authorization
-리소스 서버	Resource Server
-보호 리소스	Protected Resource
+리소스 서버	resource server
+보호 리소스	protected resource
 메타데이터	metadata
 사전 등록	pre-registration
-동의 화면	consent
-(?<![가-힣])동의(?=[\s을를은는이가의에와과도로]|$)	consent
+동의 화면	consent 화면
+(?<![가-힣])동의(?=[\s을를은는이가의에와과도로하한했]|$)	consent
+재동의	re-consent
 리다이렉트	redirect
 콜백	callback
 발급자	issuer
@@ -16,10 +17,20 @@
 챌린지	challenge
 세션	session
 필터 ?체인	filter chain
+(?<![가-힣])필터	filter
 에이전트	agent
 MCP 서버	MCP Server
-재동의	re-consent
 브라우저	browser
+로그인	login
+로그아웃	logout
+자격 ?증명	credentials
+공개 ?키	public key
+비밀 ?키	private key
+(?<![가-힣])서명	signature
+파라미터	parameter
+헤더	header
 엔드포인트	endpoint
 커뮤니티	community
 모듈	module
+필드	field
+빈(?=[\s을를은는이가의에와과도로]|$)	bean
