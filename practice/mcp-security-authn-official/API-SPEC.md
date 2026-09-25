@@ -26,15 +26,29 @@
 |---|---|---|---|
 | `GET /.well-known/oauth-authorization-server` | Authorization Server Metadata 제공 | `issuer=http://localhost:9010`, `code_challenge_methods_supported=["S256"]`, `token_endpoint_auth_methods_supported` 에 `none` 추가(`AuthorizationServerConfig`) | [`as-metadata`](../MCP-API-SPEC.md#as-metadata) |
 | `GET /.well-known/openid-configuration` | OIDC provider metadata 제공 | `AuthorizationServerConfig` 가 `.oidc(...)` 로 직접 켠다(filter chain 을 직접 정의해 Boot 기본 chain 이 물러나므로, [README](README.md#filter-chain-을-직접-정의하면-oidc-discovery-도-직접-켠다)). 위 값에 `userinfo_endpoint`·`end_session_endpoint` 추가 | [`oidc-discovery`](../MCP-API-SPEC.md#oidc-discovery) |
-| `GET /oauth2/authorize` | authorization request 접수, PKCE·`resource` 검증 | `require-proof-key: true`, `ResourceIndicatorValidator` 가 `resource` 를 검사 | [`authorize`](../MCP-API-SPEC.md#authorize) |
-| `POST /oauth2/authorize` | public client 의 consent 제출 | `PublicClientConsentService` 가 저장하지 않아 매 요청 consent 화면을 거친다 | [`authorize-consent`](../MCP-API-SPEC.md#authorize-consent) |
+| `GET /oauth2/authorize` | authorization request 접수, PKCE·`resource`·scope 검증 | `require-proof-key: true`. `ResourceIndicatorValidator` 가 `resource` 를, `PublicClientScopeValidator` 가 public client 의 scope 를 검사 | [`authorize`](../MCP-API-SPEC.md#authorize) |
+| `POST /oauth2/authorize` | public client 의 consent 제출 | `PublicClientConsentService` 가 public client 의 consent 를 저장하지 않아 매 요청 consent 화면을 거친다 | [`authorize-consent`](../MCP-API-SPEC.md#authorize-consent) |
 | authorization response(redirect) | code·`state`·`iss` 전달 | `IssuerIdentifyingAuthorizationResponseHandler` 가 성공·오류 모두에 `iss` 를 싣는다 | [`authorization-response`](../MCP-API-SPEC.md#authorization-response) |
-| `POST /oauth2/token`(`authorization_code`) | access token·refresh token·ID token 발급 | `ResourceAudienceTokenCustomizer` 가 access token `aud` 를 `resource` 로 지정 | [`token-authorization-code`](../MCP-API-SPEC.md#token-authorization-code) |
+| `POST /oauth2/token`(`authorization_code`) | access token·refresh token·ID token 발급 | `ResourceAudienceTokenCustomizer` 가 access token `aud` 를 `resource` 로 지정하고, token request 의 `resource` 를 authorization request 와 대조 | [`token-authorization-code`](../MCP-API-SPEC.md#token-authorization-code) |
 | `POST /oauth2/token`(`refresh_token`) | token 갱신 | 같은 커스터마이저 재적용. public client 는 발급하지 않음(`refresh_token` 없음) | [`token-refresh`](../MCP-API-SPEC.md#token-refresh) |
 | `GET /oauth2/jwks` | 서명 key 공개 | Boot 자동설정 기본값 그대로 | [`jwks`](../MCP-API-SPEC.md#jwks) |
 | client 인증 실패 응답 | `WWW-Authenticate` challenge | `ClientAuthenticationChallengeFailureHandler` 가 `Authorization` 헤더로 시도한 실패에 붙인다 | [4.7](../MCP-AUTHORIZATION.md#s4-7) |
 | Client ID Metadata Document | client 자기 등록 | 쓰지 않음 — `https` `client_id` 가 전제라 이 practice 는 구현하지 않는다 | [`cimd-document`](../MCP-API-SPEC.md#cimd-document) |
 | `POST /register`(Dynamic Client Registration) | 동적 client 등록 | 쓰지 않음 — 명세 기준 endpoint 이고 켜지 않는다 | [`dcr-register`](../MCP-API-SPEC.md#dcr-register) |
+
+**오류**
+
+표준 오류 전체는 [`authorize`](../MCP-API-SPEC.md#authorize)·[`token-authorization-code`](../MCP-API-SPEC.md#token-authorization-code) 에 있다. 여기서는 이 practice 의 클래스가 내는 오류만 적는다.
+
+| 상황 | 응답 | 이 practice |
+|---|---|---|
+| authorization request 의 `resource` 가 허용 목록 밖 | redirect 로 `error=invalid_target`(C16) | `ResourceIndicatorValidator` |
+| authorization request 의 `resource` 가 여러 개 | redirect 로 `error=invalid_target` | `ResourceIndicatorValidator` — `McpResourceProperties#isAllowed` 는 문자열 하나만 받는다. 테스트 `인가_요청의_resource_가_여러_개면_invalid_target_이다` |
+| public client 가 scope 를 생략하거나 `openid` 하나만 요청 | redirect 로 `error=invalid_scope`, `error_uri` 는 RFC 6749 §3.3(P8-1) | `PublicClientScopeValidator` — consent 판정 전에 거부한다 |
+| token request 의 `resource` 가 authorization request 와 다름 | `400` `invalid_target`(S6) | `ResourceAudienceTokenCustomizer` |
+| authorization request 에 없던 `resource` 를 token request 에서 보냄 | `400` `invalid_target` | `ResourceAudienceTokenCustomizer` — 테스트 `인가_요청에_없던_resource_를_토큰_요청에서_정하면_invalid_target_이다` |
+| token request 의 `resource` 가 여러 개 | `400` `invalid_target` | `ResourceAudienceTokenCustomizer` — 여러 값은 authorization request 의 값과 같지 않다. 테스트 `토큰_요청의_resource_가_여러_개면_invalid_target_이다` |
+| `Authorization` 헤더로 시도한 client 인증 실패 | `401` `invalid_client` + `WWW-Authenticate: Basic`(S8) | `ClientAuthenticationChallengeFailureHandler` |
 
 ---
 
@@ -46,9 +60,22 @@
 |---|---|---|---|
 | `POST /mcp`(token 없음) | token 없는 요청에 `401` | `WWW-Authenticate: Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource/mcp"`(C1) | [`mcp-unauthenticated`](../MCP-API-SPEC.md#mcp-unauthenticated) |
 | `GET /.well-known/oauth-protected-resource[/mcp]` | Protected Resource Metadata 제공 | `resource=http://localhost:8111/mcp`, `authorization_servers=["http://localhost:9010"]`(C2) | [`prm`](../MCP-API-SPEC.md#prm) |
-| `POST /mcp`(Bearer) | `initialize`·`notifications/initialized`·`tools/list`·`tools/call` | `SecurityConfig` 가 서명·`iss`·`aud`·`exp` 를 검증하고, `McpProtocolVersionFilter` 가 `MCP-Protocol-Version` 을 검증한다 | [`mcp-post`](../MCP-API-SPEC.md#mcp-post) |
-| `GET /mcp` | 서버발 메시지용 SSE stream | `McpTransportConfig` 가 등록한 `Origin`/`Host` 검증기를 통과해야 연다 | [`mcp-get`](../MCP-API-SPEC.md#mcp-get) |
+| `POST /mcp`(Bearer) | `initialize`·`notifications/initialized`·`tools/list`·`tools/call` | `McpTransportSecurityFilter`(인증 전) → `SecurityConfig`(서명·`iss`·`aud`·`exp`) → `McpProtocolVersionFilter` 순서로 검증한다 | [`mcp-post`](../MCP-API-SPEC.md#mcp-post) |
+| `GET /mcp` | 서버발 메시지용 SSE stream | `POST /mcp` 와 같은 filter 를 거친다 | [`mcp-get`](../MCP-API-SPEC.md#mcp-get) |
 | `DELETE /mcp` | session 종료 | `200`(C18), 끝난 session ID 로 다시 요청하면 `404`(S16) | [`mcp-delete`](../MCP-API-SPEC.md#mcp-delete) |
+
+**오류**
+
+검사 순서는 시퀀스 [`mcp-server-validation`](SEQUENCES.md#mcp-server-validation) 에, 표준 오류 전체는 [`mcp-post`](../MCP-API-SPEC.md#mcp-post) 에 있다.
+
+| 상황 | 응답 | 이 practice |
+|---|---|---|
+| `Origin` 이 있는데 허용 목록에 없음 | `403` `Invalid Origin header`(C13). token 이 없어도 `401` 보다 먼저다 | `McpTransportSecurityFilter` — 허용 Origin 을 두지 않는다. 테스트 `token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다` |
+| `Host` 가 `localhost:8111`·`127.0.0.1:8111` 이 아님 | `421` `Invalid Host header`(S14). token 이 없어도 `401` 보다 먼저다 | `McpTransportSecurityFilter` — 테스트 `token_이_없어도_허용되지_않은_Host_는_인증보다_먼저_421이다` |
+| `Authorization` 헤더 없음 | `401` + `resource_metadata`(C1) | `SecurityConfig#resourceMetadataEntryPoint` |
+| 서명·`iss`·`aud`·`exp` 중 하나라도 틀림 | `401` `error="invalid_token"`(S3·C12) | `SecurityConfig` 의 `JwtDecoder` — `issuer-uri`·`audiences` 설정 |
+| 지원하지 않는 `MCP-Protocol-Version` | `400` `-32600`(C15) | `McpProtocolVersionFilter` |
+| 다른 사용자가 연 `Mcp-Session-Id` | token 이 유효하면 통과한다 | session 을 사용자에 묶지 않는다([허브 5.8](../MCP-AUTHORIZATION.md#s5-8), 준수표 28번) |
 
 ---
 
@@ -63,7 +90,7 @@
 | `GET /` | 정적 화면(`index.html`) 제공. 미로그인이면 `SecurityConfig` 가 `/oauth2/authorization/authserver` 로 redirect 한다 | [`agent-login`](#agent-login) |
 | `GET /oauth2/authorization/authserver` | authorization request 시작 | [`agent-login`](#agent-login) |
 | `GET /login/oauth2/code/authserver` | authorization response callback, `iss` 검증 | [`agent-login`](#agent-login) |
-| `POST /api/chat` | 채팅 메시지 처리, MCP tool 호출 | [`api-chat`](#api-chat) |
+| `POST /api/chat` | 채팅 메시지 처리, MCP tool 호출. `X-XSRF-TOKEN` 헤더가 없으면 `403` | [`api-chat`](#api-chat) |
 
 ---
 
@@ -118,15 +145,16 @@ Content-Type: text/plain;charset=UTF-8
 ## `POST /api/chat`
 
 채팅 메시지를 받아 `ChatClient` 로 LLM 에 전달하고, tool 호출을 거친 답을 스트리밍으로 돌려준다.
-MCP 표준이 아니라 이 practice 의 UI 배선이고, 인증은 `SecurityConfig` 의 `anyRequest().authenticated()` 를 그대로 따른다.
+MCP 표준이 아니라 이 practice 의 UI 배선이고, 인증은 `SecurityConfig` 의 `anyRequest().authenticated()`, CSRF 는 `csrf.spa()` 를 따른다.
 
-근거: `ChatController`, `SecurityConfig`
+근거: `ChatController`, `SecurityConfig`, 시퀀스 [`mcp-call`](SEQUENCES.md#mcp-call)
 
 **요청**
 
 | 이름 | 위치 | 표시 | 설명 | 이 practice |
 |---|---|---|---|---|
-| 본문 | 본문 | 필수 — 이 practice 고유 API | 사용자 메시지 평문(JSON 아님) | 씀 — `index.html` 의 `fetch('/api/chat', {method: 'POST', body: message})` |
+| 본문 | 본문 | 필수 — 이 practice 고유 API | 사용자 메시지 평문(JSON 아님) | 씀 — `index.html` 의 `fetch('/api/chat', {method: 'POST', headers: csrfHeaders(), body: message})` |
+| `X-XSRF-TOKEN` | 헤더 | 필수 — 이 practice 고유 API | `XSRF-TOKEN` 쿠키 값. `csrf.spa()` 가 쿠키를 싣고, `index.html` 의 `csrfHeaders()` 가 헤더로 되돌려 보낸다 | 씀 — 테스트 `ChatCsrfTest#페이지가_준_XSRF_TOKEN_을_헤더로_보내면_채팅이_시작된다` |
 
 원문 필드: 없음(이 practice 고유 API)
 
@@ -142,12 +170,15 @@ MCP 표준이 아니라 이 practice 의 UI 배선이고, 인증은 `SecurityCon
 
 | 상황 | 응답 | 근거 |
 |---|---|---|
-| session 없이 호출(미로그인) | `302 Location: /oauth2/authorization/authserver` | `SecurityConfig` 가 `/api/chat` 도 `anyRequest().authenticated()` 로 막아, 로그인 진입점과 같은 응답이 온다 |
+| `X-XSRF-TOKEN` 헤더가 없거나 쿠키 값과 다름 | `403` | `SecurityConfig` 의 `csrf.spa()` — `/api/chat` 도 예외 없이 검사한다. 테스트 `ChatCsrfTest#CSRF_토큰_없이_채팅하면_403` |
+| CSRF 는 통과했지만 session 없이 호출(미로그인) | `302 Location: /oauth2/authorization/authserver` | `SecurityConfig` 가 `/api/chat` 도 `anyRequest().authenticated()` 로 막아, 로그인 진입점과 같은 응답이 온다 |
 
-**예시** (브라우저 화면)
+**예시** (browser 화면)
 
 ```
 POST /api/chat
+X-XSRF-TOKEN: <XSRF-TOKEN 쿠키 값>
+
 노트북 재고 있어?
 ```
 
