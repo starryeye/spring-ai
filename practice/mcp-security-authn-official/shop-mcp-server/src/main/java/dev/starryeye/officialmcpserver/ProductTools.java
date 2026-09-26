@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 import java.util.stream.Collectors;
 
 /**
- * SYNC 서버이므로 반환 타입은 평문 {@code String} 이다.
- * {@code Mono<String>} 으로 바꾸면 오류 없이 툴 등록에서 빠진다 —
- * {@code ShopMcpServerApplicationTests} 의 등록 테스트가 그 사고를 잡는다.
+ * SYNC 서버라서 반환 타입은 평문 {@code String}이다.
+ * {@code Mono<String>}으로 바꾸면 오류 없이 tool 등록에서 빠진다.
+ * {@code ShopMcpServerApplicationTests}의 등록 테스트가 그 실수를 잡는다.
  */
 @Component
 public class ProductTools {
@@ -73,9 +73,9 @@ public class ProductTools {
     }
 
     /**
-     * 누가 이 툴을 호출했는지 로그에 남긴다. 검증 시나리오 4번이 이 값을 본다.
-     * 토큰의 {@code sub} 가 그대로 principal 이름이 되므로, 에이전트가 아니라
-     * <em>사용자</em> 가 찍히는 것이 이 practice 의 관찰 포인트다.
+     * 누가 이 tool을 불렀는지 로그에 남긴다. 안내서 6장과 README의 "직접 확인할 것"이 이 값을 본다.
+     * token의 {@code sub}가 그대로 principal 이름이 된다.
+     * 그래서 agent가 아니라 <em>사용자</em>가 찍히는 것을 이 practice에서 확인할 수 있다.
      */
     private String currentUser() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();

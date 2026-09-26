@@ -1,15 +1,15 @@
 server:
-  # 서버가 연결을 받을 네트워크 주소. 127.0.0.1 이면 이 기기 안에서만 접속할 수 있다
-  # (MCP 2025-11-25 Transports: 로컬에서 도는 서버는 localhost(127.0.0.1)에만 bind 하는 것이 좋다, SHOULD).
-  # 실제 배포에서는 컨테이너·reverse proxy 뒤라면 0.0.0.0(모든 인터페이스)이나 그 네트워크의 인터페이스
-  # 주소를 쓰고, 외부에 무엇을 열지는 proxy·방화벽이 정한다.
+  # 서버가 연결을 받을 네트워크 주소다. 127.0.0.1이면 이 기기 안에서만 접속할 수 있다.
+  # MCP 2025-11-25 Transports는 로컬에서 도는 서버가 localhost(127.0.0.1)에만 bind하기를 권한다(SHOULD).
+  # 실제 배포에서 container나 reverse proxy 뒤에 둔다면 0.0.0.0(모든 interface)이나
+  # 그 네트워크의 interface 주소를 쓴다. 외부에 무엇을 열지는 proxy와 방화벽이 정한다.
   address: 127.0.0.1
   port: 9010
   servlet:
     session:
       cookie:
-        # 쿠키는 호스트만 보고 포트를 구분하지 않는다. community practice(9000/8100)와
-        # 동시에 띄워도 세션이 서로 덮어쓰지 않도록 이름을 분리한다.
+        # cookie는 host만 보고 포트를 구분하지 않는다.
+        # community practice(9000/8100)와 함께 띄워도 session이 서로 덮어쓰지 않도록 이름을 따로 둔다.
         name: OFFICIALAUTHSESSIONID
 
 spring:
@@ -34,15 +34,15 @@ spring:
               scopes:
                 - openid
                 - profile
-            # MCP 2025-11-25 는 PKCE(S256)를 MUST 로 요구한다.
-            # 이 값이 true 면 code_challenge 없는 인가 요청이 거부된다.
+            # MCP 2025-11-25는 PKCE(S256)를 반드시 쓰게 한다(MUST).
+            # 이 값이 true면 code_challenge 없는 authorization request를 거부한다.
             require-proof-key: true
             require-authorization-consent: false
-          # RFC 6749 §2.1 의 공개 클라이언트 — 비밀을 안전하게 보관할 수 없는
-          # 클라이언트(사용자 기기에서 도는 MCP 클라이언트)다. client-secret 자체를
-          # 두지 않는다. client-authentication-methods 가 none 이면 Boot 의
-          # OAuth2AuthorizationServerPropertiesMapper 가 그대로 ClientAuthenticationMethod
-          # 로 만들어 등록한다 — 별도 RegisteredClientRepository 빈이 필요 없다.
+          # RFC 6749 §2.1의 public client다. 비밀을 안전하게 보관할 수 없는 client,
+          # 곧 사용자 기기에서 도는 MCP client다. 그래서 client-secret을 아예 두지 않는다.
+          # client-authentication-methods가 none이면 Boot의 OAuth2AuthorizationServerPropertiesMapper가
+          # 그 값을 ClientAuthenticationMethod로 바꿔 등록한다.
+          # 따로 RegisteredClientRepository bean을 만들 필요가 없다.
           local-mcp-client:
             registration:
               client-id: local-mcp-client
@@ -50,31 +50,34 @@ spring:
                 - none
               authorization-grant-types:
                 - authorization_code
-                # 등록은 허용하지만 Spring 은 공개 클라이언트에 refresh_token 을 발급하지 않는다
-                # (OAuth2RefreshTokenGenerator 가 authorization_code + none 이면 null). 발급 여부는 인가 서버
-                # 재량이고(OAuth 2.1 §1.3.2), 공개 클라이언트에 발급한다면 회전이나 sender-constrained 가 MUST 다(§4.3.1).
+                # 등록은 해 두지만 Spring은 public client에 refresh_token을 발급하지 않는다.
+                # OAuth2RefreshTokenGenerator는 authorization_code grant에 none 인증이면 null을 돌려준다.
+                # 발급 여부는 Authorization Server가 정한다(OAuth 2.1 §1.3.2).
+                # public client에 발급한다면 rotation이나 sender-constrained refresh token을 반드시 쓴다(MUST, §4.3.1).
                 - refresh_token
               redirect-uris:
-                # RFC 8252 §7.3 — 네이티브 앱의 루프백 리다이렉트. 특정 제품 콜백에 매지 않는다.
-                # 루프백이면 인가 서버가 포트를 요청 값으로 바꿔 비교하므로 실행 시점의 임시 포트를 쓸 수 있다.
+                # native app의 loopback redirect다(RFC 8252 §7.3). 특정 제품의 callback 주소에 묶지 않는다.
+                # loopback이면 Authorization Server가 포트를 요청 값으로 바꿔 비교한다.
+                # 그래서 실행할 때 고른 임시 포트를 쓸 수 있다.
                 - http://127.0.0.1:8123/callback
               scopes:
                 - openid
                 - profile
-            # 공개 클라이언트에는 비밀이 없어 code_challenge 가 코드 가로채기를 막는
-            # 유일한 장치다(RFC 7636, MCP 2025-11-25 MUST).
+            # public client에는 비밀이 없다. 그래서 가로챈 code를 쓰지 못하게 막는 장치는
+            # code_challenge뿐이다(RFC 7636, MCP 2025-11-25 MUST).
             require-proof-key: true
-            # 비밀이 없어 "자기 자신임"을 증명하지 못하므로, 사용자가 무엇을 허용하는지
-            # 직접 확인하는 단계를 둔다(OAuth 2.1 §7.3). 클라이언트 단위 설정이라
-            # official-shop-agent 는 영향받지 않는다. PublicClientConsentService 는 이 클라이언트의
-            # 동의를 기록하지 않고, PublicClientScopeValidator 는 동의할 scope 가 없는 요청(scope 없음,
-            # openid 하나)을 invalid_scope 로 거부한다 — 두 장치로 모든 인가 요청이 동의 화면을 거친다(§7.3.1).
+            # 비밀이 없어 client가 자기 자신임을 증명하지 못한다.
+            # 그래서 사용자가 무엇을 허용하는지 직접 확인하는 단계를 둔다(OAuth 2.1 §7.3).
+            # client마다 따로 정하는 설정이라 official-shop-agent는 영향을 받지 않는다.
+            # PublicClientConsentService는 이 client의 consent를 기록하지 않는다.
+            # PublicClientScopeValidator는 consent할 scope가 없는 요청(scope 없음, openid 하나)을
+            # invalid_scope로 거부한다. 이 두 장치로 모든 authorization request가 consent 화면을 거친다(§7.3.1).
             require-authorization-consent: true
 
 mcp:
   authorization:
-    # RFC 8707. 이 인가 서버가 토큰을 발급해 줄 수 있는 보호 리소스 목록이다.
-    # 여기 없는 resource 로 요청하면 invalid_target 으로 거부한다.
+    # RFC 8707. 이 Authorization Server가 token을 발급해 줄 수 있는 protected resource 목록이다.
+    # 여기 없는 resource로 요청하면 invalid_target으로 거부한다.
     resources:
       - http://localhost:8111/mcp
 

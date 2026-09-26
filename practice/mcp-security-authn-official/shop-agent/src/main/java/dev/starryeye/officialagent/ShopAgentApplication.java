@@ -8,11 +8,11 @@ import reactor.core.publisher.Hooks;
 public class ShopAgentApplication {
 
 	public static void main(String[] args) {
-		// SecurityContextHolder 는 thread-local 이고 ChatClient.stream() 의 리액터
-		// 체인은 요청 스레드 밖에서 돈다. 이 훅을 켜면 micrometer context-propagation 이
-		// Spring Security 의 SecurityContextHolderThreadLocalAccessor 를 통해
-		// SecurityContext 를 리액터 경계 너머로 복원한다.
-		// community 버전은 같은 문제를 Spring AI 의 internal 패키지 클래스로 풀었다.
+		// SecurityContextHolder는 thread-local이고, ChatClient.stream()의 reactor chain은 요청 thread 밖에서 돈다.
+		// 이 hook을 켜면 micrometer context-propagation이 Spring Security의
+		// SecurityContextHolderThreadLocalAccessor로 SecurityContext를 reactor의 thread에 옮겨 준다.
+		// community practice는 같은 문제를 module의 AuthenticationMcpTransportContextProvider.writeToReactorContext()와
+		// ChatController의 .contextWrite(...)로 푼다.
 		Hooks.enableAutomaticContextPropagation();
 		SpringApplication.run(ShopAgentApplication.class, args);
 	}

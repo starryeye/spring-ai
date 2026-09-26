@@ -1,8 +1,8 @@
 server:
-  # 서버가 연결을 받을 네트워크 주소. 127.0.0.1 이면 이 기기 안에서만 접속할 수 있다
-  # (MCP 2025-11-25 Transports: 로컬에서 도는 서버는 localhost(127.0.0.1)에만 bind 하는 것이 좋다, SHOULD).
-  # 실제 배포에서는 컨테이너·reverse proxy 뒤라면 0.0.0.0(모든 인터페이스)이나 그 네트워크의 인터페이스
-  # 주소를 쓰고, 외부에 무엇을 열지는 proxy·방화벽이 정한다.
+  # 서버가 연결을 받을 네트워크 주소다. 127.0.0.1이면 이 기기 안에서만 접속할 수 있다.
+  # MCP 2025-11-25 Transports는 로컬에서 도는 서버가 localhost(127.0.0.1)에만 bind하기를 권한다(SHOULD).
+  # 실제 배포에서 container나 reverse proxy 뒤에 둔다면 0.0.0.0(모든 interface)이나
+  # 그 네트워크의 interface 주소를 쓴다. 외부에 무엇을 열지는 proxy와 방화벽이 정한다.
   address: 127.0.0.1
   port: 8111
 
@@ -15,15 +15,15 @@ spring:
         name: official-shop-mcp-server
         version: 0.0.1
         protocol: STREAMABLE
-        # SYNC. @McpTool 이 Mono 를 반환하면 조용히 등록에서 빠진다.
+        # SYNC다. @McpTool 메서드가 Mono를 반환하면 오류 없이 등록에서 빠진다.
         type: SYNC
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: http://localhost:9010
-          # RFC 8707 로 발급된 aud 를 검증한다. 이 값이 없으면 같은 인가 서버가 발급한
-          # 다른 리소스용 토큰도 그대로 통과한다(confused deputy).
+          # RFC 8707로 정한 aud를 검증한다. 이 값이 없으면 같은 Authorization Server가 발급한
+          # 다른 resource용 token도 그대로 통과한다(confused deputy).
           audiences: http://localhost:8111/mcp
 
 logging:

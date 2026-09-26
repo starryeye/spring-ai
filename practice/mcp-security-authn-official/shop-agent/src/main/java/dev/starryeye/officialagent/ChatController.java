@@ -17,10 +17,11 @@ public class ChatController {
     }
 
     /**
-     * MCP tool 호출은 요청 thread 밖(reactor)에서 돈다. {@code ShopAgentApplication} 이 켠
-     * {@code Hooks.enableAutomaticContextPropagation()} 이 Spring Security 의 {@code ThreadLocalAccessor} 로
-     * SecurityContext 를 그 thread 에 옮기고, {@link SecurityMcpTransportContextProvider} 가 거기서 사용자를 읽는다.
-     * community practice 는 같은 일을 모듈의 {@code .contextWrite(...)} 로 한다.
+     * MCP tool 호출은 요청 thread 밖, reactor의 thread에서 돈다.
+     * {@code ShopAgentApplication}이 켠 {@code Hooks.enableAutomaticContextPropagation()}은
+     * Spring Security의 {@code ThreadLocalAccessor}로 SecurityContext를 그 thread에 옮긴다.
+     * {@link SecurityMcpTransportContextProvider}는 거기서 사용자를 읽는다.
+     * community practice는 같은 일을 {@code ChatController}의 {@code .contextWrite(...)}로 한다.
      */
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public Flux<String> chat(@RequestBody String message) {

@@ -10,12 +10,14 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * RFC 8707 {@code resource} 를 인가·토큰 요청에 싣는다.
+ * RFC 8707 {@code resource}를 authorization request와 token request에 넣는다.
  *
- * <p>"이 토큰은 이 MCP 서버에 쓸 것"이라고 인가 서버에 알리는 값이다. 이것이 있어야
- * 인가 서버가 {@code aud} 를 그 서버로 좁혀 발급하고, 토큰이 다른 리소스에서 재사용되지 않는다.
+ * <p>{@code resource}는 "이 token은 이 MCP Server에 쓸 것"이라고
+ * Authorization Server에 알리는 값이다.
+ * 이 값이 있어야 Authorization Server가 {@code aud}를 그 서버로 좁혀 발급한다.
+ * 그러면 token을 다른 resource에서 다시 쓸 수 없다.
  *
- * <p>값은 발견 결과에서 오므로 {@link Supplier} 로 받는다 — 설정 시점에는 아직 모른다.
+ * <p>값은 discovery 결과에서 오므로 {@link Supplier}로 받는다. 설정을 만드는 시점에는 아직 값을 모른다.
  */
 public final class ResourceIndicators {
 
@@ -24,12 +26,12 @@ public final class ResourceIndicators {
     private ResourceIndicators() {
     }
 
-    /** 인가 요청(브라우저 리다이렉트)에 resource 를 싣는다. */
+    /** authorization request(browser redirect)에 resource를 넣는다. */
     public static Consumer<OAuth2AuthorizationRequest.Builder> authorizationRequest(Supplier<String> resource) {
         return builder -> builder.additionalParameters(parameters -> parameters.put(PARAMETER, resource.get()));
     }
 
-    /** 토큰·갱신 요청(백채널)에 resource 를 싣는다. */
+    /** token request와 refresh 요청(back-channel)에 resource를 넣는다. */
     public static <T extends AbstractOAuth2AuthorizationGrantRequest> Converter<T, MultiValueMap<String, String>>
             tokenRequest(Supplier<String> resource) {
         return grantRequest -> {

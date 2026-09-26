@@ -15,12 +15,13 @@ import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationF
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * 로그인 = MCP 호출에 쓸 토큰을 받는 과정이다. 명세가 요구하는 세 가지를 여기서 건다.
+ * 이 agent에서 login은 곧 MCP 호출에 쓸 token을 받는 과정이다.
+ * 명세가 요구하는 세 가지를 여기서 켠다.
  *
  * <ul>
- *   <li>PKCE(S256) — 가로챈 인가 코드를 쓰지 못하게 한다</li>
- *   <li>RFC 8707 {@code resource} — 토큰을 이 MCP 서버 전용으로 좁힌다</li>
- *   <li>RFC 9207 {@code iss} 검증 — 코드를 교환하기 전에 응답의 출처를 확인한다</li>
+ *   <li>PKCE(S256) — 가로챈 authorization code를 쓰지 못하게 한다</li>
+ *   <li>RFC 8707 {@code resource} — token을 이 MCP Server 전용으로 좁힌다</li>
+ *   <li>RFC 9207 {@code iss} 검증 — code를 교환하기 전에 응답의 출처를 확인한다</li>
  * </ul>
  */
 @Configuration
@@ -31,15 +32,15 @@ public class SecurityConfig {
             DiscoveredClientRegistrationRepository registrations,
             OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> authorizationCodeTokenResponseClient)
             throws Exception {
-        // iss 검증 필터와 로그인 필터가 같은 저장소를 봐야 한다.
+        // iss 검증 filter와 login filter가 같은 저장소를 봐야 한다.
         var authorizationRequests = new HttpSessionOAuth2AuthorizationRequestRepository();
         var failureHandler = new LoginFailureHandler();
 
         return http
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .oauth2Login(login -> login
-                        // 등록이 하나뿐이고, 그 등록은 발견해야 알 수 있다.
-                        // 로그인 화면 대신 곧바로 인가 요청으로 보낸다.
+                        // client 등록은 하나뿐이고, 그 등록 정보는 discovery를 해야 알 수 있다.
+                        // 그래서 login 화면 대신 곧바로 authorization request로 보낸다.
                         .loginPage(OAuth2AuthorizationRequestRedirectFilter.DEFAULT_AUTHORIZATION_REQUEST_BASE_URI
                                 + "/" + McpSecurityConfig.REGISTRATION_ID)
                         .authorizationEndpoint(authorization -> authorization
@@ -50,9 +51,11 @@ public class SecurityConfig {
                 .addFilterBefore(new AuthorizationResponseIssuerFilter(authorizationRequests, registrations,
                         failureHandler), OAuth2LoginAuthenticationFilter.class)
                 .oauth2Client(Customizer.withDefaults())
-                // /api/chat 도 CSRF 를 검사한다. csrf.spa() 는 JS 가 읽을 수 있는 XSRF-TOKEN 쿠키를
-                // 응답에 싣고, index.html 이 그 값을 X-XSRF-TOKEN 헤더로 되돌려 보낸다. 다른 사이트의
-                // 페이지는 이 쿠키를 읽지 못하므로 사용자 몰래 채팅(=MCP tool 호출)을 보낼 수 없다.
+                // /api/chat도 CSRF를 검사한다.
+                // csrf.spa()는 JS가 읽을 수 있는 XSRF-TOKEN cookie를 응답에 넣는다.
+                // index.html은 그 값을 X-XSRF-TOKEN header로 되돌려 보낸다.
+                // 다른 사이트의 페이지는 이 cookie를 읽지 못하므로,
+                // 사용자 몰래 채팅(곧 MCP tool 호출)을 보낼 수 없다.
                 .csrf(csrf -> csrf.spa())
                 .build();
     }

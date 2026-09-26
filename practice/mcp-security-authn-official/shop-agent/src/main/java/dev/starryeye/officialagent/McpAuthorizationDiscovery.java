@@ -13,21 +13,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 인가 서버를 발견한다(MCP 2025-11-25 인가 §2.3).
+ * Authorization Server를 찾는다(MCP 2025-11-25 Authorization — Authorization Server Discovery, 안내서 3장).
  *
  * <p>순서는 명세가 정해 두었다.
  * <ol>
- *   <li>토큰 없이 MCP 서버를 호출해 401 과 {@code WWW-Authenticate} 를 받는다</li>
- *   <li>헤더의 {@code resource_metadata} 를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
- *   <li>메타데이터의 {@code resource} 가 우리가 부른 URL 과 같은지 확인한다(RFC 9728 §3.3)</li>
- *   <li>{@code authorization_servers} 가 자격증명이 등록된 issuer 인지 먼저 확인한다(아니면 더 요청하지 않는다)</li>
- *   <li>인가 서버 메타데이터를 RFC 8414 → OIDC 순서로 찾는다</li>
- *   <li>메타데이터의 {@code issuer} 가 같은지, PKCE {@code S256} 을 지원하는지,
- *       {@code authorization_endpoint}·{@code token_endpoint} 가 https 이거나 loopback 주소의 http 인지 확인한다</li>
+ *   <li>token 없이 MCP Server를 불러 401과 {@code WWW-Authenticate}를 받는다</li>
+ *   <li>header의 {@code resource_metadata}를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
+ *   <li>PRM의 {@code resource}가 부른 URL과 같은지 확인한다(RFC 9728 §3.3)</li>
+ *   <li>{@code authorization_servers}의 첫 값이 credentials가 등록된 issuer인지 먼저 확인한다.
+ *       아니면 더 요청하지 않는다</li>
+ *   <li>Authorization Server Metadata를 RFC 8414 → OpenID Connect Discovery 순서로 찾는다</li>
+ *   <li>metadata의 {@code issuer}가 같은지, PKCE {@code S256}을 지원하는지 확인한다.
+ *       {@code authorization_endpoint}·{@code token_endpoint}가 https이거나 loopback 주소의 http인지도 확인한다</li>
  * </ol>
  *
- * <p>이 단계들이 있어야 "MCP 서버 주소 하나만 알면 나머지는 서버가 알려준다"가 성립한다.
- * 인가 서버 주소를 설정에 적어 두는 방식은 명세가 아니다.
+ * <p>이 단계들이 있어야 "MCP Server 주소 하나만 알면 나머지는 서버가 알려 준다"가 성립한다.
+ * Authorization Server의 endpoint를 설정에 적어 두는 것은 명세의 방식이 아니다.
  */
 public class McpAuthorizationDiscovery {
 
@@ -39,7 +40,7 @@ public class McpAuthorizationDiscovery {
 
 	private static final Pattern RESOURCE_METADATA = Pattern.compile("resource_metadata=\"([^\"]+)\"");
 
-	/** IPv4 literal 의 한 자리(0~255). */
+	/** IPv4 literal의 한 자리(0~255)다. */
 	private static final String OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
 
 	/** 127.0.0.0/8. */
@@ -49,7 +50,7 @@ public class McpAuthorizationDiscovery {
 			new ParameterizedTypeReference<>() {
 			};
 
-	/** 발견용 탐침. 서버는 이 본문을 읽기 전에 401 을 준다. */
+	/** discovery용 probe 요청이다. 서버는 이 본문을 읽기 전에 401을 준다. */
 	private static final String INITIALIZE = """
 			{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",\
 			"capabilities":{},"clientInfo":{"name":"discovery-probe","version":"1.0.0"}}}""";
@@ -61,7 +62,7 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * @param trustedIssuer 자격증명이 등록된 Authorization Server. PRM 이 다른 곳을 가리키면 그 metadata 도
+	 * @param trustedIssuer credentials가 등록된 Authorization Server. PRM이 다른 곳을 가리키면 그 metadata도
 	 *                      요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
 	 */
 	public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
@@ -104,7 +105,7 @@ public class McpAuthorizationDiscovery {
 
 		Map<String, Object> metadata = json(origin + PROTECTED_RESOURCE_METADATA);
 		if (metadata != null) {
-			// 루트형 메타데이터의 리소스 식별자는 서버 루트다.
+			// 루트형 PRM의 resource 식별자는 서버 루트다.
 			return verifyResource(metadata, origin);
 		}
 
@@ -112,8 +113,8 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * RFC 9728 §3.3 — 메타데이터의 {@code resource} 는 그 메타데이터 URL 을 만든
-	 * 리소스 식별자와 같아야 한다. 다르면 남의 메타데이터를 보고 있는 것이다.
+	 * PRM의 {@code resource}는 그 PRM URL을 만든 resource 식별자와 같아야 한다(RFC 9728 §3.3).
+	 * 다르면 다른 resource의 PRM을 보고 있는 것이다.
 	 */
 	private static Map<String, Object> verifyResource(Map<String, Object> metadata, String expected) {
 		if (!expected.equals(metadata.get("resource"))) {
@@ -153,12 +154,13 @@ public class McpAuthorizationDiscovery {
 				throw new McpDiscoveryException("메타데이터의 issuer(%s) 가 요청한 인가 서버(%s) 와 다르다"
 						.formatted(metadata.get("issuer"), issuer));
 			}
-			// MCP 2025-11-25 인가: 클라이언트는 S256 지원을 확인하고, 없으면 진행하면 안 된다.
+			// MCP 2025-11-25 Authorization: client는 S256 지원을 확인하고, 지원하지 않으면 진행하지 않는다.
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
 				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
 			}
-			// MCP Security Best Practices: authorization URL 을 열기 전에 스킴과, http 면 loopback 주소인지 확인한다(MUST).
+			// MCP Security Best Practices: authorization URL을 열기 전에 scheme을 확인하고,
+			// http라면 loopback 주소인지 확인한다(MUST).
 			requireHttpUrl(metadata, "authorization_endpoint");
 			requireHttpUrl(metadata, "token_endpoint");
 			return metadata;
@@ -167,9 +169,9 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * MCP Security Best Practices — OAuth Authorization URL Validation: authorization URL 은 {@code https}, 또는
-	 * loopback 주소({@code localhost}·127.0.0.0/8·{@code ::1})의 {@code http} 만 허용한다(MUST).
-	 * DNS 를 조회하지 않고 URI 의 host 문자열로만 판단한다.
+	 * MCP Security Best Practices — OAuth Authorization URL Validation: authorization URL은 {@code https}이거나
+	 * loopback 주소({@code localhost}·127.0.0.0/8·{@code ::1})의 {@code http}만 허용한다(MUST).
+	 * DNS를 조회하지 않고 URI의 host 문자열로만 판단한다.
 	 */
 	private static void requireHttpUrl(Map<String, Object> metadata, String name) {
 		Object value = metadata.get(name);
@@ -192,14 +194,14 @@ public class McpAuthorizationDiscovery {
 		}
 	}
 
-	/** {@code localhost}, 127.0.0.0/8 의 IPv4 literal, {@code ::1} 이면 loopback 이다. */
+	/** {@code localhost}, 127.0.0.0/8의 IPv4 literal, {@code ::1}이면 loopback이다. */
 	private static boolean isLoopback(String host) {
 		String lower = host.toLowerCase(Locale.ROOT);
 		return "localhost".equals(lower) || "[::1]".equals(lower) || "::1".equals(lower)
 				|| LOOPBACK_IPV4.matcher(lower).matches();
 	}
 
-	/** RFC 8414 §3.1 과 OIDC 디스커버리의 경로 규칙. MCP 는 RFC 8414 를 먼저 시도하라고 한다. */
+	/** RFC 8414 §3.1과 OpenID Connect Discovery의 경로 규칙이다. MCP는 RFC 8414를 먼저 시도하라고 한다. */
 	private static List<String> metadataUrls(String issuer) {
 		URI uri = URI.create(issuer);
 		String origin = origin(uri);

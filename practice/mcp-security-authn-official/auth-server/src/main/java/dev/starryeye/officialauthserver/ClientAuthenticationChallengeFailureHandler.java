@@ -19,35 +19,39 @@ import java.io.IOException;
 import java.util.regex.Pattern;
 
 /**
- * 클라이언트 인증 실패 시 {@code WWW-Authenticate} 를 채운다(RFC 6749 §5.2, OAuth 2.1 §3.2.4).
+ * client 인증이 실패하면 {@code WWW-Authenticate}를 채운다(RFC 6749 §5.2, OAuth 2.1 §3.2.4).
  *
- * <p>"클라이언트가 {@code Authorization} 요청 헤더로 인증을 시도했다면, 인가 서버는 반드시
- * HTTP 401 과 함께 그 인증 스킴에 맞는 {@code WWW-Authenticate} 응답 헤더를 실어야 한다."
- * Spring 인가 서버의 {@code OAuth2ClientAuthenticationFilter#onAuthenticationFailure} 는
- * 이 요구사항을 TODO 주석으로만 남겨 두고 실제로는 헤더를 붙이지 않는다
- * (spring-security 이슈 #18285, 미해결. 7.2.0-M1 에서도 동일).
+ * <p>RFC 6749 §5.2는 이렇게 정한다.
+ * client가 {@code Authorization} 요청 header로 인증을 시도했다면, Authorization Server는
+ * HTTP 401과 함께 그 인증 scheme에 맞는 {@code WWW-Authenticate} 응답 header를 반드시 넣는다.
+ * Spring Authorization Server의 {@code OAuth2ClientAuthenticationFilter#onAuthenticationFailure}는
+ * 이 요구를 TODO 주석으로만 남기고, 실제로는 header를 붙이지 않는다
+ * (spring-security 이슈 #18285, 미해결. 7.2.0-M1에서도 같다).
  *
- * <p>본문과 상태 코드는 Spring 기본 동작(오류 코드만 담은 JSON, {@code invalid_client} 면
- * 401 그 외엔 400)을 그대로 재현한다. {@code Authorization} 헤더 없이 인증을 시도한 경우
- * (예: {@code client_secret_post} 로 폼 파라미터만 보낸 경우)에는 스킴을 알 수 없으므로
- * 헤더를 붙이지 않는다 — RFC 요구가 "Authorization 헤더로 시도한 경우"에 한정되기 때문이다.
+ * <p>본문과 상태 코드는 Spring 기본 동작을 그대로 따른다.
+ * 본문은 오류 코드만 담은 JSON이고, 상태 코드는 {@code invalid_client}면 401, 그 밖에는 400이다.
+ * {@code Authorization} header 없이 인증을 시도했다면 scheme을 알 수 없으므로 header를 붙이지 않는다.
+ * {@code client_secret_post}로 form parameter만 보낸 경우가 그렇다.
+ * RFC의 요구도 "Authorization header로 시도한 경우"에만 해당한다.
  *
- * <p>이 핸들러는 {@code OAuth2ClientAuthenticationFilter} 에만 걸려 있지만, 그 필터를 거치는
- * 실패가 전부 {@code invalid_client} 인 것은 아니다 — Spring 의 {@code ClientSecretAuthenticationProvider}
- * (그리고 {@code PublicClientAuthenticationProvider})는 내부 {@code CodeVerifierAuthenticator} 로
- * PKCE {@code code_verifier} 검증을 "클라이언트 인증"의 일부로 이 필터 안에서 수행하고,
- * 실패하면 {@code invalid_grant} 를 던진다({@code CodeVerifierAuthenticator#invalidGrantException}).
- * 즉 code_verifier 불일치도 이 핸들러를 거치지만 오류 코드는 invalid_grant 다. RFC 6749 §5.2 의
- * 챌린지 의무는 {@code invalid_client} 응답에 한정되므로, 오류 코드로 한 번 더 걸러야 한다 —
- * 그러지 않으면 클라이언트 인증 자체는 성공한 요청(예: code_verifier 만 틀린 토큰 요청)에도
- * Basic 챌린지가 붙어 클라이언트에게 "자격증명을 다시 보내라"는 잘못된 신호를 준다.
+ * <p>이 handler는 {@code OAuth2ClientAuthenticationFilter}에만 연결되어 있다.
+ * 하지만 그 filter를 거치는 실패가 모두 {@code invalid_client}인 것은 아니다.
+ * Spring의 {@code ClientSecretAuthenticationProvider}와 {@code PublicClientAuthenticationProvider}는
+ * 내부의 {@code CodeVerifierAuthenticator}로 PKCE {@code code_verifier}를 검증한다.
+ * 이 검증은 "client 인증"의 일부로 이 filter 안에서 일어나고, 실패하면 {@code invalid_grant}를 던진다
+ * ({@code CodeVerifierAuthenticator#invalidGrantException}).
+ * 그래서 code_verifier 불일치도 이 handler를 거치지만, 오류 코드는 invalid_grant다.
+ * RFC 6749 §5.2의 challenge 의무는 {@code invalid_client} 응답에만 해당하므로, 오류 코드로 한 번 더 거른다.
+ * 거르지 않으면 client 인증은 성공한 요청에도 Basic challenge가 붙는다.
+ * code_verifier만 틀린 token request가 그 예다.
+ * 그러면 client는 "credentials를 다시 보내라"는 잘못된 신호를 받는다.
  *
- * <p>이 클래스는 practice 고유 값을 담지 않는다. 다른 practice 로 패키지만 바꿔 재사용한다.
+ * <p>이 클래스에는 practice 고유의 값이 없다. 다른 practice에서도 package만 바꿔 그대로 쓸 수 있다.
  */
 public class ClientAuthenticationChallengeFailureHandler implements AuthenticationFailureHandler {
 
-	// RFC 7230 §3.2.6 token 문법. 스킴 토큰에 공백·따옴표·제어문자가 섞여 헤더로 그대로
-	// 주입되는 것을 막는다 — 문법에 맞지 않으면 알 수 없는 스킴으로 보고 기본값을 쓴다.
+	// RFC 7230 §3.2.6의 token 문법이다. scheme token에 공백·따옴표·제어 문자가 섞여 header에 그대로
+	// 들어가는 것을 막는다. 문법에 맞지 않으면 알 수 없는 scheme으로 보고 기본값을 쓴다.
 	private static final Pattern TOKEN = Pattern.compile("^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$");
 
 	private static final String DEFAULT_SCHEME = "Basic";
@@ -60,8 +64,8 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 		OAuth2Error error = ((OAuth2AuthenticationException) exception).getError();
 		boolean invalidClient = OAuth2ErrorCodes.INVALID_CLIENT.equals(error.getErrorCode());
 
-		// invalid_client 가 아니면(예: PKCE code_verifier 불일치로 인한 invalid_grant) 이 필터를
-		// 거쳐 왔더라도 RFC 6749 §5.2 가 말하는 "클라이언트 인증 실패"가 아니므로 붙이지 않는다.
+		// invalid_client가 아니면(예: PKCE code_verifier 불일치로 생긴 invalid_grant) 이 filter를
+		// 거쳐 왔더라도 RFC 6749 §5.2가 말하는 "client 인증 실패"가 아니므로 header를 붙이지 않는다.
 		if (invalidClient) {
 			String scheme = requestedScheme(request);
 			if (scheme != null) {
@@ -76,8 +80,9 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 	}
 
 	/**
-	 * 클라이언트가 {@code Authorization} 헤더로 인증을 시도했다면 그 스킴 토큰을,
-	 * 아니라면 {@code null} 을 반환한다.
+	 * client가 {@code Authorization} header로 인증을 시도했다면 그 scheme token을 돌려준다.
+	 * scheme이 token 문법에 맞지 않으면 기본값 Basic을 돌려준다.
+	 * header로 시도하지 않았다면 {@code null}을 돌려준다.
 	 */
 	private static String requestedScheme(HttpServletRequest request) {
 		String header = request.getHeader(HttpHeaders.AUTHORIZATION);
@@ -89,18 +94,18 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 	}
 
 	/**
-	 * 스킴만 있는 챌린지("Basic")에 issuer 를 realm 으로 덧붙인다. issuer 를 구하지 못하면
-	 * realm 없이 스킴만 돌려준다 — RFC 9110 §11.6.1 상 realm 은 challenge 의 필수 파라미터가
-	 * 아니라 스킴만으로도 유효한 챌린지이기 때문이다. 이 클래스는 다른 practice 로 그대로
-	 * 옮겨질 것을 전제로 하므로, issuer 가 정적으로 보장되지 않는 환경에서도 500 으로
-	 * 퇴행하지 않게 한다.
+	 * scheme만 있는 challenge("Basic")에 issuer를 realm으로 덧붙인다.
+	 * issuer를 구하지 못하면 realm 없이 scheme만 돌려준다.
+	 * RFC 9110 §11.6.1에서 realm은 challenge의 필수 parameter가 아니어서, scheme만 있어도 유효한 challenge다.
+	 * 이 클래스는 다른 practice로 그대로 옮겨 쓰는 것을 전제로 한다.
+	 * 그래서 issuer가 늘 있다고 보장할 수 없는 환경에서도 500으로 실패하지 않게 한다.
 	 */
 	private static String challenge(String scheme) {
 		String issuer = issuer();
 		if (!StringUtils.hasText(issuer)) {
 			return scheme;
 		}
-		// RFC 9110 §11.6.1 문법상 realm 은 quoted-string 이어야 한다.
+		// RFC 9110 §11.6.1 문법에서 realm 값은 quoted-string이어야 한다.
 		return scheme + " realm=\"" + quoted(issuer) + "\"";
 	}
 

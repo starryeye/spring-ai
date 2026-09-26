@@ -8,10 +8,10 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import java.util.function.Consumer;
 
 /**
- * 인가 요청의 {@code resource} 를 검사한다(RFC 8707 §2.1).
+ * authorization request의 {@code resource}를 검사한다(RFC 8707 §2.1).
  *
- * <p>토큰 발급 시점이 아니라 <b>인가 시점</b>에 먼저 막는다. 모르는 리소스를 향한
- * 요청이면 코드 자체를 발급하지 않고 클라이언트로 {@code invalid_target} 을 돌려준다.
+ * <p>token을 발급할 때가 아니라 <b>authorization request를 받을 때</b> 먼저 막는다.
+ * 모르는 resource를 향한 요청이면 code를 아예 발급하지 않고 client에 {@code invalid_target}을 돌려준다.
  */
 public class ResourceIndicatorValidator implements Consumer<OAuth2AuthorizationCodeRequestAuthenticationContext> {
 

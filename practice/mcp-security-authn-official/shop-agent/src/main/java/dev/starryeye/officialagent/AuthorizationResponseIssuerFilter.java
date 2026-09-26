@@ -19,13 +19,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * 인가 응답의 {@code iss} 를 검증한다(RFC 9207 §2.4).
+ * authorization response의 {@code iss}를 검증한다(RFC 9207 §2.4).
  *
- * <p>클라이언트는 코드를 교환하기 <b>전에</b> 확인해야 한다. 확인 없이 교환하면,
- * 공격자가 자기 인가 서버에서 받은 코드를 우리 콜백에 흘려 넣어 우리가 신뢰하는
- * 인가 서버의 코드인 것처럼 쓰게 만들 수 있다(mix-up).
+ * <p>client는 code를 교환하기 <b>전에</b> 확인해야 한다.
+ * 확인 없이 교환하면, 공격자는 자기 Authorization Server에서 받은 code를
+ * 이 agent의 callback에 끼워 넣을 수 있다.
+ * 그러면 agent는 그 code를 자기가 믿는 Authorization Server의 code처럼 쓰게 된다(mix-up).
  *
- * <p>Spring Security 의 로그인 필터는 {@code iss} 를 읽지 않으므로 그 앞에 선다.
+ * <p>Spring Security의 login filter는 {@code iss}를 읽지 않으므로 이 filter가 그 앞에 선다.
  */
 public class AuthorizationResponseIssuerFilter extends OncePerRequestFilter {
 
@@ -60,7 +61,7 @@ public class AuthorizationResponseIssuerFilter extends OncePerRequestFilter {
 
         OAuth2AuthorizationRequest authorizationRequest = this.authorizationRequests.loadAuthorizationRequest(request);
         if (authorizationRequest == null) {
-            // 저장된 요청이 없으면 로그인 필터가 authorization_request_not_found 로 처리한다.
+            // 저장된 요청이 없으면 login filter가 authorization_request_not_found로 처리한다.
             chain.doFilter(request, response);
             return;
         }
