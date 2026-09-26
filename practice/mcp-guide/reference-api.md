@@ -2,11 +2,11 @@
 
 ## 읽는 법
 
-이 부록은 MCP authorization 흐름의 HTTP endpoint마다 명세가 정한 parameter·header·field를 모두 표로 모은 사전이고, 개념은 각 절의 "설명" 줄이 가리키는 장에서 다룬다.
+이 부록은 MCP authorization 흐름의 HTTP endpoint마다 명세가 정한 parameter·header·field를 모두 표로 모은 사전이다. 개념 설명은 각 절의 "설명" 줄이 가리키는 장에 있다.
 "요구 수준" 칸은 원문 단어(REQUIRED, MUST 등)를 그대로 쓰고, 단어가 없으면 "표시 없음"이라고 쓰며, 명세마다 다르면 모두 적는다.
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
-캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호이고, JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
-기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
+캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다. 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
+JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다. 기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
 
 ## endpoint 목차
 
@@ -240,7 +240,8 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
-official의 검사 순서는 `Origin`·`Host` → token → `MCP-Protocol-Version` → session이다([6장](06-mcp-call-and-validation.md)).
+official의 검사 순서는 `Origin`·`Host` → token → `MCP-Protocol-Version` → `Accept` → session이다([6장](06-mcp-call-and-validation.md)).
+`Accept`와 session은 Spring AI의 transport(`WebMvcStreamableServerTransportProvider`)가 본문을 읽기 전과 읽은 뒤에 차례로 검사한다.
 
 **예시** (C7)
 
@@ -305,6 +306,7 @@ client가 먼저 `POST`하지 않아도 서버가 request·notification을 보�
 |---|---|---|
 | `MCP-Session-Id` 없음 | `400` SHOULD — `Session ID required in mcp-session-id header`(S12) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
 | SSE stream을 제공하지 않는 서버 | `405` MUST | [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server) |
+| 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
 S11에서는 5초 동안 상태 줄·header·본문이 오지 않고 연결만 열려 있었다(curl 종료 코드 28).
 Spring AI의 서버 transport는 `ServerResponse.sse(...)`로 답해서, 첫 event를 보낼 때 응답 header가 나간다.
@@ -797,7 +799,7 @@ client는 `iss`가 기록해 둔 issuer와 다르거나, `authorization_response
 
 | client | 확인 순서 | 거부할 때 |
 |---|---|---|
-| agent | `state`(Spring login filter) → `iss`(`AuthorizationResponseIssuerFilter`) → code 교환 | `401` `로그인 실패: iss mismatch: ...`(S18), `401` `로그인 실패: iss is missing ...`(S19). code는 token endpoint로 가지 않는다 |
+| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르면 `401` `로그인 실패: iss mismatch: ...`(S18), 없으면 `401` `로그인 실패: iss is missing ...`(S19)이고, code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
 | `local-client` | `state` → `iss` → `error` → `code`(`AuthorizationResponse`) | `실패:`로 시작하는 한 줄을 찍고 끝난다([7장](07-local-client.md)) |
 
 관측: S20의 agent 정상 왕복에도 `iss`가 있다.
@@ -1157,15 +1159,17 @@ RFC 7591 §2의 field는 따로 적지 않으면 OPTIONAL이다.
 
 ## `POST /register` — Dynamic Client Registration
 
-client가 사용자 개입 없이 `POST`로 `client_id`를 받는 방식이다.
-등록 endpoint는 JSON 본문의 HTTP `POST`를 받는다(MUST, [RFC 7591 §3](https://www.rfc-editor.org/rfc/rfc7591#section-3)).
+client가 사용자 개입 없이 Authorization Server의 `registration_endpoint`에 자기 정보를 `POST`로 보내 `client_id`를 받는 방식이다.
+MCP 2026-07-28은 이 방식을 deprecated로 정하고, 새 구현에는 CIMD를 쓰라고 한다.
 
-[MCP 2026-07-28 Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#dynamic-client-registration)은 이 방식을 deprecated로 정하고, 새 구현에는 CIMD를 쓰라고 한다.
-그래도 DCR을 쓰는 client는 알맞은 `application_type`을 넣는다(MUST).
+설명: [4장](04-client-registration.md) · [9장](09-versions.md)
+
+근거: [RFC 7591 §3](https://www.rfc-editor.org/rfc/rfc7591#section-3), [MCP 2025-11-25 Authorization — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#dynamic-client-registration), [MCP 2026-07-28 Client Registration — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#dynamic-client-registration)
+
+등록 endpoint는 JSON 본문의 HTTP `POST`를 받는다(MUST, RFC 7591 §3).
+DCR은 선택 사항(MAY, MCP 2025-11-25)이고, 그래도 DCR을 쓰는 client는 알맞은 `application_type`을 넣는다(MUST, MCP 2026-07-28).
 
 official은 DCR을 켜지 않는다.
 Spring Authorization Server의 기본값이 꺼짐이고, metadata에 `registration_endpoint`가 없다(C3).
-
-설명: [4장](04-client-registration.md) · [9장](09-versions.md)
 
 [← 9장](09-versions.md) · [목차](README.md) · [부록: 준수표 →](reference-compliance.md)
