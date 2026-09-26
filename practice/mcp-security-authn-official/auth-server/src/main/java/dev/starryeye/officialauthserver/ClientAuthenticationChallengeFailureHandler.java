@@ -96,7 +96,8 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 	/**
 	 * scheme만 있는 challenge("Basic")에 issuer를 realm으로 덧붙인다.
 	 * issuer를 구하지 못하면 realm 없이 scheme만 돌려준다.
-	 * RFC 9110 §11.6.1에서 realm은 challenge의 필수 parameter가 아니어서, scheme만 있어도 유효한 challenge다.
+	 * RFC 9110 §11.3의 challenge 문법에서 parameter는 선택이라, scheme만 있어도 문법에는 맞는다.
+	 * 다만 Basic scheme은 RFC 7617 §2가 realm을 필수로 정하므로, realm 없는 challenge는 issuer를 구하지 못했을 때만 쓰는 대비책이다.
 	 * 이 클래스는 다른 practice로 그대로 옮겨 쓰는 것을 전제로 한다.
 	 * 그래서 issuer가 늘 있다고 보장할 수 없는 환경에서도 500으로 실패하지 않게 한다.
 	 */
@@ -105,7 +106,7 @@ public class ClientAuthenticationChallengeFailureHandler implements Authenticati
 		if (!StringUtils.hasText(issuer)) {
 			return scheme;
 		}
-		// RFC 9110 §11.6.1 문법에서 realm 값은 quoted-string이어야 한다.
+		// RFC 9110 §11.5에 따라 realm 값은 quoted-string으로만 보낸다.
 		return scheme + " realm=\"" + quoted(issuer) + "\"";
 	}
 

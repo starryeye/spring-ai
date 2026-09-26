@@ -76,7 +76,7 @@ public class McpProtocolVersionFilter implements Filter {
 			// (명세: "The HTTP response body MAY comprise a JSON-RPC error response
 			// that has no id").
 			// header 값을 문자열 formatting으로 끼워 넣으면, 값에 섞인 따옴표가 JSON 구조를 깨고
-			// 최상위 member를 멋대로 더할 수 있다.
+			// 최상위 member가 멋대로 더해질 수 있다.
 			// 그래서 JSON tree를 만들어 직렬화하고, 값의 escape는 Jackson에 맡긴다.
 			ObjectNode body = this.jsonMapper.createObjectNode();
 			body.put("jsonrpc", "2.0");

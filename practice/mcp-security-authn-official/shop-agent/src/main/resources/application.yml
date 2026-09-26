@@ -31,7 +31,7 @@ spring:
       client:
         enabled: true
         # SYNC로 고정한다. McpSecurityConfig의 mcpAuthenticationCustomizer는
-        # McpClientCustomizer<McpClient.SyncSpec> 타입이라, ASYNC로 바꾸면 오류 없이 적용되지 않는다.
+        # McpClientCustomizer<McpClient.SyncSpec> 타입이라, ASYNC로 바꾸면 오류는 나지 않지만 이 customizer가 적용되지 않는다.
         # 그러면 transport context가 늘 비어 token이 붙지 않는다.
         type: SYNC
         # 기동할 때는 대신할 사용자가 없어 token도 없다. MCP Server는 token 없는 요청에 모두 401을 준다.
