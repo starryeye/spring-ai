@@ -14,8 +14,6 @@ Spring AI 학습 저장소. 버전대별로 디렉터리가 나뉜다.
 
 새로 보는 사람은 `practice/agent-mcp/README.md` 부터 읽으면 된다.
 
-- [MCP authorization 표준](practice/MCP-AUTHORIZATION.md) — 인증이 포함된 MCP 스펙 정리
-- [MCP API 명세](practice/MCP-API-SPEC.md) — MCP Server·Authorization Server 엔드포인트
-- [MCP 시퀀스](practice/MCP-SEQUENCES.md) — 구성요소·등록·런타임 흐름
+- [MCP 안내서](practice/mcp-guide/README.md) — MCP와 MCP authorization(OAuth)을 official practice로 설명한다. 읽는 순서와 장 목록이 있다
 
 `docs/superpowers/` 에는 `practice/agent-mcp` 의 설계 문서와 구현 계획이 있다.

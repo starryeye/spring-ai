@@ -44,7 +44,7 @@ field, redirect, endpoint, session, metadata, issuer, scope, callback, filter, b
 나쁜 예 1: 조사를 띄어 쓰고, 한 문장에 개념 세 개와 절 번호 링크를 넣었다.
 
 ```text
-PKCE 는 `application.yml` 의 `require-proof-key: true` 로 강제하고, `AuthorizationServerConfig` 가 filter chain 두 개를 직접 정의해 `resource` 검증([4.5](../MCP-AUTHORIZATION.md#s4-5)), access token `aud` 발급([4.7](../MCP-AUTHORIZATION.md#s4-7)), authorization response 의 `iss`([4.6](../MCP-AUTHORIZATION.md#s4-6))를 건다.
+PKCE 는 `application.yml` 의 `require-proof-key: true` 로 강제하고, `AuthorizationServerConfig` 가 filter chain 두 개를 직접 정의해 `resource` 검증([5.3](#53-authorization-request를-보낸다)), access token `aud` 발급([5.7](#57-token-request)), authorization response 의 `iss`([5.6](#56-callback에서-state와-iss를-확인한다))를 건다.
 ```
 
 좋은 예 1: 같은 내용을 한 문장에 개념 하나씩 풀었다.
