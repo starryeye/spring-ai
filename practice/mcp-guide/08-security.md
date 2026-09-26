@@ -278,7 +278,8 @@ official이 session을 사용자에 묶지 않는 이유와 묶는 방법은 [6�
 |---|---|---|
 | HTTPS | 세 앱이 모두 `http://localhost`로 돈다 | 학습용으로 요청과 응답을 그대로 보려는 선택이다. 요청은 loopback 주소 안에서만 오간다 |
 | SSE event `id` | 응답 event의 `id`가 모두 session ID라서, 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([1장](01-mcp-basics.md)) | 값은 Spring AI의 `WebMvcStreamableServerTransportProvider`가 정한다. 이 클래스가 `final`이라 fork하지 않고는 바꿀 수 없다 |
-| 서버에서 도는 agent의 SSRF 대응 | `401`의 `resource_metadata` 주소는 확인 없이 요청한다. 사설 IP 차단·redirect 대상 확인·egress proxy는 없다 | 모든 구성 요소가 한 기기의 `localhost`에서 도는 학습 환경이다 |
+| 서버에서 도는 agent의 SSRF 대응 | `401`의 `resource_metadata` 주소는 확인 없이 요청한다. 사설 IP 차단과 egress proxy는 없고, redirect를 따라가지 않는 것은 classpath에서 고른 HTTP client의 기본값일 뿐이다 | 모든 구성 요소가 한 기기의 `localhost`에서 도는 학습 환경이다 |
+| agent가 앱 종료 때 보내는 session `DELETE`의 token | 앱이 끝날 때 agent가 보내는 session 종료 `DELETE`에는 token이 붙지 않아, MCP Server에 닿으면 `401`이다. session은 MCP Server가 내려갈 때까지 남는다 | token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`는 요청을 일으킨 사용자를 찾아 그 token을 고르는데, 앱이 끝날 때의 `DELETE`에는 그 사용자가 없다([6장](06-mcp-call-and-validation.md)) |
 
 항목별 전체 판정은 [준수표](reference-compliance.md)에 있다.
 
@@ -314,7 +315,7 @@ curl -si -b /tmp/agent-cookies.txt \
 
 - discovery는 issuer를 먼저 비교하고 endpoint 주소를 확인한다. code는 redirect URI 비교, PKCE, public client에게 매번 받는 consent, `iss` 확인이 지킨다.
 - token은 `resource`와 `aud`로 한 MCP Server에 묶이고, MCP Server는 자기용 token만 받아 downstream으로 넘기지 않는다.
-- official은 HTTPS, SSE event `id`, agent의 SSRF 대응 일부를 지키지 못한다.
+- official은 HTTPS, SSE event `id`, agent의 SSRF 대응 일부, agent가 앱 종료 때 보내는 `DELETE`의 token을 지키지 못한다.
 
 ## 8.14 명세 근거
 
@@ -330,6 +331,7 @@ curl -si -b /tmp/agent-cookies.txt \
 | MCP Server는 자기를 audience로 발급된 token만 받고, 다른 token을 넘기지 않는다. client는 `resource`를 넣고, 그 MCP Server의 Authorization Server가 발급한 token만 보낸다 | [MCP 2025-11-25 Authorization — Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Security Best Practices — Token Passthrough](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#token-passthrough) | MUST, MUST NOT |
 | 서버는 모든 연결의 `Origin`을 검증하고, 로컬 서버는 `127.0.0.1`에만 bind한다. Authorization Server의 endpoint는 HTTPS이고, redirect URI는 `localhost`이거나 HTTPS다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2025-11-25 Authorization — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security) | MUST, SHOULD |
 | MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없게 만들고 사용자 정보에 묶는다 | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
+| client는 session을 끝내는 `DELETE`까지 모든 HTTP 요청의 `Authorization` header에 access token을 넣는다 | [MCP 2025-11-25 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements) | MUST |
 | SSE event에 `id`를 붙일 수 있고, 붙이면 session 안의 모든 stream에서 유일하다 | [MCP 2025-11-25 Transports — Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) | MAY, MUST |
 
 [← 7장](07-local-client.md) · [목차](README.md) · [9장 →](09-versions.md)

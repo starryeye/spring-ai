@@ -2,11 +2,14 @@
 
 ## 읽는 법
 
-이 부록은 MCP authorization 흐름의 HTTP endpoint마다 명세가 정한 parameter·header·field를 모두 표로 모은 사전이다. 개념 설명은 각 절의 "설명" 줄이 가리키는 장에 있다.
+이 부록은 MCP authorization 흐름의 HTTP endpoint마다 명세가 정한 parameter·header·field를 모두 표로 모은 사전이다.
+개념 설명은 각 절의 "설명" 줄이 가리키는 장에 있다.
 "요구 수준" 칸은 원문 단어(REQUIRED, MUST 등)를 그대로 쓰고, 단어가 없으면 "표시 없음"이라고 쓰며, 명세마다 다르면 모두 적는다.
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
-캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다. 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
-JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다. 기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
+캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
+요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
+JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
+기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
 
 ## endpoint 목차
 
@@ -56,7 +59,7 @@ client는 이 요청을 discovery의 첫 요청으로 보낸다.
 근거:
 
 - MCP 2025-11-25 Authorization: [Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements), [Error Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#error-handling), [Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling)
-- RFC: [RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3), [§3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1), [RFC 9728 §5.1](https://www.rfc-editor.org/rfc/rfc9728#section-5.1), [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110#section-11.2)
+- RFC·draft: [RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3), [§3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1), [OAuth 2.1 §5.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.3.1), [RFC 9728 §5.1](https://www.rfc-editor.org/rfc/rfc9728#section-5.1), [RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110#section-11.2)
 
 **요청**
 
@@ -230,13 +233,13 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | 받아들일 수 없는 notification·response | 오류 상태 코드 MUST(예: `400`), `id` 없는 JSON-RPC 오류 본문 MAY | [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) |
-| `MCP-Session-Id` 없음(초기화 제외) | `400` SHOULD — `Session ID missing`(C14) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
+| `MCP-Session-Id` 없음(초기화 제외) | `400` SHOULD — `Session ID missing`(C14). 본문은 JSON-RPC 오류 `-32601`과 Java `stackTrace`를 담는다([준수표](reference-compliance.md#준수표) 38번) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 무효·미지원 `MCP-Protocol-Version` | `400` MUST — JSON-RPC `-32600`, `id: null`(C15). `2026-07-28`도 같다([9장](09-versions.md)) | [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header) |
 | `Accept`에 `text/event-stream` 없음 | `400` — `Invalid Accept headers`(S15) | [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) (client MUST) |
 | 무효·만료 token | `401` MUST와 `WWW-Authenticate` MUST — [token 없는 요청](#post-mcp--token-없는-요청)의 오류 표 | [MCP Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), RFC 6750 §3 |
 | `Origin`이 있음(official은 허용한 `Origin`이 없다) | `403` MUST — `Invalid Origin header`(C13). token과 상관없이 인증 전에 나온다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) |
 | scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음 | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
-| 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
+| 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
@@ -346,7 +349,7 @@ Session ID required in mcp-session-id header
 |---|---|---|---|---|
 | 메서드 `DELETE` | 요청 줄 | SHOULD — 더 쓰지 않을 session | | MCP Java SDK client는 닫을 때 보낸다. `local-client`는 `closeGracefully`에서 보낸다 |
 | `MCP-Session-Id` | header | MUST — 서버가 발급했으면 이후 모든 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) 2번) · 이 header를 넣은 `DELETE`로 session을 끝내는 것은 SHOULD (같은 절 5번) | 끝낼 session을 가리킨다 | 씀 |
-| `Authorization` | header | MUST (모든 HTTP 요청) | | 씀 — 없으면 `401`([7장](07-local-client.md)) |
+| `Authorization` | header | MUST (모든 HTTP 요청) | | `local-client`와 캡처 스크립트(C18)는 씀 — 없으면 `401`([7장](07-local-client.md)). agent가 앱 종료 때 보내는 `DELETE`에는 코드상 없다([준수표](reference-compliance.md#준수표) 36번) |
 | `MCP-Protocol-Version` | header | MUST (초기화 뒤 모든 요청) | | 씀 |
 
 **응답**
