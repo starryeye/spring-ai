@@ -56,6 +56,15 @@ MCP Server의 자동 구성에는 audience 검증을 켜는 설정이 없기 때
 | `spring.security.oauth2.client.registration`의 등록이 정확히 하나다 | module의 token customizer는 WARN 한 줄을 남기고 아무 일도 하지 않는다. 이 practice에서는 `DiscoveredClientRegistrationRepository`가 먼저 기동을 멈춘다 |
 | `auth-server`에는 `SecurityFilterChain` bean을 직접 정의하지 않는다 | `@ConditionalOnDefaultWebSecurity`가 module의 Authorization Server 설정 전체를 끈다 |
 | `ChatController`가 `.contextWrite(...)`를 부른다 | reactor thread에서 인증을 찾지 못해 token이 붙지 않는다. agent에 남는 흔적은 DEBUG 한 줄뿐이다 |
+| metadata customizer는 `McpAuthorizationStandardConfig` 한 곳에서만 설정한다 | Authorization Server Metadata와 OIDC discovery 문서의 customizer는 각각 field 하나에 담겨 마지막 설정만 남는다. 다른 customizer bean이 뒤에서 설정하면 `iss` 지원, `none`, signing 알고리즘 claim이 사라진다 |
+
+metadata customizer는 Spring Security의 `authorizationServerMetadataCustomizer`와 `providerConfigurationCustomizer`다.
+두 메서드는 받은 customizer를 목록에 더하지 않고 field 하나를 덮어쓴다.
+그래서 `McpAuthorizationStandardConfig`는 두 문서의 claim을 한 customizer 안에서 모두 넣는다.
+module의 `cimd(true)`도 같은 Authorization Server Metadata customizer를 쓴다.
+module은 그 customizer를 먼저 설정하고 `McpAuthorizationStandardConfig`의 설정을 나중에 적용한다.
+그래서 CIMD를 켜면 module이 넣는 `client_id_metadata_document_supported`가 사라진다.
+이 practice는 CIMD를 켜지 않는다.
 
 MCP Server의 자동 구성에도 `@ConditionalOnDefaultWebSecurity`가 있다.
 `shop-mcp-server`는 이 조건을 일부러 이용한다.
@@ -189,15 +198,18 @@ Authorization Server는 `http://localhost:8101/mcp`용 token만 발급하므로,
 
 세 practice의 판정은 [준수표](../mcp-guide/reference-compliance.md#준수표)에 있다.
 community의 판정 근거가 official과 갈리는 행은 아래와 같다.
+session을 사용자에 묶지 않는 28번 행은 이유가 official과 같아서 이 표에 넣지 않는다.
 
 | 행 | 항목 | community의 동작 |
 |---|---|---|
 | 8 | token audience 검증 | 비교할 `aud`를 요청 URL로 계산한다. 그래서 `Host` 검사가 먼저 온다([Host 검증과 audience 계산](#host-검증과-audience-계산)) |
 | 11 | `Origin`·`Host` 검사 | module의 `OriginValidationFilter`가 filter chain 안, 인증 filter 앞에서 검사한다. 허용 `Origin`은 `http://localhost:8101` 하나다 |
-| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM URL을 `DefaultUrlValidator(true)`로 확인한다. `https`와 loopback 주소의 `http`만 받고 경로의 `..`를 거절하지만, 사설 IP는 막지 않는다 |
-| 28 | MCP session을 사용자에 묶기 | module의 `sessionBinding(...)`을 켜지 않는다. 이유는 official과 같다 |
+| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM을 요청하기 전에 그 URL을 URL 검증기로 확인한다. 검증기는 scheme과 경로의 `..`만 보고, 사설 IP는 막지 않는다 |
 | 36 | 모든 MCP 요청의 `Authorization` header | module의 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`는 transport context에 `Authentication`과 servlet 요청이 모두 있어야 token을 붙인다. 앱이 끝날 때 나가는 session 종료 `DELETE`에는 둘 다 없어 token 없이 나간다 |
 
+27번의 URL 검증기는 `shop-agent`의 `McpSecurityConfig`가 정한다.
+이 practice는 모든 앱이 `http://localhost`에서 돌아서, loopback 주소의 `http`도 받는 `DefaultUrlValidator(true)`를 넘긴다.
+module의 기본값 `DefaultUrlValidator()`는 `https`만 받으므로, 운영에서는 기본값을 쓴다.
 official의 agent는 PRM URL을 확인 없이 요청한다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#810-official이-지키지-못한-것)).
 session 종료 `DELETE`에 token을 붙이는 방법은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md#token을-client-주인에게-묶는-이유)에 있다.
 
@@ -230,6 +242,24 @@ browser에서 `http://localhost:8100/`을 열고 `user`/`password`로 login한 �
 
 `stop.sh`는 9000·8101·8100 포트에서 연결을 기다리는 process를 내린다.
 `./stop.sh --ollama`는 ollama도 함께 내린다.
+
+## 코드 지도
+
+official과 코드가 같은 클래스는 [official README의 코드 지도](../mcp-security-authn-official/README.md#코드-지도)에서 안내서 절을 찾는다.
+아래는 community에만 있거나 official과 코드가 다른 클래스다.
+package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `shopmcpserver`, `shop-agent`가 `shopagent`다.
+
+| module | 클래스 | 하는 일 | 안내서 |
+|---|---|---|---|
+| `auth-server` | `McpAuthorizationStandardConfig` | module의 확장점으로 검증기, `iss` 응답 handler, metadata claim, client 인증 실패 handler, consent 저장소를 설정한다 | [4장 official 코드](../mcp-guide/04-client-registration.md#48-official-코드에서-보기), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
+| | `OidcDiscoveryConfig` | module이 켜지 않는 OpenID Connect를 켠다 | [3장 Authorization Server Metadata](../mcp-guide/03-discovery.md#35-3단계-authorization-server-metadata를-읽는다) |
+| | `SingleResourceTokenRequestConverter` | token request의 `resource`가 여러 개면 `invalid_target`으로 거절한다 | [5장 token request](../mcp-guide/05-authorization-and-token.md#57-token-request) |
+| | `ResourceAudienceTokenCustomizer` | access token의 `aud`를 `resource`로 정하고, ID token의 `aud`를 client_id로 되돌린다 | [5장 token의 내용](../mcp-guide/05-authorization-and-token.md#58-token의-내용-access-token과-id-token) |
+| `shop-mcp-server` | `SecurityConfig` | `McpServerOAuth2Configurer`로 token 검증, audience 검증, PRM, `401` entry point, `Origin`·`Host` 검사를 설정한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증) |
+| | `McpProtocolVersionFilterConfig` | `McpProtocolVersionFilter`를 MCP endpoint에만 등록한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
+| `shop-agent` | `McpAuthorizationDiscovery` | challenge와 PRM은 module에 맡기고, issuer 비교와 Authorization Server Metadata 확인을 한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
+| | `McpSecurityConfig` | discovery, client 등록 정보, `resource`를 넣는 token request client, authorized client manager를 등록한다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
+| | `ChatController` | `.contextWrite(...)`로 요청 thread의 인증을 reactor context에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 
 ## 직접 확인할 것
 
@@ -269,7 +299,8 @@ AS=http://localhost:9000 MCP_BASE=http://localhost:8101 \
 ## 더 읽을 것
 
 - [MCP 안내서](../mcp-guide/README.md): official practice로 MCP와 MCP authorization을 설명한다.
-- [부록: 명세 준수표](../mcp-guide/reference-compliance.md): 세 practice가 명세 항목을 어디까지 지키는지 모았다. 구현 위치 지도에는 official과 community의 클래스가 나란히 있다.
+- [부록: 명세 준수표](../mcp-guide/reference-compliance.md): 세 practice가 명세 항목을 어디까지 지키는지 모았다.
+  구현 위치 지도에는 official과 community의 클래스가 나란히 있다.
 - [mcp-security-authn-official](../mcp-security-authn-official/README.md): 같은 흐름을 module 없이 만든 practice다.
 - [mcp-security-authn-chat-memory](../mcp-security-authn-chat-memory/README.md): official에 사용자별 대화 기억을 더하고, MCP session을 사용자에 묶는다.
 - [spring-ai-community/mcp-security](https://github.com/spring-ai-community/mcp-security): module의 저장소다.

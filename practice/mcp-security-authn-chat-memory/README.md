@@ -189,9 +189,15 @@ sequenceDiagram
 
 | 때 | 닫는 곳 |
 |---|---|
-| agent에서 logout할 때 | `SecurityConfig`가 더한 logout handler가 `UserMcpClients#close`를 부른다 |
+| agent가 `POST /logout`을 받을 때 | `SecurityConfig`가 더한 logout handler가 `UserMcpClients#close`를 부른다 |
 | HTTP session이 끝날 때 | `HttpSessionEventPublisher`가 `SessionDestroyedEvent`를 알리고, `UserMcpClients#onSessionDestroyed`가 그 session 사용자의 client를 닫는다 |
 | 앱이 끝날 때 | `UserMcpClients#destroy`가 남은 client를 모두 닫는다 |
+
+logout은 Spring Security가 만드는 `POST /logout` endpoint다.
+다른 상태 변경 요청처럼 `X-XSRF-TOKEN` header가 있어야 하고, 이 practice의 화면에는 logout 단추가 없다.
+그래서 화면으로 쓰는 동안 client가 실제로 닫히는 때는 HTTP session 만료와 앱 종료다.
+HTTP session은 Spring Boot 기본값대로 30분 동안 요청이 없으면 끝난다.
+logout으로 닫히는 경로는 `shop-agent`의 테스트가 확인한다.
 
 client는 `closeGracefully()`로 닫고, 이때 SDK가 session 종료 `DELETE`를 보낸다([1장 `DELETE`로 session 끝내기](../mcp-guide/01-mcp-basics.md#18-5단계-delete로-session을-끝낸다)).
 logout도 HTTP session을 끝내지만, client는 map에서 이미 지워져 있어 두 번 닫히지 않는다.
@@ -222,9 +228,9 @@ browser에서 `http://localhost:8130/`을 열고 `alice`/`alice` 또는 `bob`/`b
 화면의 "대화 label" 칸이 label이고, "저장 내용 보기"와 "이 대화 비우기" 단추가 위의 대화 API를 부른다.
 
 같은 browser의 창들은 cookie를 같이 써서 한 사용자로만 login된다.
-두 사용자를 함께 쓰려면 한 사람은 일반 창, 다른 사람은 private 창에서 연다.
-agent의 logout은 `auth-server`의 login session(`MEMAUTHSESSIONID` cookie)을 끝내지 않는다.
-그래서 사용자를 바꿀 때도 창을 나눠서 연다.
+agent의 session이 logout이나 만료로 끝나도 `auth-server`의 login session(`MEMAUTHSESSIONID` cookie)은 따로 남는다.
+그래서 같은 창에서 다시 login하면 `auth-server`가 password를 묻지 않고 앞 사용자로 곧바로 들여보낸다.
+두 사용자를 함께 쓰거나 사용자를 바꾸려면, 한 사람은 일반 창에서, 다른 사람은 private 창에서 연다.
 
 **멈추기**
 
@@ -241,6 +247,7 @@ agent의 logout은 `auth-server`의 login session(`MEMAUTHSESSIONID` cookie)을 
 official과 같은 클래스는 [official README의 코드 지도](../mcp-security-authn-official/README.md#코드-지도)에 있다.
 아래는 이 practice에만 있거나 official과 다른 클래스다.
 클래스는 `<module>/src/main/java/dev/starryeye/memoryauthn/<package>/`에 있고, `application.yml`은 `<module>/src/main/resources/`에 있다.
+package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`다.
 
 | module | 클래스 | 하는 일 | 설명 |
 |---|---|---|---|
@@ -297,6 +304,14 @@ AS=http://localhost:9020 MCP_BASE=http://localhost:8131 \
 
 첫 스크립트의 access token payload에서 `sub`가 `alice`이고 `aud`가 `http://localhost:8131/mcp`인 것을 볼 수 있다.
 같은 방법으로 받은 기록이 [chat-memory 캡처](../../docs/superpowers/captures/2026-09-12-chat-memory.txt)와 [chat-memory public client 캡처](../../docs/superpowers/captures/2026-09-25-chat-memory-public-client.txt)에 있다.
+
+## 이 practice가 하지 않는 것
+
+- token이 만료된 뒤 이미 기억한 대화를 얼마나 둘지는 정하지 않는다.
+- 사용자의 권한이 줄어든 뒤 이미 기억한 대화를 어떻게 할지는 다루지 않는다.
+- `chat.memory.max-messages` 창에서 밀려난 메시지가 저장소에서 어떻게 되는지는 다루지 않는다.
+- 대화 기억과 token은 메모리에만 둔다.
+  agent를 다시 띄우면 대화 기억과 받아 둔 token이 모두 사라진다.
 
 ## 더 읽을 것
 
