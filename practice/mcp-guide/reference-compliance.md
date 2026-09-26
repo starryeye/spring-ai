@@ -99,16 +99,19 @@ chat-memory의 클래스는 official과 package(`dev.starryeye.memoryauthn.*`)�
 | 33 | authorization URL scheme 검증(`http`는 loopback만) | MUST ([Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation)) | 예 — agent `McpAuthorizationDiscovery#requireHttpUrl`, `local-client` `Discovery#requireEndpoint`. scheme은 `http`·`https`만, `http`는 loopback host만 받는다 | 예 — 같음 | 예 — 같음 | [3장](03-discovery.md), [8장](08-security.md) |
 | 34 | MCP Server의 JWT 검증 — signature·`iss`·`exp`, RFC 9068의 `typ` | MUST ([MCP — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) · [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2)) · `typ`은 참고 ([RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4) MUST, 그 프로파일의 token일 때) | 예(`typ` 제외) — `issuer-uri`의 key로 signature(`alg: none` 거절)와 `iss`를, `JwtTimestampValidator`로 `exp`를 본다(S3, `McpAuthorizationStandardTest#만료된_토큰은_거부한다`). `typ`은 Spring 기본 `JwtTypeValidator.jwt()`라 없거나 `JWT`일 때만 통과하고, `at+jwt`는 요구하지 않는다(17번) | 예(`typ` 제외) — 같음 | 예(`typ` 제외) — Boot가 만든 같은 decoder를 module에 넘긴다 | [6장](06-mcp-call-and-validation.md) |
 | 35 | native app의 loopback callback server — listen 주소, 포트 수명, IP 버전 | 표시 없음 (소문자 should, [RFC 8252 §8.3](https://www.rfc-editor.org/rfc/rfc8252#section-8.3)) · SHOULD NOT · RECOMMENDED ([OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2)) | **아니오**(RECOMMENDED) — `LoopbackCallbackServer`는 `127.0.0.1`에만 listen하지만 IPv6 `[::1]`은 시도하지 않는다. 포트는 callback을 받은 뒤에도 MCP 호출이 끝날 때까지 열려 있다(`Main`의 try-with-resources) | 해당 없음 — `local-client`가 없다 | 해당 없음 — 같음 | [7장](07-local-client.md) |
+| 36 | 모든 MCP 요청의 `Authorization` header — session 종료 `DELETE` 포함 | MUST ([MCP — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements)) | **아니오**(agent, 코드로 판정) — 앱 종료 때 공유 client가 보내는 `DELETE`는 transport context가 비어 `OAuth2TokenAttachingRequestCustomizer#customize`가 header를 붙이지 않는다(`CloseableMcpSyncClients#close` → `McpSyncClient#close` → `HttpClientStreamableHttpTransport#createDelete`). `local-client`는 예 — `McpCalls`가 transport 기본 요청에 넣은 header가 `DELETE`에도 복사된다 | 예(코드로 판정) — client마다 주인을 가진 `OAuth2TokenAttachingRequestCustomizer`가 context와 상관없이 token을 붙이고, `UserMcpClients`가 logout·HTTP session 종료·앱 종료 때 `closeGracefully()`로 닫는다. 테스트 `OAuth2TokenAttachingRequestCustomizerTest#transport_context_없이_나가는_session_종료_DELETE_에도_토큰을_붙인다` | **아니오**(코드로 판정) — module `OAuth2AuthorizationCodeSyncHttpRequestCustomizer#customize`도 context에 `Authentication`과 servlet 요청이 없으면 header 없이 돌아간다. 종료 경로는 official과 같다 | [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md) |
 
 ## 남은 위반
 
-MUST 위반은 세 행이고, 세 practice에 똑같이 남아 있다.
+MUST 위반은 네 행이다.
+12·19·27번은 세 practice에 똑같이 남아 있고, 36번은 official의 agent와 community의 agent에 있다.
 
 | # | 항목 | 지금 | 이유 |
 |---|---|---|---|
 | 12 | HTTPS | Authorization Server, MCP Server, agent가 모두 `http://localhost`로 돈다 | 요청과 응답을 그대로 보려는 학습용 선택이다. 요청은 loopback 주소 안에서만 오간다 |
 | 19 | SSE event `id`의 유일성 | 한 session의 event `id`가 모두 session ID다 | 값을 정하는 Spring AI `WebMvcStreamableServerTransportProvider`가 `final`이고, 안의 session transport는 `private`이다. 고치려면 transport를 fork해야 한다 |
 | 27 | 서버에서 도는 agent의 SSRF 대응 | issuer binding 순서와 authorization URL scheme 확인만 있다. community는 PRM URL의 scheme도 본다 | 모든 구성 요소가 한 기기의 `localhost`에서 도는 학습 환경이다 |
+| 36 | agent가 앱 종료 때 보내는 session `DELETE`의 token | token 없이 나가서 `401`을 받는다. Spring AI 서버 transport는 `DELETE` 말고는 session을 지우지 않아, 그 session은 MCP Server가 내려갈 때까지 남는다 | token customizer가 요청을 일으킨 사용자를 transport context에서 찾는데, 종료 때의 `DELETE`에는 context가 없다. chat-memory처럼 사용자마다 client를 두고 그 주인의 token을 붙이면 풀린다 |
 
 - SHOULD 수준에서 지키지 않는 것은 21번(discovery 결과 재검증), 28번(official·community의 session 묶기), 35번(`local-client`의 IPv6 시도)이다. 16번은 scope를 설계하지 않아 다루지 않는다.
 - 17번과 22번, 34번의 `typ`은 MCP가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
