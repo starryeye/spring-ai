@@ -3,7 +3,7 @@
 ## 9.1 버전 차이가 문제가 되는 경우
 
 MCP 명세는 `2025-11-25`처럼 날짜로 버전을 나눈다.
-client와 server는 같은 버전의 규칙으로 이야기해야 서로를 이해한다([1장](01-mcp-basics.md)).
+client와 server는 같은 버전의 규칙을 따라야 서로를 이해한다([1장](01-mcp-basics.md)).
 버전이 다르면 한쪽이 기대하는 단계를 다른 쪽이 모른다.
 2025-03-26만 아는 client는 PRM을 찾지 않고, MCP Server와 같은 host에서 Authorization Server Metadata를 찾는다.
 2026-07-28만 아는 client는 `initialize` 없이 처음부터 `tools/list`를 보낸다.
@@ -34,7 +34,7 @@ MCP Server가 `https://api.example.com/v1/mcp`라면 metadata는 `https://api.ex
 
 회사의 Authorization Server가 다른 host에 있으면 MCP Server가 중개를 맡아야 했다.
 MCP Server는 바깥 Authorization Server의 token과 자기가 발급한 token의 짝, 그리고 두 token의 만료까지 관리해야 했다.
-tool을 제공하려던 server가 Authorization Server 하나를 통째로 구현하는 셈이었다.
+tool을 제공하려던 서버가 Authorization Server 하나를 통째로 구현하는 셈이었다.
 
 **바뀐 것**
 
@@ -139,13 +139,13 @@ metadata가 `iss`를 넣는다고 알렸는데 `iss`가 없을 때만 응답을 
 **바뀐 이유**
 
 `initialize`로 협상한 버전과 capability는 그 연결의 상태로 server에 남는다.
-server가 여러 대면 다음 요청도 그 상태를 가진 server로 가야 해서, 요청을 고르게 나눠 주는 보통의 load balancer를 쓰기 어렵다.
-그 server가 죽으면 client는 다시 `initialize`부터 해야 한다.
+서버가 여러 대면 다음 요청도 그 상태를 가진 서버로 가야 해서, 요청을 고르게 나눠 주는 보통의 load balancer를 쓰기 어렵다.
+그 서버가 죽으면 client는 다시 `initialize`부터 해야 한다.
 명세 변경 제안(SEP) 가운데 SEP-2575가 `initialize`를 없앤 이유다.
 
 session은 언제 시작해 언제 끝나는지가 client마다 달랐다.
 tool 호출마다 새로 여는 client도, 앱을 켤 때 열어 끌 때까지 쓰는 client도 있었다.
-그래서 session에 둔 장바구니 같은 상태는 어떤 client에서는 다음 호출 때 사라지고, 어떤 client에서는 모든 대화가 함께 쓴다.
+그래서 session에 둔 장바구니 같은 상태가 어떤 client에서는 다음 호출 때 사라지고, 어떤 client에서는 모든 대화가 그 상태를 함께 쓴다.
 SEP-2567이 session을 없앤 이유다.
 
 **바뀐 것**
@@ -180,7 +180,7 @@ sequenceDiagram
 **상태는 tool 인자의 handle로**
 
 호출 사이의 상태는 server가 만든 식별자(handle)로 가리킨다.
-server는 handle을 tool 결과로 돌려주고, 모델은 다음 호출의 인자로 넘긴다.
+server는 handle을 tool 결과로 돌려주고, LLM은 다음 호출의 인자로 넘긴다.
 
 ```text
 create_basket()                                → {"basket_id": "bsk_a1b2c3"}
@@ -190,7 +190,7 @@ checkout(basket_id="bsk_a1b2c3")
 
 handle은 protocol의 기능이 아니라 tool을 설계하는 방법이다.
 `basket_id`는 평범한 문자열 인자다.
-session과 달리 모델은 장바구니를 여럿 만들 수도, 한 `basket_id`를 여러 agent에게 나눠 줄 수도 있다.
+session과 달리 LLM은 장바구니를 여럿 만들 수도, 한 `basket_id`를 여러 agent에게 나눠 줄 수도 있다.
 handle은 채팅 기록에 남으므로, 가졌다는 것만으로 권한을 주지 않는다.
 authorization을 쓰는 server는 호출마다 handle과 token의 사용자를 함께 보고, 그 사용자의 장바구니인지 확인한다.
 [6장](06-mcp-call-and-validation.md)에서 session을 사용자에 묶던 일이 2026-07-28에서는 이 확인으로 바뀐다.
@@ -205,7 +205,7 @@ official의 tool은 호출 사이에 상태를 두지 않아서 handle이 필요
 | dual-era | legacy | modern 요청을 먼저 보낸다. `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 |
 | modern | legacy | 실패한다. client는 사용자에게 오류를 보여 준다 |
 | legacy | modern | 필요한 header가 없어 `400`으로 실패한다. legacy client에게는 새 버전으로 넘어갈 방법이 없다 |
-| legacy | dual-era | server가 `initialize`에 답하고 legacy 버전으로 이야기한다 |
+| legacy | dual-era | server가 `initialize`에 답하고 legacy 버전으로 통신한다 |
 
 modern 오류란 `UnsupportedProtocolVersionError`처럼 2026-07-28이 정한 JSON-RPC 오류다.
 modern만 지원하는 server는 옛 client의 `GET`·`DELETE`에 `405`로 답하고, `Mcp-Session-Id`는 무시한다.
@@ -318,4 +318,4 @@ Content-Type: application/json;charset=UTF-8
 | 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 server는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
 | dual-era client는 modern 요청을 먼저 보내고, `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 | [MCP 2026-07-28 Streamable HTTP — Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility) | MAY, SHOULD |
 
-[← 8장](08-security.md) · [목차](README.md) · [부록: API 사전 →](reference-api.md)
+[← 8장](08-security.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)

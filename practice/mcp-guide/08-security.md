@@ -8,7 +8,8 @@
 
 공격자가 서는 자리는 다섯 가지다.
 악성 MCP Server, 사용자가 여는 악성 링크나 web page, 같은 기기의 다른 프로그램, 네트워크 경로, 그리고 새어 나간 token이나 session ID를 가진 사람이다.
-막는 장치는 모두 앞 장에서 설명했으므로, 여기서는 그 장으로 가는 링크만 둔다.
+막는 장치는 모두 앞 장에서 설명했다.
+여기서는 공격 과정에 집중하고, 막는 장치의 자세한 설명은 그 장의 링크로 넘긴다.
 
 | 절 | 공격 | 공격자 | 막는 것 |
 |---|---|---|---|
@@ -237,7 +238,7 @@ agent의 `OAuth2TokenAttachingRequestCustomizer`는 요청을 일으킨 사용�
 
 사용자가 연 악성 web page는 DNS rebinding으로 browser를 거쳐 `localhost`의 MCP Server를 부른다([6장](06-mcp-call-and-validation.md)).
 authorization 없이 도는 로컬 MCP Server라면, page의 script가 tool을 마음대로 부른다.
-서버가 모든 network interface(`0.0.0.0`)에서 연결을 받으면, 같은 네트워크의 다른 기기도 그 서버에 바로 연결한다.
+서버가 모든 네트워크 interface(`0.0.0.0`)에서 연결을 받으면, 같은 네트워크의 다른 기기도 그 서버에 바로 연결한다.
 요청이 평문 HTTP로 네트워크를 지나면, 경로에 있는 누구든 token과 authorization code, `client_secret`을 읽는다.
 
 **막는 것**

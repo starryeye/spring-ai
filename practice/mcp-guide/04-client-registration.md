@@ -122,7 +122,7 @@ Authorization Server의 endpoint는 적지 않고, 3장의 discovery로 채운�
 ## 4.4 public client의 규칙
 
 public client의 `client_id`는 배포된 앱 안에 들어 있어서 비밀이 아니다.
-같은 기기의 다른 프로그램도 `local-mcp-client`를 대며 요청할 수 있다.
+같은 기기의 다른 프로그램도 `client_id`에 `local-mcp-client`를 넣어 요청할 수 있다.
 Authorization Server는 요청을 보낸 것이 진짜 `local-client`인지 확인할 수 없다.
 그래서 public client는 비밀 대신 다른 장치로 사용자와 authorization code를 지킨다.
 
@@ -131,7 +131,7 @@ Authorization Server는 요청을 보낸 것이 진짜 `local-client`인지 확�
 | 비밀 없이 등록한다(`none`) | `client-authentication-methods: [none]` | 배포 파일의 비밀은 누구나 꺼낼 수 있다. 꺼낸 비밀로 다른 프로그램이 이 client 행세를 한다 |
 | PKCE를 반드시 쓴다 | `require-proof-key: true` | loopback redirect로 온 code를 같은 기기의 다른 프로그램이 가로채 token으로 바꾼다(5장) |
 | loopback redirect의 포트는 자유다 | Spring이 loopback IP 주소의 포트를 빼고 비교한다 | 포트를 고정하면 그 포트를 다른 프로그램이 쓰고 있을 때 login이 실패한다 |
-| consent를 매번 받는다 | `require-authorization-consent: true`와 두 클래스 | 다른 프로그램이 `local-mcp-client`를 대고 요청하면 사용자 모르게 code가 발급된다 |
+| consent를 매번 받는다 | `require-authorization-consent: true`와 두 클래스 | 다른 프로그램이 `client_id`에 `local-mcp-client`를 넣어 요청하면 사용자 모르게 code가 발급된다 |
 | refresh token을 주지 않는다 | Spring 기본 동작 | 새어 나간 refresh token 하나로 누구든 오랫동안 새 token을 받는다 |
 
 **비밀 없음: `none`**
@@ -237,7 +237,7 @@ sequenceDiagram
 통과한 문서는 HTTP cache header에 따라 cache하고, 가져오지 못했거나 잘못된 문서는 cache하지 않는다.
 
 CIMD만으로 막지 못하는 경우도 있다.
-진짜 client의 문서에 `localhost` redirect URI가 있으면, 공격자는 그 문서 주소를 `client_id`로 대고 자기가 연 `localhost` 포트로 code를 받을 수 있다.
+진짜 client의 문서에 `localhost` redirect URI가 있으면, 공격자는 그 문서 주소를 `client_id`에 넣어 자기가 연 `localhost` 포트로 code를 받을 수 있다.
 사용자는 consent 화면에서 진짜 client의 이름을 보게 된다.
 그래서 Authorization Server는 consent 화면에 redirect 주소의 host를 보여 주고, `localhost`로만 돌아가는 요청에는 경고를 더한다.
 
@@ -277,7 +277,7 @@ PRM이 위조되었다면 비밀은 공격자에게 간다.
 | 상황 | client가 할 일 |
 |---|---|
 | PRM이 알려 준 issuer가 credentials의 issuer와 같다 | 그 credentials로 흐름을 이어 간다 |
-| 다르다 | 그 credentials를 쓰지 않는다. 몰래 시도하지 말고 오류를 보여 준다 |
+| 다르다 | 그 credentials를 쓰지 않는다. 다른 방법을 조용히 시도하지 않고, 사용자에게 오류를 보여 준다 |
 | Authorization Server가 정말 바뀌었다 | 새 Authorization Server에 다시 등록한다 |
 
 DCR로 받아 저장해 둔 credentials도 같은 규칙을 따른다.

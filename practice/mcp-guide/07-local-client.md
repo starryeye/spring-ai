@@ -135,11 +135,7 @@ private void handle(HttpExchange exchange) throws IOException {
 고정 포트는 다른 프로그램이 이미 쓰고 있을 수 있고, 그러면 callback server를 열 수 없다.
 운영체제가 고른 빈 포트는 실행할 때마다 다르다.
 
-그런데 `local-mcp-client`의 redirect URI는 `http://127.0.0.1:8123/callback`으로 등록돼 있다.
-포트가 달라도 되는 이유는 Authorization Server가 loopback IP 주소(`127.x.x.x`, `[::1]`)의 redirect URI를 비교할 때 포트를 빼기 때문이다(4장).
-scheme, host, path는 등록한 값과 정확히 같아야 한다.
-Spring은 `localhost`라는 이름에는 이 예외를 두지 않으므로, `local-client`는 `127.0.0.1`을 쓴다.
-`127.0.0.1`에만 bind하면 같은 네트워크의 다른 기기는 이 서버에 연결할 수 없다.
+등록된 redirect URI는 `http://127.0.0.1:8123/callback`이지만, Authorization Server가 loopback IP 주소의 포트를 빼고 비교하므로 빈 포트를 써도 된다([4장](04-client-registration.md)).
 
 callback server는 처음 온 callback만 결과로 쓰고, browser가 함께 보내는 `/favicon.ico` 같은 요청에는 `404`로 답한다.
 `Main`은 callback을 5분 동안 기다리고, 그 안에 login이 끝나지 않으면 멈춘다.
@@ -225,9 +221,8 @@ public static String code(Map<String, String> params, String expectedState, Auth
 }
 ```
 
-순서와 이유는 5장에서 본 그대로다.
+순서와 이유는 [5장](05-authorization-and-token.md)에서 본 그대로다.
 `iss`는 `String.equals`로 글자 그대로 비교한다.
-`error`를 `iss`보다 뒤에 보는 것은, 다른 Authorization Server에서 온 오류의 `error_description`이 공격자가 써 넣은 문구일 수 있기 때문이다.
 
 `local-client`는 한 번에 요청 하나만 보내므로, 요청 기록을 따로 저장하지 않고 `state`와 issuer를 메서드 인자로 넘긴다.
 

@@ -13,7 +13,7 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 
 ## 구현 위치 지도
 
-세 practice는 Authorization Server, MCP Server, agent를 서로 다른 프로세스로 띄운다.
+세 practice는 Authorization Server, MCP Server, agent를 서로 다른 process로 띄운다.
 MCP Server는 OAuth 2.1 resource server이고, agent와 `local-client`는 OAuth 2.1 client다([MCP 2025-11-25 Authorization — Roles](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#roles)).
 agent는 `client_secret`을 가진 confidential client이고, `local-client`는 비밀이 없는 public client다([OAuth 2.1 §2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.1)).
 MCP Server가 token을 검증만 하고 Authorization Server를 따로 두는 구성은 2025-06-18부터의 방식이다([MCP 2025-03-26 Authorization](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization), [MCP 2025-06-18 Changelog](https://modelcontextprotocol.io/specification/2025-06-18/changelog), [9장](09-versions.md)).
@@ -88,7 +88,7 @@ chat-memory의 클래스는 official과 package(`dev.starryeye.memoryauthn.*`)�
 | 18 | `invalid_client` `401`의 `WWW-Authenticate` | MUST ([RFC 6749 §5.2](https://www.rfc-editor.org/rfc/rfc6749#section-5.2) · [OAuth 2.1 §3.2.4](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.4)) | 예 — `ClientAuthenticationChallengeFailureHandler`, S8. Spring 기본 동작은 이 header를 붙이지 않는다([spring-security #18285](https://github.com/spring-projects/spring-security/issues/18285)) | 예 — 같음 | 예 — `McpAuthorizationStandardConfig`가 같은 handler를 쓴다 | [5장](05-authorization-and-token.md) |
 | 19 | SSE event `id`의 session 내 유일성 | MUST ([Transports — Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | **아니오** — event `id`가 session ID, C9·C10 | **아니오** — 같음(같은 SDK) | **아니오** — 같음(같은 SDK) | [1장](01-mcp-basics.md), [8장](08-security.md) |
 | 20 | `token_endpoint`·`revocation_endpoint`·`introspection_endpoint`의 `_auth_signing_alg_values_supported` | 조건부 MUST ([RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2)) | 예 — `AuthorizationServerConfig`의 metadata customizer, C3 | 예 — 같음 | 예 — `McpAuthorizationStandardConfig` | [부록 API](reference-api.md#get-well-knownoauth-authorization-server--authorization-server-metadata) |
-| 21 | discovery 결과 재검증 | SHOULD ([RFC 9728 §5.2](https://www.rfc-editor.org/rfc/rfc9728#section-5.2)) | **아니오** — agent는 프로세스 수명 동안 캐시하고, 실행 중 받은 `401`로 PRM을 다시 읽지 않는다. `local-client`는 실행마다 discovery를 한다 | **아니오** — 같음 | **아니오** — 같음 | [3장](03-discovery.md) |
+| 21 | discovery 결과 재검증 | SHOULD ([RFC 9728 §5.2](https://www.rfc-editor.org/rfc/rfc9728#section-5.2)) | **아니오** — agent는 process 수명 동안 캐시하고, 실행 중 받은 `401`로 PRM을 다시 읽지 않는다. `local-client`는 실행마다 discovery를 한다 | **아니오** — 같음 | **아니오** — 같음 | [3장](03-discovery.md) |
 | 22 | `GET /mcp` stream의 응답 시작 확인 | 참고 — 규정 없음 | 해당 없음 — 첫 event 전까지 header가 나가지 않는다(S11) | 해당 없음 — 같음 | 해당 없음 — 같음 | [부록 API](reference-api.md#get-mcp--서버가-보내는-메시지의-sse-stream) |
 | 23 | public client의 `client_id`, PKCE 강제, `none` 광고 | REQUIRED ([OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3)) · MUST · OPTIONAL ([RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2)) | 예 — `local-mcp-client` 등록과 `none` 광고, P5. `local-client` `TokenClient`는 `Authorization` header 없이 `client_id`와 `code_verifier`를 보낸다(`[4]`) | 예 — 같음 | 예 — `McpAuthorizationStandardConfig`, P5 | [4장](04-client-registration.md), [7장](07-local-client.md) |
 | 24 | loopback redirect의 포트 허용 | MUST ([RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) · [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2)) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator`, P10. `local-client`는 운영체제가 고른 포트로 받는다(`[3]`의 `http://127.0.0.1:59597/callback`) | 예 — 같음 | 예 — 같음 | [4장](04-client-registration.md), [7장](07-local-client.md) |
@@ -126,4 +126,4 @@ MUST 위반은 네 행이다.
 - 18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 practice가 직접 채운 것이다.
 - official이 지키지 못한 것을 공격 쪽에서 본 설명은 [8장](08-security.md#810-official이-지키지-못한-것)에 있다.
 
-[← 부록: API 사전](reference-api.md) · [목차](README.md)
+[← 부록: API 레퍼런스](reference-api.md) · [목차](README.md)

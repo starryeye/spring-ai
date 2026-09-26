@@ -3,11 +3,11 @@
 ## 2.1 OAuth의 필요성
 
 1장에서 본 대로 HTTP로 열린 MCP Server에는 주소를 아는 누구나 요청을 보낼 수 있다.
-공개된 정보만 주는 server라면 그래도 괜찮다.
+공개된 정보만 주는 서버라면 그래도 괜찮다.
 
 원격 MCP Server는 대개 사용자의 데이터를 다룬다.
-메일을 읽는 server, 일정을 잡는 server, 쇼핑몰 주문을 조회하는 server가 그 예다.
-이런 server는 요청마다 두 가지를 알아야 한다.
+메일을 읽는 서버, 일정을 잡는 서버, 쇼핑몰 주문을 조회하는 서버가 그 예다.
+이런 서버는 요청마다 두 가지를 알아야 한다.
 하나는 요청을 보낸 client를 믿어도 되는가이고, 다른 하나는 그 client가 어느 사용자를 대신하는가다.
 1장에서 본 대로 session ID는 보낸 사람을 증명하지 않는다.
 
@@ -120,7 +120,7 @@ MCP client는 사용자가 넣은 어느 MCP Server에든 붙는다.
 | Authorization Server를 모른다 | 개발자가 Authorization Server 주소를 설정에 적는다 | client는 MCP Server 주소만 안다. Authorization Server는 discovery로 찾는다 | [3장](03-discovery.md) |
 | 처음 보는 client를 등록해야 한다 | 개발자가 Authorization Server에 앱을 미리 등록해 `client_id`를 받는다 | client와 Authorization Server가 서로 모르는 채 만난다. 미리 등록하는 방법 말고도 CIMD(client가 `https` 주소에 올린 자기 정보 문서의 주소를 `client_id`로 쓰는 방식)나 DCR(등록 endpoint에 `POST`해 `client_id`를 받는 방식)로 `client_id`를 얻는다 | [4장](04-client-registration.md) |
 | token의 대상을 MCP Server로 좁힌다 | token을 쓸 API가 정해져 있어 대상을 밝히지 않는 경우가 많다 | client가 `resource`로 MCP Server를 밝히고, MCP Server는 token의 `aud`에 자기가 있는지 본다 | [5장](05-authorization-and-token.md), [6장](06-mcp-call-and-validation.md) |
-| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 대부분이다. 한 client가 비밀을 미리 나눠 둘 수 없는 여러 server를 만나서, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
+| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 대부분이다. 한 client가 비밀을 미리 나눠 둘 수 없는 여러 Authorization Server를 만나서, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
 | token 말고 전송 단계도 검사한다 | token 검증이 API 보안의 중심이다 | 사용자 기기에서 authorization 없이 도는 MCP Server도 있다. browser를 거친 요청을 막으려고 `Origin`을 검사한다(official은 `Host`도) | [6장](06-mcp-call-and-validation.md) |
 
 세 번째와 다섯 번째 항목은 이유를 조금 더 살펴본다.
@@ -134,9 +134,9 @@ token에 대상이 적혀 있지 않으면, 그 token을 받은 MCP Server가 �
 
 **전송 단계도 검사하는 이유**
 
-MCP Server는 사용자 기기의 `localhost`에서 돌기도 하고, 이런 server는 authorization 없이 열려 있기도 하다.
+MCP Server는 사용자 기기의 `localhost`에서 돌기도 하고, 이런 서버는 authorization 없이 열려 있기도 하다.
 사용자가 연 악성 web page는 DNS rebinding(공격자가 자기 domain이 `127.0.0.1`을 가리키게 바꿔, browser가 로컬 서버를 부르게 하는 공격, 6장)으로 그 MCP Server에 요청을 보낼 수 있다.
-token을 요구하지 않는 server라면 token 검증으로는 이 요청을 막지 못한다.
+token을 요구하지 않는 서버라면 token 검증으로는 이 요청을 막지 못한다.
 그래서 MCP Server는 전송 단계에서 `Origin` header를 보고, 허용하지 않은 곳에서 온 요청을 거절한다.
 official의 MCP Server는 token을 검사하기 전에 `Origin`과 `Host`를 먼저 본다.
 

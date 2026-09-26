@@ -95,7 +95,7 @@ sequenceDiagram
 |---|---|---|---|---|
 | 1단계 (2)(3) | `Origin`·`Host` | `McpTransportSecurityFilter` | `403`·`421` | browser를 거쳐 들어오는 요청(DNS rebinding) |
 | 2단계 (4)~(9) | token의 signature·`iss`·`aud`·`exp` | Spring Security | `401` | token 없는 요청, 위조·만료된 token, 다른 서버용 token |
-| 3단계 (10) | `MCP-Protocol-Version` | `McpProtocolVersionFilter` | `400` | 서버가 모르는 버전의 규칙으로 이야기하는 요청 |
+| 3단계 (10) | `MCP-Protocol-Version` | `McpProtocolVersionFilter` | `400` | 서버가 모르는 버전을 쓰는 요청 |
 | 4단계 (11)(12) | session | Spring AI의 transport | `400`·`404` | 어느 연결인지 알 수 없는 요청 |
 
 명세는 검사 순서를 정하지 않는다.
@@ -539,7 +539,7 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 | 내용 | 명세 | 요구 수준 |
 |---|---|---|
 | client는 같은 session이라도 모든 HTTP 요청의 `Authorization` header에 access token을 넣고, query string에는 넣지 않는다. 그 MCP Server의 Authorization Server가 발급한 token만 보낸다 | [MCP 2025-11-25 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements), [Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [OAuth 2.1 §5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.1.1) | MUST, MUST NOT |
-| server는 모든 연결의 `Origin`을 검증하고, 있는데 유효하지 않으면 `403`으로 답한다. 로컬 server는 `127.0.0.1`에만 bind하고, 모든 연결에 인증을 둔다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST, SHOULD |
+| server는 모든 연결의 `Origin`을 검증하고, 있는데 유효하지 않으면 `403`으로 답한다. 로컬 서버는 `127.0.0.1`에만 bind하고, 모든 연결에 인증을 둔다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST, SHOULD |
 | 이 서버로 올 요청이 아니면 `421 Misdirected Request`로 답할 수 있다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) | — |
 | MCP Server는 요청을 처리하기 전에 token을 검증하고, 자신을 audience로 발급된 token만 받는다. 유효하지 않거나 만료된 token에는 `401`로 답한다 | [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT |
 | RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |

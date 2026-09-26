@@ -36,7 +36,7 @@ server가 제공하는 기능은 tool, resource(읽을 수 있는 데이터), pr
 이 practice는 tool만 쓴다. official의 `shop-mcp-server`는 `getStock`과 `searchProducts` 두 tool을 제공한다.
 
 MCP 메시지는 transport라는 통로를 따라 오간다.
-client가 자식 process로 띄우는 server와는 표준 입출력(stdio)으로, 따로 떠 있는 server(원격이든 같은 기기든)와는 Streamable HTTP로 이야기한다.
+client가 자식 process로 띄우는 server와는 표준 입출력(stdio)으로, 따로 떠 있는 server(원격이든 같은 기기든)와는 Streamable HTTP로 통신한다.
 official은 Streamable HTTP를 쓰고, MCP Server 주소는 `http://localhost:8111/mcp`다. 두 transport는 1.11에서 비교한다.
 
 ## 1.2 메시지 형식: JSON-RPC 2.0
@@ -59,7 +59,7 @@ client는 앞 요청의 응답을 기다리지 않고 다음 요청을 보낼 �
 MCP에서 `id`는 `null`일 수 없고, 한 session(1.9) 안에서 같은 값을 다시 쓰지 않는다. 다시 쓰면 응답이 어느 요청의 것인지 가릴 수 없다.
 여러 메시지를 배열 하나로 묶어 보내는 JSON-RPC batch도 쓰지 않는다.
 
-## 1.3 연결의 한 생애: 시퀀스 다이어그램
+## 1.3 연결의 처음과 끝: 시퀀스 다이어그램
 
 MCP 연결은 초기화, 사용, 종료 세 구간으로 나뉜다.
 초기화에서 서로 무엇을 할 수 있는지 맞추고, 사용 구간에서 tool을 부르고, 종료에서 session을 정리한다.
@@ -103,7 +103,7 @@ token을 받는 과정은 3~5장, 이 header를 검사하는 과정은 6장에�
 ## 1.4 1단계: `initialize`로 서로를 소개한다
 
 client와 server는 처음에 서로를 모른다.
-어느 MCP 버전으로 이야기할지, 상대가 어떤 기능을 지원하는지부터 맞춰야 하므로 첫 요청은 언제나 `initialize`다.
+어느 MCP 버전을 쓸지, 상대가 어떤 기능을 지원하는지부터 맞춰야 하므로 첫 요청은 언제나 `initialize`다.
 
 ```http
 POST /mcp HTTP/1.1
@@ -292,7 +292,7 @@ Content-Type: application/json;charset=UTF-8
 {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"Unsupported MCP-Protocol-Version: 1999-01-01"}}
 ```
 
-1.2에서 본 `error`다. `code`는 오류 종류를 나타내는 정수다. `-32600`은 JSON-RPC가 정한 "잘못된 요청(Invalid Request)"이다.
+1.2에서 설명한 `error`다. `code`는 오류 종류를 나타내는 정수다. `-32600`은 JSON-RPC가 정한 "잘못된 요청(Invalid Request)"이다.
 `id`가 `null`인 것은 server가 본문을 읽기 전에 거절해서 요청의 `id`를 모르기 때문이다.
 
 official의 MCP Server가 쓰는 Spring AI MCP 2.0.0의 Streamable HTTP transport는 이 header를 검사하지 않는다. 모르는 버전을 보내도 `200`이다.
@@ -408,7 +408,7 @@ token을 받는 과정은 3~5장에서 다룬다. 2~5장을 읽은 뒤 해 보�
 practice는 `practice/mcp-security-authn-official/run.sh`로 띄운다.
 
 browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고 "p1 재고 알려줘"라고 묻는다.
-`logs/shop-mcp-server.log`에 `getStock 호출 (productId=p1, 사용자=user)` 같은 tool 호출 줄이 남는다.
+`practice/mcp-security-authn-official/logs/shop-mcp-server.log`에 `getStock 호출 (productId=p1, 사용자=user)` 같은 tool 호출 줄이 남는다.
 
 MCP 요청과 응답을 직접 보려면 캡처 스크립트를 돌린다. 스크립트는 login과 token 발급을 대신 하고 MCP 요청을 차례로 보낸다.
 
@@ -426,7 +426,8 @@ docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/walkthrough.tx
 - 연결은 `initialize` → `notifications/initialized` → `tools/list`·`tools/call` → `DELETE` 순서로 흘러간다.
 - Streamable HTTP에서는 `initialize` 뒤 요청마다 `Mcp-Session-Id`와 `MCP-Protocol-Version`을 보낸다. session ID가 없거나 버전이 틀리면 `400`, 끝난 session이면 `404`다.
 - session ID는 연결을 가리킬 뿐 보낸 사람을 증명하지 않는다. 증명은 OAuth token이 맡는다(6장).
-- authorization을 쓴다면 OAuth는 HTTP transport에서만 쓴다. stdio server는 환경 변수로 credentials를 받는다.
+- OAuth authorization은 HTTP transport에만 쓴다.
+  stdio server는 환경 변수로 credentials를 받는다.
 
 ## 1.15 명세 근거
 
@@ -444,7 +445,7 @@ docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/walkthrough.tx
 | client는 `GET`으로 SSE stream을 열 수 있고, server는 SSE나 `405`로 답한다. server는 SSE event에 ID를 붙여 끊긴 stream을 이어 받게 할 수 있다 | [MCP 2025-11-25 Transports — Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server), [Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) | MAY, MUST |
 | server는 `initialize` 응답에서 session ID를 줄 수 있고, 받은 client는 이후 모든 요청에 넣는다. ID가 없는 요청(초기화 제외)에는 `400`으로 답한다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110#section-5.1)(header 이름은 대소문자 구분 없음) | MAY, MUST, SHOULD |
 | 끝난 session에는 `404`로 답하고, 받은 client는 새로 `initialize` 한다. 더 쓰지 않을 session은 `DELETE`로 끝내고(HTTP 연결을 닫는 것으로도 끝난다), server는 이를 `405`로 거절할 수 있다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), [Lifecycle — Shutdown](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#shutdown) | MUST, SHOULD, MAY |
-| client는 초기화 뒤 모든 요청에 `MCP-Protocol-Version`을 넣는다. header가 없으면 server는 `2025-03-26`으로 여기고, 지원하지 않는 버전에는 `400`으로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog)(header 도입) | MUST, SHOULD, MUST |
+| client는 초기화 뒤 모든 요청에 `MCP-Protocol-Version`을 넣는다. header가 없으면 server는 `2025-03-26`으로 여기고, 지원하지 않는 버전에는 `400`으로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog)(header 도입) | MUST, SHOULD |
 | HTTP transport는 authorization 명세를 따르고, stdio transport는 그 대신 환경에서 credentials를 가져온다 | [MCP 2025-11-25 Authorization — Protocol Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protocol-requirements), [MCP 2025-11-25 Overview — Auth](https://modelcontextprotocol.io/specification/2025-11-25/basic#auth) | SHOULD, SHOULD NOT |
 
 [목차](README.md) · [2장 →](02-why-oauth.md)

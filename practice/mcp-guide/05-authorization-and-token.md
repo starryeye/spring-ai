@@ -224,7 +224,7 @@ callback이 오면 다음 순서로 확인한다.
 공격자가 써 넣은 문구일 수 있기 때문이다.
 
 공격자가 자기 계정의 code를 붙인 callback 주소를 피해자의 browser에 열게 하는 공격(CSRF)은 PKCE도 막는다(5.4).
-`state`를 보면 이런 응답을 code를 token endpoint로 보내기 전에 callback에서 먼저 걸러 낸다.
+`state`를 확인하면 이런 응답을 token endpoint에 code를 보내기 전에 callback 단계에서 걸러 낼 수 있다.
 
 `iss`가 막는 것은 mix-up 공격이다.
 authorization code에는 누가 발급했는지 적혀 있지 않다.
@@ -358,7 +358,6 @@ grant_type=refresh_token
 ```
 
 새 access token의 `aud`도 `http://localhost:8111/mcp`이고, `jti`·`iat`·`exp`는 새로 정해진다.
-캡처에서는 같은 초에 refresh해서 `iat`와 `exp`가 처음 token과 같게 찍혔다.
 응답의 `refresh_token`은 처음 받은 값과 같다.
 
 refresh request에도 `resource`를 넣는다.

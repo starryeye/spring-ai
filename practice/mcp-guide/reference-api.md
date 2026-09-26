@@ -1175,4 +1175,4 @@ DCR은 선택 사항(MAY, MCP 2025-11-25)이고, 그래도 DCR을 쓰는 client�
 official은 DCR을 켜지 않는다.
 Spring Authorization Server의 기본값이 꺼짐이고, metadata에 `registration_endpoint`가 없다(C3).
 
-[← 9장](09-versions.md) · [목차](README.md) · [부록: 준수표 →](reference-compliance.md)
+[← 9장](09-versions.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)
