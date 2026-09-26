@@ -10,7 +10,6 @@ client와 server는 같은 버전의 규칙으로 이야기해야 서로를 이�
 official의 MCP Server는 이 요청을 `400`으로 거절한다(9.9).
 
 이 장은 authorization과 transport가 버전마다 어떻게, 왜 바뀌었는지 본다.
-각 장치의 동작은 앞 장에서 다뤘으므로 그 장으로 가는 링크만 둔다.
 끝으로 official이 따르는 버전과 그 이유를 본다.
 
 ## 9.2 버전별 변화 한눈에 보기
@@ -31,18 +30,16 @@ official의 MCP Server는 이 요청을 `400`으로 거절한다(9.9).
 
 2025-03-26의 client는 MCP Server 주소의 path를 떼고, 남은 주소에서 metadata를 찾았다.
 MCP Server가 `https://api.example.com/v1/mcp`라면 metadata는 `https://api.example.com/.well-known/oauth-authorization-server`에 있어야 했다.
-metadata가 없으면 client는 같은 host의 `/authorize`·`/token`·`/register`를 endpoint로 썼다.
-그래서 Authorization Server는 MCP Server와 같은 host에 있어야 했다.
+그래서 Authorization Server의 metadata는 MCP Server와 같은 host에 있어야 했다([2장](02-why-oauth.md)).
 
 회사의 Authorization Server가 다른 host에 있으면 MCP Server가 중개를 맡아야 했다.
-MCP Server는 그 Authorization Server에게는 OAuth client, MCP client에게는 자기 token을 발급하는 Authorization Server가 된다.
-두 token의 짝과 만료까지 관리해야 해서, tool을 제공하려던 server가 Authorization Server 하나를 통째로 구현하는 셈이었다.
+MCP Server는 바깥 Authorization Server의 token과 자기가 발급한 token의 짝, 그리고 두 token의 만료까지 관리해야 했다.
+tool을 제공하려던 server가 Authorization Server 하나를 통째로 구현하는 셈이었다.
 
 **바뀐 것**
 
 2025-06-18은 MCP Server를 OAuth resource server로 정했다.
-MCP Server는 token을 검증만 하고, 자기를 지키는 Authorization Server의 위치는 PRM으로 알린다([3장](03-discovery.md)).
-client는 기본 경로를 추측하지 않고, PRM이 알려 준 issuer의 metadata만 쓴다.
+MCP Server는 token을 검증만 하고, 자기용 token을 발급하는 Authorization Server의 위치는 PRM으로 알린다([3장](03-discovery.md)).
 2025-11-25는 PRM 위치를 `401` header 없이 well-known 주소로만 알려도 되게 했다.
 같은 버전부터 client는 OpenID Connect discovery 문서도 Authorization Server Metadata로 받는다.
 
@@ -69,7 +66,6 @@ flowchart LR
 2025-03-26만 구현한 MCP Server에는 PRM이 없다.
 새 client는 discovery를 이어 가지 못하고, 멈추거나 미리 설정해 둔 값을 쓴다.
 반대로 2025-03-26 client는 새 MCP Server의 host에서 metadata를 찾으므로, 따로 떨어진 Authorization Server를 찾지 못한다.
-두 서버를 나눈 결과는 [2장](02-why-oauth.md)에서 봤다.
 
 ## 9.4 `resource` 필수 (2025-06-18)
 
@@ -87,17 +83,17 @@ MCP Server는 token의 `aud`에 자기가 있는지 확인한다([6장](06-mcp-c
 **다른 버전을 만나면**
 
 `resource`를 보내지 않는 client가 official에서 token을 받으면 `aud`가 `client_id`로 남고, MCP Server는 그 token을 `401`로 거절한다.
-`resource`를 모르는 Authorization Server는 이 parameter를 무시하므로, 새 client가 보내도 흐름이 깨지지 않는다.
+`resource`를 모르는 Authorization Server는 이 parameter를 무시하므로, 새 client가 보내도 authorization 흐름은 깨지지 않는다.
+다만 그 Authorization Server는 `aud`에 MCP Server를 넣지 않을 수 있어서, `aud`를 확인하는 MCP Server는 그 token을 거절할 수 있다.
 
-## 9.5 CIMD의 등장과 DCR의 deprecated (2025-11-25, 2026-07-28)
+## 9.5 CIMD의 등장과 DCR의 deprecated 지정 (2025-11-25, 2026-07-28)
 
 **바뀐 이유**
 
-MCP client에게는 처음 보는 Authorization Server에서 `client_id`를 얻을 방법이 필요하고, 2025-06-18까지는 그 방법으로 DCR을 권했다.
-그런데 DCR로 등록된 client는 Authorization Server에 끝없이 쌓이고, Authorization Server는 누가 등록했는지 모른다.
-client도 Authorization Server마다 새로 등록해야 한다.
-CIMD는 client가 자기 `https` 주소에 올린 문서의 주소를 `client_id`로 쓴다([4장](04-client-registration.md)).
-Authorization Server는 저장할 것이 없고, 같은 `client_id`가 어느 Authorization Server에서나 통한다.
+MCP client에게는 처음 보는 Authorization Server에서 `client_id`를 얻을 방법이 필요하다.
+2025-06-18까지는 그 방법으로 DCR을 권했다.
+그런데 DCR로 등록된 client는 Authorization Server에 끝없이 쌓이고, 누가 등록했는지 알 수 없다.
+CIMD는 client가 올린 `https` 문서의 주소를 `client_id`로 써서 이 문제가 없다([4장](04-client-registration.md)).
 
 **바뀐 것**
 
@@ -108,7 +104,6 @@ Authorization Server는 저장할 것이 없고, 같은 `client_id`가 어느 Au
 | 2026-07-28 | 선택이지만 deprecated다. DCR을 쓰는 client는 `application_type`을 넣는다 | 지원을 권한다 |
 
 deprecated는 아직 명세에 남아 있지만 앞으로 빠질 기능이라는 뜻이다.
-DCR은 CIMD를 모르는 Authorization Server와 호환하려고 남아 있다.
 
 **다른 버전을 만나면**
 
@@ -121,9 +116,10 @@ official은 두 client를 모두 미리 등록해서 이 변화와 상관이 없
 **바뀐 이유**
 
 PRM이 생기면서 client가 만나는 Authorization Server는 MCP Server가 정하게 되었고, 그중 하나는 공격자의 것일 수 있다.
-2025-11-25까지는 이때 생기는 두 공격을 막는 규칙이 없었다.
+2025-11-25의 MCP 명세는 OAuth 2.1의 보안 규칙을 따르라고만 했다.
+이 상황에서 생기는 두 공격을 막는 구체적인 방법은 정하지 않았다.
 하나는 정상 Authorization Server의 code를 공격자의 token endpoint로 보내게 하는 mix-up이다([8장](08-security.md)).
-다른 하나는 PRM이 다른 Authorization Server를 가리킬 때, 미리 등록한 `client_secret`을 그 서버에 보내는 것이다([4장](04-client-registration.md)).
+다른 하나는 PRM이 다른 Authorization Server를 가리킬 때, client가 미리 등록한 `client_secret`을 그 서버에 보내게 되는 것이다([4장](04-client-registration.md)).
 
 **바뀐 것**
 
@@ -145,7 +141,7 @@ metadata가 `iss`를 넣는다고 알렸는데 `iss`가 없을 때만 응답을 
 `initialize`로 협상한 버전과 capability는 그 연결의 상태로 server에 남는다.
 server가 여러 대면 다음 요청도 그 상태를 가진 server로 가야 해서, 요청을 고르게 나눠 주는 보통의 load balancer를 쓰기 어렵다.
 그 server가 죽으면 client는 다시 `initialize`부터 해야 한다.
-SEP-2575가 `initialize`를 없앤 이유다.
+명세 변경 제안(SEP) 가운데 SEP-2575가 `initialize`를 없앤 이유다.
 
 session은 언제 시작해 언제 끝나는지가 client마다 달랐다.
 tool 호출마다 새로 여는 client도, 앱을 켤 때 열어 끌 때까지 쓰는 client도 있었다.
@@ -176,7 +172,6 @@ sequenceDiagram
 | 버전·capability | `initialize`에서 한 번 협상한다 | 요청마다 `_meta`에 넣는다. HTTP에서는 `MCP-Protocol-Version` header와 값이 같아야 한다 |
 | server가 모르는 버전 | `initialize` 응답에 지원하는 다른 버전을 적는다 | `400`과 `UnsupportedProtocolVersionError`(`-32022`)에 지원 버전 목록을 담는다. `server/discover`로 미리 물을 수도 있다 |
 | session | `Mcp-Session-Id`를 쓰고 `DELETE`로 끝낸다 | 없다 |
-| server가 먼저 보내는 알림 | `GET /mcp`로 연 SSE stream | `subscriptions/listen` 요청의 응답 stream |
 | 새 요청 header | — | `Mcp-Method`, `tools/call` 같은 요청에는 `Mcp-Name` |
 
 요청 형식은 9.9의 curl 명령에서 본다.
@@ -198,7 +193,8 @@ handle은 protocol의 기능이 아니라 tool을 설계하는 방법이다.
 session과 달리 모델은 장바구니를 여럿 만들 수도, 한 `basket_id`를 여러 agent에게 나눠 줄 수도 있다.
 handle은 채팅 기록에 남으므로, 가졌다는 것만으로 권한을 주지 않는다.
 authorization을 쓰는 server는 호출마다 handle과 token의 사용자를 함께 보고, 그 사용자의 장바구니인지 확인한다.
-[6장](06-mcp-call-and-validation.md)의 "session을 사용자에 묶기"가 2026-07-28에서는 이 확인이 된다.
+[6장](06-mcp-call-and-validation.md)에서 session을 사용자에 묶던 일이 2026-07-28에서는 이 확인으로 바뀐다.
+official의 tool은 호출 사이에 상태를 두지 않아서 handle이 필요 없다.
 
 **다른 버전을 만나면**
 
@@ -213,14 +209,13 @@ authorization을 쓰는 server는 호출마다 handle과 token의 사용자를 �
 
 modern 오류란 `UnsupportedProtocolVersionError`처럼 2026-07-28이 정한 JSON-RPC 오류다.
 modern만 지원하는 server는 옛 client의 `GET`·`DELETE`에 `405`로 답하고, `Mcp-Session-Id`는 무시한다.
-official은 legacy server다.
 
 ## 9.8 official이 따르는 기준
 
 | 영역 | 기준 버전 | 이유 |
 |---|---|---|
 | transport·lifecycle | 2025-11-25 | MCP Java SDK 2.0.0이 아는 가장 새 버전이다 |
-| authorization | 2025-11-25와 2026-07-28 추가분(`iss`, issuer binding) | authorization은 MCP 메시지와 따로 도는 HTTP 단계라서 SDK 버전과 상관없이 따를 수 있다 |
+| authorization | 2025-11-25와 2026-07-28 추가분(`iss`, issuer binding) | MCP 메시지와 따로 도는 HTTP 단계라서 SDK 버전과 상관이 없다 |
 
 **transport: SDK가 아는 버전**
 
@@ -241,7 +236,8 @@ SDK와 Spring AI 2.0.0의 MCP module에는 `_meta`로 버전을 받는 처리도
 
 **authorization: HTTP 단계의 규칙**
 
-discovery, login, token 발급은 첫 MCP 메시지보다 먼저 끝나고, Spring Security와 Spring Authorization Server가 맡는다.
+discovery, login, token 발급은 MCP 메시지가 SDK에 닿기 전에 끝난다.
+이 단계는 Spring Security와 Spring Authorization Server가 맡는다.
 MCP Server의 token 검사도 SDK 앞의 Spring Security filter에서 한다.
 어느 단계도 MCP 메시지의 버전을 읽지 않으므로, SDK가 2025-11-25에 머물러도 새 authorization 규칙을 따를 수 있다.
 official에서 2026-07-28 추가분을 맡는 곳은 다음과 같다.
@@ -312,10 +308,10 @@ Content-Type: application/json;charset=UTF-8
 | 내용 | 명세 | 요구 수준 |
 |---|---|---|
 | 2025-03-26의 client는 MCP Server 주소에서 path를 뗀 base URL에서 metadata를 찾고, 없으면 기본 경로를 쓴다. 다른 Authorization Server는 MCP Server가 중개해 쓸 수 있다 | [MCP 2025-03-26 Authorization — Authorization Base URL](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization#authorization-base-url), [Third-Party Authorization Flow](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization#third-party-authorization-flow) | MUST, MAY |
-| MCP Server는 PRM을 구현한다. 위치는 2025-06-18에서는 `401` header로, 2025-11-25부터는 header나 well-known URI로 알린다 | [MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog#major-changes), [MCP 2025-11-25 Authorization — Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements) | MUST |
+| MCP Server는 PRM을 구현한다. 위치는 2025-06-18에서는 `401` header로, 2025-11-25부터는 header나 well-known URI로 알린다 | [MCP 2025-06-18 Authorization — Authorization Server Location](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#authorization-server-location), [MCP 2025-11-25 Authorization — Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements) | MUST |
 | client는 두 요청에 `resource`를 넣고, Authorization Server가 지원하지 않아도 보낸다 | [MCP 2025-06-18 Authorization — Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#resource-parameter-implementation) | MUST |
 | DCR 지원은 2025-06-18까지 권장, 2025-11-25부터 선택이고 CIMD 지원을 권한다. 2026-07-28에서 DCR은 deprecated다 | [MCP 2025-06-18 Authorization — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#dynamic-client-registration), [MCP 2025-11-25 Authorization — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview), [MCP 2026-07-28 Key Changes — Deprecated](https://modelcontextprotocol.io/specification/2026-07-28/changelog#deprecated) | SHOULD, MAY |
-| Authorization Server는 callback에 `iss`를 넣는다. client는 issuer를 기록하고, code를 보내기 전에 있는 `iss`를 비교한다 | [MCP 2026-07-28 Authorization — Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation) | SHOULD, MUST |
+| Authorization Server는 callback에 `iss`를 넣는다. client는 issuer를 기록하고, code를 보내기 전에 `iss`가 있으면 기록한 issuer와 비교한다 | [MCP 2026-07-28 Authorization — Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation) | SHOULD, MUST |
 | credentials는 발급한 issuer에 묶고 다른 서버에 다시 쓰지 않는다. 맞지 않으면 오류를 보여 준다 | [MCP 2026-07-28 Client Registration — Authorization Server Binding](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#authorization-server-binding) | MUST, MUST NOT, SHOULD |
 | 2025-11-25의 server는 요청받은 버전을 모르면 지원하는 다른 버전으로 답한다 | [MCP 2025-11-25 Lifecycle — Version Negotiation](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#version-negotiation) | MUST |
 | 2026-07-28은 `initialize`를 없애고 요청마다 `_meta`와 header로 버전을 보낸다. 모르는 버전에는 `400`과 `UnsupportedProtocolVersionError`로 답하고, server는 `server/discover`를 구현한다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [SEP-2575](https://modelcontextprotocol.io/seps/2575-stateless-mcp) | MUST |
