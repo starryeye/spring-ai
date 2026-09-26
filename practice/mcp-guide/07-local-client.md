@@ -127,7 +127,7 @@ private void handle(HttpExchange exchange) throws IOException {
     /* path가 정확히 /callback이 아니면 404 */
     // 처음 온 callback의 query parameter만 결과로 쓴다
     boolean first = this.callback.complete(Form.decode(exchange.getRequestURI().getRawQuery()));
-    /* browser에 "login이 끝났다. 이 창을 닫고 terminal로 돌아간다."를 보여 준다 */
+    /* browser에 "login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요."를 보여 준다 */
 }
 ```
 
@@ -325,7 +325,7 @@ browser가 열리면 다음 순서로 진행한다.
 
 1. Authorization Server의 login 화면(`http://localhost:9010/login`)에서 `user`/`password`로 login한다.
 2. consent 화면에서 `profile`을 고르고 제출한다.
-3. browser에 `login이 끝났다. 이 창을 닫고 terminal로 돌아간다.`가 나온다. 이 글은 `local-client`의 callback server가 보여 준다.
+3. browser에 `login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요.`가 나온다. 이 글은 `local-client`의 callback server가 보여 준다.
 
 terminal에는 다음이 나온다.
 아래 출력은 browser 대신 curl이 login과 consent를 하는 스크립트 `docs/superpowers/captures/local-client-run.sh`로 받았다.

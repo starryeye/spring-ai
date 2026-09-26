@@ -21,6 +21,6 @@ final class Browser {
 		catch (IOException | UnsupportedOperationException ex) {
 			// 아래 안내로 넘어간다.
 		}
-		out.println("    browser를 열지 못했다. 위 주소를 browser에 붙여 넣는다.");
+		out.println("    browser를 열지 못했습니다. 위 주소를 browser에 붙여 넣으세요.");
 	}
 }

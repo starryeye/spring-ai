@@ -70,7 +70,7 @@ public final class LoopbackCallbackServer implements AutoCloseable {
 			return;
 		}
 		boolean first = this.callback.complete(Form.decode(exchange.getRequestURI().getRawQuery()));
-		byte[] body = (first ? "login이 끝났다. 이 창을 닫고 terminal로 돌아간다." : "이미 처리한 callback이다.")
+		byte[] body = (first ? "login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요." : "이미 처리한 callback이다.")
 				.getBytes(StandardCharsets.UTF_8);
 		exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
 		exchange.sendResponseHeaders(200, body.length);
