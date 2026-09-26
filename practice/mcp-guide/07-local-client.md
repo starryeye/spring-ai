@@ -179,13 +179,9 @@ parameter의 뜻은 5장과 같다.
 static final String SCOPE = "openid profile";
 ```
 
-범용 MCP client는 MCP Server마다 어떤 scope가 필요한지 미리 알지 못한다.
-그래서 MCP 명세는 서버가 알려 주는 값으로 scope를 고르게 하고, 그 순서를 정해 둔다.
-`401`의 `WWW-Authenticate` header에 `scope`가 있으면 그 값을 쓴다.
-없으면 PRM의 `scopes_supported`를 모두 쓰고, 그것도 없으면 `scope` parameter를 빼고 보낸다.
-official의 MCP Server는 `401`에도, PRM에도 scope를 알려 주지 않는다(3장의 `401`과 PRM 예시).
-이 순서를 그대로 따르면 `local-client`는 `scope` 없이 요청하게 된다.
-그런데 official의 Authorization Server는 `openid` 말고 consent할 scope가 없는 public client의 요청을 `invalid_scope`로 거절한다(5장).
+MCP client가 scope를 고르는 순서는 [5장](05-authorization-and-token.md)에서 봤다.
+official의 MCP Server는 scope를 알려 주지 않으므로, 그 순서를 따르면 `local-client`는 `scope` 없이 요청하게 된다.
+그런데 official의 Authorization Server에서는 `PublicClientScopeValidator`가 `openid` 말고 consent할 scope가 없는 public client의 요청을 `invalid_scope`로 거절한다(5장).
 그래서 `local-client`는 이 순서를 따르지 않고 `openid profile`을 보낸다.
 MCP Server가 `scope`나 `scopes_supported`를 알려 주면, client는 그 값을 쓰면 된다.
 
@@ -397,7 +393,7 @@ MCP Server가 보는 사용자는 `local-client`가 아니라 token의 `sub`, �
 ## 7.10 실제 앱이 더 하는 것
 
 `local-client`는 흐름을 한 번 보여 주려는 앱이라서, 실제 앱이 하는 일 몇 가지를 하지 않는다.
-scope를 7.5의 순서로 고르는 것 말고도 네 가지가 있다.
+scope를 5장의 순서로 고르고 `403 insufficient_scope`에 step-up으로 답하는 것(6장) 말고도 네 가지가 있다.
 
 **token 보관**
 

@@ -286,7 +286,7 @@ official이 session을 사용자에 묶지 않는 이유와 묶는 방법은 [6�
 ## 8.11 다루지 않는 것
 
 - Security Best Practices의 Local MCP Server Compromise와 stdio proxy 공격: 사용자 기기에서 client가 명령으로 띄우는 서버의 문제다. 이런 서버는 주로 stdio로 통신하고, stdio에는 OAuth를 쓰지 않는다([1장](01-mcp-basics.md)).
-- Scope Minimization: official은 인증된 요청에 모든 tool을 허용한다. scope 설계와 step-up authorization은 별도 practice의 주제다.
+- Scope Minimization: official은 인증된 요청에 모든 tool을 허용한다. scope를 고르는 순서와 step-up authorization의 개념은 [5장](05-authorization-and-token.md)과 [6장](06-mcp-call-and-validation.md)에 있고, scope 설계는 별도 practice의 주제다.
 
 ## 8.12 직접 해 보기
 

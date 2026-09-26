@@ -253,7 +253,8 @@ WWW-Authenticate: Bearer error="invalid_token", error_description="An error occu
 | `resource_metadata` | PRM 주소(3장). client는 discovery부터 다시 해 새 token을 받을 수 있다 |
 
 token이 아예 없을 때의 `401`에는 `error`가 없다(3장).
-client는 `error`가 있는지로 "token이 필요하다"와 "이 token은 쓸 수 없다"를 가린다.
+그래서 `401`을 받은 client는 `error`가 있는지로 "token이 필요하다"와 "이 token은 쓸 수 없다"를 가린다.
+token은 쓸 수 있지만 scope가 모자란 경우는 `401`이 아니라 `403`으로 온다(아래의 step-up).
 
 **`exp`**
 
@@ -261,6 +262,29 @@ official의 access token 수명은 300초다(5장).
 `exp`가 지난 token은 `401 invalid_token`이다.
 Spring은 두 서버의 시계가 조금 다를 수 있다고 보고, `exp`가 지나고 60초까지는 받아 준다.
 agent는 만료가 가까운 token을 refresh token으로 새로 받아 붙인다(6.8).
+
+**`403 insufficient_scope`와 step-up**
+
+MCP Server는 tool마다 다른 권한을 요구할 수 있다.
+읽기 tool은 `files:read`로 충분하고, 쓰기 tool에는 `files:write`가 더 필요한 식이다.
+client는 처음에 기본 기능에 필요한 scope만 받으므로(5장), 쓰기 tool을 부르면 token은 유효해도 scope가 모자랄 수 있다.
+이때 MCP Server는 `403`으로 답하고, 이 요청에 필요한 scope를 `WWW-Authenticate` header에 적는다.
+아래는 MCP 명세의 예시다.
+
+```http
+HTTP/1.1 403 Forbidden
+WWW-Authenticate: Bearer error="insufficient_scope", scope="files:read files:write", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"
+```
+
+`scope`에는 새로 필요한 scope와 함께, 이미 받은 scope 가운데 계속 필요한 것도 적는다.
+client가 새 token을 받으면서 원래 있던 권한을 잃지 않게 하기 위해서다.
+사용자를 대신하는 client는 이 `scope`로 authorization request를 다시 보내 새 token을 받고, 원래 요청을 다시 보낸다.
+이렇게 필요할 때 scope를 넓혀 가는 흐름이 step-up authorization이다.
+같은 요청이 계속 실패하지 않도록, client는 다시 시도하는 횟수를 제한한다.
+
+official의 MCP Server는 인증된 요청에 모든 tool을 허용하고, tool마다 scope를 요구하지 않는다.
+그래서 `403 insufficient_scope`를 보내지 않고, official의 두 client에도 step-up 처리가 없다.
+official의 scope 설계에 대한 판정은 [준수표](reference-compliance.md)의 16번에 있다.
 
 ## 6.6 3·4단계: `MCP-Protocol-Version`과 session 검사
 
@@ -519,6 +543,7 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 | 이 서버로 올 요청이 아니면 `421 Misdirected Request`로 답할 수 있다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) | — |
 | MCP Server는 요청을 처리하기 전에 token을 검증하고, 자신을 audience로 발급된 token만 받는다. 유효하지 않거나 만료된 token에는 `401`로 답한다 | [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT |
 | RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
+| token의 scope가 모자라면 MCP Server는 `403`과 `WWW-Authenticate`의 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답하고, `scope`에는 이 요청에 필요한 scope를 넣는다. 사용자를 대신하는 client는 그 scope로 step-up authorization을 하고(자기 자신으로 동작하는 client는 바로 멈춰도 된다), 다시 시도하는 횟수를 제한한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | SHOULD, MAY |
 | 지원하지 않는 `MCP-Protocol-Version`에는 `400`, session ID가 없으면 `400`, 끝난 session에는 `404`로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MUST, SHOULD |
 | authorization을 구현한 MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없는 값으로 만들고, 사용자 정보에 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
 | 2026-07-28은 protocol 수준의 session과 `Mcp-Session-Id`를 없앤다 | [MCP 2026-07-28 Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | — |

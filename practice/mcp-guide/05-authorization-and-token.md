@@ -89,6 +89,26 @@ official의 `auth-server`는 `mcp.authorization.resources` 목록에 없는 값�
 client는 Authorization Server가 `resource`를 지원하는지와 상관없이 항상 보낸다.
 지원하지 않는 Authorization Server는 모르는 parameter를 무시하므로, 보내도 잃을 것이 없다.
 
+**scope 고르기**
+
+보통의 OAuth 앱은 부를 API가 정해져 있어서, 개발자가 필요한 scope를 설정에 적어 둔다.
+범용 MCP client는 사용자가 어떤 MCP Server를 넣을지 모르므로, 필요한 scope도 미리 알지 못한다.
+그래서 MCP client는 서버가 알려 주는 값으로 scope를 고르고, 다음 순서를 따른다.
+
+1. `401`의 `WWW-Authenticate` header에 `scope`가 있으면 그 값을 쓴다.
+2. 없으면 PRM의 `scopes_supported`에 있는 scope를 모두 요청한다.
+3. `scopes_supported`도 없으면 `scope` parameter를 빼고 보낸다.
+
+`401`의 `scope`는 MCP Server가 지금 요청에 필요하다고 직접 알려 준 값이라서 가장 앞에 온다.
+`scopes_supported`를 모두 요청해도 무엇을 허락할지는 Authorization Server와 사용자가 consent 화면에서 정한다.
+`scopes_supported`에는 기본 기능에 필요한 scope만 두고, 더 필요한 scope는 그 권한이 필요한 tool을 부를 때 받는다(6장).
+
+official의 MCP Server는 `401`에도, PRM에도 scope를 알려 주지 않는다(3장의 `401`과 PRM 예시).
+이 순서대로라면 client는 `scope`를 빼고 보내게 된다.
+그러나 official의 두 client는 `openid profile`을 보낸다.
+agent는 OpenID Connect login이라 `openid`가 있어야 하고, `local-client`가 `profile`을 넣는 이유는 5.5와 [7장](07-local-client.md)에서 본다.
+official의 scope 선택에 대한 판정은 [준수표](reference-compliance.md)의 37번에 있다.
+
 ## 5.4 PKCE
 
 authorization code는 browser의 주소창을 거쳐 client에게 간다.
@@ -443,6 +463,7 @@ public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures
 |---|---|---|
 | client는 PKCE를 쓰고, 가능하면 `S256`을 쓰며, 진행하기 전에 metadata로 지원을 확인한다. Authorization Server는 PKCE를 강제하고, `code_challenge`가 없으면 `invalid_request`, 맞지 않으면 `invalid_grant`로 답한다 | [MCP 2025-11-25 Authorization — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection), [RFC 7636 §4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.1), [§4.2](https://www.rfc-editor.org/rfc/rfc7636#section-4.2), [§4.4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.4.1), [§4.6](https://www.rfc-editor.org/rfc/rfc7636#section-4.6), [OAuth 2.1 §4.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.1), [§7.5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.5.2) | MUST, REQUIRED |
 | client는 authorization request와 token request 모두에 MCP Server의 canonical URI를 `resource`로 넣고, Authorization Server가 지원하지 않아도 보낸다. `resource`는 fragment 없는 절대 URI이고, 받아들일 수 없는 값은 `invalid_target`이며, access token은 특정 resource server로 대상을 제한한다 | [MCP 2025-11-25 Authorization — Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2), [§2.1](https://www.rfc-editor.org/rfc/rfc8707#section-2.1), [§2.2](https://www.rfc-editor.org/rfc/rfc8707#section-2.2), [OAuth 2.1 §7.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.2) | MUST, MUST NOT, SHOULD |
+| MCP Server는 `401`의 `WWW-Authenticate`에 필요한 `scope`를 넣고, client는 최소 권한을 따라 `401`의 `scope` → PRM의 `scopes_supported` 전체 → `scope` 생략 순서로 고른다. client는 `401`의 `scope`를 지금 요청에 필요한 값으로 믿고, `scopes_supported`와의 포함 관계를 가정하지 않는다 | [MCP 2025-11-25 Authorization — Scope Selection Strategy](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-selection-strategy), [Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements) | SHOULD, MUST, MUST NOT |
 | client 신원을 확인할 수 없으면 이전 consent가 있어도 consent 없이 자동 처리하지 않는다. scope를 생략한 요청은 기본값으로 처리하거나 `invalid_scope`로 거절한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1), [RFC 6749 §3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3), [§4.1.2.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1) | SHOULD NOT, SHOULD, MUST |
 | client는 `state`를 쓰고 확인해, 없거나 다른 결과는 버린다. client는 CSRF를 막는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §2.3.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.3.3) | SHOULD, MUST |
 | Authorization Server는 성공·오류 응답에 `iss`를 넣고, 넣으면 metadata로 알린다. client는 code를 보내기 전에 `iss`를 기록한 issuer와 정규화 없이 비교하고, 다르면 오류 내용도 쓰지 않는다 | [MCP 2026-07-28 Authorization — Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation), [RFC 9207 §2](https://www.rfc-editor.org/rfc/rfc9207#section-2), [§2.3](https://www.rfc-editor.org/rfc/rfc9207#section-2.3), [§2.4](https://www.rfc-editor.org/rfc/rfc9207#section-2.4) | SHOULD, MUST, MUST NOT |
