@@ -6,7 +6,7 @@ OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP�
 
 요청·응답 예시는 대부분 [official practice](../mcp-security-authn-official/README.md)를 실제로 띄워 받은 것이다.
 official 밖의 서버를 가정한 예시는 명세의 예시이거나 설명을 위해 만든 값이다.
-`169.254.169.254`를 가리키는 PRM, `app.example.com`의 CIMD 문서, `auth.example.com/tenant1` issuer가 그런 예다.
+3장의 issuer `auth.example.com/tenant1`, 4장에서 `app.example.com`에 올린 client 정보 문서, 8장에서 공격자가 넣는 내부망 주소 `169.254.169.254`가 그런 예다.
 장마다 그 단계가 왜 있는지를 먼저 보고, 실제 요청·응답과 official 코드를 본 뒤, 직접 해 본다.
 장 끝의 "명세 근거" 표는 본문의 규칙이 MCP 명세와 RFC의 어느 절에서 왔는지를 요구 수준과 함께 보여 준다.
 
