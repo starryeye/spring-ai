@@ -14,9 +14,12 @@ Authorization Server는 등록된 정보를 다음 세 곳에 쓴다.
 | token endpoint 인증 방식 | token request를 보낸 client가 진짜인지 확인한다 |
 | 이름 | consent 화면에서 누가 권한을 요청하는지 보여 준다 |
 
-official의 Authorization Server는 등록되지 않은 `client_id`로 온 authorization request에 redirect 없이 `400`으로 답한다.
+official의 Authorization Server는 등록되지 않은 `client_id`로 온 authorization request를 어느 주소로도 redirect하지 않고 오류로 끝낸다.
 이 client의 redirect URI를 모르므로 믿고 보낼 주소가 없다.
 요청에 적힌 주소로 오류를 보내 주면, 공격자가 Authorization Server를 거쳐 사용자를 아무 사이트로나 보내는 데 쓸 수 있다.
+login한 browser에는 이 오류가 `400`으로 보인다.
+login하지 않은 browser에는 login 화면이 보인다.
+official에서는 오류 page(`/error`)도 login을 요구하기 때문이다.
 
 2장에서 본 대로 MCP client는 처음 보는 Authorization Server를 만나므로, MCP는 미리 등록하는 방법 말고도 처음 만난 자리에서 `client_id`를 마련하는 방법을 둔다.
 
@@ -92,7 +95,7 @@ spring:
 |---|---|
 | `client-secret` | confidential client가 token request에서 자기를 증명하는 비밀이다. `{noop}`은 암호화하지 않고 저장했다는 표시다 |
 | `client-authentication-methods` | token endpoint에서 client를 확인하는 방법이다. `client_secret_basic`은 `Authorization: Basic` header로 비밀을 보내고, `none`은 `client_id`만 보낸다 |
-| `redirect-uris` | code를 보낼 수 있는 주소다. 요청의 `redirect_uri`가 여기 없으면 redirect 없이 `400`이다 |
+| `redirect-uris` | code를 보낼 수 있는 주소다. 요청의 `redirect_uri`가 여기 없으면 그 주소로 redirect하지 않고 오류로 끝낸다(4.1) |
 | `require-proof-key` | `true`면 `code_challenge`가 없는 authorization request를 거절한다. PKCE를 반드시 쓰게 된다 |
 | `require-authorization-consent` | `true`면 login 뒤에 consent 화면을 보여 준다 |
 
@@ -148,7 +151,7 @@ Location: http://127.0.0.1:9999/callback?code=CMoLrbqdsRXI...&state=public-state
 ```
 
 포트 말고는 등록한 주소와 정확히 같아야 한다.
-path가 다르면 redirect 없이 `400`으로 끝난다.
+path가 다르면 그 주소로 redirect하지 않고 오류로 끝난다.
 `localhost`라는 이름은 이 예외에 들지 않아서, Spring은 `localhost` redirect URI를 포트까지 정확히 비교한다.
 `127.0.0.1`을 쓰면 callback server가 실수로 loopback 밖의 네트워크에서 요청을 받는 일도 없다.
 

@@ -136,7 +136,7 @@ official의 Authorization Server는 두 client 모두 `require-proof-key: true`�
 ## 5.5 Login과 consent
 
 authorization request가 browser를 거쳐 도착하면, Authorization Server는 먼저 요청을 검증한다.
-`client_id`, `redirect_uri`, `scope`, `resource`, PKCE 가운데 하나라도 잘못되면 login 화면을 보여 주기 전에 오류를 돌려준다(5.10).
+`client_id`, `redirect_uri`, `scope`, `resource`, PKCE는 login보다 먼저 검사하고, 하나라도 잘못되면 오류로 끝낸다(5.10).
 요청이 올바르고 login한 session이 없으면 login 화면으로 보낸다.
 
 login 뒤의 consent 화면은 어느 client가 어떤 권한을 원하는지 보여 주고 사용자의 허락을 받는다.
@@ -363,7 +363,8 @@ token request의 오류는 client에게 바로 JSON으로 온다.
 | `code_verifier`가 `code_challenge`와 맞지 않는다 | token request | `400` JSON | `invalid_grant` |
 | `client_secret`이 틀렸거나, public client가 비밀을 보냈다 | token request | `401` JSON | `invalid_client` |
 
-`redirect_uri`나 `client_id`가 등록된 값이 아니면 redirect하지 않고 `400`으로 끝난다(4장).
+`redirect_uri`나 `client_id`가 등록된 값이 아니면 어느 주소로도 redirect하지 않는다.
+login한 browser에는 `400`이, login하지 않은 browser에는 login 화면이 보인다([4장](04-client-registration.md)).
 
 ## 5.11 official 코드에서 보기
 
