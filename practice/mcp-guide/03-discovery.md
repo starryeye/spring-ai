@@ -107,8 +107,9 @@ curl http://localhost:8111/.well-known/oauth-protected-resource/mcp
 client는 token을 요청할 때 이 값을 `resource` parameter로 보내고, Authorization Server는 그 값을 token의 `aud`에 넣는다(5장).
 그래서 이 token은 이 MCP Server에서만 통한다.
 
-official의 MCP Server는 token의 `aud`를 자기 이름과 글자 그대로 비교한다(6장).
-그래서 client, Authorization Server, MCP Server가 같은 주소를 같은 형식으로 써야 하고, MCP는 이 형식을 canonical URI로 정한다.
+MCP Server는 token의 `aud`에 자기 이름이 있는지 보고, official은 글자 그대로 비교한다(6장).
+그래서 client, Authorization Server, MCP Server가 같은 주소를 같은 형식으로 써야 한다.
+MCP 명세는 그 형식을 canonical URI로 정해 둔다.
 canonical URI는 scheme과 host를 소문자로 쓰고, fragment(`#` 뒤의 부분)가 없는 절대 주소다.
 `https://mcp.example.com`과 `https://mcp.example.com/`도 글자가 달라 서로 다른 값이 되므로, 끝의 `/`는 뜻이 있을 때만 붙인다.
 
