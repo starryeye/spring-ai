@@ -23,24 +23,24 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import java.util.List;
 
 /**
- * 인가 서버 설정. MCP 인가 명세가 요구하는 것을 켠다.
+ * Authorization Server 설정이다. MCP authorization 명세가 요구하는 기능을 켠다.
  *
- * <p>필터체인을 직접 정의하므로 Boot 의 기본 인가 서버 필터체인
- * ({@code @ConditionalOnDefaultWebSecurity})은 물러난다. 인가 요청 검증기와
- * 응답 핸들러를 갈아끼우려면 이 방법뿐이다.
+ * <p>filter chain을 직접 정의하므로 Boot의 기본 Authorization Server filter chain
+ * ({@code @ConditionalOnDefaultWebSecurity})은 빠진다.
+ * authorization request 검증기와 응답 handler를 바꾸려면 이 방법밖에 없다.
  */
 @Configuration
 @EnableConfigurationProperties(McpResourceProperties.class)
 public class AuthorizationServerConfig {
 
-	/** RFC 9207 §3 — 인가 응답에 iss 를 싣는다고 알리는 메타데이터 필드. */
+	/** authorization response에 iss를 넣는다고 알리는 metadata field다(RFC 9207 §3). */
 	static final String ISS_PARAMETER_SUPPORTED = "authorization_response_iss_parameter_supported";
 
 	/**
-	 * RFC 8414 §2 — token/revocation/introspection 각 엔드포인트의
-	 * {@code *_endpoint_auth_methods_supported} 가 {@code private_key_jwt} 또는
-	 * {@code client_secret_jwt} 를 담고 있으면 짝이 되는 이 claim 들이 조건부 MUST 다.
-	 * 최신 Spring Security(7.2.0-M1 포함)에는 이 claim 상수조차 없다.
+	 * token·revocation·introspection endpoint마다 짝이 되는 claim이다(RFC 8414 §2).
+	 * 그 endpoint의 {@code *_endpoint_auth_methods_supported}에 {@code private_key_jwt}나
+	 * {@code client_secret_jwt}가 있으면, 짝이 되는 claim은 조건부 MUST다.
+	 * 최신 Spring Security(7.2.0-M1 포함)에는 이 claim의 상수도 없다.
 	 */
 	static final String TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED =
 			"token_endpoint_auth_signing_alg_values_supported";
@@ -50,12 +50,13 @@ public class AuthorizationServerConfig {
 			"introspection_endpoint_auth_signing_alg_values_supported";
 
 	/**
-	 * 위 세 claim 에 실을 값. 지어낸 목록이 아니라, Spring 인가 서버의
-	 * {@code JwtClientAssertionDecoderFactory} 가 client_secret_jwt/private_key_jwt
-	 * 클라이언트 인증에서 실제로 검증기를 만들어내는 알고리즘 전부다 — 대칭키
-	 * {@code MacAlgorithm}(HS256/HS384/HS512) 과 비대칭 {@code SignatureAlgorithm}
-	 * (RS/ES/PS 256/384/512) 9종. {@code JwsAlgorithms} 상수를 그대로 참조해 값이
-	 * 어긋나지 않게 한다. {@code none} 은 RFC 8414 §2 상 MUST NOT 이라 넣지 않는다.
+	 * 위 세 claim에 넣을 값이다.
+	 * 임의로 고른 목록이 아니다. Spring Authorization Server의 {@code JwtClientAssertionDecoderFactory}가
+	 * client_secret_jwt·private_key_jwt client 인증에서 실제로 검증기를 만들 수 있는 알고리즘 전부다.
+	 * 대칭 key 방식인 {@code MacAlgorithm}(HS256/HS384/HS512) 3종과
+	 * 비대칭 key 방식인 {@code SignatureAlgorithm}(RS/ES/PS 256/384/512) 9종이다.
+	 * {@code JwsAlgorithms} 상수를 그대로 참조해 값이 어긋나지 않게 한다.
+	 * {@code none}은 RFC 8414 §2가 MUST NOT으로 정해서 넣지 않는다.
 	 */
 	static final List<String> CLIENT_ASSERTION_SIGNING_ALGORITHMS = List.of(
 			JwsAlgorithms.HS256, JwsAlgorithms.HS384, JwsAlgorithms.HS512,
@@ -64,12 +65,13 @@ public class AuthorizationServerConfig {
 			JwsAlgorithms.PS256, JwsAlgorithms.PS384, JwsAlgorithms.PS512);
 
 	/**
-	 * RFC 8414 §2 — {@code none} 은 클라이언트 인증을 하지 않는(비밀이 없는) 공개 클라이언트를
-	 * 뜻한다. {@code OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods()}
-	 * 는 이 값을 절대 광고하지 않으므로(client_secret_basic·client_secret_post·client_secret_jwt·
-	 * private_key_jwt·tls_client_auth·self_signed_tls_client_auth 여섯 가지만 고정으로 넣는다)
-	 * 커스터마이저에서 더한다. 필터가 먼저 그 여섯 값을 담아 빌더를 넘기므로,
-	 * {@code tokenEndpointAuthenticationMethods}(Consumer) 는 그 목록에 덧붙일 뿐 지우지 않는다.
+	 * {@code none}은 client 인증을 하지 않는 public client, 곧 비밀이 없는 client를 뜻한다(RFC 8414 §2).
+	 * {@code OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods()}는 이 값을 넣지 않는다.
+	 * 이 메서드는 client_secret_basic·client_secret_post·client_secret_jwt·private_key_jwt·
+	 * tls_client_auth·self_signed_tls_client_auth 여섯 가지만 고정으로 넣는다.
+	 * 그래서 metadata customizer에서 {@code none}을 더한다.
+	 * filter가 여섯 값을 먼저 담아 builder를 넘기므로, {@code tokenEndpointAuthenticationMethods}(Consumer)는
+	 * 그 목록에 덧붙일 뿐 지우지 않는다.
 	 */
 	static final String PUBLIC_CLIENT_AUTHENTICATION_METHOD = ClientAuthenticationMethod.NONE.getValue();
 
@@ -86,11 +88,11 @@ public class AuthorizationServerConfig {
 					http.securityMatcher(authorizationServer.getEndpointsMatcher());
 					authorizationServer
 							.authorizationEndpoint(authorization -> authorization
-									// RFC 9207: 성공·오류 응답 모두에 iss 를 싣는다.
+									// RFC 9207: 성공 응답과 오류 응답 모두에 iss를 넣는다.
 									.authorizationResponseHandler(responseHandler)
 									.errorResponseHandler(responseHandler)
 									// 기본 검증(redirect_uri·scope) 뒤에 RFC 8707 resource 검증과
-									// public client 의 scope 검증(OAuth 2.1 §7.3.1)을 잇는다.
+									// public client의 scope 검증(OAuth 2.1 §7.3.1)을 차례로 잇는다.
 									.authenticationProviders(providers -> providers.forEach(provider -> {
 										if (provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider codeProvider) {
 											codeProvider.setAuthenticationValidator(
@@ -108,19 +110,19 @@ public class AuthorizationServerConfig {
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
 											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											// 공개 클라이언트(local-mcp-client) 는 client_secret 이 없어
-											// none 으로만 인증한다. 토큰 엔드포인트에서 이 방식을 받는다고 광고한다.
+											// public client(local-mcp-client)는 client_secret이 없어 none으로만 인증한다.
+											// token endpoint가 이 방식을 받는다고 알린다.
 											.tokenEndpointAuthenticationMethods(methods ->
 													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD))))
-							// RFC 6749 §5.2: Authorization 헤더로 인증을 시도했다면 그 스킴에 맞는
-							// WWW-Authenticate 를 붙인다. Spring 기본 핸들러는 TODO 로 남겨 두고 있다.
+							// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
+							// WWW-Authenticate를 붙인다. Spring의 기본 handler는 이 부분을 TODO로 남겨 두었다.
 							.clientAuthentication(clientAuthentication -> clientAuthentication
 									.errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
-							// oauth2Login 이 id_token 을 받으려면 OIDC 가 필요하다.
-							// OidcProviderConfigurationEndpointFilter 는 token/revocation/introspection
-							// 세 엔드포인트 모두에 clientAuthenticationMethods()(private_key_jwt·
-							// client_secret_jwt 포함)를 그대로 광고하므로, AS 메타데이터와 동일하게
-							// 세 claim 모두가 조건부 MUST 대상이다.
+							// oauth2Login이 id_token을 받으려면 OIDC가 필요하다.
+							// OidcProviderConfigurationEndpointFilter는 token·revocation·introspection
+							// 세 endpoint 모두에 clientAuthenticationMethods()(private_key_jwt·
+							// client_secret_jwt 포함)를 그대로 알린다. 그래서 Authorization Server
+							// Metadata와 마찬가지로 세 claim 모두 조건부 MUST 대상이다.
 							.oidc(oidc -> oidc.providerConfigurationEndpoint(configuration -> configuration
 									.providerConfigurationCustomizer(builder -> builder
 											.claim(ISS_PARAMETER_SUPPORTED, true)
@@ -130,12 +132,13 @@ public class AuthorizationServerConfig {
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
 											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
 													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											// OIDC 디스커버리도 AS 메타데이터와 같은 이유로 none 을 더한다.
+											// OpenID Connect Discovery에도 Authorization Server Metadata와
+											// 같은 이유로 none을 더한다.
 											.tokenEndpointAuthenticationMethods(methods ->
 													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD)))));
 				})
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-				// 브라우저가 인가 엔드포인트에 로그인 없이 오면 로그인 화면으로 보낸다.
+				// browser가 login 없이 authorization endpoint에 오면 login 화면으로 보낸다.
 				.exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
 						new LoginUrlAuthenticationEntryPoint("/login"),
 						new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
@@ -153,7 +156,7 @@ public class AuthorizationServerConfig {
 	}
 
 	/**
-	 * Spring 인가 서버가 이 타입의 빈을 찾아 JWT 발급 직전에 호출한다.
+	 * Spring Authorization Server가 이 타입의 bean을 찾아 JWT를 발급하기 직전에 부른다.
 	 */
 	@Bean
 	public OAuth2TokenCustomizer<JwtEncodingContext> resourceAudienceTokenCustomizer(McpResourceProperties resources) {
@@ -161,10 +164,11 @@ public class AuthorizationServerConfig {
 	}
 
 	/**
-	 * {@code OAuth2AuthorizationServerConfigurer} 는 이 타입의 빈이 있으면 그것을 쓰고, 없으면
-	 * {@code InMemoryOAuth2AuthorizationConsentService} 를 내부적으로 만든다
-	 * ({@code OAuth2ConfigurerUtils.getAuthorizationConsentService}). 공개 클라이언트의 동의를
-	 * 기록하지 않도록 기본 저장소를 {@link PublicClientConsentService} 로 감싸 빈으로 올린다.
+	 * {@code OAuth2AuthorizationServerConfigurer}는 이 타입의 bean이 있으면 그것을 쓴다.
+	 * 없으면 {@code InMemoryOAuth2AuthorizationConsentService}를 안에서 직접 만든다
+	 * ({@code OAuth2ConfigurerUtils.getAuthorizationConsentService}).
+	 * public client의 consent를 기록하지 않도록, 기본 저장소를 {@link PublicClientConsentService}로 감싸
+	 * bean으로 등록한다.
 	 */
 	@Bean
 	public OAuth2AuthorizationConsentService authorizationConsentService(

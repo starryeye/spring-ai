@@ -1,0 +1,13 @@
+# local-client 실행 — 2026-09-26 (local-client-run.sh, browser 대신 curl)
+
+[1] discovery: http://localhost:8111/mcp
+    Authorization Server: http://localhost:9010
+[2] browser에서 login과 consent를 한다
+    http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A59597%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:59597/callback
+[4] client_secret 없이 access token을 받았다(299초 뒤 만료)
+[5] MCP 호출
+    initialize: protocolVersion=2025-11-25, server=official-shop-mcp-server
+    tool: getStock
+    tool: searchProducts
+    getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.

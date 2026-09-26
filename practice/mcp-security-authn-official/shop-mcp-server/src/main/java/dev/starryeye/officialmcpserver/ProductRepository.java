@@ -9,8 +9,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * 시드 데이터는 agent-mcp / agent-mcps 와 의도적으로 동일하다.
- * 세 practice 를 오가며 같은 질문의 답을 비교하기 위해서다.
+ * seed data는 agent-mcp·agent-mcps practice와 일부러 같게 둔다.
+ * 세 practice를 오가며 같은 질문의 답을 비교하기 위해서다.
  */
 @Repository
 public class ProductRepository {

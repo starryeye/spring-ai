@@ -1,0 +1,35 @@
+plugins {
+	id 'java'
+	id 'application'
+}
+
+group = 'dev.starryeye'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// MCP Java SDK. Streamable HTTP client transport와 JSON(Jackson 3)을 함께 가져온다.
+	implementation 'io.modelcontextprotocol.sdk:mcp:2.0.0'
+	runtimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+	testImplementation platform('org.junit:junit-bom:6.0.3')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testImplementation 'org.assertj:assertj-core:3.27.7'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+	mainClass = 'dev.starryeye.localclient.Main'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

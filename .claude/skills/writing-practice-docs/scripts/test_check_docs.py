@@ -2,6 +2,7 @@
 
 실행: python3 -m unittest discover -s .claude/skills/writing-practice-docs/scripts -p 'test_*.py'
 """
+import json
 import sys
 import tempfile
 import textwrap
@@ -24,6 +25,11 @@ def rules(text: str, name: str = "doc.md", extra: dict | None = None) -> list[st
         return [f"{i.rule}:{i.line}" for i in check_docs.check_file(path, TERMS)]
 
 
+def mermaid_rules(text: str) -> list[str]:
+    """mermaid 문법 규칙만 본다(그림 링크 규칙은 DiagramTest 가 본다)."""
+    return [r for r in rules(text) if r.startswith("mermaid")]
+
+
 class SetextTest(unittest.TestCase):
     def test_글_바로_아래_구분선은_걸린다(self):
         self.assertIn("setext:2", rules("문단이다.\n---\n"))
@@ -33,27 +39,6 @@ class SetextTest(unittest.TestCase):
 
     def test_front_matter_는_구분선으로_보지_않는다(self):
         self.assertEqual([], rules("---\nname: x\n---\n\n본문이다.\n"))
-
-
-class LengthTest(unittest.TestCase):
-    def test_네_문장_문단은_걸린다(self):
-        self.assertIn("length:1", rules("하나다. 둘이다. 셋이다. 넷이다.\n"))
-
-    def test_세_문장_문단은_통과한다(self):
-        self.assertEqual([], rules("하나다. 둘이다. 셋이다.\n"))
-
-    def test_목록_항목은_따로_센다(self):
-        self.assertEqual([], rules("- 하나다. 둘이다.\n- 셋이다. 넷이다.\n"))
-
-    def test_절_번호의_점은_문장_끝이_아니다(self):
-        self.assertEqual([], rules("OAuth 2.1 §4.3.1 과 RFC 8252 §7.3 을 본다.\n"))
-
-    def test_코드_블록_안은_세지_않는다(self):
-        self.assertEqual([], rules("```text\n하나. 둘. 셋. 넷.\n```\n"))
-
-    def test_긴_fence_안의_짧은_fence_는_블록을_닫지_않는다(self):
-        doc = "````markdown\n```mermaid\nx\n```\n[a](없음.md) 하나. 둘. 셋. 넷.\n````\n"
-        self.assertEqual([], rules(doc))
 
 
 class WordsTest(unittest.TestCase):
@@ -75,7 +60,7 @@ class WordsTest(unittest.TestCase):
 class LinkTest(unittest.TestCase):
     def test_명시_앵커와_제목_앵커는_통과한다(self):
         doc = '<a id="e1"></a>\n\n## 4.1 Token 요청\n\n[e](#e1) [h](#41-token-요청)\n'
-        self.assertEqual([], rules(doc))
+        self.assertEqual([], [r for r in rules(doc) if r.startswith("link")])
 
     def test_없는_앵커는_걸린다(self):
         self.assertIn("link:1", rules("[x](#nowhere)\n"))
@@ -108,7 +93,7 @@ class MermaidTest(unittest.TestCase):
         """
 
     def test_올바른_시퀀스는_통과한다(self):
-        self.assertEqual([], rules(self.OK))
+        self.assertEqual([], mermaid_rules(self.OK))
 
     def test_선언_안_된_participant_는_걸린다(self):
         self.assertTrue(any(r.startswith("mermaid") for r in rules(self.OK.replace("C->>A", "C->>X"))))
@@ -118,38 +103,8 @@ class MermaidTest(unittest.TestCase):
         self.assertTrue(any(r.startswith("mermaid") for r in rules(broken)))
 
     def test_flowchart_괄호_짝(self):
-        self.assertEqual([], rules("```mermaid\nflowchart LR\n  A[Agent] --> B[MCP Server]\n```\n"))
-        self.assertTrue(rules("```mermaid\nflowchart LR\n  A[Agent --> B\n```\n"))
-
-
-class FieldCountTest(unittest.TestCase):
-    TABLE_3 = (
-        "| 이름 | 설명 |\n"
-        "|---|---|\n"
-        "| a | 1 |\n"
-        "| b | 2 |\n"
-        "| c | 3 |\n"
-    )
-    TABLE_4 = TABLE_3 + "| d | 4 |\n"
-
-    def test_표_행_수와_명시한_개수가_같으면_통과한다(self):
-        doc = self.TABLE_3 + "\n원문 필드: RFC 7517 §4 에 정의된 3개 → 표 3행\n"
-        self.assertEqual([], rules(doc))
-
-    def test_표_행이_하나_늘면_field_count_가_걸린다(self):
-        doc = self.TABLE_4 + "\n원문 필드: RFC 7517 §4 에 정의된 3개 → 표 3행\n"
-        self.assertIn("field-count:8", rules(doc))
-
-    def test_명시한_개수와_표_행_표기가_다르면_걸린다(self):
-        doc = "원문 필드: RFC 7517 §4 에 정의된 8개 → 표 10행\n"
-        self.assertIn("field-count:1", rules(doc))
-
-    def test_원문_필드_없음은_통과한다(self):
-        self.assertEqual([], rules("원문 필드: 없음(요청 파라미터가 없다)\n"))
-
-    def test_정수_하나가_아닌_형식은_걸린다(self):
-        found = rules("원문 필드: 8+2개 → 표 10행\n")
-        self.assertTrue(any(r.startswith("field-count") for r in found))
+        self.assertEqual([], mermaid_rules("```mermaid\nflowchart LR\n  A[Agent] --> B[MCP Server]\n```\n"))
+        self.assertTrue(mermaid_rules("```mermaid\nflowchart LR\n  A[Agent --> B\n```\n"))
 
 
 class CellTest(unittest.TestCase):
@@ -173,21 +128,19 @@ class SentenceCharsTest(unittest.TestCase):
     def test_150자_이하_문장은_통과한다(self):
         self.assertEqual([], rules("가" * 148 + "다.\n"))
 
+    def test_코드_블록_안은_세지_않는다(self):
+        self.assertEqual([], rules("```text\n" + "가" * 151 + "다.\n```\n"))
+
+    def test_긴_fence_안의_짧은_fence_는_블록을_닫지_않는다(self):
+        doc = "````markdown\n```mermaid\nx\n```\n[a](없음.md) " + "가" * 151 + "다.\n````\n"
+        self.assertEqual([], rules(doc))
+
     def test_inline_code_와_URL_은_글자_수에_넣지_않는다(self):
-        self.assertEqual([], rules("`" + "x" * 200 + "` 를 https://example.com/" + "y" * 200 + " 로 보낸다.\n"))
+        self.assertEqual([], rules("`" + "x" * 200 + "`를 https://example.com/" + "y" * 200 + " 로 보낸다.\n"))
 
     def test_표_칸의_긴_문장도_걸린다(self):
         doc = "| a | b |\n|---|---|\n| x | " + "가" * 151 + "다. |\n"
         self.assertIn("sentence-chars:3", rules(doc))
-
-
-class ObservationTest(unittest.TestCase):
-    def test_캡처_ID_없는_관측은_걸린다(self):
-        self.assertIn("observation:1", rules("관측: 재기동마다 값이 바뀐다.\n"))
-
-    def test_캡처_ID_가_있는_관측은_통과한다(self):
-        self.assertEqual([], rules("관측: C1 은 `401` 을 받는다.\n"))
-        self.assertEqual([], rules("관측: P8-1 은 `invalid_scope` 를 받는다.\n"))
 
 
 class NarrativeMoreTest(unittest.TestCase):
@@ -198,10 +151,109 @@ class NarrativeMoreTest(unittest.TestCase):
 
 
 class TermsMoreTest(unittest.TestCase):
+    def test_bean_의_빈은_조사가_붙을_때만_걸린다(self):
+        self.assertEqual([], rules("빈 줄을 둔다.\n"))
+        self.assertEqual([], rules("빈 값과 빈 포트를 본다.\n"))
+        self.assertIn("term:1", rules("`ChatModel` 빈을 만든다.\n"))
+
     def test_새_용어는_걸린다(self):
         for word in ["재동의", "인가된", "브라우저", "엔드포인트", "커뮤니티", "모듈"]:
             with self.subTest(word=word):
                 self.assertIn("term:1", rules(f"{word} 를 본다.\n"))
+
+
+class ParticleSpaceTest(unittest.TestCase):
+    def test_영어_뒤_띄어_쓴_조사는_걸린다(self):
+        self.assertIn("particle-space:1", rules("MCP Server 가 응답한다.\n"))
+
+    def test_코드_뒤_띄어_쓴_조사는_걸린다(self):
+        self.assertIn("particle-space:1", rules("`resource` 를 보낸다.\n"))
+
+    def test_붙여_쓴_조사는_통과한다(self):
+        self.assertEqual([], rules("MCP Server가 `resource`를 보낸다.\n"))
+
+    def test_조사가_아닌_말은_통과한다(self):
+        self.assertEqual([], rules("token 없이 부른다.\n"))
+
+
+class StyleTest(unittest.TestCase):
+    def test_번역_어투는_걸린다(self):
+        for phrase in ["싣는다", "배선", "물러난다", "드러난다"]:
+            with self.subTest(phrase=phrase):
+                self.assertIn("style:1", rules(f"값을 {phrase}.\n"))
+
+
+class BodyTest(unittest.TestCase):
+    def test_본문의_요구_수준_단어는_걸린다(self):
+        self.assertIn("body-level:3", rules("# 제목\n\nclient는 확인해야 한다(**MUST**).\n"))
+
+    def test_조사가_붙은_요구_수준_단어도_걸린다(self):
+        for phrase in ["MUST로 정한다", "요구 수준은 MUST다", "REQUIRED로 둔다", "SHOULD이므로 따른다"]:
+            with self.subTest(phrase=phrase):
+                self.assertIn("body-level:1", rules(f"{phrase}.\n"))
+
+    def test_명세_근거_절의_요구_수준_단어는_통과한다(self):
+        doc = "# 제목\n\n### 3.10 명세 근거\n\n| 내용 | 명세 | 요구 수준 |\n|---|---|---|\n| x | y | MUST |\n"
+        self.assertEqual([], rules(doc))
+
+    def test_명세_근거_다음_절에서는_다시_걸린다(self):
+        doc = "### 명세 근거\n\nMUST 다.\n\n### 다음\n\nMUST 다.\n"
+        self.assertEqual(["body-level:7"], [r for r in rules(doc) if r.startswith("body-level")])
+
+    def test_본문의_캡처_번호는_걸린다(self):
+        self.assertIn("body-capture:1", rules("C3 응답을 본다.\n"))
+
+    def test_두_자리까지만_캡처_번호로_본다(self):
+        self.assertEqual([], rules("PKCE S256을 쓴다.\n"))
+        self.assertIn("body-capture:1", rules("C18 응답을 본다.\n"))
+        self.assertIn("body-capture:1", rules("P8-1 응답을 본다.\n"))
+
+    def test_Tests_로_끝나는_테스트_이름도_걸린다(self):
+        self.assertIn("body-test:1", rules("`ShopAgentApplicationTests#contextLoads`가 확인한다.\n"))
+
+    def test_본문의_테스트_이름은_걸린다(self):
+        self.assertIn("body-test:1", rules("`McpAuthorizationDiscoveryTest#발견은_한_번만_한다` 가 확인한다.\n"))
+
+    def test_reference_문서는_본문_규칙을_적용하지_않는다(self):
+        self.assertEqual([], rules("`resource`는 REQUIRED다(C2).\n", name="reference-api.md"))
+
+
+class HtmlTest(unittest.TestCase):
+    def test_앵커_태그는_걸린다(self):
+        self.assertIn("html:1", rules('<a id="s1"></a>\n'))
+
+    def test_인라인_html은_걸린다(self):
+        self.assertIn("html:1", rules("<sub>작은 글씨</sub>\n"))
+
+    def test_코드_안의_꺾쇠는_통과한다(self):
+        self.assertEqual([], rules("`<이름>`을 바꾼다.\n\n```text\n<tag>\n```\n"))
+
+
+class DiagramTest(unittest.TestCase):
+    MERMAID = "```mermaid\nsequenceDiagram\n    participant A as A\n    participant B as B\n    A->>B: hi\n```\n"
+
+    def doc_with_png(self, link: str, source_hash: str | None = None) -> list[str]:
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "diagrams").mkdir()
+            (Path(d) / "diagrams" / "doc-1.png").write_bytes(b"png")
+            body = "sequenceDiagram\n    participant A as A\n    participant B as B\n    A->>B: hi\n"
+            digest = source_hash or check_docs.diagram_hash(body)
+            (Path(d) / "diagrams" / ".sources.json").write_text(json.dumps({"doc-1.png": digest}), encoding="utf-8")
+            path = Path(d) / "doc.md"
+            path.write_text(self.MERMAID + "\n" + link + "\n", encoding="utf-8")
+            return [f"{i.rule}:{i.line}" for i in check_docs.check_file(path, TERMS)]
+
+    def test_그림_링크가_있고_최신이면_통과한다(self):
+        self.assertEqual([], self.doc_with_png("[다이어그램 그림으로 보기](diagrams/doc-1.png)"))
+
+    def test_그림_링크가_없으면_걸린다(self):
+        self.assertIn("diagram-link:1", rules(self.MERMAID))
+
+    def test_그림_파일이_없으면_걸린다(self):
+        self.assertIn("diagram-missing:8", rules(self.MERMAID + "\n[다이어그램 그림으로 보기](diagrams/doc-1.png)\n"))
+
+    def test_원본이_바뀌면_걸린다(self):
+        self.assertIn("diagram-stale:8", self.doc_with_png("[다이어그램 그림으로 보기](diagrams/doc-1.png)", "0" * 64))
 
 
 class LinksFromTest(unittest.TestCase):

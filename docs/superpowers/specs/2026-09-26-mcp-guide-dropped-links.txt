@@ -1,0 +1,39 @@
+# 옛 최상위 문서(MCP-AUTHORIZATION.md·MCP-API-SPEC.md·MCP-SEQUENCES.md)와 official API-SPEC.md·SEQUENCES.md에서 안내서(practice/mcp-guide/)로 옮기지 않은 링크. 형식: URL<TAB>이유
+https://www.rfc-editor.org/rfc/rfc9110#section-5.6.2	auth-param의 token 문법 세부. 안내서는 quoted-string 규칙을 RFC 9110 §11.2 링크로 설명한다
+https://auth.example.com	옛 허브 표의 경로 없는 issuer 예시 값. 링크가 아니다
+https://www.rfc-editor.org/rfc/rfc9207#section-1	mix-up 소개 절. 안내서는 RFC 9207 §2.x와 MCP 2026-07-28 Mix-Up Attacks 절로 설명한다
+http://localhost:8110/	옛 허브 S20 관측 값(login 뒤 redirect 주소). 링크가 아니다
+http://169.254.169.254/	cloud metadata 주소 예시. 8장은 끝 / 없이 http://169.254.169.254 로 쓴다
+https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567	SEP-2567 PR. 9장은 같은 내용을 https://modelcontextprotocol.io/seps/2567-sessionless-mcp 로 링크한다
+https://modelcontextprotocol.io/specification/2026-07-28/basic/transports	2026-07-28 transport 목차 페이지. 안내서는 streamable-http 하위 페이지의 절로 링크한다
+https://modelcontextprotocol.io/specification/2026-07-28/server/discover	server/discover. 9장은 이 기능을 changelog와 SEP-2575 링크로 다룬다
+https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://modelcontextprotocol.io/specification/2025-11-25/changelog	출처 목록의 문서 URL. 안내서는 2025-06-18·2026-07-28 changelog를 링크한다
+https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc8414	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc8707	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc9207	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc7636	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc6749	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc6750	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc7591	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc8252	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc9068	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc7517	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc7518	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://openid.net/specs/openid-connect-discovery-1_0.html	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://datatracker.ietf.org/doc/draft-ietf-oauth-client-id-metadata-document/	CIMD draft 목록 페이지. 안내서는 draft-00 본문(ietf.org/archive)의 절로 링크한다
+https://www.rfc-editor.org/rfc/rfc9110	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc8705	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc9449	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://www.rfc-editor.org/rfc/rfc9396	출처 목록의 문서 URL. 안내서는 reference-api.md의 PRM field 표에서 RFC 9396을 이름으로만 적는다(authorization_details_types_supported)
+https://www.rfc-editor.org/rfc/rfc8693	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+https://openid.net/specs/openid-connect-core-1_0.html	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
+http://127.0.0.1:8123/callback?code=1sEzkjWnBLuu...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010	옛 MCP-API-SPEC.md의 P4 예시 값. 지금 캡처(2026-09-25-official-public-client.txt)의 code lMbNpgP99yyS... 를 쓴다
+http://127.0.0.1:8123/callback<br/	링크가 아니다. 옛 MCP-SEQUENCES.md mermaid 메시지에서 줄바꿈 태그가 붙은 조각이다. redirect URI http://127.0.0.1:8123/callback 은 4장에 있다
+https://app.example.com/oauth/client-metadata.json<br/	링크가 아니다. 옛 MCP-SEQUENCES.md mermaid 메시지에서 줄바꿈 태그가 붙은 조각이다. CIMD 예시 주소 https://app.example.com/oauth/client-metadata.json 은 4장에 있다
+http://127.0.0.1:8123/callback,<br/	링크가 아니다. 옛 MCP-SEQUENCES.md mermaid 메시지에서 쉼표와 줄바꿈 태그가 붙은 조각이다
+http://127.0.0.1:8123/callback?code	링크가 아니다. 옛 MCP-SEQUENCES.md mermaid 메시지(302 ...callback?code, state, iss)의 조각이다. 실제 callback 예시는 4장과 5장에 있다

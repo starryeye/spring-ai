@@ -10,10 +10,12 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
 import java.io.IOException;
 
 /**
- * 로그인 실패를 401 본문으로 알린다.
+ * login 실패를 401 응답 본문으로 알린다.
  *
- * <p>기본 동작은 로그인 페이지로 되돌리는 것인데, 이 앱의 로그인 페이지는 곧 인가 요청이라
- * 실패할 때마다 다시 인가 서버로 가는 고리가 된다. 실패 이유를 그대로 보여주고 멈춘다.
+ * <p>기본 동작은 login 페이지로 되돌리는 것이다.
+ * 그런데 이 앱의 login 페이지는 곧 authorization request라서,
+ * 실패할 때마다 다시 Authorization Server로 가는 고리가 된다.
+ * 그래서 실패 이유를 그대로 보여 주고 멈춘다.
  */
 public class LoginFailureHandler implements AuthenticationFailureHandler {
 

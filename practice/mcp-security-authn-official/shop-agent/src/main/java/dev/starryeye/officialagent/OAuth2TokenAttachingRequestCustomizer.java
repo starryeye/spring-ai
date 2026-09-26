@@ -14,15 +14,16 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 
 /**
- * MCP 로 나가는 모든 HTTP 요청에 로그인한 사용자의 액세스 토큰을 붙인다.
- * community practice 에서는 모듈의 {@code OAuth2AuthorizationCodeSyncHttpRequestCustomizer} 가 같은 일을 한다.
+ * MCP로 나가는 모든 HTTP 요청에 login한 사용자의 access token을 붙인다.
+ * community practice에서는 module의 {@code OAuth2AuthorizationCodeSyncHttpRequestCustomizer}가 같은 일을 한다.
  *
- * <p>토큰은 <b>에이전트의 것이 아니라 사용자의 것</b>이다.
- * {@code authorization_code} 로 발급되어 {@code sub} 가 로그인한 사람이다.
+ * <p>token은 <b>agent의 것이 아니라 사용자의 것</b>이다.
+ * {@code authorization_code} grant로 발급되어 {@code sub}가 login한 사람이다.
  *
- * <p>{@code authorizedClientManager.authorize(...)} 가 던지는 예외(token endpoint 장애 등)는 잡지 않고
- * 그대로 올린다. 인증이 없거나 authorized client 가 없을 때는 DEBUG 로그만 남기고 token 없이 보낸다 —
- * MCP Server 가 401 로 알려준다.
+ * <p>{@code authorizedClientManager.authorize(...)}가 던지는 예외(token endpoint 장애 등)는
+ * 잡지 않고 그대로 올린다.
+ * 인증이 없거나 authorized client가 없을 때는 DEBUG 로그만 남기고 token 없이 보낸다.
+ * 그러면 MCP Server가 401로 알려 준다.
  */
 public class OAuth2TokenAttachingRequestCustomizer implements McpSyncHttpClientRequestCustomizer {
 

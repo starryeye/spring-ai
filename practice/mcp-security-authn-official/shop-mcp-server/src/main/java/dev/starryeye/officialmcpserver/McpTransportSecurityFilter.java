@@ -17,12 +17,14 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * MCP endpoint 의 {@code Origin}·{@code Host} 를 인증보다 먼저 검사한다(MCP 2025-11-25 Transports — Security Warning).
+ * MCP endpoint의 {@code Origin}·{@code Host}를 인증보다 먼저 검사한다(MCP 2025-11-25 Transports — Security Warning).
  *
- * <p>검사 규칙은 SDK {@link DefaultServerTransportSecurityValidator} 를 그대로 쓴다. SDK 는 이 검사를
- * transport 안에서 하므로 Spring Security 가 먼저 돌면 token 없는 요청은 401 을 받고 검사에 닿지 않는다.
- * 이 filter 를 security filter chain 앞에 두어 token 과 무관하게 잘못된 {@code Origin} 은 403,
- * {@code Host} 는 421 로 막는다. 응답 본문은 SDK transport 와 같은 평문 메시지다.
+ * <p>검사 규칙은 SDK의 {@link DefaultServerTransportSecurityValidator}를 그대로 쓴다.
+ * SDK는 이 검사를 transport 안에서 한다.
+ * 그래서 Spring Security가 먼저 돌면 token 없는 요청은 401로 끝나고 이 검사까지 오지 않는다.
+ * 이 filter는 security filter chain 앞에 서서, token과 상관없이 잘못된 {@code Origin}은 403으로,
+ * 잘못된 {@code Host}는 421로 막는다.
+ * 응답 본문은 SDK transport와 같은 평문 메시지다.
  */
 public class McpTransportSecurityFilter extends OncePerRequestFilter {
 
@@ -47,7 +49,7 @@ public class McpTransportSecurityFilter extends OncePerRequestFilter {
 		chain.doFilter(request, response);
 	}
 
-	/** SDK WebMvc transport 와 같은 모양: 소문자 헤더 이름 → 값 목록. */
+	/** SDK WebMvc transport와 같은 형식으로 만든다. 소문자 header 이름 → 값 목록이다. */
 	private static Map<String, List<String>> headers(HttpServletRequest request) {
 		Map<String, List<String>> headers = new HashMap<>();
 		for (String name : Collections.list(request.getHeaderNames())) {

@@ -7,10 +7,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 /**
- * 학습용 사용자 한 명. user / password 로 로그인한다.
+ * 학습용 사용자 한 명이다. user / password로 login한다.
  *
- * <p>필터체인은 {@link AuthorizationServerConfig} 에 있다. 인가 서버용 체인과
- * 폼 로그인용 체인 두 개를 직접 정의하므로, Boot 의 기본 인가 서버 필터체인은 물러난다.
+ * <p>filter chain은 {@link AuthorizationServerConfig}에 있다.
+ * Authorization Server용 filter chain과 form login용 filter chain을 직접 정의하므로,
+ * Boot의 기본 Authorization Server filter chain은 빠진다.
  */
 @Configuration
 public class UserConfig {
