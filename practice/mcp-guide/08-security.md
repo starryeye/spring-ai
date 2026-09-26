@@ -12,7 +12,7 @@
 
 | 절 | 공격 | 공격자 | 막는 것 |
 |---|---|---|---|
-| 8.2 | discovery SSRF, 위험한 주소 | 악성 MCP Server | issuer를 먼저 비교, endpoint 주소 확인 |
+| 8.2 | discovery SSRF, 위험한 authorization 주소 | 악성 MCP Server | issuer를 먼저 비교, endpoint 주소 확인 |
 | 8.3 | redirect URI 바꿔치기, code 가로채기 | 악성 링크, 같은 기기의 프로그램 | redirect URI 정확 비교, PKCE `S256` |
 | 8.4 | public client 사칭 | 같은 기기의 프로그램 | 매번 받는 consent |
 | 8.5 | mix-up | 악성 MCP Server | callback의 `iss` 확인 |
@@ -89,8 +89,10 @@ token request에는 요청을 시작한 client만 가진 `code_verifier`가 있�
 
 **공격**
 
-같은 기기의 악성 프로그램이 `client_id=local-mcp-client`와 자기가 연 loopback 포트로 authorization request를 연다.
-Authorization Server가 사용자의 예전 consent를 기억하면, 프로그램은 사용자 모르게 token을 받는다.
+같은 기기의 악성 프로그램이 `client_id=local-mcp-client`와 자기가 연 loopback 포트로 authorization request를 만들어 browser를 연다.
+browser에는 사용자의 login session이 남아 있다.
+Authorization Server가 사용자의 예전 consent를 기억하면, browser는 화면 하나 없이 그 포트의 callback으로 넘어간다.
+프로그램은 사용자 모르게 token을 받는다.
 PKCE로도 막지 못하는 이유는 [4장](04-client-registration.md)에 있다.
 
 **막는 것**
