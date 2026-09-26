@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 인증이 포함된 MCP 학습 문서(practice/MCP-AUTHORIZATION.md)의 보충 관측(S 번호)을 curl 로 기록한다.
+# MCP 안내서(practice/mcp-guide/)의 부록 reference-api.md·reference-compliance.md 가 인용하는 보충 관측(S 번호)을 curl 로 기록한다.
 # mcp-authorization-walkthrough.sh(C 번호)가 다루지 않는 응답을 모은다 —
 # OIDC 디스커버리, 루트형 보호 리소스 메타데이터, 인가·토큰 엔드포인트 오류, 전송 계층 오류(Host·Accept·세션),
 # GET /mcp, 에이전트가 만드는 인가 요청과 콜백의 iss 검증.

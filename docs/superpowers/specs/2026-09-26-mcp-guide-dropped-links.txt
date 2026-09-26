@@ -6,7 +6,6 @@ http://localhost:8110/	옛 허브 S20 관측 값(login 뒤 redirect 주소). 링
 http://169.254.169.254/	cloud metadata 주소 예시. 8장은 끝 / 없이 http://169.254.169.254 로 쓴다
 https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567	SEP-2567 PR. 9장은 같은 내용을 https://modelcontextprotocol.io/seps/2567-sessionless-mcp 로 링크한다
 https://modelcontextprotocol.io/specification/2026-07-28/basic/transports	2026-07-28 transport 목차 페이지. 안내서는 streamable-http 하위 페이지의 절로 링크한다
-https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata	header와 _meta 일치 규칙(HeaderMismatch). 안내서는 official이 쓰지 않는 2026-07-28 transport를 요약만 한다
 https://modelcontextprotocol.io/specification/2026-07-28/server/discover	server/discover. 9장은 이 기능을 changelog와 SEP-2575 링크로 다룬다
 https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization	출처 목록의 문서 URL. 안내서는 절 앵커가 붙은 URL로 링크한다
 https://modelcontextprotocol.io/specification/2025-11-25/changelog	출처 목록의 문서 URL. 안내서는 2025-06-18·2026-07-28 changelog를 링크한다

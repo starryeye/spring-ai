@@ -36,6 +36,9 @@ cd practice/mcp-security-authn-official
 그다음 ollama를 켜고, `qwen3:8b` 모델이 없으면 내려받는다.
 모델을 처음 받을 때는 시간이 걸린다.
 마지막으로 `auth-server` → `shop-mcp-server` → `shop-agent` 순서로 띄우고, 앱마다 응답할 때까지 기다린다.
+세 앱을 직접 띄울 때는 순서를 지키지 않아도 된다.
+MCP Server는 Authorization Server의 metadata를 첫 token 검증 때 읽고, agent는 discovery와 `initialize`를 첫 login과 첫 채팅 때 한다.
+첫 login과 첫 채팅 때 `auth-server`와 `shop-mcp-server`가 떠 있으면 된다.
 포트가 이미 쓰이고 있으면 그 앱은 새로 띄우지 않고 건너뛴다.
 앱의 로그는 `practice/mcp-security-authn-official/logs/<module>.log`에 남는다.
 
@@ -46,9 +49,12 @@ browser에서 `http://localhost:8110`을 열고 `user`/`password`로 login한 �
 `local-client`에게는 `auth-server`와 `shop-mcp-server`만 있으면 된다.
 `run.sh`로 세 서버를 띄웠다면 그대로 실행한다.
 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 돈다.
+Java 21을 sdkman으로 설치했다면 아래 첫 줄로 맞춘다.
+다른 방법으로 설치했다면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
 
 ```bash
 # 저장소 최상위 폴더에서
+export JAVA_HOME=$(find $HOME/.sdkman/candidates/java -maxdepth 1 -type d -name '21.*' | sort -V | tail -1)
 cd practice/mcp-security-authn-official/local-client
 ./gradlew run
 ```
@@ -70,7 +76,7 @@ terminal에 discovery부터 MCP 호출까지 다섯 단계가 찍히고, 앱은 
 ## 코드 지도
 
 module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 모았다.
-클래스는 `<module>/src/main/java/dev/starryeye/<package>/`에 있다.
+클래스는 `<module>/src/main/java/dev/starryeye/<package>/`에 있고, `application.yml`은 `<module>/src/main/resources/`에 있다.
 
 **`auth-server`** — package `officialauthserver`
 
@@ -78,10 +84,10 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 |---|---|---|
 | `application.yml` | client 두 개를 미리 등록하고 PKCE를 반드시 쓰게 한다. token을 발급할 resource 목록(`mcp.authorization.resources`)도 둔다 | [4장 pre-registration](../mcp-guide/04-client-registration.md#43-pre-registration-official의-두-client) |
 | `AuthorizationServerConfig` | filter chain 두 개를 직접 정의한다. metadata에 `none`과 `iss` 지원을 알리고, authorization endpoint에 검증기와 응답 handler를 연결한다 | [4장 official 코드](../mcp-guide/04-client-registration.md#48-official-코드에서-보기), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
-| `McpResourceProperties`, `ResourceIndicatorValidator` | 모르는 `resource`의 authorization request를 `invalid_target`으로 거절한다 | [5장 authorization request](../mcp-guide/05-authorization-and-token.md#53-authorization-request를-보낸다) |
+| `McpResourceProperties`, `ResourceIndicatorValidator` | 모르는 `resource`의 authorization request를 `invalid_target`으로 거절한다 | [5장 authorization request](../mcp-guide/05-authorization-and-token.md#53-authorization-request를-보낸다), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | `PublicClientScopeValidator`, `PublicClientConsentService` | public client가 consent를 건너뛰지 못하게 한다 | [5장 login과 consent](../mcp-guide/05-authorization-and-token.md#55-login과-consent) |
-| `IssuerIdentifyingAuthorizationResponseHandler` | 성공과 오류 redirect에 모두 `iss`를 붙인다 | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
-| `ResourceAudienceTokenCustomizer` | access token의 `aud`를 `resource`로 정한다. authorization request와 다른 `resource`의 token request는 `invalid_target`이다 | [5장 token request](../mcp-guide/05-authorization-and-token.md#57-token-request) |
+| `IssuerIdentifyingAuthorizationResponseHandler` | 성공과 오류 redirect에 모두 `iss`를 붙인다 | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
+| `ResourceAudienceTokenCustomizer` | access token의 `aud`를 `resource`로 정한다. authorization request와 다른 `resource`의 token request는 `invalid_target`이다 | [5장 token request](../mcp-guide/05-authorization-and-token.md#57-token-request), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | `ClientAuthenticationChallengeFailureHandler` | `Authorization` header로 시도한 client 인증이 실패하면 `401`에 `WWW-Authenticate`를 붙인다 | [부록 API의 token endpoint](../mcp-guide/reference-api.md#post-oauth2token--authorization_code) |
 | `UserConfig` | login 계정 `user`/`password`를 둔다 | [2장 역할](../mcp-guide/02-why-oauth.md#22-역할) |
 
@@ -90,8 +96,8 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
 | `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증한다. PRM과 `401`의 `resource_metadata`를 켠다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
-| `application.yml` | `issuer-uri`와 `audiences`로 token의 `iss`와 `aud`를 확인한다. `server.address: 127.0.0.1`로 이 기기의 연결만 받는다 | [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증) |
-| `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
+| `application.yml` | `issuer-uri`와 `audiences`로 token의 `iss`와 `aud`를 확인한다. `server.address: 127.0.0.1`로 이 기기의 연결만 받는다 | [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증), [6장 `127.0.0.1` bind](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
+| `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
 | `McpProtocolVersionFilter` | token 검증 뒤에 `MCP-Protocol-Version`을 보고, 모르는 버전을 `400`으로 거절한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
 | `ProductTools`, `ProductRepository` | `@McpTool`로 `getStock`·`searchProducts` tool을 만든다. 상품은 메모리에 있다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 
@@ -102,7 +108,7 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | `McpAuthorizationDiscovery`, `DiscoveredAuthorization`, `McpDiscoveryException` | `401` → PRM → issuer 비교 → metadata 순서로 discovery를 한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
 | `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties` | 설정의 credentials와 discovery 결과로 login에 쓸 client 등록 정보를 만든다. `credentials-issuer`와 다른 issuer에는 credentials를 쓰지 않는다 | [4장 credentials와 issuer](../mcp-guide/04-client-registration.md#47-credentials를-issuer에-묶기), [4장 official 코드](../mcp-guide/04-client-registration.md#48-official-코드에서-보기) |
 | `SecurityConfig` | `oauth2Login`을 켜고, authorization request에 PKCE와 `resource`를 더한다. `/api/chat`에도 CSRF 검사를 켠다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
-| `ResourceIndicators` | authorization request, token request, refresh request에 `resource`를 넣는다 | [5장 authorization request](../mcp-guide/05-authorization-and-token.md#53-authorization-request를-보낸다), [5장 만료와 refresh](../mcp-guide/05-authorization-and-token.md#59-만료와-refresh) |
+| `ResourceIndicators` | authorization request, token request, refresh request에 `resource`를 넣는다 | [5장 authorization request](../mcp-guide/05-authorization-and-token.md#53-authorization-request를-보낸다), [5장 만료와 refresh](../mcp-guide/05-authorization-and-token.md#59-만료와-refresh), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | `McpSecurityConfig` | token request를 보내는 bean과 refresh를 하는 `authorizedClientManager`를 등록한다. `SecurityMcpTransportContextProvider`와 `OAuth2TokenAttachingRequestCustomizer`를 MCP client에 연결한다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기), [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 | `AuthorizationResponseIssuerFilter`, `LoginFailureHandler` | callback의 `iss`를 code 교환 전에 확인하고, 어긋나면 `401`로 끝낸다 | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
 | `SecurityMcpTransportContextProvider`, `OAuth2TokenAttachingRequestCustomizer` | MCP 요청마다 그 요청을 일으킨 사용자의 access token을 `Authorization` header에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
@@ -122,12 +128,26 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | `TokenClient`, `TokenResponse` | `client_secret` 없이 `client_id`와 `code_verifier`로 token을 받는다 | [7장 token request](../mcp-guide/07-local-client.md#77-5단계-token-request--tokenclient) |
 | `McpCalls` | transport의 기본 요청에 `Authorization` header를 넣고 `initialize`, `tools/list`, `tools/call`을 보낸다 | [7장 MCP 호출](../mcp-guide/07-local-client.md#78-6단계-mcp-호출--mcpcalls) |
 
-## 안내서에서 다루지 않는 설정
+## 안내서에서 다루지 않는 것
 
-- `/api/chat`도 CSRF를 검사해서, 다른 사이트의 page가 사용자 몰래 채팅(곧 tool 호출)을 보내지 못한다. `index.html`은 `csrf.spa()`가 준 `XSRF-TOKEN` cookie 값을 `X-XSRF-TOKEN` header로 보내고, 이 header가 없는 요청은 `403`이다.
-- `AuthorizationServerConfig`는 filter chain을 직접 정의해서 Spring Boot의 기본 Authorization Server 설정이 빠진다. 그래서 agent의 login에 필요한 OpenID Connect(ID token, `/.well-known/openid-configuration`)를 `.oidc(...)`로 직접 켠다.
-- `shop-mcp-server`의 `SecurityConfig`는 `issuer-uri`를 기본값 없는 `@Value`로 받아서, 이 설정이 없으면 앱이 뜨지 않는다. 값이 틀리면 앱은 뜨고, token이 붙은 첫 요청에서 실패한다([6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기)).
-- `auth-server`와 `shop-agent`는 session cookie 이름을 `OFFICIALAUTHSESSIONID`와 `OFFICIALAGENTSESSIONID`로 나눈다. cookie는 host만 보고 포트를 가리지 않아서([RFC 6265 §8.5](https://www.rfc-editor.org/rfc/rfc6265#section-8.5)), 두 앱이 같은 `JSESSIONID`를 쓰면 한쪽 login이 다른 쪽 session을 덮어쓴다.
+**설정**
+
+- `/api/chat`도 CSRF를 검사해서, 다른 사이트의 page가 사용자 몰래 채팅(곧 tool 호출)을 보내지 못한다.
+  `index.html`은 `csrf.spa()`가 준 `XSRF-TOKEN` cookie 값을 `X-XSRF-TOKEN` header로 보내고, 이 header가 없는 요청은 `403`이다.
+- `AuthorizationServerConfig`는 filter chain을 직접 정의해서 Spring Boot의 기본 Authorization Server 설정이 빠진다.
+  그래서 agent의 login에 필요한 OpenID Connect(ID token, `/.well-known/openid-configuration`)를 `.oidc(...)`로 직접 켠다.
+- `shop-mcp-server`의 `SecurityConfig`는 `issuer-uri`를 기본값 없는 `@Value`로 받아서, 이 설정이 없으면 앱이 뜨지 않는다.
+  값이 틀리면 앱은 뜨고, token이 붙은 첫 요청에서 실패한다([6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기)).
+- `auth-server`와 `shop-agent`는 session cookie 이름을 `OFFICIALAUTHSESSIONID`와 `OFFICIALAGENTSESSIONID`로 나눈다.
+  cookie는 host만 보고 포트를 가리지 않아서([RFC 6265 §8.5](https://www.rfc-editor.org/rfc/rfc6265#section-8.5)), 두 앱이 같은 `JSESSIONID`를 쓰면 한쪽 login이 다른 쪽 session을 덮어쓴다.
+
+**이 practice가 하지 않는 것**
+
+- 사용자는 `user` 한 명이고, 역할을 나누지 않는다.
+  사용자 여러 명은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md)에 있다.
+- token은 메모리에만 둔다.
+  agent의 `InMemoryOAuth2AuthorizedClientService`는 앱을 다시 띄우면 비고, 사용자는 다시 login한다.
+- `index.html`은 OAuth redirect를 browser에 맡기고 채팅을 보내는 데 필요한 만큼만 만든 화면이다.
 
 ## 직접 확인할 것
 
@@ -143,21 +163,26 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | login한 뒤 `노트북 재고 있어?`와 `무선 기계식 키보드 살 수 있어?` 묻기 | p1 7개, p2 23개처럼 재고 숫자가 맞고, 재고가 0인 무선 기계식 키보드(p3)는 품절이라고 답한다 |
 | `grep '호출' logs/shop-mcp-server.log` | `사용자=user`가 찍힌다. MCP Server가 보는 사용자는 agent가 아니라 login한 사람이다 |
 | `grep '토큰을 헤더에' logs/shop-agent.log` | `토큰을 헤더에 붙였다 (사용자=user)`가 찍힌다. agent가 MCP 요청마다 그 사용자의 token을 붙인다 |
-| `local-client`에서 `./gradlew run` 뒤 login과 consent | terminal에 `[1]`부터 `[5]`까지 찍히고, 마지막 줄의 `getStock(p1)` 결과는 재고 7개다 |
+| `local-client`에서 `./gradlew -q run` 뒤 login과 consent | terminal에 `[1]`부터 `[5]`까지 찍힌다. `-q`로 실행하면 마지막 줄은 `getStock(p1)`의 결과인 재고 7개다 |
 | `local-client`에서 `./gradlew run --args="--issuer http://localhost:9999"` | discovery에서 `실패: 이 client는 http://localhost:9999에 등록돼 있는데, PRM의 authorization_servers는 [http://localhost:9010]뿐이다`로 멈춘다 |
 
 token이 필요한 요청은 캡처 스크립트로 한 단계씩 기록해 본다.
-스크립트는 login과 token 발급을 curl로 대신 하고, 출력에는 token 원문이 남는다.
+스크립트는 login과 token 발급을 curl로 대신 한다.
+`mcp-authorization-walkthrough.sh`의 출력에는 token 원문이 남는다.
+supplement와 public-client 스크립트는 JWT를 앞 20자만 남기고, `local-client-run.sh`는 token을 찍지 않는다.
 
 ```bash
 # 저장소 최상위 폴더에서
 docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/official-walkthrough.txt
 docs/superpowers/captures/mcp-authorization-supplement.sh > /tmp/official-supplement.txt
 docs/superpowers/captures/mcp-authorization-public-client.sh > /tmp/official-public-client.txt
+# local-client-run.sh는 ./gradlew run을 부른다. sdkman으로 설치한 Java 21이면 이 줄로 JAVA_HOME을 맞춘다
+export JAVA_HOME=$(find $HOME/.sdkman/candidates/java -maxdepth 1 -type d -name '21.*' | sort -V | tail -1)
 docs/superpowers/captures/local-client-run.sh > /tmp/official-local-client.txt
 ```
 
-마지막 스크립트는 `local-client`를 `./gradlew run`으로 돌리므로, 여기서도 `JAVA_HOME`이 Java 21을 가리켜야 한다.
+마지막 스크립트는 `local-client`를 `./gradlew run`으로 돌리므로 `JAVA_HOME`이 Java 21을 가리켜야 한다.
+Java 21을 sdkman이 아닌 방법으로 설치했다면 `export` 줄 대신 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
 출력의 단계 번호가 어느 장의 어느 요청인지는 장마다 "직접 해 보기" 절에 있다.
 
 ## 더 읽을 것

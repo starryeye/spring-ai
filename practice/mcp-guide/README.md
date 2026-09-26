@@ -4,7 +4,9 @@
 OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP의 discovery는 처음인 독자를 위해 썼다.
 다 읽고 나면 OAuth로 보호한 MCP Server와 MCP client를 직접 만들고 운영할 수 있다.
 
-모든 예시는 [official practice](../mcp-security-authn-official/README.md)를 실제로 띄워 받은 요청과 응답이다.
+요청·응답 예시는 대부분 [official practice](../mcp-security-authn-official/README.md)를 실제로 띄워 받은 것이다.
+official 밖의 서버를 가정한 예시는 명세의 예시이거나 설명을 위해 만든 값이다.
+`169.254.169.254`를 가리키는 PRM, `app.example.com`의 CIMD 문서, `auth.example.com/tenant1` issuer가 그런 예다.
 장마다 그 단계가 왜 있는지를 먼저 보고, 실제 요청·응답과 official 코드를 본 뒤, 직접 해 본다.
 장 끝의 "명세 근거" 표는 본문의 규칙이 MCP 명세와 RFC의 어느 절에서 왔는지를 요구 수준과 함께 보여 준다.
 
@@ -38,7 +40,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [5. Authorization request와 token](05-authorization-and-token.md) | authorization code grant에 PKCE, `resource`, callback의 `state`·`iss` 확인을 더한 흐름과 token request·refresh | `code_verifier`로 `code_challenge` 계산하기, 모르는 `resource`로 `invalid_target` 받기 |
 | [6. MCP 호출과 token 검증](06-mcp-call-and-validation.md) | Bearer token을 붙인 MCP 요청, MCP Server의 검사 순서(`Origin`·`Host` → token → 버전 → session), agent가 사용자마다 token을 붙이는 방법 | `403`·`421`·`401 invalid_token` 받기, 검사 순서 보기, JWK Set 읽기 |
 | [7. 로컬 MCP client](07-local-client.md) | 사용자 기기의 public client가 기본 browser와 loopback callback으로 전체 흐름을 혼자 밟는 과정 | `local-client`로 login부터 MCP 호출까지 하기, 등록되지 않은 issuer로 discovery에서 멈추기 |
-| [8. 보안](08-security.md) | SSRF, code 가로채기, 사칭, mix-up, token passthrough, DNS rebinding, session hijacking과 각 공격을 막는 장치 | agent의 callback에 다른 `iss`를 넣어 `401` 받기 |
+| [8. 보안](08-security.md) | SSRF, code 가로채기, 사칭, mix-up, confused deputy, token passthrough, DNS rebinding, session hijacking과 각 공격을 막는 장치 | agent의 callback에 다른 `iss`를 넣어 `401` 받기 |
 | [9. 버전](09-versions.md) | 2025-03-26부터 2026-07-28까지 authorization과 transport가 바뀐 이유, official이 따르는 기준 버전 | `2026-07-28`로 요청해 official이 `2025-11-25`로 답하고 `_meta` 요청을 `400`으로 거절하는 것 보기 |
 
 ## 부록
@@ -52,4 +54,5 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 
 - [mcp-security-authn-chat-memory](../mcp-security-authn-chat-memory/README.md): official에 사용자별 대화 기억을 더하고, MCP session을 사용자에 묶는다.
 - [mcp-security-authn-community](../mcp-security-authn-community/README.md): 같은 흐름을 spring-ai-community의 MCP 보안 module 자동 설정으로 만든다.
-- [agent-mcp](../agent-mcp/README.md)와 [agent-mcps](../agent-mcps/README.md): authorization 없이 MCP Server와 agent만 다룬다. 1장의 내용을 더 작은 예제로 볼 수 있다.
+- [agent-mcp](../agent-mcp/README.md)와 [agent-mcps](../agent-mcps/README.md): authorization 없이 MCP Server와 agent만 다룬다.
+  1장의 내용을 더 작은 예제로 볼 수 있다.
