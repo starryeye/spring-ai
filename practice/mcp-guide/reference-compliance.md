@@ -30,8 +30,8 @@ MCP Server가 token을 검증만 하고 Authorization Server를 따로 두는 �
 | login | `user` / `password` | `alice` / `alice`, `bob` / `bob` | `user` / `password` |
 | 구성 방식 | filter chain과 bean을 직접 정의 | official과 같은 클래스 + 사용자별 대화 기억 | spring-ai-community `mcp-security` module 0.1.14 자동 설정 + 확장점 |
 
-chat-memory의 클래스는 official과 package(`dev.starryeye.memoryauthn.*`)만 다르고, 다른 곳은 아래 표에 따로 적었다.
-`local-client`의 클래스는 `practice/mcp-security-authn-official/local-client/src/main/java/dev/starryeye/localclient/`에 있다.
+chat-memory의 클래스는 official과 package(`dev.starryeye.memory.*`)만 다르고, 다른 곳은 아래 표에 따로 적었다.
+`local-client`의 클래스는 `practice/mcp-security-authn-official/local-client/src/main/java/dev/starryeye/official/localclient/`에 있다.
 
 | module | 하는 일 | official · chat-memory | community | 장 |
 |---|---|---|---|---|

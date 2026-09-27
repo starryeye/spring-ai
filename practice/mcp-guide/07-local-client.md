@@ -66,7 +66,7 @@ sequenceDiagram
 | 5단계: token request | (13)(14) | `TokenClient` | [5장](05-authorization-and-token.md) |
 | 6단계: MCP 호출 | (15)~(17) | `McpCalls` | [6장](06-mcp-call-and-validation.md) |
 
-클래스는 모두 `practice/mcp-security-authn-official/local-client/src/main/java/dev/starryeye/localclient/`에 있다.
+클래스는 모두 `practice/mcp-security-authn-official/local-client/src/main/java/dev/starryeye/official/localclient/`에 있다.
 아래 인용은 흐름을 가리는 부분을 `/* ... */`로 줄였다.
 
 ## 7.3 1단계: discovery — `Discovery`

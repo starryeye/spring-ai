@@ -83,9 +83,11 @@ terminal에 discovery부터 MCP 호출까지 다섯 단계가 찍히고, 앱은 
 ## 코드 지도
 
 module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 모았다.
-클래스는 `<module>/src/main/java/dev/starryeye/<package>/`에 있고, `application.yml`은 `<module>/src/main/resources/`에 있다.
+클래스는 `<module>/src/main/java/` 아래 module 제목에 적은 package에 있고, `application.yml`은 `<module>/src/main/resources/`에 있다.
+Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
+`config`(설정), `security`(Spring Security 확장), `filter`, `controller`, `tool`, `domain`, `repository`가 있고, agent에는 `discovery`와 `mcp`가 더 있다.
 
-**`auth-server`** — package `officialauthserver`
+**`auth-server`** — package `dev.starryeye.official.authserver`
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
@@ -98,7 +100,7 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | `ClientAuthenticationChallengeFailureHandler` | `Authorization` header로 시도한 client 인증이 실패하면 `401`에 `WWW-Authenticate`를 붙인다 | [부록 API의 token endpoint](../mcp-guide/reference-api.md#post-oauth2token--authorization_code) |
 | `UserConfig` | login 계정 `user`/`password`를 둔다 | [2장 역할](../mcp-guide/02-why-oauth.md#22-역할) |
 
-**`shop-mcp-server`** — package `officialmcpserver`
+**`shop-mcp-server`** — package `dev.starryeye.official.mcpserver`
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
@@ -108,7 +110,7 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | `McpProtocolVersionFilter` | token 검증 뒤에 `MCP-Protocol-Version`을 보고, 모르는 버전을 `400`으로 거절한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
 | `ProductTools`, `ProductRepository` | `@McpTool`로 `getStock`·`searchProducts` tool을 만든다. 상품은 메모리에 있다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 
-**`shop-agent`** — package `officialagent`
+**`shop-agent`** — package `dev.starryeye.official.agent`
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
@@ -123,7 +125,7 @@ module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 
 | `ChatClientConfig`, `ChatController` | MCP tool을 `ChatClient`의 기본 tool로 넣고, `/api/chat`의 답을 stream으로 보낸다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 | `application.yml` | discovery의 출발점 `mcp.authorization.resource-url`과 `credentials-issuer`를 둔다. `initialized: false`로 `initialize`를 첫 채팅까지 미룬다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 
-**`local-client`** — package `localclient`
+**`local-client`** — package `dev.starryeye.official.localclient`
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
