@@ -10,6 +10,12 @@ official 밖의 서버를 가정한 예시는 명세의 예시이거나 설명�
 장마다 그 단계가 왜 있는지를 먼저 보고, 실제 요청·응답과 official 코드를 본 뒤, 직접 해 본다.
 장 끝의 "명세 근거" 표는 본문의 규칙이 MCP 명세와 RFC의 어느 절에서 왔는지를 요구 수준과 함께 보여 준다.
 
+official이라는 이름은 Spring 공식 프로젝트(Spring Security, Spring Authorization Server, Spring AI)와 MCP Java SDK만으로 만들었다는 뜻이다.
+spring-ai-community의 module로 같은 흐름을 만든 [community practice](../mcp-security-authn-community/README.md)와 구별하려고 붙였다.
+MCP가 정한 표준 구조나 일반적인 agent 구조라는 뜻은 아니다.
+예를 들어 official의 agent는 흐름을 단순하게 보이려고 MCP client 하나를 모든 사용자가 같이 쓴다.
+MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의 것이고, 그 차이는 [6장](06-mcp-call-and-validation.md)에서 본다.
+
 ## 읽는 순서
 
 1장부터 9장까지 차례로 읽는다.

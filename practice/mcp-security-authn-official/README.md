@@ -2,6 +2,7 @@
 
 이 practice는 OAuth로 보호한 MCP 호출을 Spring Security·Spring Authorization Server·Spring AI·MCP Java SDK만으로 만든다.
 spring-ai-community의 MCP 보안 module은 쓰지 않는다.
+이름의 official은 이렇게 Spring 공식 프로젝트만 썼다는 뜻이고, MCP가 정한 표준 구조라는 뜻은 아니다.
 사용자가 browser로 login하면, agent가 그 사용자를 대신해 MCP Server의 tool을 부른다.
 명령줄 앱 `local-client`는 사용자 기기의 MCP client를 흉내 내어 같은 MCP Server를 부른다.
 [MCP 안내서](../mcp-guide/README.md)의 예시는 모두 이 practice에서 나온다.
@@ -19,6 +20,12 @@ spring-ai-community의 MCP 보안 module은 쓰지 않는다.
 세 서버는 Spring Boot 4.1.0의 servlet 앱이고, `127.0.0.1`에서만 연결을 받는다.
 `local-client`는 Spring Boot 없이 Java 21과 MCP Java SDK 2.0.0만 쓴다.
 module 사이에서 token이 오가는 전체 흐름은 [2장 전체 흐름](../mcp-guide/02-why-oauth.md#25-전체-흐름-시퀀스-다이어그램)에 있다.
+
+`shop-agent`는 흐름을 단순하게 보이려고 Spring AI 자동 구성이 만든 MCP client 하나를 모든 사용자가 같이 쓴다.
+요청마다 그 요청을 보낸 사용자의 token만 바꿔 붙인다.
+MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의 것이다.
+사용자마다 client를 따로 두는 agent는 [chat-memory practice](../mcp-security-authn-chat-memory/README.md)에 있다.
+두 구조의 차이는 [6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자)에서 본다.
 
 ## 실행
 

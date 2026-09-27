@@ -317,16 +317,30 @@ official의 MCP Server는 session을 연 사용자를 기억하지 않기 때문
 session 데이터를 `<user_id>:<session_id>` 같은 key로 두고, `user_id`는 token에서 꺼낸다.
 그러면 session ID를 알아내도 다른 사용자의 token으로는 그 session을 쓰지 못한다.
 
-official이 session을 사용자에 묶지 않는 데는 이유가 있다.
-agent는 Spring AI 자동 구성이 만든 MCP client 하나를 모든 사용자가 같이 쓴다.
-그래서 session은 첫 채팅을 보낸 사용자의 token으로 열리고, 그 뒤의 요청에는 그때그때 채팅한 사용자의 token이 붙는다(6.8).
-session을 처음 연 사용자에 묶으면, 두 번째 사용자부터는 요청이 막힌다.
+이 권고에는 전제가 있다.
+MCP 명세의 구조에서 host(Claude Desktop 같은 앱)는 MCP Server마다 client를 하나 만든다.
+client는 그 MCP Server와 1:1로 연결되고, session도 하나만 연다.
+client가 받는 token은 사용자 한 명의 것이므로, client 하나와 그 session은 사용자 한 명의 것이다.
+데스크톱 앱과 [7장](07-local-client.md)의 `local-client`가 이 구조다.
+여러 사용자가 쓰는 서버형 agent도 token은 사용자별로 보관하므로, 이 구조를 따르려면 MCP client도 사용자별로 둔다.
 
-session을 사용자에 묶는 방법은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md)에 있다.
+official의 agent는 이 구조를 따르지 않는다.
+Spring AI 자동 구성은 설정한 MCP 연결마다 앱 전체가 함께 쓰는 client 하나를 만든다.
+이 구성은 앱 하나가 자기 신원 하나로 MCP Server를 부를 때 맞는다.
+official은 흐름을 단순하게 보이려고 이 client 하나를 모든 사용자가 같이 쓰게 두었다.
+그리고 요청마다 그 요청을 보낸 사용자의 token만 바꿔 붙인다(6.8).
+그래서 session은 첫 채팅을 보낸 사용자의 token으로 열리고, 그 뒤의 요청에는 그때그때 채팅한 사용자의 token이 붙는다.
+이 session을 처음 연 사용자에 묶으면, 두 번째 사용자부터는 요청이 막힌다.
+앱을 끌 때 client가 session을 끝내려고 보내는 `DELETE`에는 붙일 사용자 token이 아예 없다([부록: 준수표](reference-compliance.md)).
+
+사용자마다 client를 두는 agent는 [chat-memory practice](../mcp-security-authn-chat-memory/README.md)에 있다.
 그 agent는 사용자마다 MCP client를 따로 열고, MCP Server는 각 session을 처음 연 사용자(token의 `sub`)에 묶는다.
 다른 사용자의 token으로 그 session ID를 쓰면 `403`이다.
+client를 닫을 때 보내는 `DELETE`에도 그 client 주인의 token이 붙는다.
 
 MCP 2026-07-28에서는 protocol 수준의 session과 `Mcp-Session-Id`가 없어졌다.
+session이 없으므로, official처럼 client 하나를 두고 요청마다 그 사용자의 token을 붙여도 문제가 없다.
+chat-memory처럼 session을 사용자에 묶는 일도 필요 없어진다.
 호출 사이에 상태가 필요한 서버는 스스로 만든 handle을 tool 인자로 주고받고, 그 handle이 요청한 사용자의 것인지 token으로 확인한다.
 자세한 것은 9장에서 본다.
 
@@ -545,6 +559,7 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 | RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
 | token의 scope가 모자라면 MCP Server는 `403`과 `WWW-Authenticate`의 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답하고, `scope`에는 이 요청에 필요한 scope를 넣는다. 사용자를 대신하는 client는 그 scope로 step-up authorization을 하고(`client_credentials`처럼 자기 권한으로 동작하는 client는 바로 멈춰도 된다), 다시 시도하는 횟수를 제한한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | SHOULD, MAY |
 | 지원하지 않는 `MCP-Protocol-Version`에는 `400`, session ID가 없으면 `400`, 끝난 session에는 `404`로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MUST, SHOULD |
+| host는 MCP Server마다 client를 하나 만들고, client는 그 server와 1:1로 연결되어 session을 하나 연다 | [MCP 2025-11-25 Architecture — Clients](https://modelcontextprotocol.io/specification/2025-11-25/architecture#clients) | — |
 | authorization을 구현한 MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없는 값으로 만들고, 사용자 정보에 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
 | 2026-07-28은 protocol 수준의 session과 `Mcp-Session-Id`를 없앤다 | [MCP 2026-07-28 Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | — |
 
