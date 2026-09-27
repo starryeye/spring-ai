@@ -66,4 +66,4 @@ mcp:
 logging:
   level:
     org.springframework.ai: INFO
-    dev.starryeye.officialagent: DEBUG
+    dev.starryeye.official.agent: DEBUG

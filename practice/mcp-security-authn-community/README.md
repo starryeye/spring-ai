@@ -75,9 +75,9 @@ client 보안 자동 구성에는 이 조건이 없어서, `shop-agent`는 `Secu
 
 official의 클래스마다 module이 하는 일이나 확장점, 그리고 이 practice가 그 위에 얹은 것을 적는다.
 "같은 클래스"는 official과 코드가 같은 클래스다.
-클래스는 `<module>/src/main/java/dev/starryeye/<package>/`에 있다.
+클래스는 `<module>/src/main/java/` 아래 module 제목에 적은 package에 있고, 그 안은 official과 같은 역할별 하위 package로 나뉜다.
 
-**`auth-server`** — package `authserver`
+**`auth-server`** — package `dev.starryeye.community.authserver`
 
 | official | module이 하는 일 또는 확장점 | 이 practice가 얹은 것 |
 |---|---|---|
@@ -101,7 +101,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 `ResourceAudienceTokenCustomizer`는 module customizer 뒤에 돌아 access token의 `aud`를 `resource`로 정하고, ID token의 `aud`를 client_id로 되돌린다.
 두 token의 `aud`가 무엇이어야 하는지는 [5장 token의 내용](../mcp-guide/05-authorization-and-token.md#58-token의-내용-access-token과-id-token)에 있다.
 
-**`shop-mcp-server`** — package `shopmcpserver`
+**`shop-mcp-server`** — package `dev.starryeye.community.mcpserver`
 
 | official | module이 하는 일 또는 확장점 | 이 practice가 얹은 것 |
 |---|---|---|
@@ -115,7 +115,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 | session을 사용자에 묶지 않는다 | `McpServerOAuth2Configurer#sessionBinding(...)`이 있다 | 켜지 않는다. agent가 MCP client 하나를 모든 사용자와 같이 쓰기 때문이다 |
 | `ProductTools`, `ProductRepository` | 없음 | 같은 클래스 |
 
-**`shop-agent`** — package `shopagent`
+**`shop-agent`** — package `dev.starryeye.community.agent`
 
 | official | module이 하는 일 또는 확장점 | 이 practice가 얹은 것 |
 |---|---|---|
@@ -247,7 +247,7 @@ browser에서 `http://localhost:8100/`을 열고 `user`/`password`로 login한 �
 
 official과 코드가 같은 클래스는 [official README의 코드 지도](../mcp-security-authn-official/README.md#코드-지도)에서 안내서 절을 찾는다.
 아래는 community에만 있거나 official과 코드가 다른 클래스다.
-package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `shopmcpserver`, `shop-agent`가 `shopagent`다.
+package는 `auth-server`가 `dev.starryeye.community.authserver`, `shop-mcp-server`가 `dev.starryeye.community.mcpserver`, `shop-agent`가 `dev.starryeye.community.agent`다.
 
 | module | 클래스 | 하는 일 | 안내서 |
 |---|---|---|---|

@@ -63,4 +63,4 @@ mcp:
 logging:
   level:
     org.springframework.ai: INFO
-    dev.starryeye.memoryauthn.agent: DEBUG
+    dev.starryeye.memory.agent: DEBUG

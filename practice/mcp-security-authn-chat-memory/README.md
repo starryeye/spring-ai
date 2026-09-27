@@ -19,7 +19,7 @@ login부터 MCP 호출까지의 흐름은 official과 같은 클래스로 만들
 
 `auth-server`는 login 계정을 두는 `UserConfig`만 다르다.
 MCP Server의 token 검증과 `Origin`·`Host`·`MCP-Protocol-Version` 검사, agent의 discovery·login·token request는 official과 같은 클래스다.
-그 클래스들은 package 이름(`dev.starryeye.memoryauthn.*`)과 포트·client_id 같은 설정 값만 다르다.
+그 클래스들은 package 이름(`dev.starryeye.memory.*`)과 포트·client_id 같은 설정 값만 다르다.
 
 ## 구성
 
@@ -246,7 +246,7 @@ agent의 session이 logout이나 만료로 끝나도 `auth-server`의 login sess
 
 official과 같은 클래스는 [official README의 코드 지도](../mcp-security-authn-official/README.md#코드-지도)에 있다.
 아래는 이 practice에만 있거나 official과 다른 클래스다.
-클래스는 `<module>/src/main/java/dev/starryeye/memoryauthn/<package>/`에 있고, `application.yml`은 `<module>/src/main/resources/`에 있다.
+클래스는 `<module>/src/main/java/dev/starryeye/memory/<package>/` 아래 역할별 하위 package에 있고, `application.yml`은 `<module>/src/main/resources/`에 있다.
 package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`다.
 
 | module | 클래스 | 하는 일 | 설명 |

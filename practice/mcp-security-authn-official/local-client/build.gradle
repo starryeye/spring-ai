@@ -27,7 +27,7 @@ dependencies {
 }
 
 application {
-	mainClass = 'dev.starryeye.localclient.Main'
+	mainClass = 'dev.starryeye.official.localclient.Main'
 }
 
 tasks.named('test') {
