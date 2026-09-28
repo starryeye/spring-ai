@@ -16,6 +16,8 @@ import java.io.IOException;
  * 그런데 이 앱의 login 페이지는 곧 authorization request라서,
  * 실패할 때마다 다시 Authorization Server로 가는 고리가 된다.
  * 그래서 실패 이유를 그대로 보여 주고 멈춘다.
+ *
+ * <p>step-up 중의 실패(consent 취소 등)는 채팅 화면으로 돌려보낸다.
  */
 public class LoginFailureHandler implements AuthenticationFailureHandler {
 
@@ -24,6 +26,12 @@ public class LoginFailureHandler implements AuthenticationFailureHandler {
 	@Override
 	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
 			AuthenticationException exception) throws IOException {
+		StepUpState state = StepUpState.existing(request.getSession(false));
+		if (state != null && state.isPending()) {
+			log.info("step-up이 끝나지 않았다({}): {}", state.finish(), exception.getMessage());
+			response.sendRedirect(request.getContextPath() + "/");
+			return;
+		}
 		log.warn("로그인 실패: {}", exception.getMessage());
 		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 		response.setContentType("text/plain;charset=UTF-8");

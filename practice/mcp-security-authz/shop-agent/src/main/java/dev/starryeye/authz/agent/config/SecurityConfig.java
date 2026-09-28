@@ -4,11 +4,14 @@ import dev.starryeye.authz.agent.discovery.DiscoveredClientRegistrationRepositor
 import dev.starryeye.authz.agent.security.AuthorizationResponseIssuerFilter;
 import dev.starryeye.authz.agent.security.LoginFailureHandler;
 import dev.starryeye.authz.agent.security.ResourceIndicators;
+import dev.starryeye.authz.agent.security.StepUpAuthorizationRequestResolver;
+import dev.starryeye.authz.agent.security.StepUpLoginSuccessHandler;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
@@ -27,6 +30,7 @@ import org.springframework.security.web.SecurityFilterChain;
  *   <li>PKCE(S256) — 가로챈 authorization code를 쓰지 못하게 한다</li>
  *   <li>RFC 8707 {@code resource} — token을 이 MCP Server 전용으로 좁힌다</li>
  *   <li>RFC 9207 {@code iss} 검증 — code를 교환하기 전에 응답의 출처를 확인한다</li>
+ *   <li>step-up — {@code step_up} parameter로 scope를 늘린 authorization request를 다시 보낸다</li>
  * </ul>
  */
 @Configuration
@@ -35,7 +39,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             DiscoveredClientRegistrationRepository registrations,
-            OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> authorizationCodeTokenResponseClient)
+            OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> authorizationCodeTokenResponseClient,
+            OAuth2AuthorizedClientService authorizedClientService)
             throws Exception {
         // iss 검증 filter와 login filter가 같은 저장소를 봐야 한다.
         var authorizationRequests = new HttpSessionOAuth2AuthorizationRequestRepository();
@@ -50,8 +55,12 @@ public class SecurityConfig {
                                 + "/" + McpSecurityConfig.REGISTRATION_ID)
                         .authorizationEndpoint(authorization -> authorization
                                 .authorizationRequestRepository(authorizationRequests)
-                                .authorizationRequestResolver(authorizationRequestResolver(registrations)))
+                                .authorizationRequestResolver(new StepUpAuthorizationRequestResolver(
+                                        authorizationRequestResolver(registrations), authorizedClientService,
+                                        McpSecurityConfig.REGISTRATION_ID)))
                         .tokenEndpoint(token -> token.accessTokenResponseClient(authorizationCodeTokenResponseClient))
+                        .successHandler(new StepUpLoginSuccessHandler(authorizedClientService,
+                                McpSecurityConfig.REGISTRATION_ID))
                         .failureHandler(failureHandler))
                 .addFilterBefore(new AuthorizationResponseIssuerFilter(authorizationRequests, registrations,
                         failureHandler), OAuth2LoginAuthenticationFilter.class)
