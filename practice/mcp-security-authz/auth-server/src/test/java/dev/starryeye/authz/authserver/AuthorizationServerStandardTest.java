@@ -9,15 +9,22 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -62,6 +69,12 @@ class AuthorizationServerStandardTest {
 	@Autowired
 	MockMvc mockMvc;
 
+	@Autowired
+	OAuth2AuthorizationConsentService authorizationConsentService;
+
+	@Autowired
+	RegisteredClientRepository registeredClientRepository;
+
 	MockHttpSession session;
 
 	@BeforeEach
@@ -70,6 +83,12 @@ class AuthorizationServerStandardTest {
 				.perform(formLogin().user(USERNAME).password(PASSWORD))
 				.andExpect(status().is3xxRedirection())
 				.andReturn().getRequest().getSession(false);
+
+		RegisteredClient agent = this.registeredClientRepository.findByClientId(CLIENT_ID);
+		OAuth2AuthorizationConsent consent = this.authorizationConsentService.findById(agent.getId(), USERNAME);
+		if (consent != null) {
+			this.authorizationConsentService.remove(consent);
+		}
 	}
 
 	UriComponents 인가요청(boolean pkce, String resource) throws Exception {
@@ -77,7 +96,7 @@ class AuthorizationServerStandardTest {
 				.queryParam("response_type", "code")
 				.queryParam("client_id", CLIENT_ID)
 				.queryParam("redirect_uri", REDIRECT_URI)
-				.queryParam("scope", "openid profile")
+				.queryParam("scope", "openid products:read")
 				.queryParam("state", "state-1");
 		if (pkce) {
 			uri.queryParam("code_challenge", CODE_CHALLENGE).queryParam("code_challenge_method", "S256");
@@ -85,10 +104,7 @@ class AuthorizationServerStandardTest {
 		if (resource != null) {
 			uri.queryParam("resource", resource);
 		}
-		String location = this.mockMvc.perform(get(uri.encode().build().toUri()).session(this.session))
-				.andExpect(status().is3xxRedirection())
-				.andReturn().getResponse().getRedirectedUrl();
-		return UriComponentsBuilder.fromUriString(location).build();
+		return 기밀클라이언트_인가(uri.encode().build().toUri(), "products:read");
 	}
 
 	static String 응답파라미터(UriComponents response, String name) {
@@ -127,7 +143,7 @@ class AuthorizationServerStandardTest {
 				.queryParam("response_type", "code")
 				.queryParam("client_id", PUBLIC_CLIENT_ID)
 				.queryParam("redirect_uri", PUBLIC_CLIENT_REDIRECT_URI)
-				.queryParam("scope", "openid profile")
+				.queryParam("scope", "products:read")
 				.queryParam("state", "state-1");
 		if (pkce) {
 			uri.queryParam("code_challenge", CODE_CHALLENGE).queryParam("code_challenge_method", "S256");
@@ -193,7 +209,7 @@ class AuthorizationServerStandardTest {
 	String 공개클라이언트_인가코드(String resource) throws Exception {
 		MvcResult authorizationResponse = 공개클라이언트_인가요청(true, resource);
 		assertThat(authorizationResponse.getResponse().getStatus()).isEqualTo(200);
-		UriComponents codeResponse = 공개클라이언트_동의(authorizationResponse, "profile");
+		UriComponents codeResponse = 공개클라이언트_동의(authorizationResponse, "products:read");
 		return 응답파라미터(codeResponse, "code");
 	}
 
@@ -245,10 +261,108 @@ class AuthorizationServerStandardTest {
 		if (resources.length > 0) {
 			uri.queryParam("resource", (Object[]) resources);
 		}
-		String location = this.mockMvc.perform(get(uri.encode().build().toUri()).session(this.session))
-				.andExpect(status().is3xxRedirection())
-				.andReturn().getResponse().getRedirectedUrl();
-		return UriComponentsBuilder.fromUriString(location).build();
+		return 기밀클라이언트_인가(uri.encode().build().toUri(), 동의할_scope(scope));
+	}
+
+	/** 기밀 client 의 authorization request 주소다. PKCE 와 resource 를 넣는다. */
+	static URI 기밀클라이언트_인가요청_URI(String scope) {
+		return UriComponentsBuilder.fromPath("/oauth2/authorize")
+				.queryParam("response_type", "code")
+				.queryParam("client_id", CLIENT_ID)
+				.queryParam("redirect_uri", REDIRECT_URI)
+				.queryParam("scope", scope)
+				.queryParam("state", "state-1")
+				.queryParam("code_challenge", CODE_CHALLENGE)
+				.queryParam("code_challenge_method", "S256")
+				.queryParam("resource", RESOURCE)
+				.encode().build().toUri();
+	}
+
+	/**
+	 * 기밀 client 의 authorization request 를 보낸다.
+	 * consent 화면(200)이 나오면 approvedScopes 를 체크해 제출하고, 이미 consent 한 scope 만 요청했으면 곧장 redirect(302)를 받는다.
+	 */
+	UriComponents 기밀클라이언트_인가(URI uri, String... approvedScopes) throws Exception {
+		MvcResult result = this.mockMvc.perform(get(uri).session(this.session)).andReturn();
+		if (result.getResponse().getStatus() == 200) {
+			MockHttpServletRequestBuilder consent = post("/oauth2/authorize").session(this.session)
+					.param("client_id", CLIENT_ID)
+					.param("state", 동의화면_state(result.getResponse().getContentAsString()));
+			for (String scope : approvedScopes) {
+				consent.param("scope", scope);
+			}
+			result = this.mockMvc.perform(consent).andReturn();
+		}
+		assertThat(result.getResponse().getStatus()).isEqualTo(302);
+		return UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build();
+	}
+
+	/** consent 할 scope 다. openid 는 consent 대상이 아니라 뺀다. */
+	static String[] 동의할_scope(String scope) {
+		return Arrays.stream(scope.split(" ")).filter(s -> !"openid".equals(s)).toArray(String[]::new);
+	}
+
+	static List<String> 토큰의_scope(String jwt) throws Exception {
+		return SignedJWT.parse(jwt).getJWTClaimsSet().getStringListClaim("scope");
+	}
+
+	@Test
+	void 기밀_클라이언트도_처음_요청하는_scope에는_동의_화면을_거친다() throws Exception {
+		MvcResult response = this.mockMvc
+				.perform(get(기밀클라이언트_인가요청_URI("openid products:read")).session(this.session))
+				.andReturn();
+
+		assertThat(response.getResponse().getStatus()).isEqualTo(200);
+		assertThat(response.getResponse().getContentAsString()).contains("Consent required").contains("products:read");
+	}
+
+	@Test
+	void step_up_동의_화면에는_새_scope만_선택_항목으로_나온다() throws Exception {
+		기밀클라이언트_인가(기밀클라이언트_인가요청_URI("openid products:read"), "products:read");
+
+		MvcResult stepUp = this.mockMvc
+				.perform(get(기밀클라이언트_인가요청_URI("openid products:read products:write")).session(this.session))
+				.andReturn();
+
+		assertThat(stepUp.getResponse().getStatus()).isEqualTo(200);
+		String html = stepUp.getResponse().getContentAsString();
+		// 새 scope는 체크되지 않은 선택 항목이다.
+		assertThat(html).contains("value=\"products:write\" id=\"products:write\">");
+		// 이미 허락한 scope는 체크된 채 바꿀 수 없게 나온다.
+		assertThat(html).contains("id=\"products:read\" checked disabled>");
+	}
+
+	@Test
+	void step_up_에서_새_scope를_체크하지_않으면_이전_scope만_담긴_token을_받는다() throws Exception {
+		기밀클라이언트_인가(기밀클라이언트_인가요청_URI("openid products:read"), "products:read");
+
+		UriComponents response = 기밀클라이언트_인가(기밀클라이언트_인가요청_URI("openid products:read products:write"));
+		String body = 토큰요청(인가코드교환(응답파라미터(response, "code"), RESOURCE), 200);
+
+		assertThat(JsonPath.<String>read(body, "$.scope").split(" "))
+				.containsExactlyInAnyOrder("openid", "products:read");
+		assertThat(토큰의_scope(JsonPath.read(body, "$.access_token")))
+				.containsExactlyInAnyOrder("openid", "products:read");
+	}
+
+	@Test
+	void step_up_에서_새_scope를_허락하면_두_scope가_모두_담긴다() throws Exception {
+		기밀클라이언트_인가(기밀클라이언트_인가요청_URI("openid products:read"), "products:read");
+
+		UriComponents response = 기밀클라이언트_인가(
+				기밀클라이언트_인가요청_URI("openid products:read products:write"), "products:write");
+		String body = 토큰요청(인가코드교환(응답파라미터(response, "code"), RESOURCE), 200);
+
+		assertThat(토큰의_scope(JsonPath.read(body, "$.access_token")))
+				.containsExactlyInAnyOrder("openid", "products:read", "products:write");
+	}
+
+	@Test
+	void access_token_에는_발급받은_client_의_client_id가_있다() throws Exception {
+		String body = 토큰요청(인가코드교환(인가코드(RESOURCE), RESOURCE), 200);
+
+		assertThat(SignedJWT.parse(JsonPath.read(body, "$.access_token")).getJWTClaimsSet()
+				.getStringClaim("client_id")).isEqualTo(CLIENT_ID);
 	}
 
 	@Test
@@ -489,18 +603,6 @@ class AuthorizationServerStandardTest {
 	}
 
 	@Test
-	void 공개_클라이언트는_동의_화면을_거치고_기존_에이전트는_바로_코드를_받는다() throws Exception {
-		// require-authorization-consent 가 client 단위 설정이라 authz-shop-agent(false)의
-		// 흐름은 그대로여야 한다 — 공개 클라이언트를 더한다고 바뀌면 안 된다.
-		MvcResult publicResponse = 공개클라이언트_인가요청(true, RESOURCE);
-		assertThat(publicResponse.getResponse().getStatus()).isEqualTo(200);
-		assertThat(publicResponse.getResponse().getContentAsString()).contains("Consent required");
-
-		UriComponents agentResponse = 인가요청(true, RESOURCE);
-		assertThat(응답파라미터(agentResponse, "code")).isNotBlank();
-	}
-
-	@Test
 	void 공개_클라이언트는_동의_뒤_클라이언트_인증_없이_토큰을_받고_access_token의_aud는_resource다() throws Exception {
 		String code = 공개클라이언트_인가코드(RESOURCE);
 
@@ -540,7 +642,7 @@ class AuthorizationServerStandardTest {
 				.queryParam("response_type", "code")
 				.queryParam("client_id", PUBLIC_CLIENT_ID)
 				.queryParam("redirect_uri", "http://127.0.0.1:8123/not-registered")
-				.queryParam("scope", "openid profile")
+				.queryParam("scope", "openid products:read")
 				.queryParam("state", "state-1")
 				.queryParam("code_challenge", CODE_CHALLENGE)
 				.queryParam("code_challenge_method", "S256");
@@ -585,7 +687,7 @@ class AuthorizationServerStandardTest {
 				.andReturn();
 		assertThat(consentPage.getResponse().getStatus()).isEqualTo(200);
 
-		UriComponents response = 공개클라이언트_동의(consentPage, "profile");
+		UriComponents response = 공개클라이언트_동의(consentPage, "products:read");
 
 		assertThat(response.getHost()).isEqualTo("127.0.0.1");
 		assertThat(response.getPort()).isEqualTo(9999);
@@ -629,9 +731,9 @@ class AuthorizationServerStandardTest {
 	}
 
 	@Test
-	void 공개_클라이언트가_openid_없이_profile_만_요청해도_consent_화면을_거친다() throws Exception {
+	void 공개_클라이언트가_openid_없이_products_read_만_요청해도_consent_화면을_거친다() throws Exception {
 		MvcResult response = this.mockMvc
-				.perform(get(공개클라이언트_인가요청_URI(true, RESOURCE).replaceQueryParam("scope", "profile")
+				.perform(get(공개클라이언트_인가요청_URI(true, RESOURCE).replaceQueryParam("scope", "products:read")
 						.encode().build().toUri()).session(this.session))
 				.andReturn();
 
@@ -657,7 +759,7 @@ class AuthorizationServerStandardTest {
 	@Test
 	void 인가_요청의_resource_가_여러_개면_invalid_target_이다() throws Exception {
 		// 이 Authorization Server 는 보호 리소스 하나만 다룬다. 값이 여러 개면 String[] 이 되어 허용 목록과 맞지 않는다.
-		UriComponents response = 인가요청("openid profile", RESOURCE, OTHER_RESOURCE);
+		UriComponents response = 인가요청("openid products:read", RESOURCE, OTHER_RESOURCE);
 
 		assertThat(응답파라미터(response, "error")).isEqualTo("invalid_target");
 		assertThat(응답파라미터(response, "code")).isNull();

@@ -33,11 +33,15 @@ spring:
                 - http://localhost:8140/login/oauth2/code/authserver
               scopes:
                 - openid
-                - profile
+                # MCP Server의 tool을 부를 때 쓰는 scope다. 조회와 재고 변경을 나눈다(안내서 10장).
+                - products:read
+                - products:write
             # MCP 2025-11-25는 PKCE(S256)를 반드시 쓰게 한다(MUST).
             # 이 값이 true면 code_challenge 없는 authorization request를 거부한다.
             require-proof-key: true
-            require-authorization-consent: false
+            # official은 false다. 이 practice는 step-up에서 사용자가 새 scope를 직접 확인해야 하므로 켠다.
+            # consent는 사용자별로 저장되고, 다음 요청에서는 새로 요청한 scope만 묻는다.
+            require-authorization-consent: true
           # RFC 6749 §2.1의 public client다. 비밀을 안전하게 보관할 수 없는 client,
           # 곧 사용자 기기에서 도는 MCP client다. 그래서 client-secret을 아예 두지 않는다.
           # client-authentication-methods가 none이면 Boot의 OAuth2AuthorizationServerPropertiesMapper가
@@ -61,8 +65,8 @@ spring:
                 # 그래서 실행할 때 고른 임시 포트를 쓸 수 있다.
                 - http://127.0.0.1:8123/callback
               scopes:
-                - openid
-                - profile
+                - products:read
+                - products:write
             # public client에는 비밀이 없다. 그래서 가로챈 code를 쓰지 못하게 막는 장치는
             # code_challenge뿐이다(RFC 7636, MCP 2025-11-25 MUST).
             require-proof-key: true

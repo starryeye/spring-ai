@@ -20,6 +20,9 @@ import java.util.List;
  * 없으면 같은 Authorization Server를 쓰는 다른 resource의 token도 그대로 통한다(confused deputy).
  *
  * <p>id_token은 건드리지 않는다. id_token의 audience는 client 자신이다.
+ *
+ * <p>access token에는 {@code client_id}도 넣는다(RFC 9068 §2.2).
+ * {@code aud}가 resource로 바뀌어도 MCP Server는 어느 client에 발급된 token인지 알 수 있다.
  */
 public class ResourceAudienceTokenCustomizer implements OAuth2TokenCustomizer<JwtEncodingContext> {
 
@@ -34,6 +37,10 @@ public class ResourceAudienceTokenCustomizer implements OAuth2TokenCustomizer<Jw
 		if (!OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
 			return;
 		}
+
+		// RFC 9068 §2.2: JWT access token에는 발급받은 client의 client_id를 넣는다.
+		// 아래에서 aud를 resource로 바꾸면 client를 가리키는 값이 없어지므로, 서버가 어느 client를 거친 요청인지 알 수 있게 한다.
+		context.getClaims().claim("client_id", context.getRegisteredClient().getClientId());
 
 		Object requested = requestedResource(context);
 		Object authorized = authorizedResource(context);
