@@ -1,6 +1,7 @@
 package dev.starryeye.authz.agent.security;
 
 import jakarta.servlet.http.HttpSession;
+import org.springframework.web.util.WebUtils;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -12,9 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * 한 사용자의 step-up 진행 상태다. HTTP session에 둔다.
  *
  * <p>{@code pending}은 consent 화면에 가 있는 동안 기다리는 scope다. login이 끝나거나 실패하면 비운다.
+ * 정확히는 다음 login이 끝나거나 실패할 때까지 남는다 — 그 사이에 다른 요청이 끼어들어도 상관없다.
  * {@code attempted}는 이 session에서 한 번 step-up을 거친 scope다.
  * 그 scope로 다시 {@code 403}이 오면 사용자가 허락하지 않은 것이므로, consent 카드를 다시 띄우지 않는다.
  * MCP Security Best Practices의 client 지침("거절된 scope로 권한 상승을 되풀이하지 않는다")을 따른다.
+ * {@code challenged}는 MCP Server가 {@code 403 insufficient_scope}로 실제로 요구한 scope다.
+ * {@code ChatEvents}가 카드나 거절 안내를 보낼 때 {@link #challenge}를 부른다(Task 8).
+ * {@code step_up} parameter는 그 목록에 있는 scope만 허용한다 — 그 밖의 값은 사용자가
+ * 아니라 다른 사이트가 끼워 넣었을 수 있다({@code <img>} 같은 subresource로도 이 GET을 부를 수 있다).
  */
 public final class StepUpState implements Serializable {
 
@@ -22,10 +28,12 @@ public final class StepUpState implements Serializable {
 
     private final Set<String> attempted = ConcurrentHashMap.newKeySet();
 
+    private final Set<String> challenged = ConcurrentHashMap.newKeySet();
+
     private volatile List<String> pending = List.of();
 
     public static StepUpState of(HttpSession session) {
-        synchronized (session) {
+        synchronized (WebUtils.getSessionMutex(session)) {
             StepUpState existing = existing(session);
             if (existing != null) {
                 return existing;
@@ -63,5 +71,14 @@ public final class StepUpState implements Serializable {
     /** 사용자가 명시적으로 다시 요청할 때 시도 기록을 지운다. */
     public void retry(Collection<String> scopes) {
         this.attempted.removeAll(scopes);
+    }
+
+    /** MCP Server가 {@code 403 insufficient_scope}로 요구한 scope를 기록한다. */
+    public void challenge(Collection<String> scopes) {
+        this.challenged.addAll(scopes);
+    }
+
+    public boolean challenged(String scope) {
+        return this.challenged.contains(scope);
     }
 }

@@ -41,4 +41,16 @@ class StepUpStateTest {
 
         assertThat(state.attempted(List.of("products:write"))).isFalse();
     }
+
+    @Test
+    void MCP_Server가_요구한_scope만_challenged다() {
+        StepUpState state = new StepUpState();
+
+        assertThat(state.challenged("products:write")).isFalse();
+
+        state.challenge(List.of("products:write"));
+
+        assertThat(state.challenged("products:write")).isTrue();
+        assertThat(state.challenged("products:delete")).isFalse();
+    }
 }

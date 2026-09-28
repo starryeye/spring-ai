@@ -9,6 +9,10 @@ server:
     session:
       cookie:
         name: AUTHZAGENTSESSIONID
+        # 다른 사이트의 페이지가 <img> 같은 subresource로 이 session cookie를 실어 GET을 보내는 것을 막는다.
+        # lax는 최상위 GET 이동(예: Authorization Server의 callback redirect, localhost:9030 → localhost:8140)은
+        # 그대로 허용하므로 login 흐름은 깨지지 않는다.
+        same-site: lax
 
 spring:
   application:

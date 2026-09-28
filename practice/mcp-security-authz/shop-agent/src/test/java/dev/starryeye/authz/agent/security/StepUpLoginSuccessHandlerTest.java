@@ -55,4 +55,15 @@ class StepUpLoginSuccessHandlerTest {
         assertThat(StepUpState.of(request.getSession()).attempted(List.of("products:write"))).isTrue();
         assertThat(response.getRedirectedUrl()).isEqualTo("/");
     }
+
+    @Test
+    void 보통_login은_StepUpState가_없어도_채팅_화면으로_돌아간다() throws Exception {
+        새_token("openid", "products:read");
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        this.handler.onAuthenticationSuccess(request, response, new TestingAuthenticationToken("user", null));
+
+        assertThat(response.getRedirectedUrl()).isEqualTo("/");
+    }
 }

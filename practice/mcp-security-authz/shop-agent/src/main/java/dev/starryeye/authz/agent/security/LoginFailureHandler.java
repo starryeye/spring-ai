@@ -28,7 +28,8 @@ public class LoginFailureHandler implements AuthenticationFailureHandler {
 			AuthenticationException exception) throws IOException {
 		StepUpState state = StepUpState.existing(request.getSession(false));
 		if (state != null && state.isPending()) {
-			log.info("step-up이 끝나지 않았다({}): {}", state.finish(), exception.getMessage());
+			// iss mismatch(mix-up) 같은 심각한 실패도 이 갈래를 탄다. 조용히 넘기지 않고 warn으로 남긴다.
+			log.warn("step-up이 끝나지 않았다({}): {}", state.finish(), exception.getMessage());
 			response.sendRedirect(request.getContextPath() + "/");
 			return;
 		}
