@@ -4,7 +4,10 @@ import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** browser로 열 authorization request 주소를 만든다(안내서 5장). client_secret은 넣지 않는다. */
+/**
+ * browser로 열 authorization request 주소를 만든다(안내서 5장). client_secret은 넣지 않는다.
+ * scope가 `null`이면 scope parameter를 보내지 않는다.
+ */
 public final class AuthorizationRequest {
 
 	private AuthorizationRequest() {
@@ -16,7 +19,9 @@ public final class AuthorizationRequest {
 		params.put("response_type", "code");
 		params.put("client_id", clientId);
 		params.put("redirect_uri", redirectUri.toString());
-		params.put("scope", scope);
+		if (scope != null) {
+			params.put("scope", scope);
+		}
 		params.put("state", state);
 		params.put("code_challenge", pkce.challenge());
 		params.put("code_challenge_method", "S256");

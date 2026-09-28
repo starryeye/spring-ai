@@ -15,10 +15,11 @@ import java.util.regex.Pattern;
  * MCP Server 주소 하나에서 Authorization Server까지 찾아간다(안내서 3장).
  *
  * <ol>
- *   <li>token 없이 `initialize`를 보내 `401`의 `resource_metadata`를 받는다</li>
+ *   <li>token 없이 `initialize`를 보내 `401`의 `resource_metadata`와 `scope`를 받는다</li>
  *   <li>PRM을 읽고 `resource`가 부른 주소와 같은지 본다</li>
  *   <li>`authorization_servers`가 이 client가 등록된 issuer인지 본다. 아니면 더 요청하지 않는다</li>
  *   <li>Authorization Server Metadata를 읽고 `issuer`, PKCE `S256`, endpoint 주소를 확인한다</li>
+ *   <li>처음 요청할 scope를 고른다({@link ScopeSelection})</li>
  * </ol>
  */
 public class Discovery {
@@ -30,6 +31,8 @@ public class Discovery {
 	private static final String OPENID_CONFIGURATION = "/.well-known/openid-configuration";
 
 	private static final Pattern RESOURCE_METADATA = Pattern.compile("resource_metadata=\"([^\"]+)\"");
+
+	private static final Pattern SCOPE = Pattern.compile("(?<![A-Za-z_])scope=\"([^\"]*)\"");
 
 	private static final Pattern LOOPBACK_IPV4 = Pattern.compile("127(\\.\\d{1,3}){3}");
 
@@ -45,12 +48,20 @@ public class Discovery {
 		this.http = http;
 	}
 
+	/** discovery의 결과다. */
+	public record Result(AuthorizationServer server, ScopeSelection scopes) {
+	}
+
+	private record Challenge(String resourceMetadata, String scope) {
+	}
+
 	/**
 	 * @param trustedIssuer 이 client(`local-mcp-client`)가 등록된 Authorization Server
 	 */
-	public AuthorizationServer discover(String resourceUrl, String trustedIssuer) {
+	public Result discover(String resourceUrl, String trustedIssuer) {
 		try {
-			Map<String, Object> prm = protectedResourceMetadata(resourceUrl);
+			Challenge challenge = challenge(resourceUrl);
+			Map<String, Object> prm = protectedResourceMetadata(resourceUrl, challenge.resourceMetadata());
 			if (!(prm.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
 				throw new LocalClientException("PRM에 authorization_servers가 없다");
 			}
@@ -60,17 +71,17 @@ public class Discovery {
 						.formatted(trustedIssuer, servers));
 			}
 			Map<String, Object> metadata = authorizationServerMetadata(trustedIssuer);
-			return new AuthorizationServer((String) prm.get("resource"), trustedIssuer,
+			AuthorizationServer server = new AuthorizationServer((String) prm.get("resource"), trustedIssuer,
 					requireEndpoint(metadata, "authorization_endpoint"), requireEndpoint(metadata, "token_endpoint"),
 					Boolean.TRUE.equals(metadata.get("authorization_response_iss_parameter_supported")));
+			return new Result(server, ScopeSelection.select(challenge.scope(), prm.get("scopes_supported")));
 		}
 		catch (IllegalArgumentException ex) {
 			throw new LocalClientException("resource나 issuer의 주소 형식이 잘못됐다: " + ex.getMessage(), ex);
 		}
 	}
 
-	private Map<String, Object> protectedResourceMetadata(String resourceUrl) {
-		String fromChallenge = resourceMetadataUrl(resourceUrl);
+	private Map<String, Object> protectedResourceMetadata(String resourceUrl, String fromChallenge) {
 		if (fromChallenge != null) {
 			Map<String, Object> metadata = getJson(fromChallenge);
 			if (metadata == null) {
@@ -94,8 +105,8 @@ public class Discovery {
 		throw new LocalClientException("PRM을 찾지 못했다: " + resourceUrl);
 	}
 
-	/** token 없이 `initialize`를 보내고, `401`의 `WWW-Authenticate`에서 PRM 주소를 꺼낸다. */
-	private String resourceMetadataUrl(String resourceUrl) {
+	/** token 없이 `initialize`를 보내고, `401`의 `WWW-Authenticate`에서 PRM 주소와 scope를 꺼낸다. */
+	private Challenge challenge(String resourceUrl) {
 		HttpResponse<String> response = Http.send(this.http, HttpRequest.newBuilder(URI.create(resourceUrl))
 				.header("Content-Type", "application/json")
 				.header("Accept", "application/json, text/event-stream")
@@ -105,11 +116,10 @@ public class Discovery {
 		if (response.statusCode() != 401) {
 			throw new LocalClientException("token 없는 요청에 401이 아니라 %d가 왔다".formatted(response.statusCode()));
 		}
-		return response.headers().firstValue("WWW-Authenticate")
-				.map(RESOURCE_METADATA::matcher)
-				.filter(Matcher::find)
-				.map(m -> m.group(1))
-				.orElse(null);
+		String header = response.headers().firstValue("WWW-Authenticate").orElse("");
+		Matcher metadata = RESOURCE_METADATA.matcher(header);
+		Matcher scope = SCOPE.matcher(header);
+		return new Challenge(metadata.find() ? metadata.group(1) : null, scope.find() ? scope.group(1) : null);
 	}
 
 	private static Map<String, Object> requireResource(Map<String, Object> metadata, String expected) {

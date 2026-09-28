@@ -39,12 +39,13 @@ class TokenClientTest {
 	@Test
 	void client_secret_없이_client_id와_code_verifier로_token을_받는다() {
 		this.as.on("POST", "/oauth2/token", FakeServer.Reply.json(
-				"{\"access_token\":\"at-1\",\"token_type\":\"Bearer\",\"expires_in\":300}"));
+				"{\"access_token\":\"at-1\",\"token_type\":\"Bearer\",\"expires_in\":300,\"scope\":\"products:read\"}"));
 
 		TokenResponse token = exchange();
 
 		assertThat(token.accessToken()).isEqualTo("at-1");
 		assertThat(token.expiresIn()).isEqualTo(300);
+		assertThat(token.scope()).isEqualTo("products:read");
 		FakeServer.Recorded request = this.as.requests.get(0);
 		assertThat(request.headers()).doesNotContainKey("Authorization");
 		assertThat(Form.decode(request.body())).containsEntry("grant_type", "authorization_code")

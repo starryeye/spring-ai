@@ -53,7 +53,8 @@ public class TokenClient {
 			throw new LocalClientException("token 응답에 Bearer access_token이 없다");
 		}
 		long expiresIn = body.get("expires_in") instanceof Number seconds ? seconds.longValue() : -1;
-		return new TokenResponse(accessToken, expiresIn);
+		String scope = (body.get("scope") instanceof String granted && !granted.isBlank()) ? granted : null;
+		return new TokenResponse(accessToken, expiresIn, scope);
 	}
 
 	/** 오류 응답의 본문은 JSON이 아닐 수도 있다(예: 502의 HTML 오류 페이지). 그때는 빈 값으로 본다. */

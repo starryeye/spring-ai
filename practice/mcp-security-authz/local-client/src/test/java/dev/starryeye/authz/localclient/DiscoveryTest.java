@@ -58,7 +58,7 @@ class DiscoveryTest {
 		prm(resource(), this.as.origin());
 		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
 
-		AuthorizationServer server = this.discovery.discover(resource(), this.as.origin());
+		AuthorizationServer server = this.discovery.discover(resource(), this.as.origin()).server();
 
 		assertThat(server.resource()).isEqualTo(resource());
 		assertThat(server.issuer()).isEqualTo(this.as.origin());
@@ -73,7 +73,7 @@ class DiscoveryTest {
 		prm(resource(), this.as.origin());
 		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
 
-		assertThat(this.discovery.discover(resource(), this.as.origin()).issuer()).isEqualTo(this.as.origin());
+		assertThat(this.discovery.discover(resource(), this.as.origin()).server().issuer()).isEqualTo(this.as.origin());
 	}
 
 	@Test
@@ -114,7 +114,7 @@ class DiscoveryTest {
 						.formatted(resource(), this.as.origin())));
 		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
 
-		assertThat(this.discovery.discover(resource(), this.as.origin()).issuer()).isEqualTo(this.as.origin());
+		assertThat(this.discovery.discover(resource(), this.as.origin()).server().issuer()).isEqualTo(this.as.origin());
 	}
 
 	@Test
@@ -132,7 +132,7 @@ class DiscoveryTest {
 						.formatted(this.mcp.origin(), this.as.origin())));
 		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
 
-		AuthorizationServer server = this.discovery.discover(resource(), this.as.origin());
+		AuthorizationServer server = this.discovery.discover(resource(), this.as.origin()).server();
 
 		assertThat(server.resource()).isEqualTo(this.mcp.origin());
 	}
@@ -173,6 +173,19 @@ class DiscoveryTest {
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
 				.isInstanceOf(LocalClientException.class).hasMessageContaining("401");
+	}
+
+	@Test
+	void 챌린지의_scope로_처음_요청할_scope를_고른다() {
+		this.mcp.on("POST", "/mcp", new FakeServer.Reply(401, Map.of("WWW-Authenticate",
+				"Bearer resource_metadata=\"" + this.mcp.origin() + "/.well-known/oauth-protected-resource/mcp\", "
+						+ "scope=\"products:read\""), ""));
+		prm(resource(), this.as.origin());
+		metadata(this.as.origin(), this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
+
+		Discovery.Result result = this.discovery.discover(resource(), this.as.origin());
+
+		assertThat(result.scopes().scopes()).containsExactly("products:read");
 	}
 
 	@Test

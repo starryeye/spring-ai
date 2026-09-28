@@ -3,35 +3,36 @@ package dev.starryeye.authz.localclient;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
+import io.modelcontextprotocol.client.transport.customizer.McpHttpClientTransportAuthorizationErrorHandler;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.io.PrintStream;
 import java.net.URI;
-import java.net.http.HttpRequest;
 import java.time.Duration;
 import java.util.Map;
 
 /**
- * access token을 붙여 MCP Server를 부른다(안내서 1장·6장).
- *
- * <p>모든 요청이 같은 token을 쓰므로 transport의 기본 요청에 `Authorization` header를 한 번 넣는다.
- * SDK는 이 기본 요청을 복사해 `initialize`·`tools/list`·`tools/call`과 session을 끝내는 `DELETE`를 보낸다.
+ * 요청마다 {@link TokenHolder}의 token을 붙인다. `403 insufficient_scope`는 {@link StepUp}이 처리하고, 같은 요청을 다시 보낸다.
  */
 public final class McpCalls {
 
 	private McpCalls() {
 	}
 
-	public static void run(String resourceUrl, String accessToken, PrintStream out) {
+	public static void run(String resourceUrl, TokenHolder holder, StepUp stepUp, Duration requestTimeout,
+			PrintStream out) {
 		URI uri = URI.create(resourceUrl);
 		HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport
 				.builder(uri.getScheme() + "://" + uri.getRawAuthority())
 				.endpoint(uri.getRawPath())
-				.requestBuilder(HttpRequest.newBuilder().header("Authorization", "Bearer " + accessToken))
+				// 요청을 보낼 때마다 지금 token을 붙인다. step-up이 token을 바꾸면 다음 요청부터 새 token이 붙는다.
+				.httpRequestCustomizer((builder, method, endpoint, body, context) ->
+						builder.setHeader("Authorization", "Bearer " + holder.accessToken()))
+				.authorizationErrorHandler(McpHttpClientTransportAuthorizationErrorHandler.fromSync(stepUp))
 				.build();
 		McpSyncClient client = McpClient.sync(transport)
 				.clientInfo(McpSchema.Implementation.builder("local-mcp-client", "0.0.1").build())
-				.requestTimeout(Duration.ofSeconds(20))
+				.requestTimeout(requestTimeout)
 				.build();
 		try {
 			McpSchema.InitializeResult initialized = client.initialize();
@@ -42,13 +43,18 @@ public final class McpCalls {
 					McpSchema.CallToolRequest.builder("getStock").arguments(Map.of("productId", "p1")).build());
 			result.content().forEach(content -> out.println("    getStock(p1): "
 					+ (content instanceof McpSchema.TextContent text ? text.text() : content)));
-		}
-		catch (LocalClientException ex) {
-			throw ex;
+			McpSchema.CallToolResult updated = client.callTool(McpSchema.CallToolRequest.builder("updateStock")
+					.arguments(Map.of("productId", "p1", "quantity", 10)).build());
+			updated.content().forEach(content -> out.println("    updateStock(p1, 10): "
+					+ (content instanceof McpSchema.TextContent text ? text.text() : content)));
 		}
 		catch (RuntimeException ex) {
-			// SDK가 던지는 McpError(401·403, tool 오류 등)를 포함해 여기서 나는 모든 RuntimeException을
-			// LocalClientException으로 바꾼다. Main이 항상 "실패: ..." 한 줄만 찍게 하기 위해서다.
+			// step-up에서 난 LocalClientException은 SDK를 거치며 감싸일 수 있다. 원인 사슬에서 찾아 그대로 올린다.
+			for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+				if (cause instanceof LocalClientException localClient) {
+					throw localClient;
+				}
+			}
 			throw new LocalClientException("MCP 호출이 실패했다: " + ex.getMessage(), ex);
 		}
 		finally {
