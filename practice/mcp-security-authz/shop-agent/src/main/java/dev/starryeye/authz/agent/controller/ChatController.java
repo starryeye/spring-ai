@@ -1,9 +1,12 @@
 package dev.starryeye.authz.agent.controller;
 
 import dev.starryeye.authz.agent.mcp.SecurityMcpTransportContextProvider;
+import dev.starryeye.authz.agent.security.StepUpState;
 
+import jakarta.servlet.http.HttpSession;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,12 +27,13 @@ public class ChatController {
      * Spring Security의 {@code ThreadLocalAccessor}로 SecurityContext를 그 thread에 옮긴다.
      * {@link SecurityMcpTransportContextProvider}는 거기서 사용자를 읽는다.
      * community practice는 같은 일을 {@code ChatController}의 {@code .contextWrite(...)}로 한다.
+     * 답은 SSE event로 보낸다. tool이 step-up을 요구하면 consent 카드 event로 끝난다({@link ChatEvents}).
      */
-    @PostMapping(value = "/api/chat", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
-    public Flux<String> chat(@RequestBody String message) {
-        return chatClient.prompt()
+    @PostMapping(value = "/api/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSession session) {
+        return ChatEvents.of(chatClient.prompt()
                 .user(message)
                 .stream()
-                .content();
+                .content(), StepUpState.of(session));
     }
 }

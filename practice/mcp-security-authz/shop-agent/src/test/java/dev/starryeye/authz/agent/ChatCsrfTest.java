@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -99,6 +100,7 @@ class ChatCsrfTest {
 		assertThat(token).isNotNull();
 
 		this.mockMvc.perform(post("/api/chat").cookie(token).header("X-XSRF-TOKEN", token.getValue())
+						.accept(MediaType.TEXT_EVENT_STREAM)
 						.content("노트북 재고 있어?"))
 				.andExpect(request().asyncStarted());
 	}
