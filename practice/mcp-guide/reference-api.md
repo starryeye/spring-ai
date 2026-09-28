@@ -6,7 +6,7 @@
 개념 설명은 각 절의 "설명" 줄이 가리키는 장에 있다.
 "요구 수준" 칸은 원문 단어(REQUIRED, MUST 등)를 그대로 쓰고, 단어가 없으면 "표시 없음"이라고 쓰며, 명세마다 다르면 모두 적는다.
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
-scope를 다루는 몇 행의 official 칸에는 [mcp-security-authz practice](../mcp-security-authz/README.md)(authz)의 동작도 적는다.
+scope를 다루는 몇 행에는 [mcp-security-authz practice](../mcp-security-authz/README.md)(authz)의 동작도 official 동작 옆에 적는다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
@@ -240,7 +240,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | `Accept`에 `text/event-stream` 없음 | `400` — `Invalid Accept headers`(S15) | [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) (client MUST) |
 | 무효·만료 token | `401` MUST와 `WWW-Authenticate` MUST — [token 없는 요청](#post-mcp--token-없는-요청)의 오류 표 | [MCP Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), RFC 6750 §3 |
 | `Origin`이 있음(official은 허용한 `Origin`이 없다) | `403` MUST — `Invalid Origin header`(C13). token과 상관없이 인증 전에 나온다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) |
-| scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음. authz는 `scope`에 모자란 scope만 넣는다(A6 `scope="products:write"`, [준수표](reference-compliance.md#mcp-security-authz에서-달라지는-행)) | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
+| scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음. authz는 이 `403`을 보내고, `scope`에는 모자란 scope만 넣는다(A6 `scope="products:write"`, [준수표](reference-compliance.md#mcp-security-authz에서-달라지는-행)) | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
 | 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |

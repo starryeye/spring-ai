@@ -15,7 +15,7 @@ description: Use when writing, rewriting, or reviewing learning documents under 
 ## 문서 구조
 
 - `practice/mcp-guide/README.md`는 읽는 순서, 준비물(practice 실행 방법), 장 목록을 둔다.
-- 장은 `01-mcp-basics.md`부터 `09-versions.md`까지다. 한 장은 한 단계나 한 개념을 다룬다.
+- 장은 `01-mcp-basics.md`부터 `10-scope-and-step-up.md`까지다. 한 장은 한 단계나 한 개념을 다룬다.
 - 부록은 `reference-api.md`(endpoint별 field 사전)와 `reference-compliance.md`(준수표)다.
 - practice README는 소개, 실행, 코드 지도(클래스에서 안내서 장으로 가는 링크), 직접 확인할 것을 둔다.
 - official이 아닌 practice의 README는 official과 다른 점만 쓴다.

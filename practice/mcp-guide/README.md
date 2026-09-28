@@ -5,7 +5,7 @@ OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP�
 다 읽고 나면 OAuth로 보호한 MCP Server와 MCP client를 직접 만들고 운영할 수 있다.
 
 요청·응답 예시는 대부분 [official practice](../mcp-security-authn-official/README.md)를 실제로 띄워 받은 것이다.
-10장의 예시는 official에 scope와 step-up을 더한 [mcp-security-authz practice](../mcp-security-authz/README.md)에서 받았다.
+10장의 예시는 official에 scope와 step-up을 더한 [mcp-security-authz practice](../mcp-security-authz/README.md)를 실제로 띄워 받은 것이다.
 official 밖의 서버를 가정한 예시는 명세의 예시이거나 설명을 위해 만든 값이다.
 3장의 issuer `auth.example.com/tenant1`, 4장에서 `app.example.com`에 올린 client 정보 문서, 8장에서 공격자가 넣는 내부망 주소 `169.254.169.254`가 그런 예다.
 장마다 그 단계가 왜 있는지를 먼저 보고, 실제 요청·응답과 official 코드를 본 뒤, 직접 해 본다.
@@ -21,7 +21,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 
 1장부터 10장까지 차례로 읽는다.
 뒤 장은 앞 장에서 본 요청과 용어를 다시 설명하지 않는다.
-10장은 5·6장의 scope 고르기와 step-up을 실제 코드로 보여 주므로, 6장 다음에 읽어도 된다.
+10장은 5~7장에서 본 흐름에 scope와 step-up을 더하므로, 7장 다음에 읽어도 된다.
 
 시간이 없으면 2·3·5·6장만 읽는다.
 2장에서 전체 흐름을 보고, 3장의 discovery, 5장의 token 발급, 6장의 token 검증으로 흐름의 중심을 따라간다.
@@ -32,7 +32,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 
 장마다 있는 "직접 해 보기" 절의 명령은 official practice를 띄운 상태에서 보낸다.
 official을 띄우는 방법과 필요한 도구는 [official README의 실행](../mcp-security-authn-official/README.md#실행)에 있다.
-10장의 명령은 [mcp-security-authz practice](../mcp-security-authz/README.md#실행)를 띄운 상태에서 보낸다.
+10장의 명령은 official 대신 [mcp-security-authz practice](../mcp-security-authz/README.md#실행)를 띄운 상태에서 보낸다.
 
 다이어그램은 mermaid로 그렸다.
 GitHub와 IntelliJ는 mermaid를 그림으로 보여 준다.
