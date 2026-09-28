@@ -13,6 +13,8 @@ import java.util.Optional;
 /**
  * seed data는 agent-mcp·agent-mcps practice와 일부러 같게 둔다.
  * 세 practice를 오가며 같은 질문의 답을 비교하기 위해서다.
+ *
+ * <p>재고를 바꾸는 tool이 생겨 여러 요청이 같은 저장소를 고칠 수 있으므로 메서드를 {@code synchronized}로 둔다.
  */
 @Repository
 public class ProductRepository {
@@ -34,7 +36,7 @@ public class ProductRepository {
         ).forEach(product -> store.put(product.id(), product));
     }
 
-    public List<Product> findByKeyword(String keyword) {
+    public synchronized List<Product> findByKeyword(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return List.copyOf(store.values());
         }
@@ -45,7 +47,14 @@ public class ProductRepository {
                 .toList();
     }
 
-    public Optional<Product> findById(String id) {
+    public synchronized Optional<Product> findById(String id) {
         return Optional.ofNullable(store.get(id));
+    }
+
+    /** 재고를 바꾼다. 없는 상품이면 빈 값이다. */
+    public synchronized Optional<Product> updateStock(String id, int stock) {
+        Product updated = store.computeIfPresent(id, (key, product) ->
+                new Product(product.id(), product.name(), product.category(), product.price(), stock));
+        return Optional.ofNullable(updated);
     }
 }

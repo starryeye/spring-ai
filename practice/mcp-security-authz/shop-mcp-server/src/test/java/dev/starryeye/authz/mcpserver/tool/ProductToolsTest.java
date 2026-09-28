@@ -51,4 +51,21 @@ class ProductToolsTest {
     void 없는_상품이면_예외_대신_문장을_반환한다() {
         assertThat(tools.getStock("없는ID")).contains("찾을 수 없습니다");
     }
+
+    @Test
+    void 재고를_바꾸고_바뀐_값을_문장으로_반환한다() {
+        assertThat(tools.updateStock("p1", 10)).isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다.");
+        assertThat(tools.getStock("p1")).contains("10개");
+    }
+
+    @Test
+    void 음수_재고는_바꾸지_않는다() {
+        assertThat(tools.updateStock("p1", -1)).isEqualTo("재고 수량은 0 이상이어야 합니다. (받은 값: -1)");
+        assertThat(tools.getStock("p1")).contains("7개");
+    }
+
+    @Test
+    void 없는_상품의_재고는_바꾸지_않는다() {
+        assertThat(tools.updateStock("p99", 3)).isEqualTo("상품 p99 를 찾을 수 없습니다.");
+    }
 }

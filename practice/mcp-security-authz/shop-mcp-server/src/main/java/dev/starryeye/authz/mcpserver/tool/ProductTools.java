@@ -36,6 +36,7 @@ public class ProductTools {
                     + "(예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 "
                     + "그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다."
     )
+    @RequiredScope("products:read")
     public String searchProducts(
             @McpToolParam(description = "상품명 또는 카테고리명의 일부. "
                     + "가격·재고 같은 조건이나 문장을 넣으면 안 된다. "
@@ -60,6 +61,7 @@ public class ProductTools {
                     + "사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. "
                     + "상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다."
     )
+    @RequiredScope("products:read")
     public String getStock(
             @McpToolParam(description = "상품 ID. 예: p1", required = true)
             String productId) {
@@ -71,6 +73,29 @@ public class ProductTools {
                                 .formatted(productId, product.name())
                         : "상품 %s (%s) 의 현재 재고는 %d개입니다."
                                 .formatted(productId, product.name(), product.stock()))
+                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId));
+    }
+
+    @McpTool(
+            name = "updateStock",
+            description = "상품 ID의 재고 수량을 quantity로 바꾼다. "
+                    + "사용자가 재고를 바꿔 달라고 분명히 요청할 때만 사용한다. "
+                    + "바뀐 뒤의 재고를 반환한다."
+    )
+    @RequiredScope("products:write")
+    public String updateStock(
+            @McpToolParam(description = "상품 ID. 예: p1", required = true)
+            String productId,
+            @McpToolParam(description = "바꿀 재고 수량. 0 이상의 정수", required = true)
+            int quantity) {
+        log.info("updateStock 호출 (productId={}, quantity={}, 사용자={})", productId, quantity, currentUser());
+
+        if (quantity < 0) {
+            return "재고 수량은 0 이상이어야 합니다. (받은 값: %d)".formatted(quantity);
+        }
+        return productRepository.updateStock(productId, quantity)
+                .map(product -> "상품 %s (%s) 의 재고를 %d개로 바꿨습니다."
+                        .formatted(productId, product.name(), product.stock()))
                 .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId));
     }
 
