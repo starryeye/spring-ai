@@ -84,7 +84,7 @@ sequenceDiagram
 
 아래 예시는 `practice/mcp-security-authz`를 실제로 띄워 받은 값이다.
 Authorization Server는 `http://localhost:9030`, MCP Server는 `http://localhost:8141/mcp`, agent는 `http://localhost:8140`이다.
-그림과 1~3단계의 값은 curl이 agent의 client `authz-shop-agent`로 보낸 요청에서 받았다.
+그림의 scope 값과 1~3단계의 값은 curl이 agent의 client `authz-shop-agent`로 보낸 요청에서 받았다.
 `local-client`는 `openid` 없이 요청한다(10.3).
 
 ## 10.3 1단계: 먼저 조회 scope만 받는다
@@ -219,7 +219,7 @@ Authorization Server는 이번에도 consent 화면을 보여 주고, 새로 고
 사용자는 이번에 늘어나는 권한만 보고 판단한다.
 
 `products:write`를 체크해 제출하면 token 응답의 `scope`는 `openid products:read products:write`다.
-새 token으로 같은 `tools/call`을 다시 보내면 이번에는 `200`이고, tool 결과는 `재고를 10개로 바꿨습니다.`로 끝나는 문장이다.
+새 token으로 같은 `tools/call`을 다시 보내면 이번에는 `200`이고, 재고가 10개로 바뀌었다는 tool 결과가 온다.
 다시 보낸 요청의 `Mcp-Session-Id`는 옛 token으로 연 session의 것이다.
 MCP Server는 요청마다 token을 새로 검사할 뿐 session을 token에 묶지 않으므로(6장), session을 새로 열지 않아도 된다.
 
@@ -317,7 +317,7 @@ tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 �
 널리 쓰이는 AI client도 권한이 더 필요하면 사용자에게 다시 묻는다.
 [Claude.ai](https://claude.com/docs/connectors/building/lazy-authentication)는 tool 호출이 `401`을 받으면 대화 안에 Connect 카드를 띄우고, login이 끝나면 같은 tool 호출을 다시 보낸다.
 `403 insufficient_scope`를 받아도 다시 authorization을 받게 한다.
-Claude.ai는 popup에서 login하게 해 대화를 이어 가지만, 이 agent는 채팅 응답을 끝내고 browser 화면을 consent 화면으로 옮긴다.
+Claude.ai는 popup에서 login하게 해 대화를 이어 가지만, 이 agent는 채팅 응답을 끝내고 browser를 consent 화면으로 보낸다.
 ChatGPT의 [Apps SDK](https://developers.openai.com/apps-sdk/build/auth)는 HTTP `403` 대신 오류 tool 결과의 `_meta["mcp/www_authenticate"]`에 challenge를 넣게 하고, ChatGPT는 이 값을 보고 login 화면을 띄운다.
 MCP 명세에 없는 방식이다.
 [Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent)도 agent 채팅 안의 consent 카드로 사용자의 허락을 받는다.
@@ -481,7 +481,8 @@ public Publisher<Boolean> handle(HttpRequestSnapshot requestSnapshot, HttpRespon
 }
 ```
 
-SDK는 `401`·`403`을 받으면 이 handler를 부르고, `true`를 받으면 같은 요청을 다시 보내고 `false`를 받으면 원래 오류를 호출한 쪽에 전한다.
+SDK는 `401`·`403`을 받으면 이 handler를 부른다.
+handler가 `false`를 돌려주면 SDK는 원래 오류를 호출한 쪽에 전한다(`true`의 동작은 10.7).
 웹 agent는 이 자리에서 새 token을 받을 수 없으므로, 다시 보내지 않고 필요한 scope를 담은 예외를 던진다.
 
 `StepUpToolExecutionExceptionProcessor#process`는 이 예외를 원인 사슬에서 찾는다.
@@ -497,7 +498,8 @@ MCP SDK와 Spring AI가 예외를 한두 겹 감싸기 때문이다.
 `step_up` 값 가운데 MCP Server가 실제로 `403`으로 요구한 scope만 받는 데도 이유가 있다.
 login 시작 주소 `/oauth2/authorization/authserver`는 `GET`이라서, 다른 사이트도 링크나 `<img>`로 사용자의 browser가 이 주소를 부르게 할 수 있다.
 `step_up` 값을 그대로 받아 준다면, 다른 사이트가 고른 권한의 consent 화면이 사용자 앞에 뜬다.
-`StepUpState`는 HTTP session 안의 객체 값만 바꾸므로, Spring Session(Redis 등)을 쓰면 값을 바꿀 때마다 `setAttribute`를 다시 불러야 한다.
+step-up에서 요구된 scope와 시도한 scope는 `StepUpState`가 기록하는데, 이 객체는 HTTP session에 넣어 둔 채 값만 바뀐다.
+그래서 Spring Session(Redis 등)을 쓰면 값을 바꿀 때마다 `setAttribute`를 다시 불러야 한다.
 
 **local-client: `ScopeSelection`, `StepUp`, `McpCalls`**
 
@@ -530,7 +532,7 @@ official의 `local-client`는 transport의 기본 요청에 `Authorization` head
 ## 10.10 다루지 않는 것
 
 - agent 자기 신원: 이 장의 두 client는 늘 사용자를 대신한다. 사용자 없이 agent 자신의 권한으로 부르는 방법은 [MCP Authorization Extensions](https://github.com/modelcontextprotocol/ext-auth)의 client credentials 확장(Draft)이 다룬다.
-- 조직이 대신 하는 승인: 조직의 identity provider가 사용자 대신 승인해, 사용자가 consent 화면을 거치지 않게 하는 Enterprise-Managed Authorization도 같은 확장 모음에 있다.
+- 조직이 대신하는 승인: 조직의 identity provider가 사용자 대신 승인해, 사용자가 consent 화면을 거치지 않게 하는 Enterprise-Managed Authorization도 같은 확장 모음에 있다.
 - 위임 사슬의 token exchange: MCP Server가 뒤쪽 API를 부를 때는 받은 token을 그대로 넘기지 않는다([8장](08-security.md)). 더 좁은 token을 받는 방법으로 RFC 8693 token exchange가 있고, 새 token의 `act` claim에는 사용자를 대신해 부른 쪽이 적힌다. MCP 명세 본문은 token passthrough 금지까지만 정한다.
 - tool 정의의 scope: tool 정의에 필요한 scope를 적는 표준 field는 없다. OpenAI Apps SDK의 `securitySchemes`를 표준에 넣자는 [SEP-1488](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1488)은 Draft다.
 - scope별 tool 목록: 조회 token으로도 `tools/list`에 `updateStock`이 보인다. token의 scope에 따라 다른 tool 목록을 주는 서버는 뒤의 practice에서 다룬다.
@@ -564,13 +566,13 @@ curl http://localhost:8141/.well-known/oauth-protected-resource/mcp
 로컬 모델이라 답 하나에 1분 넘게 걸리기도 한다.
 해 볼 것과 기대 결과의 전체 목록은 [practice README의 직접 확인할 것](../mcp-security-authz/README.md#직접-확인할-것)에 있다.
 
-`practice/mcp-security-authz/logs/shop-agent.log`에는 step-up마다 `SyncMcpToolCallback`의 `Exception while tool calling:` 한 줄과 `MessageAggregator`의 `Aggregation Error` 두 줄이 `ERROR`로 남는다.
+`practice/mcp-security-authz/logs/shop-agent.log`에는 tool 호출이 `403`을 받을 때마다 `SyncMcpToolCallback`의 `Exception while tool calling:` 한 줄과 `MessageAggregator`의 `Aggregation Error` 두 줄이 `ERROR`로 남는다.
 Spring AI가 tool 예외를 채팅 응답까지 전하면서 남기는 줄이라서, step-up이 정상으로 진행될 때도 남는다.
 
 **token이 필요한 요청**: 캡처 스크립트 `docs/superpowers/captures/mcp-authz-walkthrough.sh`로 본다.
 스크립트를 통째로 돌리면 1~3단계와 일부 허락이 한 번에 기록된다(출력의 JWT는 앞 20자만 남는다).
 저장된 consent가 없어야 consent 화면이 나오므로, 스크립트는 `./stop.sh`와 `./run.sh`로 다시 띄운 직후에 돌린다.
-스크립트는 `products:write`까지 consent한 기록을 남기므로, 그 뒤에 웹 agent를 해 보려면 먼저 `./stop.sh`와 `./run.sh`로 다시 띄운다.
+스크립트가 `products:write`까지 consent한 기록을 남기므로, 웹 agent는 스크립트보다 먼저 해 보거나 다시 띄운 뒤에 해 본다.
 아래 명령을 직접 보내려면 `READ_TOKEN`에 `products:read`만 담긴 access token을 넣는다.
 이 token은 스크립트 안의 login부터 token request까지의 curl 명령을 차례로 실행해 받는다.
 token은 5분 뒤 만료된다.
