@@ -4,16 +4,21 @@ import dev.starryeye.authz.agent.discovery.DiscoveredClientRegistrationRepositor
 import dev.starryeye.authz.agent.discovery.McpAuthorizationDiscovery;
 import dev.starryeye.authz.agent.mcp.OAuth2TokenAttachingRequestCustomizer;
 import dev.starryeye.authz.agent.mcp.SecurityMcpTransportContextProvider;
+import dev.starryeye.authz.agent.mcp.StepUpAuthorizationErrorHandler;
+import dev.starryeye.authz.agent.mcp.StepUpToolExecutionExceptionProcessor;
 import dev.starryeye.authz.agent.security.ResourceIndicators;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
+import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
+import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.ClientAuthorizationException;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -24,6 +29,8 @@ import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizati
 import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.web.client.RestClient;
+
+import java.util.List;
 
 /**
  * MCP 호출에 쓸 token을 준비하는 bean을 등록한다.
@@ -115,11 +122,24 @@ public class McpSecurityConfig {
         return (name, spec) -> spec.transportContextProvider(new SecurityMcpTransportContextProvider());
     }
 
-    /** 모든 Streamable HTTP transport에 token을 붙이는 customizer를 넣는다. */
+    /** 모든 Streamable HTTP transport에 token을 붙이고, 403 insufficient_scope를 step-up 예외로 올린다. */
     @Bean
     public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder> mcpTokenAttachingCustomizer(
             OAuth2AuthorizedClientManager authorizedClientManager) {
-        return (name, transport) -> transport.httpRequestCustomizer(
-                new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID));
+        return (name, transport) -> transport
+                .httpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID))
+                .authorizationErrorHandler(new StepUpAuthorizationErrorHandler());
+    }
+
+    /**
+     * step-up 예외는 채팅까지 올리고, 나머지는 Spring AI 기본 처리와 같게 둔다.
+     * 기본 처리는 Spring Security의 {@code ClientAuthorizationException}을 다시 던지고, 그 밖의 예외는 LLM에게 줄 문장으로 바꾼다.
+     * 이 bean이 있으면 Spring AI 자동 구성의 같은 bean은 만들어지지 않는다.
+     */
+    @Bean
+    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor() {
+        return new StepUpToolExecutionExceptionProcessor(DefaultToolExecutionExceptionProcessor.builder()
+                .rethrowExceptions(List.of(ClientAuthorizationException.class))
+                .build());
     }
 }
