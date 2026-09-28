@@ -10,6 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.InvalidMediaTypeException;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -17,8 +19,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -39,6 +44,18 @@ import java.util.stream.Collectors;
  *
  * <p>검사를 tool 메서드 안(예: {@code @PreAuthorize})에서 하면 거절이 HTTP {@code 200}의 tool 오류 결과가 된다.
  * client가 step-up을 시작하려면 HTTP {@code 403}과 challenge가 필요하므로 transport 앞에서 검사한다.
+ *
+ * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
+ * transport({@code WebMvcStreamableServerTransportProvider})는 본문을 {@code request.body(String.class)}로 읽는다.
+ * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
+ * 잘못된 바이트를 만나도 예외를 던지지 않고 대체 문자({@code U+FFFD})로 조용히 바꿔 넣는다.
+ * 이 필터가 그 대신 {@code jsonMapper.readTree(byte[])}로 바이트를 직접 읽으면, Jackson은 잘못된 UTF-8 바이트에서
+ * 예외를 던진다. 그러면 이 필터는 "JSON이 아니다"로 보고 tool 이름 검사를 건너뛰어 통과시키지만, transport는 같은
+ * 바이트를 대체 문자로 채워 넣어 여전히 유효한 JSON으로 읽고 그대로 실행한다. 검사와 실행이 서로 다른 것을 보는
+ * parser differential이 생겨, scope가 없는 tool 호출이 검사를 피해 나간다.
+ * 그래서 이 필터는 transport와 같은 규칙으로 decode한다. 그 결과가 JSON object가 아니면(구문 오류, 배열, 모르는
+ * charset 이름) transport에 넘기지 않고 여기서 {@code 400}으로 끝낸다. transport가 읽을 것과 다르게 해석할 수 있는
+ * 본문은 넘기지 않는 것이 "다르게 보일 수 있는 것은 아예 넘기지 않는다"는 원칙에 맞다.
  */
 public class ToolScopeFilter extends OncePerRequestFilter {
 
@@ -62,35 +79,90 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		if (!(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token)) {
-			// token이 없거나 틀린 요청은 Spring Security가 이미 401로 끝냈다.
-			chain.doFilter(request, response);
+		// JWT가 아닌 인증은 scope가 없는 것으로 본다. 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로
+		// 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
+		JwtAuthenticationToken token =
+				(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken jwt) ? jwt
+						: null;
+		Set<String> granted = (token != null) ? grantedScopes(token) : Set.of();
+
+		// 본문을 버퍼링하기 전에 기본 scope부터 본다. 기본 scope가 없으면 tool 이름을 알 필요도 없다.
+		if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {
+			insufficientScope(request, response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
 			return;
 		}
-		Set<String> granted = grantedScopes(token);
+
 		HttpServletRequest forwarded = request;
-		String tool = null;
 		if (HttpMethod.POST.matches(request.getMethod())) {
 			CachedBodyHttpServletRequest cached = new CachedBodyHttpServletRequest(request);
 			forwarded = cached;
-			tool = toolName(cached.body());
-		}
-		String missing = missingScope(granted, tool);
-		if (missing != null) {
-			insufficientScope(request, response, token, tool, missing, granted);
-			return;
+
+			JsonNode message;
+			try {
+				message = parseAsTransportWill(cached);
+			}
+			catch (BodyRejected rejected) {
+				rejectBody(response, rejected.code, rejected.reason);
+				return;
+			}
+
+			String tool = toolName(message);
+			String missing = (tool != null && !granted.contains(this.registry.scopeFor(tool)))
+					? this.registry.scopeFor(tool) : null;
+			if (missing != null) {
+				insufficientScope(request, response, token, tool, missing, granted);
+				return;
+			}
 		}
 		chain.doFilter(forwarded, response);
 	}
 
-	private String missingScope(Set<String> granted, String tool) {
-		if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {
-			return ToolScopeRegistry.BASE_SCOPE;
+	/**
+	 * transport({@code StringHttpMessageConverter})와 같은 규칙으로 본문을 decode하고 parse한다.
+	 * charset은 {@code Content-Type}에 있으면 그것을, 없거나 읽을 수 없으면 UTF-8을 쓴다.
+	 * decode한 text가 JSON object가 아니면(구문 오류, 배열, 모르는 charset 이름) {@link BodyRejected}로 거절한다.
+	 */
+	private JsonNode parseAsTransportWill(CachedBodyHttpServletRequest request) {
+		Charset charset;
+		try {
+			charset = charset(request);
 		}
-		if (tool != null && !granted.contains(this.registry.scopeFor(tool))) {
-			return this.registry.scopeFor(tool);
+		catch (IllegalArgumentException ex) {
+			// Charset.forName이 모르는 이름이면 이 본문을 읽을 방법이 없다. parse 실패와 같이 다룬다.
+			throw new BodyRejected(-32700, "요청 본문의 charset을 알 수 없습니다.");
 		}
-		return null;
+		String text = new String(request.body(), charset);
+		JsonNode message;
+		try {
+			message = this.jsonMapper.readTree(text);
+		}
+		catch (JacksonException ex) {
+			throw new BodyRejected(-32700, "요청 본문이 올바른 JSON이 아닙니다.");
+		}
+		if (message == null || !message.isObject()) {
+			throw new BodyRejected(-32600, "요청 본문은 JSON object여야 합니다.");
+		}
+		return message;
+	}
+
+	/**
+	 * {@code Content-Type}의 charset을 돌려준다. header가 없거나 media type을 읽을 수 없으면 UTF-8이다.
+	 * charset 이름은 있는데 Java가 모르면 {@code IllegalArgumentException}(또는 그 하위 타입)을 그대로 던진다.
+	 */
+	private static Charset charset(HttpServletRequest request) {
+		String contentType = request.getContentType();
+		if (contentType == null) {
+			return StandardCharsets.UTF_8;
+		}
+		MediaType mediaType;
+		try {
+			mediaType = MediaType.parseMediaType(contentType);
+		}
+		catch (InvalidMediaTypeException ex) {
+			return StandardCharsets.UTF_8;
+		}
+		Charset charset = mediaType.getCharset();
+		return (charset != null) ? charset : StandardCharsets.UTF_8;
 	}
 
 	/** Spring Security는 token의 {@code scope}를 {@code SCOPE_} authority로 바꿔 둔다. */
@@ -103,33 +175,52 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/** {@code tools/call}이면 tool 이름을, 아니면 {@code null}을 돌려준다. */
-	private String toolName(byte[] body) {
-		try {
-			JsonNode message = this.jsonMapper.readTree(body);
-			if (message == null || !message.isObject()) {
-				return null;
-			}
-			JsonNode method = message.get("method");
-			if (method == null || !method.isString() || !"tools/call".equals(method.stringValue())) {
-				return null;
-			}
-			JsonNode params = message.get("params");
-			JsonNode name = (params == null) ? null : params.get("name");
-			return (name != null && name.isString() && !name.stringValue().isBlank()) ? name.stringValue() : null;
-		}
-		catch (JacksonException ex) {
-			// JSON이 아닌 본문은 transport가 JSON-RPC 오류로 답한다. 여기서는 기본 scope만 본다.
+	private String toolName(JsonNode message) {
+		JsonNode method = message.get("method");
+		if (method == null || !method.isString() || !"tools/call".equals(method.stringValue())) {
 			return null;
 		}
+		JsonNode params = message.get("params");
+		JsonNode name = (params == null) ? null : params.get("name");
+		return (name != null && name.isString() && !name.stringValue().isBlank()) ? name.stringValue() : null;
 	}
 
 	private void insufficientScope(HttpServletRequest request, HttpServletResponse response,
 			JwtAuthenticationToken token, String tool, String missing, Set<String> granted) {
 		// Security Best Practices — Scope Minimization: 권한 상승 요청을 기록으로 남긴다.
 		log.info("scope 부족 — 사용자={}, client_id={}, tool={}, 필요한 scope={}, 가진 scope={}",
-				token.getName(), token.getToken().getClaimAsString("client_id"), tool, missing, granted);
+				(token != null) ? token.getName() : "(JWT 인증 아님)",
+				(token != null) ? token.getToken().getClaimAsString("client_id") : null, tool, missing, granted);
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"insufficient_scope\", scope=\"" + missing
 				+ "\", resource_metadata=\"" + this.resourceMetadataUrl.apply(request) + "\"");
+	}
+
+	/** transport가 실행할 수 없는 본문은 transport로 넘기지 않고 여기서 {@code 400}으로 끝낸다. */
+	private void rejectBody(HttpServletResponse response, int code, String message) throws IOException {
+		response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
+		response.setContentType("application/json;charset=UTF-8");
+		ObjectNode body = this.jsonMapper.createObjectNode();
+		body.put("jsonrpc", "2.0");
+		body.putNull("id");
+		ObjectNode error = body.putObject("error");
+		error.put("code", code);
+		error.put("message", message);
+		response.getWriter().write(this.jsonMapper.writeValueAsString(body));
+	}
+
+	/** {@link #parseAsTransportWill}이 본문을 거절할 때 쓰는 사유다. JSON-RPC 오류의 {@code code}와 {@code message}가 된다. */
+	private static final class BodyRejected extends RuntimeException {
+
+		private final int code;
+
+		private final String reason;
+
+		BodyRejected(int code, String reason) {
+			super(reason, null, false, false);
+			this.code = code;
+			this.reason = reason;
+		}
 	}
 }
