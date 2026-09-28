@@ -53,6 +53,7 @@ class StepUpTest {
 
 		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
 		assertThat(this.holder.accessToken()).isEqualTo("write-token");
+		assertThat(this.holder.scopes()).containsExactlyInAnyOrder("products:read", "products:write");
 		assertThat(this.printed.toString(StandardCharsets.UTF_8)).contains("[6] step-up");
 	}
 

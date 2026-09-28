@@ -16,14 +16,14 @@ class AuthorizationRequestTest {
 		Pkce pkce = Pkce.fromVerifier("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk");
 
 		URI uri = AuthorizationRequest.uri(server, "local-mcp-client", URI.create("http://127.0.0.1:50000/callback"),
-				"products:read", "state-1", pkce);
+				"products:read products:write", "state-1", pkce);
 
 		Map<String, String> query = Form.decode(uri.getRawQuery());
 		assertThat(uri.toString()).startsWith("http://localhost:9030/oauth2/authorize?");
 		assertThat(query).containsEntry("response_type", "code")
 				.containsEntry("client_id", "local-mcp-client")
 				.containsEntry("redirect_uri", "http://127.0.0.1:50000/callback")
-				.containsEntry("scope", "products:read")
+				.containsEntry("scope", "products:read products:write")
 				.containsEntry("state", "state-1")
 				.containsEntry("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
 				.containsEntry("code_challenge_method", "S256")

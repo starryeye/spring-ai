@@ -2,8 +2,11 @@ package dev.starryeye.authz.agent;
 
 import dev.starryeye.authz.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.authz.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.authz.agent.security.StepUpRequiredException;
+import dev.starryeye.authz.agent.security.StepUpState;
 
 import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -24,13 +27,16 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import reactor.core.publisher.Flux;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
@@ -99,9 +105,47 @@ class ChatCsrfTest {
 				.andReturn().getResponse().getCookie("XSRF-TOKEN");
 		assertThat(token).isNotNull();
 
-		this.mockMvc.perform(post("/api/chat").cookie(token).header("X-XSRF-TOKEN", token.getValue())
+		MvcResult started = this.mockMvc.perform(post("/api/chat").cookie(token).header("X-XSRF-TOKEN", token.getValue())
 						.accept(MediaType.TEXT_EVENT_STREAM)
 						.content("노트북 재고 있어?"))
-				.andExpect(request().asyncStarted());
+				.andExpect(request().asyncStarted())
+				.andReturn();
+
+		MvcResult finished = this.mockMvc.perform(asyncDispatch(started))
+				.andExpect(status().isOk())
+				.andReturn();
+		// SSE는 항상 UTF-8이다(WHATWG EventSource). Content-Type엔 charset이 없어 기본 encoding(ISO-8859-1)
+		// 대신 UTF-8로 직접 읽는다.
+		assertThat(finished.getResponse().getContentAsString(StandardCharsets.UTF_8))
+				.contains("event:message\ndata:\"재고는 3개입니다\"\n\n");
+	}
+
+	@Test
+	@WithMockUser
+	void 권한이_모자라면_step_up_카드_event가_온다() throws Exception {
+		given(this.chatModel.stream(any(Prompt.class)))
+				.willReturn(Flux.error(new StepUpRequiredException(List.of("products:write"), "updateStock")));
+
+		Cookie token = this.mockMvc.perform(get("/index.html"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getCookie("XSRF-TOKEN");
+		assertThat(token).isNotNull();
+
+		MvcResult started = this.mockMvc.perform(post("/api/chat").cookie(token).header("X-XSRF-TOKEN", token.getValue())
+						.accept(MediaType.TEXT_EVENT_STREAM)
+						.content("p1 재고를 10개로 바꿔 줘"))
+				.andExpect(request().asyncStarted())
+				.andReturn();
+
+		MvcResult finished = this.mockMvc.perform(asyncDispatch(started))
+				.andExpect(status().isOk())
+				.andReturn();
+		assertThat(finished.getResponse().getContentAsString(StandardCharsets.UTF_8))
+				.contains("event:step-up\ndata:{\"scope\":\"products:write\","
+						+ "\"tool\":\"updateStock\",\"url\":\"/oauth2/authorization/authserver?step_up=products:write\"}\n\n");
+
+		// ChatEvents가 challenge를 이 요청의 실제 session에 기록했는지 본다 — StepUpState는 그 session에 있다.
+		HttpSession session = started.getRequest().getSession();
+		assertThat(StepUpState.existing(session).challenged("products:write")).isTrue();
 	}
 }

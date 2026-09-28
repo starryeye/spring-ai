@@ -119,18 +119,13 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	/**
 	 * transport({@code StringHttpMessageConverter})와 같은 규칙으로 본문을 decode하고 parse한다.
-	 * charset은 {@code Content-Type}에 있으면 그것을, 없거나 읽을 수 없으면 UTF-8을 쓴다.
-	 * decode한 text가 JSON object가 아니면(구문 오류, 배열, 모르는 charset 이름) {@link BodyRejected}로 거절한다.
+	 * charset이 없으면 UTF-8, 읽을 수 없으면 거절한다.
+	 * decode한 text가 JSON object가 아니면(구문 오류, 배열) {@link BodyRejected}로 거절한다.
 	 */
+	// 이 decode 규칙은 SDK transport(request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다.
+	// SDK를 올릴 때 다시 확인한다.
 	private JsonNode parseAsTransportWill(CachedBodyHttpServletRequest request) {
-		Charset charset;
-		try {
-			charset = charset(request);
-		}
-		catch (IllegalArgumentException ex) {
-			// Charset.forName이 모르는 이름이면 이 본문을 읽을 방법이 없다. parse 실패와 같이 다룬다.
-			throw new BodyRejected(-32700, "요청 본문의 charset을 알 수 없습니다.");
-		}
+		Charset charset = charset(request);
 		String text = new String(request.body(), charset);
 		JsonNode message;
 		try {
@@ -146,8 +141,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * {@code Content-Type}의 charset을 돌려준다. header가 없거나 media type을 읽을 수 없으면 UTF-8이다.
-	 * charset 이름은 있는데 Java가 모르면 {@code IllegalArgumentException}(또는 그 하위 타입)을 그대로 던진다.
+	 * {@code Content-Type}의 charset을 돌려준다. header가 없으면 UTF-8이다.
+	 * media type을 읽을 수 없거나(모르는 charset 이름 포함) {@link BodyRejected}로 거절한다.
 	 */
 	private static Charset charset(HttpServletRequest request) {
 		String contentType = request.getContentType();
@@ -159,7 +154,7 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			mediaType = MediaType.parseMediaType(contentType);
 		}
 		catch (InvalidMediaTypeException ex) {
-			return StandardCharsets.UTF_8;
+			throw new BodyRejected(-32700, "요청의 Content-Type을 읽을 수 없습니다.");
 		}
 		Charset charset = mediaType.getCharset();
 		return (charset != null) ? charset : StandardCharsets.UTF_8;

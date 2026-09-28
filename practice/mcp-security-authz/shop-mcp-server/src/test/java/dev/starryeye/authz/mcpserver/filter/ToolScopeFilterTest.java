@@ -193,6 +193,23 @@ class ToolScopeFilterTest {
 	}
 
 	@Test
+	void 모르는_charset_이름은_400이고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		this.filter.doFilter(
+				postBytes(call("getStock").getBytes(StandardCharsets.UTF_8), "application/json;charset=x-unknown"),
+				response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(400);
+		assertThat(response.getContentAsString()).isEqualTo(
+				"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32700,"
+						+ "\"message\":\"요청의 Content-Type을 읽을 수 없습니다.\"}}");
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
 	void scope가_없는_token은_본문을_읽기_전에_403이다() throws Exception {
 		로그인();
 		MockFilterChain chain = new MockFilterChain();

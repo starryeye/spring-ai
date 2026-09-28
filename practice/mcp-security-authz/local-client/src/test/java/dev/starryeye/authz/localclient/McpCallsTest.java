@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * StepUpTest는 handler를 직접 불러 "성공하면 새 token으로 바뀌는지"만 본다. 실제 문제는 그 뒤,
- * SDK가 재시도로 옛 token이 실린 요청을 다시 보내는 데 있었다(task-9-fix-1). 이 test는 fake MCP
+ * SDK가 재시도로 옛 token이 실린 요청을 다시 보내는 데 있었다. 이 test는 fake MCP
  * server를 실제로 띄워 McpCalls.run이 끝까지 새 token으로 다시 보내는지를 본다.
  */
 class McpCallsTest {
