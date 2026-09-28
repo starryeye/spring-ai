@@ -101,6 +101,8 @@ MCP client가 **꼭 필요한 scope만 받고, 권한이 필요한 작업을 처
 
 ### auth-server
 - 두 client에 `products:read`, `products:write`를 등록한다. agent는 `openid`도.
+- agent(`authz-shop-agent`)에도 `require-authorization-consent: true`를 켠다. official은 `false`라 consent 화면이 없고, 그러면 step-up의 추가분 consent도 보이지 않는다.
+- access token에 `client_id` claim을 넣는다(RFC 9068 §2.2). official의 token은 `aud`를 resource로 바꾸면서 client를 가리키는 값이 없다. 1절의 "서버는 어느 client를 거쳤는지 안다"가 이 claim으로 성립한다.
 - 나머지(`resource`/`aud`, `iss`, PKCE, public client 규칙)는 official과 같다.
 
 ### shop-mcp-server
