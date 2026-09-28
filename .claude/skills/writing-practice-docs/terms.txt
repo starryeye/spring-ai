@@ -34,3 +34,8 @@ MCP 서버	MCP Server
 모듈	module
 필드	field
 (?<![가-힣])빈(?=[을를은는이가의에와과도로]|$)	bean
+스텝 ?업	step-up
+다운 ?스코핑	down-scoping
+인젝션	injection
+게이트웨이	gateway
+클레임	claim
