@@ -102,6 +102,11 @@ class McpAuthorizationStandardTest {
 	}
 
 	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key) {
+		return 토큰(issuer, audience, subject, expiresAt, key, List.of("products:read"));
+	}
+
+	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key,
+			List<String> scopes) {
 		NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.issuer(issuer)
@@ -109,6 +114,7 @@ class McpAuthorizationStandardTest {
 				.audience(List.of(audience))
 				.issuedAt(expiresAt.minusSeconds(600))
 				.expiresAt(expiresAt)
+				.claim("scope", scopes)
 				.build();
 		return encoder.encode(JwtEncoderParameters.from(
 				JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims)).getTokenValue();
@@ -159,7 +165,8 @@ class McpAuthorizationStandardTest {
 				.andExpect(jsonPath("$.authorization_servers[0]").value(ISSUER))
 				.andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
 				// 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다. Spring 기본값이 true 라 꺼야 한다.
-				.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false));
+				.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false))
+				.andExpect(jsonPath("$.scopes_supported").value(org.hamcrest.Matchers.contains("products:read")));
 	}
 
 	@Test
@@ -167,7 +174,7 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcp(null, null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
-						"Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\""));
+						"Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\", scope=\"products:read\""));
 	}
 
 	@Test
