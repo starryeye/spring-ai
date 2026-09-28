@@ -52,9 +52,7 @@ spring:
             client-secret: authz-shop-agent-secret
             authorization-grant-type: authorization_code
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            scope:
-              - openid
-              - profile
+            # scope는 적지 않는다. openid에 discovery가 고른 scope(401의 scope → PRM의 scopes_supported)를 더해 요청한다.
 
 mcp:
   authorization:

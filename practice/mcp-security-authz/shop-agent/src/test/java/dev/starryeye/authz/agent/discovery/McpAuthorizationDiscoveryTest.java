@@ -34,6 +34,10 @@ class McpAuthorizationDiscoveryTest {
 			"token_endpoint":"http://localhost:9030/oauth2/token","jwks_uri":"http://localhost:9030/oauth2/jwks",\
 			"code_challenge_methods_supported":["S256"],"authorization_response_iss_parameter_supported":true}""";
 
+	static final String PRM_WITH_SCOPES = """
+			{"resource":"http://localhost:8141/mcp","authorization_servers":["http://localhost:9030"],\
+			"scopes_supported":["products:read","products:write"]}""";
+
 	MockRestServiceServer server;
 
 	McpAuthorizationDiscovery discovery;
@@ -210,5 +214,40 @@ class McpAuthorizationDiscoveryTest {
 		assertThat(this.discovery.discover(RESOURCE, ISSUER).authorizationEndpoint())
 				.isEqualTo("https://auth.example/oauth2/authorize");
 		this.server.verify();
+	}
+
+	@Test
+	void 챌린지의_scope를_먼저_고른다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\", "
+				+ "scope=\"products:read\"");
+		응답("http://localhost:8141/.well-known/oauth-protected-resource/mcp", PRM_WITH_SCOPES);
+		응답("http://localhost:9030/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		assertThat(this.discovery.discover(RESOURCE, ISSUER).scopes()).containsExactly("products:read");
+	}
+
+	@Test
+	void 챌린지에_scope가_없으면_scopes_supported를_모두_고른다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8141/.well-known/oauth-protected-resource/mcp", PRM_WITH_SCOPES);
+		응답("http://localhost:9030/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		assertThat(this.discovery.discover(RESOURCE, ISSUER).scopes())
+				.containsExactly("products:read", "products:write");
+	}
+
+	@Test
+	void 둘_다_없으면_scope를_고르지_않는다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8141/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9030/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		assertThat(this.discovery.discover(RESOURCE, ISSUER).scopes()).isEmpty();
+	}
+
+	@Test
+	void 챌린지의_여러_scope는_공백으로_나눈다() {
+		assertThat(McpAuthorizationDiscovery.selectScopes("products:read  products:write", null))
+				.containsExactly("products:read", "products:write");
 	}
 }

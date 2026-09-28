@@ -23,8 +23,11 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -94,6 +97,55 @@ class TokenRefreshTest {
                 .withClientRegistrationId("authserver").principal(principal).build());
 
         assertThat(authorized.getAccessToken().getTokenValue()).isEqualTo("new-token");
+        server.verify();
+    }
+
+    @Test
+    void refresh_요청에_scope를_보내지_않아_늘어난_scope가_유지된다() {
+        ClientRegistration registration = ClientRegistration.withRegistrationId("authserver")
+                .clientId("authz-shop-agent")
+                .clientSecret("authz-shop-agent-secret")
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .authorizationUri(ISSUER + "/oauth2/authorize")
+                .tokenUri(ISSUER + "/oauth2/token")
+                .build();
+        var registrations = new InMemoryClientRegistrationRepository(registration);
+        var authorizedClients = new InMemoryOAuth2AuthorizedClientService(registrations);
+        var principal = new TestingAuthenticationToken("user", null, "ROLE_USER");
+        // step-up으로 늘어난 scope를 가진 token이 만료됐다.
+        var expired = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "expired-token",
+                Instant.now().minusSeconds(600), Instant.now().minusSeconds(300),
+                Set.of("openid", "products:read", "products:write"));
+        authorizedClients.saveAuthorizedClient(new OAuth2AuthorizedClient(registration, "user", expired,
+                new OAuth2RefreshToken("refresh-1", Instant.now().minusSeconds(600))), principal);
+
+        RestClient.Builder builder = RestClient.builder()
+                .configureMessageConverters(converters -> converters
+                        .disableDefaults()
+                        .addCustomConverter(new FormHttpMessageConverter())
+                        .addCustomConverter(new OAuth2AccessTokenResponseHttpMessageConverter()))
+                .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler());
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DiscoveredClientRegistrationRepository discovered = mock(DiscoveredClientRegistrationRepository.class);
+        given(discovered.discovered()).willReturn(DiscoveryFixtures.discovered());
+        var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered);
+        refreshTokenClient.setRestClient(builder.build());
+
+        // refresh 요청에 scope가 없으면 Authorization Server는 처음 허락한 scope 그대로 발급한다(RFC 6749 §6).
+        server.expect(requestTo(ISSUER + "/oauth2/token"))
+                .andExpect(content().string(not(containsString("scope="))))
+                .andRespond(withSuccess("""
+                        {"access_token":"new-token","token_type":"Bearer","expires_in":300}""",
+                        MediaType.APPLICATION_JSON));
+
+        var manager = McpSecurityConfig.authorizedClientManager(registrations, authorizedClients, refreshTokenClient);
+        OAuth2AuthorizedClient authorized = manager.authorize(OAuth2AuthorizeRequest
+                .withClientRegistrationId("authserver").principal(principal).build());
+
+        // 응답에 scope가 없으면 Spring은 이전 token의 scope를 그대로 둔다.
+        assertThat(authorized.getAccessToken().getScopes())
+                .containsExactlyInAnyOrder("openid", "products:read", "products:write");
         server.verify();
     }
 }

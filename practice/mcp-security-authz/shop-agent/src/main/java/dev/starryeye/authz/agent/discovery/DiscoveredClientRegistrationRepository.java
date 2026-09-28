@@ -8,9 +8,12 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
+import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.util.Assert;
 
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 설정 파일에 Authorization Server의 endpoint를 적는 대신, MCP Server에 물어서 client 등록 정보를 만든다.
@@ -83,7 +86,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 				.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
 				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
 				.redirectUri(this.credentials.getRedirectUri())
-				.scope(this.credentials.getScope())
+				.scope(requestedScopes(authorization))
 				.authorizationUri(authorization.authorizationEndpoint())
 				.tokenUri(authorization.tokenEndpoint())
 				.jwkSetUri(authorization.jwksUri())
@@ -92,6 +95,14 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 				.userNameAttributeName(IdTokenClaimNames.SUB)
 				.clientName(this.registrationId)
 				.build();
+	}
+
+	/** login에는 {@code openid}가 필요하고, MCP 호출에 쓸 scope는 discovery가 고른다. */
+	private static Set<String> requestedScopes(DiscoveredAuthorization authorization) {
+		Set<String> scopes = new LinkedHashSet<>();
+		scopes.add(OidcScopes.OPENID);
+		scopes.addAll(authorization.scopes());
+		return scopes;
 	}
 
 	private record Discovered(DiscoveredAuthorization authorization, ClientRegistration registration) {

@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
  * <ol>
  *   <li>token 없이 MCP Server를 불러 401과 {@code WWW-Authenticate}를 받는다</li>
  *   <li>header의 {@code resource_metadata}를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
+ *   <li>{@code 401}의 {@code scope}와 PRM의 {@code scopes_supported}로 처음 요청할 scope를 고른다</li>
  *   <li>PRM의 {@code resource}가 부른 URL과 같은지 확인한다(RFC 9728 §3.3)</li>
  *   <li>{@code authorization_servers}의 첫 값이 credentials가 등록된 issuer인지 먼저 확인한다.
  *       아니면 더 요청하지 않는다</li>
@@ -39,6 +40,12 @@ public class McpAuthorizationDiscovery {
 	private static final String OPENID_CONFIGURATION = "/.well-known/openid-configuration";
 
 	private static final Pattern RESOURCE_METADATA = Pattern.compile("resource_metadata=\"([^\"]+)\"");
+
+	private static final Pattern SCOPE = Pattern.compile("(?<![A-Za-z_])scope=\"([^\"]*)\"");
+
+	/** 401 challenge에서 읽은 값이다. 둘 다 없을 수 있다. */
+	private record Challenge(String resourceMetadata, String scope) {
+	}
 
 	/** IPv4 literal의 한 자리(0~255)다. */
 	private static final String OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
@@ -66,7 +73,8 @@ public class McpAuthorizationDiscovery {
 	 *                      요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
 	 */
 	public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
-		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl);
+		Challenge challenge = challenge(resourceUrl);
+		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl, challenge.resourceMetadata());
 
 		if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
 			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
@@ -79,11 +87,27 @@ public class McpAuthorizationDiscovery {
 		}
 
 		return new DiscoveredAuthorization((String) protectedResource.get("resource"), issuer,
-				authorizationServerMetadata(issuer));
+				authorizationServerMetadata(issuer),
+				selectScopes(challenge.scope(), protectedResource.get("scopes_supported")));
 	}
 
-	private Map<String, Object> protectedResourceMetadata(String resourceUrl) {
-		String fromChallenge = resourceMetadataUrlFromChallenge(resourceUrl);
+	/**
+	 * MCP 2025-11-25 Authorization — Scope Selection Strategy.
+	 * {@code 401}의 {@code scope}가 있으면 그 값, 없으면 PRM의 {@code scopes_supported} 전부,
+	 * 둘 다 없으면 scope를 요청하지 않는다.
+	 * 범용 client는 서버마다 어떤 scope가 필요한지 모르므로, 서버가 알려 준 값을 쓴다.
+	 */
+	static List<String> selectScopes(String challengeScope, Object scopesSupported) {
+		if (challengeScope != null && !challengeScope.isBlank()) {
+			return List.of(challengeScope.trim().split("\\s+"));
+		}
+		if (scopesSupported instanceof List<?> supported && !supported.isEmpty()) {
+			return supported.stream().map(String::valueOf).toList();
+		}
+		return List.of();
+	}
+
+	private Map<String, Object> protectedResourceMetadata(String resourceUrl, String fromChallenge) {
 		if (fromChallenge != null) {
 			Map<String, Object> metadata = json(fromChallenge);
 			if (metadata == null) {
@@ -124,7 +148,7 @@ public class McpAuthorizationDiscovery {
 		return metadata;
 	}
 
-	private String resourceMetadataUrlFromChallenge(String resourceUrl) {
+	private Challenge challenge(String resourceUrl) {
 		return this.restClient.post()
 				.uri(resourceUrl)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -137,10 +161,11 @@ public class McpAuthorizationDiscovery {
 					}
 					String header = response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE);
 					if (header == null) {
-						return null;
+						return new Challenge(null, null);
 					}
-					Matcher matcher = RESOURCE_METADATA.matcher(header);
-					return matcher.find() ? matcher.group(1) : null;
+					Matcher metadata = RESOURCE_METADATA.matcher(header);
+					Matcher scope = SCOPE.matcher(header);
+					return new Challenge(metadata.find() ? metadata.group(1) : null, scope.find() ? scope.group(1) : null);
 				});
 	}
 

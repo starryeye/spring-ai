@@ -23,6 +23,6 @@ public final class DiscoveryFixtures {
 				"token_endpoint", issuer + "/oauth2/token",
 				"jwks_uri", issuer + "/oauth2/jwks",
 				"code_challenge_methods_supported", List.of("S256"),
-				"authorization_response_iss_parameter_supported", true));
+				"authorization_response_iss_parameter_supported", true), List.of("products:read"));
 	}
 }

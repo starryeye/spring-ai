@@ -1,5 +1,6 @@
 package dev.starryeye.authz.agent.discovery;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -9,13 +10,16 @@ import java.util.Map;
  * @param resource PRM의 {@code resource}. authorization request와 token request의 {@code resource}로 그대로 쓴다
  * @param issuer PRM이 가리킨 Authorization Server
  * @param authorizationServerMetadata RFC 8414 또는 OpenID Connect Discovery 문서
+ * @param scopes 처음 요청할 scope. discovery가 MCP Scope Selection Strategy로 고른다
  */
-public record DiscoveredAuthorization(String resource, String issuer, Map<String, Object> authorizationServerMetadata) {
+public record DiscoveredAuthorization(String resource, String issuer,
+		Map<String, Object> authorizationServerMetadata, List<String> scopes) {
 
 	public static final String ISS_PARAMETER_SUPPORTED = "authorization_response_iss_parameter_supported";
 
 	public DiscoveredAuthorization {
 		authorizationServerMetadata = Map.copyOf(authorizationServerMetadata);
+		scopes = List.copyOf(scopes);
 	}
 
 	public String authorizationEndpoint() {

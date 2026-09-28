@@ -27,7 +27,6 @@ class DiscoveredClientRegistrationRepositoryTest {
 		registration.setClientSecret("authz-shop-agent-secret");
 		registration.setAuthorizationGrantType("authorization_code");
 		registration.setRedirectUri("{baseUrl}/login/oauth2/code/{registrationId}");
-		registration.setScope(java.util.Set.of("openid", "profile"));
 		this.clientProperties.getRegistration().put("authserver", registration);
 	}
 
@@ -53,7 +52,7 @@ class DiscoveredClientRegistrationRepositoryTest {
 				.isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/token");
 		assertThat(registration.getProviderDetails().getJwkSetUri())
 				.isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/jwks");
-		assertThat(registration.getScopes()).containsExactlyInAnyOrder("openid", "profile");
+		assertThat(registration.getScopes()).containsExactlyInAnyOrder("openid", "products:read");
 		// RFC 9207 지원 여부는 콜백 검증에서 쓰므로 등록에 실어 둔다.
 		assertThat(registration.getProviderDetails().getConfigurationMetadata())
 				.containsEntry("authorization_response_iss_parameter_supported", true);
