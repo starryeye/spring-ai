@@ -23,7 +23,7 @@ client는 처음에 조회 scope `products:read`만 받는다.
 | agent의 채팅 응답 | `text/plain` stream이다 | SSE event(`message`, `step-up`, `step-up-declined`)다. `ChatEvents`가 만들고, `index.html`이 consent 카드를 보여 준다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드) |
 | agent의 authorization request | 설정에 적은 scope(`openid profile`) 그대로다 | `StepUpAuthorizationRequestResolver`가 요청 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. 진행 상태와 결과는 `StepUpState`와 `StepUpLoginSuccessHandler`가 기록한다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [거절과 일부 허락](#거절과-일부-허락) |
 | `local-client`가 요청하는 scope | `Main`에 정해 둔 `openid profile`이다 | `ScopeSelection`이 `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 고른다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-처음에는-조회-scope만-받는다) |
-| `local-client`의 MCP 호출 | `getStock(p1)`까지 부른다 | `updateStock(p1, 10)`도 부른다. `403`이면 `StepUp`이 합친 scope로 authorization을 다시 받고, `McpCalls`가 같은 호출을 새 요청으로 다시 보낸다 | [10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login) |
+| `local-client`의 MCP 호출 | `getStock(p1)`까지 부른다 | `updateStock(p1, 10)`도 부른다. `403`이면 `StepUp`이 합친 scope로 authorization을 다시 받고, `McpCalls`가 같은 호출을 새 요청으로 보낸다 | [10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login) |
 | `local-client`의 token 붙이기 | transport의 기본 요청에 한 번 넣는다 | 요청을 만들 때마다 `TokenHolder`에서 지금 token을 읽는다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 
 `auth-server`의 `resource`·`iss`·PKCE·public client 규칙은 official과 같다.
@@ -113,10 +113,10 @@ Authorization Server는 전에 허락받은 scope를 새 token에도 넣는다.
   서버가 이미 가진 scope를 모자라다고 할 때도 같다.
   이때 앱은 `실패: products:write 권한을 받지 못했다`를 찍고 끝난다.
 
-agent의 step-up 기록에는 HTTP session 저장 방식에 대한 전제가 하나 있다.
+agent가 step-up 기록을 HTTP session에 두는 방식에는 전제가 하나 있다.
 agent는 HTTP session에 넣어 둔 `StepUpState` 객체의 값만 바꾸고, `setAttribute`를 다시 부르지 않는다.
 기본 설정인 메모리 session에서는 이것으로 충분하다.
-Spring Session(Redis 등)은 기본 설정에서 `setAttribute`로 넣은 attribute만 저장한다.
+Spring Session(Redis 등)은 기본 설정에서 `setAttribute`를 부를 때만 attribute를 저장한다.
 그래서 Spring Session을 쓰면 값을 바꿀 때마다 `setAttribute`를 다시 불러야 한다.
 
 ## 실행
@@ -158,7 +158,7 @@ cd practice/mcp-security-authz/local-client
 ```
 
 browser는 두 번 열린다.
-첫 browser에서 login 화면이 나오면 `user`/`password`로 login한다.
+처음 열린 browser에 login 화면이 나오면 `user`/`password`로 login한다.
 consent 화면에서는 `products:read`를 체크해 제출한다.
 `updateStock`이 `403`을 받으면 step-up의 consent 화면이 열리고, 여기서는 `products:read`와 `products:write`를 모두 체크해 제출한다.
 terminal에 `[1]`부터 `[7]`까지 찍히고 앱은 끝난다.
@@ -250,7 +250,7 @@ LLM이 `updateStock`을 고르지 않으면 상품 ID와 바꿀 수량을 더 �
 
 `logs/shop-agent.log`에는 tool 호출이 `403`을 받을 때마다 `ERROR` 줄 세 개가 `StepUpRequiredException`의 stack trace와 함께 남는다.
 `SyncMcpToolCallback`의 `Exception while tool calling:` 한 줄과 `MessageAggregator`의 `Aggregation Error` 두 줄이다.
-Spring AI가 tool 예외를 채팅 응답까지 전하면서 남긴다.
+이 줄들은 Spring AI가 tool 예외를 채팅 응답까지 전하면서 남긴다.
 실패가 아니라 step-up이 정상으로 진행될 때 남는 로그다.
 
 token이 필요한 요청은 캡처 스크립트로 한 단계씩 기록해 본다.
