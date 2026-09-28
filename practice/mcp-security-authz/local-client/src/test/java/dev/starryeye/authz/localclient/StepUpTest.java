@@ -43,12 +43,14 @@ class StepUpTest {
 	}
 
 	@Test
-	void 합친_scope로_다시_authorization을_받고_새_token으로_다시_보낸다() {
+	void 합친_scope로_다시_authorization을_받고_새_token으로_바꾼다() {
 		StepUp stepUp = stepUp(new TokenResponse("write-token", 300, "products:read products:write"));
 
-		boolean retry = stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY);
+		// handle은 성공해도 true를 돌려주지 않는다. SDK의 재시도가 옛 token이 실린 요청을 그대로 다시
+		// 보내는 문제를 피하려면, 성공을 예외로 알려 호출한 쪽(McpCalls)이 새 요청을 만들게 해야 한다.
+		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
+				.isInstanceOf(StepUpCompletedException.class);
 
-		assertThat(retry).isTrue();
 		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
 		assertThat(this.holder.accessToken()).isEqualTo("write-token");
 		assertThat(this.printed.toString(StandardCharsets.UTF_8)).contains("[6] step-up");
@@ -66,10 +68,40 @@ class StepUpTest {
 	@Test
 	void 같은_scope로_두_번_step_up하지_않는다() {
 		StepUp stepUp = stepUp(new TokenResponse("write-token", 300, "products:read products:write"));
-		stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY);
+		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
+				.isInstanceOf(StepUpCompletedException.class);
 
 		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
 				.isInstanceOf(LocalClientException.class);
+		assertThat(this.requested).hasSize(1);
+	}
+
+	@Test
+	void 이미_가진_scope를_모자라다고_하면_멈춘다() {
+		// 서버가 이미 갖고 있는 scope를 모자라다고 하는 건 (SDK가 재시도로 옛 요청을 다시 보낸 경우 등)
+		// step-up으로 고칠 수 없는 상황이다. authorizer를 다시 부르지 않고 바로 멈춘다.
+		TokenHolder holder = new TokenHolder("token", Set.of("products:read", "products:write"));
+		List<Set<String>> requested = new ArrayList<>();
+		StepUp stepUp = new StepUp(holder, scopes -> {
+			requested.add(scopes);
+			return new TokenResponse("unused", 300, "products:read products:write");
+		}, new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+
+		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("products:write 권한을 받지 못했다");
+		assertThat(requested).isEmpty();
+	}
+
+	@Test
+	void 이미_시도했지만_못_받은_scope는_다시_시도하지_않는다() {
+		StepUp stepUp = stepUp(new TokenResponse("still-read-token", 300, "products:read"));
+
+		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
+				.isInstanceOf(LocalClientException.class);
+		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
+				.isInstanceOf(LocalClientException.class);
+
 		assertThat(this.requested).hasSize(1);
 	}
 
