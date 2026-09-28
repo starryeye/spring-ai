@@ -285,6 +285,7 @@ client가 새 token을 받으면서 원래 있던 권한을 잃지 않게 하기
 official의 MCP Server는 인증된 요청에 모든 tool을 허용하고, tool마다 scope를 요구하지 않는다.
 그래서 `403 insufficient_scope`를 보내지 않고, official의 두 client에도 step-up 처리가 없다.
 official의 scope 설계에 대한 판정은 [준수표](reference-compliance.md)의 16번에 있다.
+tool마다 scope를 두고 `403 insufficient_scope`로 알리는 서버와 step-up을 하는 client는 [10장](10-scope-and-step-up.md)에서 `mcp-security-authz` practice로 직접 본다.
 
 ## 6.6 3·4단계: `MCP-Protocol-Version`과 session 검사
 

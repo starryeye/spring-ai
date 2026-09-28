@@ -11,6 +11,36 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 `local-client`의 `[1]`~`[5]`는 [local-client 캡처](../../docs/superpowers/captures/2026-09-26-local-client.txt)의 줄이다.
 "설명" 열은 그 내용을 설명하는 장이고, 공격은 [8장](08-security.md), 기준 버전(transport는 2025-11-25, authorization은 2025-11-25에 2026-07-28 추가분)은 [9장](09-versions.md)에 있다.
 
+## mcp-security-authz에서 달라지는 행
+
+[mcp-security-authz](../mcp-security-authz/README.md)(이하 authz)는 official에 tool별 scope와 step-up을 더한 practice다.
+아래 표는 authz에서 판정이 달라지는 행과, scope를 나누면서 새로 생긴 항목이다.
+표에 없는 행의 판정은 official과 같다.
+캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
+A 캡처의 요청은 agent가 아니라 curl이 agent의 client `authz-shop-agent`로 보낸 것이다.
+authz `local-client`의 `[1]`~`[7]`은 [authz local-client 캡처](../../docs/superpowers/captures/2026-09-29-authz-local-client.txt)의 줄이다.
+설명은 [10장](10-scope-and-step-up.md)에 있다.
+
+| # | 항목 | 요구 수준 | official | authz | 근거 |
+|---|---|---|---|---|---|
+| 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용 | 예 — tool마다 scope를 두고, 사용자를 대신하는 두 client는 `403`을 받으면 step-up을 한다 | `RequiredScope`, `ToolScopeRegistry`, `ToolScopeFilter`, agent `StepUpAuthorizationErrorHandler`, `local-client` `StepUp`. A6 → A8-call, `local-client` `[5]`~`[7]` |
+| 17 | RFC 9068 access token 프로파일 | 참고 — MCP는 요구하지 않음 ([RFC 9068 §2.1](https://www.rfc-editor.org/rfc/rfc9068#section-2.1) · [§2.2](https://www.rfc-editor.org/rfc/rfc9068#section-2.2) · [RFC 8693 §4.2](https://www.rfc-editor.org/rfc/rfc8693#section-4.2)) | 아니오(불일치) — header에 `typ` 없음, `client_id` claim 없음, `scope`가 JSON 배열 | 아니오(불일치) — `client_id` claim은 있지만, header에 `typ`이 없고 `scope`는 JSON 배열이다 | `ResourceAudienceTokenCustomizer`가 `client_id`를 더한다(A4-token의 `"client_id":"authz-shop-agent"`, `"scope":["products:read","openid"]`). `AuthorizationServerConfig`가 official과 같아 `typ`은 없다(코드로 판정) |
+| 37 | client의 scope 선택 — `401`의 `scope` → PRM의 `scopes_supported` → `scope` 생략 | SHOULD ([Scope Selection Strategy](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-selection-strategy)) | **아니오** — `401`과 PRM에 scope가 없는데 `openid profile`을 보낸다 | 예 — 두 client 모두 `401`의 `products:read`를 고르고, agent는 OIDC login에 필요한 `openid`만 더한다 | A1, agent `McpAuthorizationDiscovery#selectScopes`와 `DiscoveredClientRegistrationRepository`(`DiscoveredClientRegistrationRepositoryTest#발견한_엔드포인트로_등록을_만든다`). `local-client` `ScopeSelection.select`, `[1]`과 `[2]`의 `scope=products%3Aread` |
+| 새 | scope가 모자란 요청에 `403`과 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답한다 | SHOULD ([Runtime Insufficient Scope Errors](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#runtime-insufficient-scope-errors) · [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1)) | 다루지 않음 — scope를 검사하지 않는다 | 예 — transport 앞의 filter가 HTTP `403`으로 답한다. 모든 MCP 요청에 `products:read`를, `tools/call`에는 그 tool의 scope를 요구한다 | `ToolScopeFilter#insufficientScope`, `ResourceMetadataUrl`. A6, `McpScopeTest#조회_scope_token으로_재고를_바꾸려_하면_403과_필요한_scope를_받는다` |
+| 새 | challenge와 `scopes_supported`에는 필요한 scope만 넣고, scope 목록 전체를 알리지 않는다 | 표시 없음 ([Security Best Practices — Scope Minimization](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#scope-minimization)) · `401`에 `scope`를 넣는 것은 SHOULD ([PRM Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements)) | 다루지 않음 — `401`과 PRM에 scope가 없다 | 예 — `401`과 PRM에는 `products:read`만, `403`에는 모자란 scope만 넣는다 | `ScopeChallengeEntryPoint`, `SecurityConfig`의 PRM 설정, `ToolScopeFilter`. A1·A2·A6 |
+| 새 | challenge의 `scope` — 2025-11-25는 이 요청에 필요한 scope를 모두 넣게 하고, 2026-07-28은 이미 허락된 scope를 빼도 된다고 한다 | SHOULD ([2025-11-25 Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) · [2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling)) | 다루지 않음 — `403`을 보내지 않는다 | **아니오**(2025-11-25) — 이미 가진 `products:read`를 빼고 `products:write`만 넣는다. 2026-07-28 기준으로는 예다 | `ToolScopeFilter#insufficientScope`. A6·A7-call은 `scope="products:write"`이고, 2025-11-25대로라면 `scope="products:read products:write"`다 |
+| 새 | 다시 authorization을 받을 때 이전 scope와 challenge의 scope를 합쳐 요청한다 | SHOULD ([2026-07-28 Scope Selection Strategy](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-selection-strategy)) | 다루지 않음 — step-up이 없다 | 예 — agent는 지금 token의 scope에, `local-client`는 가진 scope에 challenge의 scope를 더한다 | agent `StepUpAuthorizationRequestResolver#accumulate`(`StepUpAuthorizationFilterChainTest#step_up_요청은_저장된_token의_scope와_challenge된_scope를_합쳐서_보낸다`). `local-client` `StepUp#handle`, `[6]`의 `scope=products%3Aread+products%3Awrite` |
+| 새 | 거절된 scope로 step-up을 되풀이하지 않는다 — 재시도 제한과 상향 시도 기록 | SHOULD ([Step-Up Authorization Flow](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#step-up-authorization-flow)) · 표시 없음 ([Scope Minimization](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#scope-minimization)) | 다루지 않음 — step-up이 없다 | 예 — 이미 요청한 scope로 `403`이 다시 오면 agent는 거절 안내를 보내고, `local-client`는 멈춘다 | agent `StepUpState`, `ChatEvents`(`ChatEventsTest#이미_시도한_scope면_거절_안내_event가_된다`). `local-client` `StepUp`(`StepUpTest#이미_시도했지만_못_받은_scope는_다시_시도하지_않는다`). A7-token·A7-call |
+
+- challenge의 `scope`에 모자란 scope만 넣는 것은 2026-07-28을 따른 선택이다.
+  이전 scope를 합치는 일은 client가 맡는다.
+- 기본 scope가 없는 token은 filter가 본문을 읽기 전에 `scope="products:read"`로 거절한다(`ToolScopeFilterTest#scope가_없는_token은_본문을_읽기_전에_403이다`).
+  그래서 그런 token으로 곧바로 `updateStock`을 부르면, 한 작업에 `products:read`와 `products:write`의 challenge가 차례로 온다(코드로 판정).
+  2026-07-28은 한 작업에 필요한 scope를 한 challenge에 모두 넣게 하므로(SHOULD), 이 경우는 그 권고와 다르다.
+  `initialize`에도 `products:read`가 필요해서, `initialize`에 쓴 token으로 부르면 이 경우가 생기지 않는다.
+- 36번에서 authz `local-client`의 판정은 official과 같은 예이고, 근거만 다르다.
+  `McpCalls`의 customizer가 요청마다 token을 붙이고, SDK는 session 종료 `DELETE`를 만들 때도 이 customizer를 부른다(`HttpClientStreamableHttpTransport#createDelete`, 코드로 판정).
+
 ## 구현 위치 지도
 
 세 practice는 Authorization Server, MCP Server, agent를 서로 다른 process로 띄운다.

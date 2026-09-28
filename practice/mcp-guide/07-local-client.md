@@ -389,6 +389,7 @@ MCP Server가 보는 사용자는 `local-client`가 아니라 token의 `sub`, �
 
 `local-client`는 흐름을 한 번 보여 주려는 앱이라서, 실제 앱이 하는 일 몇 가지를 하지 않는다.
 scope를 5장의 순서로 고르고 `403 insufficient_scope`에 step-up으로 답하는 것(6장) 말고도 네 가지가 있다.
+scope 고르기와 step-up까지 하는 `local-client`는 [10장](10-scope-and-step-up.md)의 `mcp-security-authz` practice에 있다.
 
 **token 보관**
 

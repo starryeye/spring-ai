@@ -10,6 +10,7 @@ Spring AI 학습 저장소. 버전대별로 디렉터리가 나뉜다.
 | [`practice/mcp-security-authn-official/`](practice/mcp-security-authn-official) | 위와 같은 것을 `org.springaicommunity` 없이 공식 라이브러리(Spring Security + Spring AI + MCP Java SDK)만으로 구현. `auth-server` :9010 / `shop-mcp-server` :8111 / `shop-agent` :8110 / `local-client` (명령줄 public client) |
 | [`practice/chat-memory/`](practice/chat-memory) | ChatMemory · MessageChatMemoryAdvisor · conversationId 로 대화를 기억하는 예제. MCP·인증 없이 메모리만 다룬다. 사용자 1명 가정. `memory-agent` :8120 |
 | [`practice/mcp-security-authn-chat-memory/`](practice/mcp-security-authn-chat-memory) | 위 둘을 합쳐 사용자별로 대화를 기억한다. `conversationId` 를 클라이언트가 아니라 `Authentication` 에서 파생시켜 격리한다. `auth-server` :9020 / `shop-mcp-server` :8131 / `shop-agent` :8130 |
+| [`practice/mcp-security-authz/`](practice/mcp-security-authz) | `mcp-security-authn-official`에 tool별 scope와 step-up을 더한 예제. client는 조회 scope로 시작하고, 재고를 바꾸는 tool을 처음 부를 때 `403 insufficient_scope`를 받으면 사용자의 consent를 다시 받아 scope를 늘린다. `auth-server` :9030 / `shop-mcp-server` :8141 / `shop-agent` :8140 / `local-client` (명령줄 public client) |
 | [`legacy-0.8/`](legacy-0.8) | Spring AI 0.8.1 시절 예제 (`introduction`, `prompt`). 2.0 기준으로는 컴파일되지 않는다 — 참고용 |
 
 새로 보는 사람은 `practice/agent-mcp/README.md` 부터 읽으면 된다.
