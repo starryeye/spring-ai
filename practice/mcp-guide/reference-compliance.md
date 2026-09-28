@@ -14,7 +14,7 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 ## mcp-security-authz에서 달라지는 행
 
 [mcp-security-authz](../mcp-security-authz/README.md)(이하 authz)는 official에 tool별 scope와 step-up을 더한 practice다.
-아래 표는 authz에서 판정이 달라지는 행과, scope를 나누면서 새로 생긴 항목이다.
+아래 표는 authz에서 판정이나 근거가 달라지는 행과, scope를 나누면서 새로 생긴 항목이다.
 표에 없는 행의 판정은 official과 같다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 A 캡처의 요청은 agent가 아니라 curl이 agent의 credentials(`authz-shop-agent`)로 보낸 것이다.
