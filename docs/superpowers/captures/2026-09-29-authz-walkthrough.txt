@@ -1,0 +1,96 @@
+
+
+===== A1. token 없이 부르면 401 과 처음 요청할 scope =====
+HTTP/1.1 401 
+WWW-Authenticate: Bearer resource_metadata="http://localhost:8141/.well-known/oauth-protected-resource/mcp", scope="products:read"
+Content-Length: 0
+
+
+
+===== A2. PRM 의 scopes_supported =====
+{"resource":"http://localhost:8141/mcp","bearer_methods_supported":["header"],"tls_client_certificate_bound_access_tokens":false,"authorization_servers":["http://localhost:9030"],"scopes_supported":["products:read"]}
+
+
+===== A3. login =====
+POST /login → HTTP 302
+
+
+===== A4. 최소 scope(openid products:read)로 authorization — consent 화면 =====
+HTTP 200 — consent 화면. scope 선택 항목:
+<input class="form-check-input" type="checkbox" name="scope" value="products:read" id="products:read">
+체크한 scope: products:read
+Location: http://localhost:8140/login/oauth2/code/authserver?code=-H_8TM-tJzne...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
+
+
+===== A4-token. token request =====
+{"access_token":"eyJraWQiOiJjNjk5OWMw...","refresh_token":"J-V02rhz9qHN...","scope":"products:read openid","id_token":"eyJraWQiOiJjNjk5OWMw...","token_type":"Bearer","expires_in":299}
+access token payload:
+{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1790627379,"scope":["products:read","openid"],"iss":"http://localhost:9030","exp":1790627679,"iat":1790627379,"jti":"3586d7f2-f77c-4eb8-8c4e-e48e992d2446","client_id":"authz-shop-agent"}
+
+
+===== A5. 조회 token 으로 initialize 와 tools/list =====
+HTTP/1.1 200 
+Mcp-Session-Id: 4dd4b443-3efa-4812-a247-42ab73ee4a8c
+Content-Type: application/json
+Content-Length: 288
+
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"completions":{},"logging":{},"prompts":{"listChanged":true},"resources":{"subscribe":false,"listChanged":true},"tools":{"listChanged":true}},"serverInfo":{"name":"authz-shop-mcp-server","version":"0.0.1"}}}
+HTTP/1.1 202 
+"name":"getStock"
+"name":"searchProducts"
+"name":"updateStock"
+
+
+===== A6. 조회 token 으로 재고 변경 — 403 insufficient_scope =====
+HTTP/1.1 403 
+WWW-Authenticate: Bearer error="insufficient_scope", scope="products:write", resource_metadata="http://localhost:8141/.well-known/oauth-protected-resource/mcp"
+Content-Length: 0
+
+
+
+===== A7. step-up(openid products:read products:write) — 새 scope 만 묻는 consent 화면, products:write 를 체크하지 않는다 =====
+HTTP 200 — consent 화면. scope 선택 항목:
+<input class="form-check-input" type="checkbox" name="scope" value="products:write" id="products:write">
+<input class="form-check-input" type="checkbox" name="scope" id="openid" checked disabled>
+<input class="form-check-input" type="checkbox" name="scope" id="products:read" checked disabled>
+체크한 scope: (없음)
+Location: http://localhost:8140/login/oauth2/code/authserver?code=5hCIVUU7wI50...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
+
+
+===== A7-token. 이전 scope 만 담긴 token =====
+{"access_token":"eyJraWQiOiJjNjk5OWMw...","refresh_token":"VGNBPRicGEND...","scope":"openid products:read","id_token":"eyJraWQiOiJjNjk5OWMw...","token_type":"Bearer","expires_in":299}
+access token payload:
+{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1790627379,"scope":["openid","products:read"],"iss":"http://localhost:9030","exp":1790627679,"iat":1790627379,"jti":"7efcdbff-38c5-42a9-964d-42dc78b760c8","client_id":"authz-shop-agent"}
+
+
+===== A7-call. 다시 재고 변경 — 여전히 403 =====
+HTTP/1.1 403 
+WWW-Authenticate: Bearer error="insufficient_scope", scope="products:write", resource_metadata="http://localhost:8141/.well-known/oauth-protected-resource/mcp"
+Content-Length: 0
+
+
+
+===== A8. step-up 을 다시 하고 products:write 를 체크한다 =====
+HTTP 200 — consent 화면. scope 선택 항목:
+<input class="form-check-input" type="checkbox" name="scope" value="products:write" id="products:write">
+<input class="form-check-input" type="checkbox" name="scope" id="openid" checked disabled>
+<input class="form-check-input" type="checkbox" name="scope" id="products:read" checked disabled>
+체크한 scope: products:write
+Location: http://localhost:8140/login/oauth2/code/authserver?code=0EYDU2zbxNQD...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
+
+
+===== A8-token. 두 scope 가 담긴 token =====
+{"access_token":"eyJraWQiOiJjNjk5OWMw...","refresh_token":"8SHADGExyHcT...","scope":"openid products:read products:write","id_token":"eyJraWQiOiJjNjk5OWMw...","token_type":"Bearer","expires_in":299}
+access token payload:
+{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1790627380,"scope":["openid","products:read","products:write"],"iss":"http://localhost:9030","exp":1790627680,"iat":1790627380,"jti":"fdb6c79d-59b5-473d-a0bb-811cc437749a","client_id":"authz-shop-agent"}
+
+
+===== A8-call. 재고 변경 — 200 =====
+HTTP/1.1 200 
+Content-Type: text/event-stream
+Transfer-Encoding: chunked
+
+id:4dd4b443-3efa-4812-a247-42ab73ee4a8c
+event:message
+data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다."}],"isError":false}}
+
