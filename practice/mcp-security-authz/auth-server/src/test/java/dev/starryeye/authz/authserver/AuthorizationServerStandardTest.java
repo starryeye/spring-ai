@@ -711,8 +711,9 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 공개_클라이언트가_openid_만_요청하면_invalid_scope_다() throws Exception {
-		// Spring 은 scope 가 openid 하나면 consent 를 건너뛴다. public client 가 그 길로 consent 없이
-		// code 를 받으면 안 되므로(OAuth 2.1 §7.3.1) PublicClientScopeValidator 가 먼저 거부한다.
+		// local-mcp-client는 openid를 등록하지 않는다.
+		// 그래서 registered client의 scope에 없는 openid를 Spring 기본 scope 검증이 먼저 invalid_scope로 거부한다.
+		// scope가 없는 요청은 여전히 PublicClientScopeValidator가 막는다(공개_클라이언트가_scope_없이_요청하면_invalid_scope_다).
 		UriComponents response = 공개클라이언트_scope_인가요청("openid");
 
 		assertThat(응답파라미터(response, "error")).isEqualTo("invalid_scope");
