@@ -118,7 +118,7 @@ agent는 사용자가 login해서 쓰는 web 앱이다.
 `openid`를 요청하면 Authorization Server가 token 응답에 ID token을 함께 넣는다(5장).
 agent는 ID token의 `sub`로 login한 사용자를 정한다.
 
-PRM의 `scopes_supported`에 없는 `openid`를 요청해도 되는 것은, 요청을 받아들일지 정하는 곳이 Authorization Server의 client 등록이기 때문이다.
+PRM의 `scopes_supported`에 없는 `openid`를 요청해도 되는 것은, 요청을 받아들일지는 Authorization Server가 client 등록을 보고 정하기 때문이다.
 Authorization Server는 등록에 없는 scope가 하나라도 있으면 `invalid_scope`로 거절한다.
 `authz-shop-agent`의 등록 scope에는 `openid`가 있다.
 MCP Server는 `products:read`와 `products:write`만 검사하므로, `openid`가 더 있어도 결과는 같다.
@@ -563,16 +563,16 @@ agent는 기동한 뒤 처음 login을 시작할 때 한 번 보내고, 그 결�
 |---|---|
 | `POST http://localhost:8141/mcp` (token 없음) | `401`의 `resource_metadata`와 `scope="products:read"` |
 | `GET http://localhost:8141/.well-known/oauth-protected-resource/mcp` | `resource: "http://localhost:8141/mcp"`, `authorization_servers: ["http://localhost:9030"]`, `scopes_supported: ["products:read"]` |
-| `GET http://localhost:9030/.well-known/oauth-authorization-server` | `issuer`와 `code_challenge_methods_supported`의 `S256`을 확인한다. `authorization_endpoint`는 `http://localhost:9030/oauth2/authorize`, `token_endpoint`는 `http://localhost:9030/oauth2/token`이다 |
+| `GET http://localhost:9030/.well-known/oauth-authorization-server` | `issuer`와 `code_challenge_methods_supported`의 `S256`을 확인한다. `authorization_endpoint`는 `http://localhost:9030/oauth2/authorize`, `token_endpoint`는 `http://localhost:9030/oauth2/token`, `jwks_uri`는 `http://localhost:9030/oauth2/jwks`다 |
 
-이후 요청의 `resource=http://localhost:8141/mcp`는 PRM의 `resource`에서 온 값이다.
+아래 두 표의 `resource=http://localhost:8141/mcp`는 PRM의 `resource`에서 온 값이다.
 
 **웹 agent**
 
 | 요청 | 결과 | scope |
 |---|---|---|
 | browser → `GET http://localhost:8140/` | login 전이라 agent가 `302`로 login 시작 주소 `/oauth2/authorization/authserver`에 보낸다 | |
-| browser → `GET http://localhost:8140/oauth2/authorization/authserver` | 기동 뒤 처음이면 agent가 위의 세 요청을 보낸다. 그 결과로 authorization request를 만들어 `302`로 보낸다 | |
+| browser → `GET http://localhost:8140/oauth2/authorization/authserver` | 기동 뒤 처음이면 agent가 위의 세 요청을 보낸다. 그 결과로 authorization request 주소를 만들어 browser를 `302`로 Authorization Server에 보낸다 | |
 | browser → `GET http://localhost:9030/oauth2/authorize` (`client_id=authz-shop-agent`, `redirect_uri=http://localhost:8140/login/oauth2/code/authserver`, `resource=http://localhost:8141/mcp`) | Authorization Server의 login 화면(`/login`)을 거쳐 consent 화면이 뜬다. 체크박스는 `products:read` 하나다 | 요청: `openid products:read` |
 | browser → `POST http://localhost:9030/oauth2/authorize` (consent 제출) | `302 http://localhost:8140/login/oauth2/code/authserver?code=…&iss=http%3A%2F%2Flocalhost%3A9030` | |
 | agent → `POST http://localhost:9030/oauth2/token` (`Authorization: Basic`, `code`, `redirect_uri`, `code_verifier`, `resource`) | access token, refresh token, ID token을 받는다. agent는 `GET http://localhost:9030/oauth2/jwks`의 public key로 ID token의 signature를 확인한다 | 받음: `openid products:read` |
@@ -582,7 +582,7 @@ agent는 기동한 뒤 처음 login을 시작할 때 한 번 보내고, 그 결�
 | browser → `GET http://localhost:8140/oauth2/authorization/authserver?step_up=products:write` | agent가 지금 token의 scope와 `step_up`의 scope를 합쳐 authorization request를 만든다 | |
 | browser → `GET http://localhost:9030/oauth2/authorize` (`client_id`, `redirect_uri`, `resource`는 처음과 같다) | consent 화면의 새 체크박스는 `products:write` 하나다. `openid`와 `products:read`는 이미 허락한 항목으로 나온다 | 요청: `openid products:read products:write` |
 | consent 제출 → callback → agent → `POST http://localhost:9030/oauth2/token` | 새 access token을 받는다 | 받음: `openid products:read products:write` |
-| agent → browser `302 /` | 채팅 화면이 열리고, 넣어 둔 질문이 있음을 본다 | |
+| agent → browser `302 /` | 채팅 화면이 다시 열리고, 화면의 script가 `sessionStorage`에 넣어 둔 질문을 꺼낸다 | |
 | browser → `POST http://localhost:8140/api/chat` (넣어 둔 질문) | agent의 `tools/call updateStock`이 `200`을 받는다 | token: `openid products:read products:write` |
 
 step-up의 consent 화면에서 `products:write`를 체크하지 않거나 Cancel을 누르면, 새 token의 scope는 `openid products:read` 그대로다.
@@ -597,10 +597,10 @@ step-up의 consent 화면에서 `products:write`를 체크하지 않거나 Cance
 | `[2]` | browser → `GET http://localhost:9030/oauth2/authorize` (`client_id=local-mcp-client`, `redirect_uri=http://127.0.0.1:61906/callback`, `resource=http://localhost:8141/mcp`) | 요청: `products:read` |
 | `[3]` | browser → `GET http://127.0.0.1:61906/callback?code=…&iss=…` | |
 | `[4]` | `local-client` → `POST http://localhost:9030/oauth2/token`. `Authorization` header 없이 본문에 `client_id`, `code`, `redirect_uri`, `code_verifier`, `resource`를 넣는다 | 받음: `products:read`. refresh token은 없다 |
-| `[5]` | `local-client` → `POST http://localhost:8141/mcp`로 `initialize`, `tools/list`, `tools/call getStock`을 보내 `200`을 받는다. `tools/call updateStock`은 `403`과 `scope="products:write"`를 받는다 | 부족: `products:write` |
+| `[5]` | `local-client`가 `POST http://localhost:8141/mcp`로 `initialize`, `tools/list`, `tools/call getStock`을 보내 `200`을 받는다. `tools/call updateStock`은 `403`과 `scope="products:write"`를 받는다 | 부족: `products:write` |
 | `[6]` | browser → `GET http://localhost:9030/oauth2/authorize` (`redirect_uri=http://127.0.0.1:61918/callback`). public client의 consent는 저장되지 않아서 두 scope를 모두 다시 묻는다 | 요청: `products:read products:write` |
 | `[3]` `[4]` | callback과 token request를 한 번 더 한다. token request의 `redirect_uri`는 새 포트 `61918`의 주소다 | 받음: `products:read products:write` |
-| `[7]` | `local-client` → 같은 `tools/call updateStock`을 새 요청으로 보내 `200`을 받는다 | token: `products:read products:write` |
+| `[7]` | `local-client`가 같은 `tools/call updateStock`을 새 요청으로 보내 `200`을 받는다 | token: `products:read products:write` |
 
 **시점별 access token의 scope**
 
@@ -611,6 +611,7 @@ step-up의 consent 화면에서 `products:write`를 체크하지 않거나 Cance
 | step-up을 허락 | `openid products:read products:write` | `products:read products:write` |
 
 `local-client`의 step-up consent에서 Cancel을 누르면, 저장된 consent가 없어서 `access_denied`가 오고 앱은 그 오류를 찍고 끝난다.
+
 모든 access token의 `iss`는 `http://localhost:9030`이고 `aud`는 `http://localhost:8141/mcp`다.
 `client_id` claim에는 `authz-shop-agent`나 `local-mcp-client`가 들어간다.
 scope가 모자라 거절한 요청을 로그에 남길 때 MCP Server는 이 값도 적는다(10.4).
