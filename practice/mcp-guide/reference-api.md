@@ -6,7 +6,9 @@
 개념 설명은 각 절의 "설명" 줄이 가리키는 장에 있다.
 "요구 수준" 칸은 원문 단어(REQUIRED, MUST 등)를 그대로 쓰고, 단어가 없으면 "표시 없음"이라고 쓰며, 명세마다 다르면 모두 적는다.
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
+scope를 다루는 몇 행에는 [mcp-security-authz practice](../mcp-security-authz/README.md)(authz)의 동작도 official 동작 옆에 적는다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
+캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
 JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
@@ -16,9 +18,9 @@ JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 | 서버 | endpoint | 설명하는 장 |
 |---|---|---|
 | MCP Server | [MCP 요청 header](#mcp-요청-header) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md) |
-| MCP Server | [`POST /mcp` — token 없는 요청](#post-mcp--token-없는-요청) | [3장](03-discovery.md), [6장](06-mcp-call-and-validation.md) |
-| MCP Server | [`GET /.well-known/oauth-protected-resource[/mcp]`](#get-well-knownoauth-protected-resourcemcp--protected-resource-metadata) | [3장](03-discovery.md) |
-| MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md) |
+| MCP Server | [`POST /mcp` — token 없는 요청](#post-mcp--token-없는-요청) | [3장](03-discovery.md), [6장](06-mcp-call-and-validation.md), [10장](10-scope-and-step-up.md) |
+| MCP Server | [`GET /.well-known/oauth-protected-resource[/mcp]`](#get-well-knownoauth-protected-resourcemcp--protected-resource-metadata) | [3장](03-discovery.md), [10장](10-scope-and-step-up.md) |
+| MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md), [10장](10-scope-and-step-up.md) |
 | MCP Server | [`GET /mcp`](#get-mcp--서버가-보내는-메시지의-sse-stream) | [1장](01-mcp-basics.md) |
 | MCP Server | [`DELETE /mcp`](#delete-mcp--session-종료) | [1장](01-mcp-basics.md) |
 | Authorization Server | [`GET /.well-known/oauth-authorization-server`](#get-well-knownoauth-authorization-server--authorization-server-metadata) | [3장](03-discovery.md), [4장](04-client-registration.md) |
@@ -54,7 +56,7 @@ MCP endpoint `/mcp`가 받는 모든 요청에 공통인 header다.
 token 없는 요청에 MCP Server는 `401`과 `WWW-Authenticate` challenge로 Protected Resource Metadata(PRM)의 주소를 알린다.
 client는 이 요청을 discovery의 첫 요청으로 보낸다.
 
-설명: [3장](03-discovery.md) · [6장](06-mcp-call-and-validation.md)
+설명: [3장](03-discovery.md) · [6장](06-mcp-call-and-validation.md) · [10장](10-scope-and-step-up.md)
 
 근거:
 
@@ -81,7 +83,7 @@ client는 이 요청을 discovery의 첫 요청으로 보낸다.
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
 | `realm` | MAY, 두 번 이상은 MUST NOT ([RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)) | 보호 범위의 이름 | 쓰지 않음 |
-| `scope` | OPTIONAL ([RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)) · SHOULD ([MCP PRM Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements)) | 필요한 scope 목록(공백 구분). MCP client는 이 값을 이번 요청에 필요한 scope의 기준으로 삼는다(MUST, MCP) | 쓰지 않음 — 그래서 `local-client`는 scope를 스스로 정한다([7장](07-local-client.md)) |
+| `scope` | OPTIONAL ([RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)) · SHOULD ([MCP PRM Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements)) | 필요한 scope 목록(공백 구분). MCP client는 이 값을 이번 요청에 필요한 scope의 기준으로 삼는다(MUST, MCP) | 쓰지 않음 — 그래서 `local-client`는 scope를 스스로 정한다([7장](07-local-client.md)). authz는 `scope="products:read"`를 넣고(A1), 두 client는 이 값을 처음 요청할 scope로 고른다([10장](10-scope-and-step-up.md)) |
 | `error` | SHOULD — token이 있었고 인증에 실패했을 때 ([RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)) · SHOULD NOT — 인증 정보가 아예 없을 때 ([§3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1)) | `invalid_request`(400) · `invalid_token`(401) · `insufficient_scope`(403) | token이 있고 실패했을 때만 — `invalid_token`(C12, S3) |
 | `error_description` | MAY ([RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)) | 개발자가 읽는 설명 | `error`와 같은 조건 — `...The aud claim is not valid`(C12) |
 | `error_uri` | MAY ([RFC 6750 §3](https://www.rfc-editor.org/rfc/rfc6750#section-3)) | 설명 page의 절대 URI | `error`와 같은 조건 — `https://tools.ietf.org/html/rfc6750#section-3.1`(C12) |
@@ -93,7 +95,7 @@ client는 이 요청을 discovery의 첫 요청으로 보낸다.
 |---|---|---|
 | token 형식이 잘못됨 | `401`, `error="invalid_token"`과 `resource_metadata`(S3) | [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) |
 | `aud`가 이 MCP Server가 아닌 token | `401`, `error="invalid_token"`, `error_description="...The aud claim is not valid"`(C12) | [MCP Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling) — audience 검증 MUST, 무효·만료 token은 `401` MUST |
-| 권한(scope) 부족 | `403`, `error="insufficient_scope"`와 `scope`·`resource_metadata` SHOULD — official은 쓰지 않음 | [MCP Runtime Insufficient Scope Errors](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#runtime-insufficient-scope-errors) |
+| 권한(scope) 부족 | `403`, `error="insufficient_scope"`와 `scope`·`resource_metadata` SHOULD — official은 쓰지 않고, authz는 `ToolScopeFilter`가 이 `403`으로 답한다(A6) | [MCP Runtime Insufficient Scope Errors](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#runtime-insufficient-scope-errors) |
 | `Origin`이 있거나 `Host`가 허용 목록 밖 | `401`이 아니라 `403`·`421` — official은 `Origin`·`Host`를 인증보다 먼저 본다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) — `Origin` 검증은 모든 연결에 MUST |
 | 모르는 `MCP-Protocol-Version` | `400`이 아니라 `401` — `McpProtocolVersionFilter`는 Spring Security 뒤에서 돈다 | [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header) |
 
@@ -119,7 +121,7 @@ Content-Length: 0
 MCP Server가 자기 resource 식별자와, 자기를 지키는 Authorization Server를 알린다.
 client는 여기서 `authorization_servers`를 읽고 Authorization Server Metadata로 간다.
 
-설명: [3장](03-discovery.md)
+설명: [3장](03-discovery.md) · [10장](10-scope-and-step-up.md)
 
 근거:
 
@@ -146,7 +148,7 @@ client는 여기서 `authorization_servers`를 읽고 Authorization Server Metad
 | `resource` | REQUIRED | resource 식별자. metadata 주소를 만든 식별자와 같아야 하고, `resource_metadata`로 받았으면 client가 요청한 주소와 같아야 한다(MUST, [§3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3)) | 경로형 `http://localhost:8111/mcp`(C2) · 루트형 `http://localhost:8111`(S2) |
 | `authorization_servers` | OPTIONAL (RFC 9728) · MUST, 하나 이상 ([MCP Authorization Server Location](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-location)) | Authorization Server issuer 식별자의 배열 | `["http://localhost:9010"]` |
 | `jwks_uri` | OPTIONAL | protected resource 자신의 JWK Set(응답 signature 등). https MUST | 없음 |
-| `scopes_supported` | RECOMMENDED | 이 resource에 쓰는 scope의 배열 | 없음 — 그래서 `local-client`는 scope를 스스로 정한다([7장](07-local-client.md)) |
+| `scopes_supported` | RECOMMENDED | 이 resource에 쓰는 scope의 배열 | 없음 — 그래서 `local-client`는 scope를 스스로 정한다([7장](07-local-client.md)). authz는 `["products:read"]`만 넣고, 쓰기 scope `products:write`는 넣지 않는다(A2, [10장](10-scope-and-step-up.md)) |
 | `bearer_methods_supported` | OPTIONAL | `header`·`body`·`query` 중 지원하는 전달 방식 | `["header"]` |
 | `resource_signing_alg_values_supported` | OPTIONAL | resource 응답 signature에 쓰는 JWS 알고리즘. `none`은 MUST NOT | 없음 |
 | `resource_name` | RECOMMENDED | 사용자에게 보일 이름. `#언어태그`로 여러 언어를 둘 수 있다([§2.1](https://www.rfc-editor.org/rfc/rfc9728#section-2.1)) | 없음 |
@@ -190,7 +192,7 @@ Content-Type: application/json
 access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 한 MCP session은 `initialize` → `notifications/initialized` → `tools/list` → `tools/call` 순서로 간다.
 
-설명: [1장](01-mcp-basics.md) · [6장](06-mcp-call-and-validation.md) · [7장](07-local-client.md)
+설명: [1장](01-mcp-basics.md) · [6장](06-mcp-call-and-validation.md) · [7장](07-local-client.md) · [10장](10-scope-and-step-up.md)
 
 근거:
 
@@ -238,7 +240,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | `Accept`에 `text/event-stream` 없음 | `400` — `Invalid Accept headers`(S15) | [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) (client MUST) |
 | 무효·만료 token | `401` MUST와 `WWW-Authenticate` MUST — [token 없는 요청](#post-mcp--token-없는-요청)의 오류 표 | [MCP Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), RFC 6750 §3 |
 | `Origin`이 있음(official은 허용한 `Origin`이 없다) | `403` MUST — `Invalid Origin header`(C13). token과 상관없이 인증 전에 나온다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) |
-| scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음 | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
+| scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음. authz는 이 `403`을 보내고, `scope`에는 모자란 scope만 넣는다(A6 `scope="products:write"`, [준수표](reference-compliance.md#mcp-security-authz에서-달라지는-행)) | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
 | 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
@@ -1175,4 +1177,4 @@ DCR은 선택 사항(MAY, MCP 2025-11-25)이고, 그래도 DCR을 쓰는 client�
 official은 DCR을 켜지 않는다.
 Spring Authorization Server의 기본값이 꺼짐이고, metadata에 `registration_endpoint`가 없다(C3).
 
-[← 9장](09-versions.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)
+[← 10장](10-scope-and-step-up.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)

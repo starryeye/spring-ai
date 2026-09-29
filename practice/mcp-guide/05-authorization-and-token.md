@@ -108,6 +108,7 @@ official의 MCP Server는 `401`에도, PRM에도 scope를 알려 주지 않는�
 그러나 official의 두 client는 `openid profile`을 보낸다.
 agent는 OpenID Connect login이라 `openid`가 있어야 하고, `local-client`가 `profile`을 넣는 이유는 5.5와 [7장](07-local-client.md)에서 본다.
 official의 scope 선택에 대한 판정은 [준수표](reference-compliance.md)의 37번에 있다.
+MCP Server가 `401`과 PRM으로 scope를 알리고 client가 이 순서로 고르는 과정은 [10장](10-scope-and-step-up.md)에서 `mcp-security-authz` practice로 직접 본다.
 
 ## 5.4 PKCE
 

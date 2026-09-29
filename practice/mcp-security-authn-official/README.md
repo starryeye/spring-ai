@@ -200,3 +200,4 @@ Java 21을 sdkman이 아닌 방법으로 설치했다면 `export` 줄 대신 `JA
 - [부록: 명세 준수표](../mcp-guide/reference-compliance.md): 이 practice가 명세 항목을 어디까지 지키는지와 남은 위반을 모았다.
 - [mcp-security-authn-chat-memory](../mcp-security-authn-chat-memory/README.md): 이 practice에 사용자별 대화 기억을 더하고, MCP session을 사용자에 묶는다.
 - [mcp-security-authn-community](../mcp-security-authn-community/README.md): 같은 흐름을 spring-ai-community의 MCP 보안 module 자동 설정으로 만든다.
+- [mcp-security-authz](../mcp-security-authz/README.md): 이 practice에 tool별 scope와 step-up을 더한다.

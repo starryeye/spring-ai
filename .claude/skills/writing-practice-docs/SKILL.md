@@ -15,7 +15,7 @@ description: Use when writing, rewriting, or reviewing learning documents under 
 ## 문서 구조
 
 - `practice/mcp-guide/README.md`는 읽는 순서, 준비물(practice 실행 방법), 장 목록을 둔다.
-- 장은 `01-mcp-basics.md`부터 `09-versions.md`까지다. 한 장은 한 단계나 한 개념을 다룬다.
+- 장은 `01-mcp-basics.md`부터 `10-scope-and-step-up.md`까지다. 한 장은 한 단계나 한 개념을 다룬다.
 - 부록은 `reference-api.md`(endpoint별 field 사전)와 `reference-compliance.md`(준수표)다.
 - practice README는 소개, 실행, 코드 지도(클래스에서 안내서 장으로 가는 링크), 직접 확인할 것을 둔다.
 - official이 아닌 practice의 README는 official과 다른 점만 쓴다.
@@ -72,7 +72,7 @@ client 는 `resource` 를 token request 에도 싣는다(**MUST**).
 개념 장(1·2·8·9장)은 흐름에 맞게 줄여도 된다.
 기준 예시는 [practice/mcp-guide/03-discovery.md](../../../practice/mcp-guide/03-discovery.md)다. 제목 뼈대는 [templates.md](templates.md)에 있다.
 
-- 예시 값은 official practice 값이다: Authorization Server `http://localhost:9010`, MCP Server `http://localhost:8111/mcp`, agent `http://localhost:8110`.
+- 예시 값은 official practice 값이다: Authorization Server `http://localhost:9010`, MCP Server `http://localhost:8111/mcp`, agent `http://localhost:8110`. 10장은 예외로 `mcp-security-authz` 값(`http://localhost:9030`, `http://localhost:8141/mcp`, `http://localhost:8140`)과 그 캡처를 쓴다.
 - 요청·응답은 official을 실제로 띄워 받은 값(`docs/superpowers/captures/`)을 보여 준다.
 - 긴 JSON은 핵심 field만 남기고 `"...": "그 밖의 field는 생략"`으로 줄인다. JWT는 앞 20자 뒤에 `...`를 붙인다.
 - 장 끝에는 이웃 장과 목차로 가는 링크 한 줄을 둔다.

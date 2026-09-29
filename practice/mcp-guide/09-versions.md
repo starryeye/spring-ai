@@ -318,4 +318,4 @@ Content-Type: application/json;charset=UTF-8
 | 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 server는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
 | dual-era client는 modern 요청을 먼저 보내고, `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 | [MCP 2026-07-28 Streamable HTTP — Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility) | MAY, SHOULD |
 
-[← 8장](08-security.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)
+[← 8장](08-security.md) · [목차](README.md) · [10장 →](10-scope-and-step-up.md)
