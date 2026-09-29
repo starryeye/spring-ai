@@ -289,13 +289,13 @@ discovery는 PRM의 `authorization_servers`를 이 값과 먼저 비교하고, �
 ## 4.8 미리 등록한 client의 첫 연결
 
 미리 등록한 client로 MCP Server를 쓰려면, 사용자나 운영자가 MCP client에 몇 가지 값을 넣는다.
-MCP Server 주소와, 그 MCP Server의 Authorization Server에서 미리 받은 `client_id`다.
+MCP Server 주소와 그 MCP Server의 Authorization Server에서 미리 받은 `client_id`다.
 confidential client라면 `client_secret`도 함께 넣는다.
 official은 credentials를 발급한 Authorization Server의 issuer도 함께 넣는다(4.7).
 
 MCP 명세는 두 경우를 모두 pre-registration으로 본다.
 앱을 만들 때 `client_id`를 코드에 넣어 두는 경우와, 사용자가 직접 등록해 받은 값을 앱의 설정 화면에 넣어 두는 경우다.
-4.2의 사용자 입력은 이와 달리, 다른 방법이 모두 안 될 때 연결 도중에 사용자에게 `client_id`를 묻는 방식이다.
+4.2의 사용자 입력은 이와 달리, 다른 방법을 모두 쓸 수 없을 때 연결 도중에 사용자에게 `client_id`를 묻는 방식이다.
 
 값을 넣고 연결 버튼을 누르면 곧바로 login 화면이 뜨는 것처럼 보인다.
 그러나 `client_id`는 이 client가 누구인지만 알려 준다.
@@ -307,11 +307,11 @@ login 화면이 뜰 때는 이미 3장의 discovery가 끝나 있다.
 |---|---|
 | MCP Server 주소 | 사용자나 운영자가 넣는다 |
 | `client_id` | 사용자나 운영자가 넣거나, 앱에 들어 있다 |
-| `client_secret` | confidential client에만 있다. 운영자나 사용자가 넣는다 |
-| credentials를 발급한 issuer | credentials와 함께 넣는다. official은 `credentials-issuer` 설정과 `--issuer` 옵션으로 받는다(4.7) |
+| `client_secret` | confidential client에만 있다. 사용자나 운영자가 넣는다 |
+| credentials를 발급한 issuer | official은 credentials와 함께 넣는다. agent는 `credentials-issuer` 설정, `local-client`는 `--issuer` 옵션이다(4.7) |
 | Authorization Server | PRM의 `authorization_servers`에서 알아낸다(3장) |
 | authorization endpoint, token endpoint | Authorization Server Metadata에서 알아낸다(3장) |
-| 처음 요청할 scope | `401`의 `scope`, PRM의 `scopes_supported` 순서로 고르고, 둘 다 없으면 뺀다(5장). official의 두 client는 `openid profile`로 정해 두었다 |
+| 처음 요청할 scope | `401`의 `scope`, PRM의 `scopes_supported` 순서로 고르고, 둘 다 없으면 `scope`를 빼고 보낸다(5장). official의 두 client는 `openid profile`로 정해 두었다 |
 
 `401`과 PRM으로 scope를 고르는 client는 [10장](10-scope-and-step-up.md)에서 본다.
 
@@ -334,7 +334,7 @@ sequenceDiagram
     U->>A: login, consent
     A-->>U: 302 redirect_uri?code, state, iss
     U->>C: callback (code, state, iss)
-    C->>A: POST token (code, code_verifier, client_id, + 비밀)
+    C->>A: POST token (code, code_verifier, client_id [+ 비밀])
     A-->>C: access token
     C->>M: POST /mcp (Authorization: Bearer)
 ```
@@ -365,12 +365,12 @@ official의 두 client로 보면, 첫 연결에서 다른 점은 다음과 같�
 | (1) 값을 넣는 사람과 때 | 운영자가 agent를 배포할 때 설정 파일에 한 번 넣는다. 사용자는 login만 한다 | 사용자가 실행할 때 `--resource`와 `--issuer`로 넣는다. 둘 다 기본값이 있다 |
 | (1) 넣는 값 | MCP Server 주소, `client_id`, `client_secret`, credentials를 발급한 issuer | MCP Server 주소와 `local-mcp-client`가 등록된 issuer다. `client_id`는 코드에 있고, 비밀은 없다 |
 | (2)~(7) discovery를 하는 때 | 첫 사용자가 login할 때 한다. 성공한 결과만 기억해 두고 모든 사용자가 함께 쓴다(3장) | 실행할 때마다 한다 |
-| (8) authorization request | `redirect_uri`는 등록한 `http://localhost:8110/login/oauth2/code/authserver`다. browser는 이미 agent 화면에 있어서 `302`로 넘어간다 | `redirect_uri`는 `http://127.0.0.1:<빈 포트>/callback`이다. 앱이 browser를 새로 연다 |
+| (8) authorization request | `redirect_uri`는 등록한 `http://localhost:8110/login/oauth2/code/authserver`다. browser가 이미 agent 주소에 와 있으므로, agent가 `302`로 Authorization Server에 보낸다 | `redirect_uri`는 `http://127.0.0.1:<빈 포트>/callback`이다. 앱이 browser를 새로 연다 |
 | (9) consent | Authorization Server가 묻지 않게 등록했다(4.3) | 매번 묻는다(4.4) |
 | (12) token request | `Authorization: Basic` header로 `client_id`와 `client_secret`을 보낸다 | 비밀 없이 본문에 `client_id`만 넣는다 |
 
 두 client 모두 (12)에 `code_verifier`를 넣는다.
-`code_verifier`는 client가 진짜인지가 아니라, code를 가져온 쪽이 (8)의 요청을 시작한 쪽인지만 증명한다(5장).
+`code_verifier`는 client가 진짜인지가 아니라, code를 token으로 바꾸려는 쪽이 (8)의 요청을 시작한 쪽인지만 증명한다(5장).
 그래서 public client에게는 비밀 대신 4.4의 규칙이 따로 필요하다.
 
 `local-client`의 출력에도 이 순서가 그대로 찍힌다.
@@ -390,8 +390,8 @@ official의 두 client로 보면, 첫 연결에서 다른 점은 다음과 같�
 
 MCP Server를 추가하는 화면에서 `client_id` 말고도 authorization endpoint, token endpoint, scope까지 입력받는 MCP client도 있다.
 그 값이 있으면 client는 PRM과 metadata를 읽지 않고도 사용자를 login 화면으로 보낼 수 있다.
-그러나 MCP Server가 다른 Authorization Server로 옮겨도 client는 알아채지 못한다.
-PRM을 읽지 않으므로 4.7의 issuer 비교도 할 수 없고, 사용자가 값을 직접 고쳐야 한다.
+그러나 MCP Server가 다른 Authorization Server로 옮겨도 client는 알아채지 못하고, 사용자가 값을 직접 고쳐야 한다.
+PRM을 읽지 않으므로 4.7의 issuer 비교도 할 수 없다.
 PRM으로 찾는 client는 MCP Server 주소 하나에서 나머지를 채우고, 서버가 바뀌면 다음 discovery에서 알아챈다.
 그래서 MCP 명세는 MCP client가 PRM으로 Authorization Server를 찾게 한다.
 
