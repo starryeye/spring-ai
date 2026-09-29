@@ -45,7 +45,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [1. MCP 기초](01-mcp-basics.md) | host 안의 MCP client가 JSON-RPC로 MCP Server의 tool을 부르는 과정, `initialize`부터 `DELETE`까지의 session과 버전 header | agent에 채팅하고 MCP Server 로그의 tool 호출 줄 보기, 캡처 스크립트로 MCP 요청과 응답 보기 |
 | [2. MCP와 OAuth](02-why-oauth.md) | 원격 MCP Server가 access token으로 누구의 요청인지 아는 방법, 역할과 전체 흐름, 일반 OAuth와 다른 다섯 가지 | token 없이 `initialize`를 보내 `401` 받기 |
 | [3. Discovery](03-discovery.md) | MCP Server 주소 하나에서 `401` → PRM → Authorization Server Metadata 순서로 endpoint를 찾아가는 과정과 client가 확인할 것 | curl 세 번으로 `401`의 `resource_metadata`, PRM, metadata 읽기 |
-| [4. Client 등록](04-client-registration.md) | pre-registration·CIMD·DCR의 우선순위, public client의 규칙, credentials를 issuer에 묶는 이유, 미리 등록한 client가 처음 연결하는 순서 | metadata에서 `none`을 찾고, CIMD·DCR field가 없는 것 보기 |
+| [4. Client 등록](04-client-registration.md) | pre-registration·CIMD·DCR의 우선순위, public client의 규칙, credentials를 issuer에 묶는 이유, 미리 등록한 client의 첫 연결 순서 | metadata에서 `none`을 찾고, CIMD·DCR field가 없는 것 보기 |
 | [5. Authorization request와 token](05-authorization-and-token.md) | authorization code grant에 PKCE, `resource`, callback의 `state`·`iss` 확인을 더한 흐름과 token request·refresh | `code_verifier`로 `code_challenge` 계산하기, 모르는 `resource`로 `invalid_target` 받기 |
 | [6. MCP 호출과 token 검증](06-mcp-call-and-validation.md) | Bearer token을 붙인 MCP 요청, MCP Server의 검사 순서(`Origin`·`Host` → token → 버전 → session), agent가 사용자마다 token을 붙이는 방법 | `403`·`421`·`401 invalid_token` 받기, 검사 순서 보기, JWK Set 읽기 |
 | [7. 로컬 MCP client](07-local-client.md) | 사용자 기기의 public client가 기본 browser와 loopback callback으로 전체 흐름을 혼자 밟는 과정 | `local-client`로 login부터 MCP 호출까지 하기, 등록되지 않은 issuer로 discovery에서 멈추기 |

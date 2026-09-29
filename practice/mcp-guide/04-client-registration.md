@@ -286,28 +286,34 @@ CIMD는 어느 Authorization Server든 `client_id` 주소에서 문서를 직접
 official의 agent는 `mcp.authorization.credentials-issuer`에, `local-client`는 `--issuer` 옵션(기본값 `http://localhost:9010`)에 이 issuer를 둔다.
 discovery는 PRM의 `authorization_servers`를 이 값과 먼저 비교하고, 다르면 metadata도 요청하지 않고 멈춘다(3장).
 
-## 4.8 pre-registration client가 처음 연결하는 순서
+## 4.8 미리 등록한 client의 첫 연결
 
-미리 등록한 client로 MCP Server를 쓰려면, 사용자는 보통 MCP client에 두 값을 넣는다.
-하나는 MCP Server 주소이고, 다른 하나는 그 Authorization Server에서 받은 `client_id`다.
+미리 등록한 client로 MCP Server를 쓰려면, 사용자나 운영자가 MCP client에 몇 가지 값을 넣는다.
+MCP Server 주소와, 그 MCP Server의 Authorization Server에서 미리 받은 `client_id`다.
 confidential client라면 `client_secret`도 함께 넣는다.
-MCP 명세는 이 값을 앱에 미리 넣어 두는 방법과, 사용자가 직접 등록해 받은 값을 입력하는 화면을 두는 방법을 모두 pre-registration으로 본다.
+official은 credentials를 발급한 Authorization Server의 issuer도 함께 넣는다(4.7).
 
-등록 버튼을 누르면 곧바로 login 화면이 뜨는 것처럼 보인다.
+MCP 명세는 두 경우를 모두 pre-registration으로 본다.
+앱을 만들 때 `client_id`를 코드에 넣어 두는 경우와, 사용자가 직접 등록해 받은 값을 앱의 설정 화면에 넣어 두는 경우다.
+4.2의 사용자 입력은 이와 달리, 다른 방법이 모두 안 될 때 연결 도중에 사용자에게 `client_id`를 묻는 방식이다.
+
+값을 넣고 연결 버튼을 누르면 곧바로 login 화면이 뜨는 것처럼 보인다.
 그러나 `client_id`는 이 client가 누구인지만 알려 준다.
-사용자를 보낼 authorization endpoint, code를 token으로 바꿀 token endpoint, 처음 요청할 scope는 `client_id`에 없다.
-그래서 client는 사용자가 넣은 MCP Server 주소에서 출발해 나머지를 찾아간다.
+사용자를 보낼 authorization endpoint와 code를 token으로 바꿀 token endpoint는 `client_id`에 없다.
+그래서 client는 MCP Server 주소에서 출발해 나머지를 찾아간다.
 login 화면이 뜰 때는 이미 3장의 discovery가 끝나 있다.
 
 | 값 | 어디서 오나 |
 |---|---|
-| MCP Server 주소 | 사용자가 넣는다 |
-| `client_id` | 사용자가 넣거나, 앱에 들어 있다 |
-| `client_secret` | confidential client에만 있다. 사용자나 운영자가 넣는다 |
-| credentials를 발급한 issuer | client가 credentials와 함께 기록해 둔다(4.7) |
+| MCP Server 주소 | 사용자나 운영자가 넣는다 |
+| `client_id` | 사용자나 운영자가 넣거나, 앱에 들어 있다 |
+| `client_secret` | confidential client에만 있다. 운영자나 사용자가 넣는다 |
+| credentials를 발급한 issuer | credentials와 함께 넣는다. official은 `credentials-issuer` 설정과 `--issuer` 옵션으로 받는다(4.7) |
 | Authorization Server | PRM의 `authorization_servers`에서 알아낸다(3장) |
 | authorization endpoint, token endpoint | Authorization Server Metadata에서 알아낸다(3장) |
-| 처음 요청할 scope | `401`의 `scope`, PRM의 `scopes_supported` 순서로 고른다(5장) |
+| 처음 요청할 scope | `401`의 `scope`, PRM의 `scopes_supported` 순서로 고르고, 둘 다 없으면 뺀다(5장). official의 두 client는 `openid profile`로 정해 두었다 |
+
+`401`과 PRM으로 scope를 고르는 client는 [10장](10-scope-and-step-up.md)에서 본다.
 
 ```mermaid
 sequenceDiagram
@@ -316,7 +322,7 @@ sequenceDiagram
     participant C as MCP client
     participant M as MCP Server
     participant A as Authorization Server
-    U->>C: MCP Server 주소, client_id (+ client_secret)
+    U->>C: MCP Server 주소, client_id (+ client_secret, issuer)
     C->>M: POST /mcp (token 없음)
     M-->>C: 401, resource_metadata (+ scope)
     C->>M: GET PRM
@@ -324,51 +330,52 @@ sequenceDiagram
     Note over C: credentials의 issuer와 같은가
     C->>A: GET Authorization Server Metadata
     A-->>C: authorization_endpoint, token_endpoint
-    C->>U: authorization request 주소로 보낸다
+    C->>U: authorization request 주소로 보낸다 (client_id, scope, PKCE)
     U->>A: login, consent
     A-->>U: 302 redirect_uri?code, state, iss
-    U->>C: callback (code)
-    C->>A: POST token (code, code_verifier, client 인증)
+    U->>C: callback (code, state, iss)
+    C->>A: POST token (code, code_verifier, client_id, + 비밀)
     A-->>C: access token
     C->>M: POST /mcp (Authorization: Bearer)
 ```
 
 [다이어그램 그림으로 보기](diagrams/04-client-registration-3.png)
 
-사용자 눈에 보이는 것은 값을 넣는 (1)과 login·consent 화면(9)이다.
-(2)~(7)은 화면 없이 몇 초 안에 지나가고, (8)에서 browser가 열린다.
-그래서 등록과 login이 한 동작처럼 느껴진다.
+사용자 눈에 보이는 단계는 값을 넣는 (1)과 login·consent를 하는 (9)뿐이다.
+(2)~(7)은 화면 없이 곧바로 지나가고, (8)에서 browser가 Authorization Server의 화면으로 넘어간다.
+그래서 값을 넣는 일과 login이 한 동작처럼 느껴진다.
+
 (2)~(7)에서 client는 `client_id`를 쓰지 않는다.
 `client_id`는 (8)의 authorization request에 처음 들어가고, (12)의 token request에 다시 들어간다.
 DCR이나 CIMD를 쓰는 client라면 (7)과 (8) 사이에서 `client_id`를 마련한다.
-미리 등록한 client는 그 단계만 없고, 나머지 순서는 같다.
+4.2의 사용자 입력도 이 자리에서 사용자에게 `client_id`를 묻는다.
+미리 등록한 client는 연결하기 전에 값을 넣어 두었으므로 이 단계가 없고, 나머지 순서는 같다.
 
-(5)와 (6) 사이의 확인이 pre-registration에서 특히 중요하다.
-사용자가 넣은 `client_id`와 `client_secret`은 한 Authorization Server에서만 통한다.
-PRM이 다른 Authorization Server를 가리키면, client는 credentials를 쓰지 않고 사용자에게 오류를 보여 준다(4.7).
+(5)와 (6) 사이에서는 4.7의 issuer 비교를 한다.
+CIMD의 `client_id`와 달리, 미리 등록한 credentials는 발급한 Authorization Server에서만 통하기 때문이다.
+official의 두 client는 issuer를 credentials와 함께 넣어 두므로, 첫 연결에서도 이 비교를 할 수 있다.
 
 **confidential client와 public client의 차이**
 
-순서는 두 종류가 같고, 몇 단계에서 하는 일이 다르다.
-official의 agent와 `local-client`로 보면 다음과 같다.
+official의 두 client로 보면, 첫 연결에서 다른 점은 다음과 같다.
+등록 설정 자체의 차이는 4.3의 표에 있다.
 
 | 단계 | confidential client: official의 agent | public client: official의 `local-client` |
 |---|---|---|
-| 값을 넣는 사람과 때 | 운영자가 agent를 배포할 때 설정 파일에 한 번 넣는다. 사용자는 login만 한다 | 사용자가 실행할 때 `--resource`와 `--issuer`로 넣는다. 둘 다 기본값이 있어서 빼도 된다 |
-| 넣는 값 | MCP Server 주소, `client_id`, `client_secret`, credentials의 issuer | MCP Server 주소와 credentials의 issuer다. `client_id`는 코드에 들어 있고, 비밀은 없다 |
-| discovery가 도는 때 | 첫 사용자가 login하려는 순간 한 번 돈다. 결과는 cache해 모든 사용자가 함께 쓴다 | 실행할 때마다 돈다 |
-| 처음 요청할 scope | 설정의 `openid profile` | 코드의 `openid profile` |
-| redirect URI | 등록한 주소 `http://localhost:8110/login/oauth2/code/authserver` 그대로다 | `http://127.0.0.1:<빈 포트>/callback`이다. 포트는 실행마다 다르다(4.4) |
-| consent 화면 | official은 보여 주지 않는다 | 매번 보여 준다(4.4) |
-| token request의 client 인증 | `Authorization: Basic` header로 `client_id`와 `client_secret`을 보낸다 | 비밀 없이 본문에 `client_id`만 넣는다. 요청한 쪽이 맞는지는 PKCE의 `code_verifier`로 확인한다 |
-| token이 만료되면 | refresh token으로 새 token을 받는다 | refresh token이 없어서 처음부터 다시 한다 |
+| (1) 값을 넣는 사람과 때 | 운영자가 agent를 배포할 때 설정 파일에 한 번 넣는다. 사용자는 login만 한다 | 사용자가 실행할 때 `--resource`와 `--issuer`로 넣는다. 둘 다 기본값이 있다 |
+| (1) 넣는 값 | MCP Server 주소, `client_id`, `client_secret`, credentials를 발급한 issuer | MCP Server 주소와 `local-mcp-client`가 등록된 issuer다. `client_id`는 코드에 있고, 비밀은 없다 |
+| (2)~(7) discovery를 하는 때 | 첫 사용자가 login할 때 한다. 성공한 결과만 기억해 두고 모든 사용자가 함께 쓴다(3장) | 실행할 때마다 한다 |
+| (8) authorization request | `redirect_uri`는 등록한 `http://localhost:8110/login/oauth2/code/authserver`다. browser는 이미 agent 화면에 있어서 `302`로 넘어간다 | `redirect_uri`는 `http://127.0.0.1:<빈 포트>/callback`이다. 앱이 browser를 새로 연다 |
+| (9) consent | Authorization Server가 묻지 않게 등록했다(4.3) | 매번 묻는다(4.4) |
+| (12) token request | `Authorization: Basic` header로 `client_id`와 `client_secret`을 보낸다 | 비밀 없이 본문에 `client_id`만 넣는다 |
 
-official의 두 client는 scope를 정해 두고 보낸다.
-`401`과 PRM으로 scope를 고르는 client는 [10장](10-scope-and-step-up.md)에서 본다.
+두 client 모두 (12)에 `code_verifier`를 넣는다.
+`code_verifier`는 client가 진짜인지가 아니라, code를 가져온 쪽이 (8)의 요청을 시작한 쪽인지만 증명한다(5장).
+그래서 public client에게는 비밀 대신 4.4의 규칙이 따로 필요하다.
 
 `local-client`의 출력에도 이 순서가 그대로 찍힌다.
 `[1]`의 discovery가 끝나야 `[2]`의 authorization request 주소가 만들어진다.
-`[2]`의 주소에서 `client_id`가 처음 보이고, `[4]`에서야 token이 나온다.
+`client_id`는 `[2]`의 주소에서 처음 보이고, access token은 `[4]`에서야 받는다.
 
 ```text
 [1] discovery: http://localhost:8111/mcp
@@ -381,11 +388,12 @@ official의 두 client는 scope를 정해 두고 보낸다.
 
 **endpoint를 직접 입력받는 client**
 
-등록 화면에서 `client_id` 말고도 authorization endpoint, token endpoint, scope까지 입력받는 MCP client도 있다.
-그 값을 쓰면 client는 PRM과 metadata를 읽지 않고도 login 화면으로 보낼 수 있다.
-그러나 MCP Server가 다른 Authorization Server로 옮겨도 client는 알아채지 못하고, 사용자가 값을 직접 고쳐야 한다.
-MCP 명세는 MCP client가 PRM으로 Authorization Server를 찾게 한다.
-그래서 MCP Server 주소 하나만 알면 나머지는 서버가 알려 주는 값으로 채워진다.
+MCP Server를 추가하는 화면에서 `client_id` 말고도 authorization endpoint, token endpoint, scope까지 입력받는 MCP client도 있다.
+그 값이 있으면 client는 PRM과 metadata를 읽지 않고도 사용자를 login 화면으로 보낼 수 있다.
+그러나 MCP Server가 다른 Authorization Server로 옮겨도 client는 알아채지 못한다.
+PRM을 읽지 않으므로 4.7의 issuer 비교도 할 수 없고, 사용자가 값을 직접 고쳐야 한다.
+PRM으로 찾는 client는 MCP Server 주소 하나에서 나머지를 채우고, 서버가 바뀌면 다음 discovery에서 알아챈다.
+그래서 MCP 명세는 MCP client가 PRM으로 Authorization Server를 찾게 한다.
 
 ## 4.9 official 코드에서 보기
 
@@ -467,7 +475,7 @@ public client의 규칙을 curl로 한 단계씩 기록하는 스크립트도 �
 - 등록 방식은 pre-registration → CIMD → DCR → 사용자 입력 순서로 고른다. DCR은 2026-07-28에서 deprecated다.
 - official은 confidential client와 public client를 모두 미리 등록한다. public client는 비밀 없이 등록하고, PKCE·loopback redirect·매번 받는 consent로 지킨다.
 - 미리 등록한 credentials는 발급한 issuer에 묶어 두고, PRM이 다른 Authorization Server를 가리키면 쓰지 않는다.
-- 사용자가 넣는 값은 MCP Server 주소와 `client_id`(와 비밀)뿐이다. endpoint와 scope는 login 화면을 띄우기 전에 discovery로 찾는다.
+- 미리 등록한 client에 넣는 값은 MCP Server 주소와 credentials(official은 그 issuer까지)다. endpoint는 login 화면을 띄우기 전에 discovery로 찾는다.
 
 ## 4.12 명세 근거
 
@@ -482,7 +490,7 @@ public client의 규칙을 curl로 한 단계씩 기록하는 스크립트도 �
 | redirect URI는 등록하고 정확히 비교한다. loopback 주소는 요청의 어느 포트든 허용하고, 이름 `localhost`는 권하지 않는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2), [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) | MUST, NOT RECOMMENDED |
 | client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않고, 이전 consent가 있어도 처음처럼 처리한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) | SHOULD NOT, SHOULD |
 | refresh token 발급은 Authorization Server가 정한다. public client에 주면 rotation이나 sender-constrained token으로 재사용을 잡아낸다 | [OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2), [§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) | MUST |
-| MCP client는 Authorization Server를 PRM으로 찾는다 | [MCP 2025-11-25 Authorization — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview) | MUST |
 | 미리 등록했거나 DCR로 받은 credentials는 발급한 Authorization Server의 `issuer`에 묶는다. 서버가 바뀌면 재사용하지 않고 다시 등록하며, 맞지 않으면 오류를 보여 준다 | [MCP 2026-07-28 Client Registration — Authorization Server Binding](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#authorization-server-binding) | MUST, MUST NOT, SHOULD |
+| MCP client는 Authorization Server를 PRM으로 찾는다 | [MCP 2025-11-25 Authorization — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview) | MUST |
 
 [← 3장](03-discovery.md) · [목차](README.md) · [5장 →](05-authorization-and-token.md)
