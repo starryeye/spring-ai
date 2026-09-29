@@ -142,7 +142,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 | authorization response에 `iss`를 넣고, callback에서 `iss`를 확인한다 | `IssuerIdentifyingAuthorizationResponseHandler`, `AuthorizationResponseIssuerFilter` | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
 | public client가 consent를 건너뛰지 못하게 한다 | `PublicClientScopeValidator`, `PublicClientConsentService` | [5장 login과 consent](../mcp-guide/05-authorization-and-token.md#55-login과-consent) |
 | `Authorization` header로 한 client 인증이 실패하면 `401`에 `WWW-Authenticate`를 붙인다 | `ClientAuthenticationChallengeFailureHandler` | [부록 API의 token endpoint](../mcp-guide/reference-api.md#post-oauth2token--authorization_code) |
-| metadata에 `none`과 `iss` 지원을 알리고, OpenID Connect를 켠다 | `McpAuthorizationStandardConfig`, `OidcDiscoveryConfig` | [4장 official 코드](../mcp-guide/04-client-registration.md#48-official-코드에서-보기) |
+| metadata에 `none`과 `iss` 지원을 알리고, OpenID Connect를 켠다 | `McpAuthorizationStandardConfig`, `OidcDiscoveryConfig` | [4장 official 코드](../mcp-guide/04-client-registration.md#49-official-코드에서-보기) |
 | 모르는 `MCP-Protocol-Version`을 `400`으로 거절한다 | `McpProtocolVersionFilter` | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
 
 module에도 `resource`를 넣는 `McpClientOAuth2Configurer`가 있다.
@@ -251,7 +251,7 @@ package는 `auth-server`가 `dev.starryeye.community.authserver`, `shop-mcp-serv
 
 | module | 클래스 | 하는 일 | 안내서 |
 |---|---|---|---|
-| `auth-server` | `McpAuthorizationStandardConfig` | module의 확장점으로 검증기, `iss` 응답 handler, metadata claim, client 인증 실패 handler, consent 저장소를 설정한다 | [4장 official 코드](../mcp-guide/04-client-registration.md#48-official-코드에서-보기), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
+| `auth-server` | `McpAuthorizationStandardConfig` | module의 확장점으로 검증기, `iss` 응답 handler, metadata claim, client 인증 실패 handler, consent 저장소를 설정한다 | [4장 official 코드](../mcp-guide/04-client-registration.md#49-official-코드에서-보기), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | | `OidcDiscoveryConfig` | module이 켜지 않는 OpenID Connect를 켠다 | [3장 Authorization Server Metadata](../mcp-guide/03-discovery.md#35-3단계-authorization-server-metadata를-읽는다) |
 | | `SingleResourceTokenRequestConverter` | token request의 `resource`가 여러 개면 `invalid_target`으로 거절한다 | [5장 token request](../mcp-guide/05-authorization-and-token.md#57-token-request) |
 | | `ResourceAudienceTokenCustomizer` | access token의 `aud`를 `resource`로 정하고, ID token의 `aud`를 client_id로 되돌린다 | [5장 token의 내용](../mcp-guide/05-authorization-and-token.md#58-token의-내용-access-token과-id-token) |

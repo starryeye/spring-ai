@@ -179,7 +179,7 @@ sequenceDiagram
 | 구간 | 메시지 | 하는 일 | 다루는 장 |
 |---|---|---|---|
 | discovery | (1)~(6) | MCP Server 주소 하나에서 Authorization Server의 endpoint까지 찾아간다 | [3장](03-discovery.md) |
-| client 등록 | (6)과 (7) 사이. official은 미리 등록해 둔다 | Authorization Server가 아는 `client_id`를 마련한다 | [4장](04-client-registration.md) |
+| client 등록 | (6)과 (7) 사이 | Authorization Server가 아는 `client_id`를 마련한다. official처럼 미리 등록한 client는 이 단계만 건너뛰고, 나머지 순서는 같다 | [4장](04-client-registration.md) |
 | authorization request | (7)(8) | PKCE와 `resource`를 넣은 주소로 사용자를 Authorization Server에 보낸다 | [5장](05-authorization-and-token.md) |
 | login·consent | (9)(10) | 사용자가 Authorization Server에서 직접 login하고 허락한다 | [5장](05-authorization-and-token.md) |
 | callback | (11)(12) | authorization code가 client에게 돌아온다. client는 `state`와 `iss`를 확인한다 | [5장](05-authorization-and-token.md) |
