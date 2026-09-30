@@ -17,14 +17,17 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * `/mcp`로 오는 JSON-RPC 호출에 최소한으로 답하는 테스트용 MCP Streamable HTTP server다(McpCallsTest 전용).
  *
- * <p>`updateStock` tool만 `Authorization` header를 본다: `Bearer read-token`이면 403
- * (`insufficient_scope`, `scope="products:write"`)을, 그 밖의 값이면 200을 돌려준다.
+ * <p>`checkout` tool만 `Authorization` header를 본다: `Bearer read-token`이면 403
+ * (`insufficient_scope`, `scope="orders:write"`)을, 그 밖의 값이면 200을 돌려준다.
  * SSE reconnect(GET)는 다루지 않고 405로 답해 SDK가 "server가 SSE를 지원하지 않는다"로 보고 조용히
  * 건너뛰게 한다({@code HttpClientStreamableHttpTransport#reconnect}).
  */
 final class FakeMcpServer implements AutoCloseable {
 
-	record Recorded(String httpMethod, String rpcMethod, String toolName, String authorization) {
+	static final String BASKET_ID = "bsk_fake0000000000000000";
+
+	record Recorded(String httpMethod, String rpcMethod, String toolName, Map<String, Object> arguments,
+			String authorization) {
 	}
 
 	private static final JsonMapper MAPPER = JsonMapper.builder().build();
@@ -48,12 +51,12 @@ final class FakeMcpServer implements AutoCloseable {
 		String httpMethod = exchange.getRequestMethod();
 		String authorization = exchange.getRequestHeaders().getFirst("Authorization");
 		if ("GET".equals(httpMethod)) {
-			this.requests.add(new Recorded(httpMethod, null, null, authorization));
+			this.requests.add(new Recorded(httpMethod, null, null, Map.of(), authorization));
 			respond(exchange, 405, Map.of(), null);
 			return;
 		}
 		if ("DELETE".equals(httpMethod)) {
-			this.requests.add(new Recorded(httpMethod, null, null, authorization));
+			this.requests.add(new Recorded(httpMethod, null, null, Map.of(), authorization));
 			respond(exchange, 200, Map.of(), null);
 			return;
 		}
@@ -62,33 +65,50 @@ final class FakeMcpServer implements AutoCloseable {
 		Object id = request.get("id");
 		String rpcMethod = (String) request.get("method");
 		String toolName = null;
+		Map<String, Object> arguments = Map.of();
 		if ("tools/call".equals(rpcMethod)) {
 			Map<String, Object> params = (Map<String, Object>) request.get("params");
 			toolName = (String) params.get("name");
+			arguments = (Map<String, Object>) params.getOrDefault("arguments", Map.of());
 		}
-		this.requests.add(new Recorded(httpMethod, rpcMethod, toolName, authorization));
+		this.requests.add(new Recorded(httpMethod, rpcMethod, toolName, arguments, authorization));
 		switch (rpcMethod) {
+			// stateless server와 같다. session이 없으니 client도 끝나고 DELETE를 보내지 않는다.
 			case "initialize" -> respondResult(exchange, id,
 					Map.of("protocolVersion", "2025-11-25", "capabilities",
 							Map.of("tools", Map.of("listChanged", false)), "serverInfo",
 							Map.of("name", "fake-mcp-server", "version", "0.0.1")),
-					"sess-1");
+					null);
 			case "notifications/initialized" -> respond(exchange, 202, Map.of(), null);
 			case "tools/list" -> respondResult(exchange, id, Map.of("tools", List.of()), null);
-			case "tools/call" -> handleToolCall(exchange, id, toolName, authorization);
+			case "tools/call" -> handleToolCall(exchange, id, toolName, arguments, authorization);
 			default -> respond(exchange, 404, Map.of(), null);
 		}
 	}
 
-	private void handleToolCall(HttpExchange exchange, Object id, String toolName, String authorization)
-			throws IOException {
-		if ("updateStock".equals(toolName) && "Bearer read-token".equals(authorization)) {
+	private void handleToolCall(HttpExchange exchange, Object id, String toolName, Map<String, Object> arguments,
+			String authorization) throws IOException {
+		if ("checkout".equals(toolName) && "Bearer read-token".equals(authorization)) {
 			respond(exchange, 403,
-					Map.of("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"products:write\""), null);
+					Map.of("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"orders:write\""), null);
 			return;
 		}
-		String text = "updateStock".equals(toolName) ? "p1 재고를 10으로 바꿨다" : "p1: 3개";
-		respondResult(exchange, id, Map.of("content", List.of(Map.of("type", "text", "text", text))), null);
+		Map<String, Object> result = new LinkedHashMap<>();
+		switch (toolName) {
+			case "createBasket" -> {
+				result.put("content", List.of(Map.of("type", "text", "text", "장바구니 " + BASKET_ID + "를 만들었습니다.")));
+				result.put("structuredContent", Map.of("basketId", BASKET_ID));
+			}
+			case "getBasket" -> {
+				boolean known = BASKET_ID.equals(arguments.get("basketId"));
+				result.put("content", List.of(Map.of("type", "text",
+						"text", known ? "장바구니 " + BASKET_ID + ": p4 × 1" : "장바구니를 찾을 수 없습니다.")));
+				result.put("isError", !known);
+			}
+			case "checkout" -> result.put("content", List.of(Map.of("type", "text", "text", "주문 ord-1001를 접수했습니다.")));
+			default -> result.put("content", List.of(Map.of("type", "text", "text", toolName + " 완료")));
+		}
+		respondResult(exchange, id, result, null);
 	}
 
 	private void respondResult(HttpExchange exchange, Object id, Object result, String sessionId) throws IOException {

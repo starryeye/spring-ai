@@ -47,38 +47,77 @@ class McpCallsTest {
 		}, this.out);
 	}
 
-	List<FakeMcpServer.Recorded> updateStockCalls() {
-		return this.mcp.requests.stream().filter(r -> "updateStock".equals(r.toolName())).toList();
+	List<FakeMcpServer.Recorded> calls(String tool) {
+		return this.mcp.requests.stream().filter(r -> tool.equals(r.toolName())).toList();
+	}
+
+	String printed() {
+		return this.printed.toString(StandardCharsets.UTF_8);
 	}
 
 	@Test
-	void step_up_뒤_updateStock을_새_token을_실은_새_요청으로_다시_보낸다() {
+	void step_up_뒤_checkout을_새_token을_실은_새_요청으로_다시_보낸다() {
 		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
-		StepUp stepUp = stepUp(holder, new TokenResponse("write-token", 300, "products:read products:write"));
+		StepUp stepUp = stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write"));
 
 		McpCalls.run(this.mcp.origin() + "/mcp", holder, stepUp, Duration.ofSeconds(20), this.out);
 
-		List<FakeMcpServer.Recorded> updateStockCalls = updateStockCalls();
-		assertThat(updateStockCalls).hasSize(2);
-		assertThat(updateStockCalls.get(0).authorization()).isEqualTo("Bearer read-token");
-		assertThat(updateStockCalls.get(1).authorization()).isEqualTo("Bearer write-token");
-
-		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
-		String printedText = this.printed.toString(StandardCharsets.UTF_8);
-		assertThat(printedText).contains("updateStock(p1, 10): p1 재고를 10으로 바꿨다").contains("[7]");
+		List<FakeMcpServer.Recorded> checkouts = calls("checkout");
+		assertThat(checkouts).extracting(FakeMcpServer.Recorded::authorization)
+				.containsExactly("Bearer read-token", "Bearer write-token");
+		assertThat(this.requested).containsExactly(Set.of("products:read", "orders:write"));
+		assertThat(printed()).contains("[7]").contains("checkout: 주문 ord-1001를 접수했습니다.");
 	}
 
 	@Test
-	void authorizer가_products_write를_못_주면_실패하고_updateStock을_다시_보내지_않는다() {
+	void createBasket이_준_basketId를_다음_호출에_넘긴다() {
+		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
+
+		McpCalls.run(this.mcp.origin() + "/mcp", holder,
+				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
+				Duration.ofSeconds(20), this.out);
+
+		assertThat(calls("addItem")).extracting(r -> r.arguments().get("basketId"))
+				.containsOnly(FakeMcpServer.BASKET_ID);
+		// 첫 getBasket은 받은 handle로, 두 번째는 일부러 모르는 handle로 부른다.
+		assertThat(calls("getBasket")).extracting(r -> r.arguments().get("basketId"))
+				.containsExactly(FakeMcpServer.BASKET_ID, McpCalls.UNKNOWN_BASKET);
+		assertThat(calls("checkout")).extracting(r -> r.arguments().get("basketId"))
+				.containsOnly(FakeMcpServer.BASKET_ID);
+	}
+
+	@Test
+	void 모르는_장바구니는_오류로_찍고_이어_간다() {
+		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
+
+		McpCalls.run(this.mcp.origin() + "/mcp", holder,
+				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
+				Duration.ofSeconds(20), this.out);
+
+		assertThat(printed()).contains("getBasket(모르는 ID): [오류] 장바구니를 찾을 수 없습니다.");
+	}
+
+	@Test
+	void session이_없으면_끝날_때_DELETE를_보내지_않는다() {
+		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
+
+		McpCalls.run(this.mcp.origin() + "/mcp", holder,
+				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
+				Duration.ofSeconds(20), this.out);
+
+		assertThat(this.mcp.requests).extracting(FakeMcpServer.Recorded::httpMethod).doesNotContain("DELETE");
+	}
+
+	@Test
+	void authorizer가_orders_write를_못_주면_실패하고_checkout을_다시_보내지_않는다() {
 		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
 		StepUp stepUp = stepUp(holder, new TokenResponse("still-read-token", 300, "products:read"));
 
 		assertThatThrownBy(
 				() -> McpCalls.run(this.mcp.origin() + "/mcp", holder, stepUp, Duration.ofSeconds(20), this.out))
 				.isInstanceOf(LocalClientException.class)
-				.hasMessage("products:write 권한을 받지 못했다");
+				.hasMessage("orders:write 권한을 받지 못했다");
 
-		assertThat(updateStockCalls()).hasSize(1);
-		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
+		assertThat(calls("checkout")).hasSize(1);
 	}
 }
