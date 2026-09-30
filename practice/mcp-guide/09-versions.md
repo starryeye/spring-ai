@@ -272,7 +272,7 @@ Mcp-Session-Id: 8b9aaa29-a37f-4f3c-a2f8-bbd8793198d5
 
 server는 모르는 버전을 거절하지 않고, 아는 가장 새 버전 `2025-11-25`로 답한다([1장](01-mcp-basics.md)의 버전 협상).
 `2025-11-25`를 모르는 client라면 여기서 연결을 끊는다.
-스크립트는 협상 결과와 달리 뒤 요청에도 `2026-07-28`을 보내므로, 8~10단계(`notifications/initialized`, `tools/list`, `tools/call`)는 모두 `400`이다.
+스크립트는 협상 결과와 달리 뒤 요청에도 `2026-07-28`을 보내므로, 8\~10단계(`notifications/initialized`, `tools/list`, `tools/call`)는 모두 `400`이다.
 
 이번에는 modern client처럼 `initialize` 없이 `_meta`를 넣은 요청을 보낸다.
 access token의 수명은 300초라서, 스크립트를 돌린 뒤 5분 안에 보낸다.

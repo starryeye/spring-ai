@@ -219,7 +219,7 @@ mcp:
     credentials-issuer: http://localhost:9010     # client_secret을 발급한 곳
 ```
 
-`McpAuthorizationDiscovery#discover`가 3.3~3.6을 순서대로 한다.
+`McpAuthorizationDiscovery#discover`가 3.3\~3.6을 순서대로 한다.
 
 ```java
 public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
@@ -259,7 +259,7 @@ curl http://localhost:8111/.well-known/oauth-protected-resource/mcp
 curl http://localhost:9010/.well-known/oauth-authorization-server
 ```
 
-1~3단계를 한 번에 기록하는 스크립트도 있다: `docs/superpowers/captures/mcp-authorization-walkthrough.sh`의 1~3단계.
+1\~3단계를 한 번에 기록하는 스크립트도 있다: `docs/superpowers/captures/mcp-authorization-walkthrough.sh`의 1\~3단계.
 
 ## 3.9 정리
 

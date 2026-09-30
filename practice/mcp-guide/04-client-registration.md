@@ -342,10 +342,10 @@ sequenceDiagram
 [다이어그램 그림으로 보기](diagrams/04-client-registration-3.png)
 
 사용자 눈에 보이는 단계는 값을 넣는 (1)과 login·consent를 하는 (9)뿐이다.
-(2)~(7)은 화면 없이 곧바로 지나가고, (8)에서 browser가 Authorization Server의 화면으로 넘어간다.
+(2)\~(7)은 화면 없이 곧바로 지나가고, (8)에서 browser가 Authorization Server의 화면으로 넘어간다.
 그래서 값을 넣는 일과 login이 한 동작처럼 느껴진다.
 
-(2)~(7)에서 client는 `client_id`를 쓰지 않는다.
+(2)\~(7)에서 client는 `client_id`를 쓰지 않는다.
 `client_id`는 (8)의 authorization request에 처음 들어가고, (12)의 token request에 다시 들어간다.
 DCR이나 CIMD를 쓰는 client라면 (7)과 (8) 사이에서 `client_id`를 마련한다.
 4.2의 사용자 입력도 이 자리에서 사용자에게 `client_id`를 묻는다.
@@ -364,7 +364,7 @@ official의 두 client로 보면, 첫 연결에서 다른 점은 다음과 같�
 |---|---|---|
 | (1) 값을 넣는 사람과 때 | 운영자가 agent를 배포할 때 설정 파일에 한 번 넣는다. 사용자는 login만 한다 | 사용자가 실행할 때 `--resource`와 `--issuer`로 넣는다. 둘 다 기본값이 있다 |
 | (1) 넣는 값 | MCP Server 주소, `client_id`, `client_secret`, credentials를 발급한 issuer | MCP Server 주소와 `local-mcp-client`가 등록된 issuer다. `client_id`는 코드에 있고, 비밀은 없다 |
-| (2)~(7) discovery를 하는 때 | 첫 사용자가 login할 때 한다. 성공한 결과만 기억해 두고 모든 사용자가 함께 쓴다(3장) | 실행할 때마다 한다 |
+| (2)\~(7) discovery를 하는 때 | 첫 사용자가 login할 때 한다. 성공한 결과만 기억해 두고 모든 사용자가 함께 쓴다(3장) | 실행할 때마다 한다 |
 | (8) authorization request | `redirect_uri`는 등록한 `http://localhost:8110/login/oauth2/code/authserver`다. browser가 이미 agent 주소에 와 있으므로, agent가 `302`로 Authorization Server에 보낸다 | `redirect_uri`는 `http://127.0.0.1:<빈 포트>/callback`이다. 앱이 browser를 새로 연다 |
 | (9) consent | Authorization Server가 묻지 않게 등록했다(4.3) | 매번 묻는다(4.4) |
 | (12) token request | `Authorization: Basic` header로 `client_id`와 `client_secret`을 보낸다 | 비밀 없이 본문에 `client_id`만 넣는다 |

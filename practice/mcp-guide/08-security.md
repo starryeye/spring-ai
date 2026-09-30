@@ -2,7 +2,7 @@
 
 ## 8.1 공격자의 자리에서 다시 보기
 
-3~7장은 정상 흐름을 따라가며 단계마다 무엇을 확인하는지 봤다.
+3\~7장은 정상 흐름을 따라가며 단계마다 무엇을 확인하는지 봤다.
 이 장은 같은 흐름을 공격자 쪽에서 본다.
 확인 하나가 빠지면 누가 무엇을 얻는지 보면, 그 확인이 왜 있는지 분명해진다.
 
@@ -141,7 +141,7 @@ sequenceDiagram
 
 1. client는 E와 흐름을 시작하고, E의 issuer를 요청 기록에 남긴다 (1)(2).
 2. E는 `resource`만 정상 MCP Server로 고치고, 나머지 parameter는 그대로 둔 채 browser를 H로 보낸다 (3).
-3. 사용자는 진짜 H의 화면에서 consent하고, H는 code를 client의 callback으로 보낸다 (4)~(6).
+3. 사용자는 진짜 H의 화면에서 consent하고, H는 code를 client의 callback으로 보낸다 (4)\~(6).
 4. client는 이 응답을 E의 응답으로 알고, code와 `code_verifier`를 E의 token endpoint로 보낸다 (7).
 5. 공격자는 그 둘로 H에서 정상 MCP Server용 token을 받는다 (8)(9).
 

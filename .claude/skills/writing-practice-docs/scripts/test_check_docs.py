@@ -183,6 +183,20 @@ class StyleTest(unittest.TestCase):
                 self.assertIn("style:1", rules(f"값을 {phrase}.\n"))
 
 
+class TildeTest(unittest.TestCase):
+    def test_escape하지_않은_물결표는_걸린다(self):
+        self.assertIn("tilde:1", rules("1~3단계를 본다.\n"))
+
+    def test_표_칸의_물결표도_걸린다(self):
+        self.assertIn("tilde:3", rules("| 단계 | 뜻 |\n|---|---|\n| (2)~(7) | discovery |\n"))
+
+    def test_escape한_물결표는_통과한다(self):
+        self.assertNotIn("tilde:1", rules("1\\~3단계를 본다.\n"))
+
+    def test_inline_code와_링크_주소의_물결표는_통과한다(self):
+        self.assertEqual([], [r for r in rules("`a~b`와 [문서](https://example.com/~user)를 본다.\n") if r.startswith("tilde")])
+
+
 class BodyTest(unittest.TestCase):
     def test_본문의_요구_수준_단어는_걸린다(self):
         self.assertIn("body-level:3", rules("# 제목\n\nclient는 확인해야 한다(**MUST**).\n"))
