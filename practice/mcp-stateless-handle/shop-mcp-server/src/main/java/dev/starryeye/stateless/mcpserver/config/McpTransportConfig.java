@@ -3,11 +3,14 @@ package dev.starryeye.stateless.mcpserver.config;
 import dev.starryeye.stateless.mcpserver.filter.McpProtocolVersionFilter;
 import dev.starryeye.stateless.mcpserver.filter.McpTransportSecurityFilter;
 import dev.starryeye.stateless.mcpserver.filter.ToolScopeFilter;
+import dev.starryeye.stateless.mcpserver.security.McpCaller;
 import dev.starryeye.stateless.mcpserver.tool.ProductTools;
 import dev.starryeye.stateless.mcpserver.tool.ToolScopeRegistry;
 
+import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
+import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
@@ -27,10 +30,25 @@ import java.util.List;
  *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다. scope 검사 뒤에 돈다.</li>
  * </ul>
  *
- * <p>Streamable HTTP transport는 Spring AI 자동 구성 bean을 그대로 쓴다.
+ * <p>stateless transport bean은 사용자를 읽는 {@code contextExtractor}를 넣으려고 직접 만든다.
  */
 @Configuration
 public class McpTransportConfig {
+
+	/**
+	 * Spring AI 자동 설정의 stateless transport bean을 대신한다(그 bean은 {@code @ConditionalOnMissingBean}이다).
+	 * 바꾸는 것은 {@code contextExtractor} 하나다.
+	 * 요청마다 token의 사용자를 {@code McpTransportContext}에 넣어, tool이 누가 불렀는지 알게 한다.
+	 */
+	@Bean
+	public WebMvcStatelessServerTransport webMvcStatelessServerTransport(
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
+		return WebMvcStatelessServerTransport.builder()
+				.jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
+				.messageEndpoint(properties.getMcpEndpoint())
+				.contextExtractor(McpCaller::context)
+				.build();
+	}
 
 	@Bean
 	public FilterRegistrationBean<McpTransportSecurityFilter> mcpTransportSecurityFilter(

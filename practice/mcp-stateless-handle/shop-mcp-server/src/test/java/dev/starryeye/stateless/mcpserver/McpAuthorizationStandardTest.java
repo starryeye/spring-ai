@@ -182,7 +182,7 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE), null, HOST))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.result.protocolVersion").value("2025-11-25"))
-				.andExpect(header().exists("Mcp-Session-Id"));
+				.andExpect(header().doesNotExist("Mcp-Session-Id"));
 	}
 
 	@Test

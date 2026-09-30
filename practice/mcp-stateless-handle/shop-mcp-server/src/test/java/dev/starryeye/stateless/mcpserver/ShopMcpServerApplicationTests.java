@@ -1,6 +1,6 @@
 package dev.starryeye.stateless.mcpserver;
 
-import io.modelcontextprotocol.server.McpServerFeatures;
+import io.modelcontextprotocol.server.McpStatelessServerFeatures;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ShopMcpServerApplicationTests {
 
 	@Autowired
-	ObjectProvider<List<McpServerFeatures.SyncToolSpecification>> toolSpecificationLists;
+	ObjectProvider<List<McpStatelessServerFeatures.SyncToolSpecification>> toolSpecificationLists;
 
 	@Autowired
 	MockMvc mockMvc;

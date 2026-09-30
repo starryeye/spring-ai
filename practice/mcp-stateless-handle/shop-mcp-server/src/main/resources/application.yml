@@ -14,7 +14,9 @@ spring:
       server:
         name: stateless-shop-mcp-server
         version: 0.0.1
-        protocol: STREAMABLE
+        # session 없이 돈다. initialize 응답에 Mcp-Session-Id를 주지 않고, GET stream과 DELETE가 없다.
+        # 요청 하나하나가 token만으로 처리되므로, 공유 MCP client를 여러 사용자가 써도 섞일 상태가 없다(안내서 11장).
+        protocol: STATELESS
         # SYNC다. @McpTool 메서드가 Mono를 반환하면 오류 없이 등록에서 빠진다.
         type: SYNC
   security:
