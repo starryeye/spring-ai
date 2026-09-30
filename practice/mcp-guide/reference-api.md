@@ -7,8 +7,10 @@
 "요구 수준" 칸은 원문 단어(REQUIRED, MUST 등)를 그대로 쓰고, 단어가 없으면 "표시 없음"이라고 쓰며, 명세마다 다르면 모두 적는다.
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
 scope를 다루는 몇 행에는 [mcp-security-authz practice](../mcp-security-authz/README.md)(authz)의 동작도 official 동작 옆에 적는다.
+session을 다루는 몇 행에는 authz를 session 없이 돌리는 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)(stateless)의 동작도 적는다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
+`stateless S<n>`은 [stateless 캡처](../../docs/superpowers/captures/2026-10-01-stateless-walkthrough.txt)의 단계 번호이고, supplement 캡처의 `S<n>`과 구별하려고 앞에 stateless를 붙인다.
 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
 JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
@@ -17,12 +19,12 @@ JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 
 | 서버 | endpoint | 설명하는 장 |
 |---|---|---|
-| MCP Server | [MCP 요청 header](#mcp-요청-header) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md) |
+| MCP Server | [MCP 요청 header](#mcp-요청-header) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [11장](11-stateless-and-handle.md) |
 | MCP Server | [`POST /mcp` — token 없는 요청](#post-mcp--token-없는-요청) | [3장](03-discovery.md), [6장](06-mcp-call-and-validation.md), [10장](10-scope-and-step-up.md) |
 | MCP Server | [`GET /.well-known/oauth-protected-resource[/mcp]`](#get-well-knownoauth-protected-resourcemcp--protected-resource-metadata) | [3장](03-discovery.md), [10장](10-scope-and-step-up.md) |
-| MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md), [10장](10-scope-and-step-up.md) |
-| MCP Server | [`GET /mcp`](#get-mcp--서버가-보내는-메시지의-sse-stream) | [1장](01-mcp-basics.md) |
-| MCP Server | [`DELETE /mcp`](#delete-mcp--session-종료) | [1장](01-mcp-basics.md) |
+| MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md), [10장](10-scope-and-step-up.md), [11장](11-stateless-and-handle.md) |
+| MCP Server | [`GET /mcp`](#get-mcp--서버가-보내는-메시지의-sse-stream) | [1장](01-mcp-basics.md), [11장](11-stateless-and-handle.md) |
+| MCP Server | [`DELETE /mcp`](#delete-mcp--session-종료) | [1장](01-mcp-basics.md), [11장](11-stateless-and-handle.md) |
 | Authorization Server | [`GET /.well-known/oauth-authorization-server`](#get-well-knownoauth-authorization-server--authorization-server-metadata) | [3장](03-discovery.md), [4장](04-client-registration.md) |
 | Authorization Server | [`GET /.well-known/openid-configuration`](#get-well-knownopenid-configuration--openid-provider-metadata) | [3장](03-discovery.md) |
 | Authorization Server | [`GET /oauth2/authorize`](#get-oauth2authorize--authorization-request) | [5장](05-authorization-and-token.md), [4장](04-client-registration.md) |
@@ -42,7 +44,7 @@ MCP endpoint `/mcp`가 받는 모든 요청에 공통인 header다.
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
 | `MCP-Protocol-Version` | MUST — 초기화 뒤 모든 요청 · 값은 협상한 버전 SHOULD ([Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)) | header가 없고 달리 알 방법도 없으면 서버는 `2025-03-26`으로 여긴다(SHOULD). 무효·미지원 값에는 `400`(MUST) | MCP Java SDK 2.0.0 client(agent, `local-client`)는 `initialize`에도 붙인다. `McpProtocolVersionFilter`는 `1999-01-01`(C15)과 `2026-07-28`에 `400`, header가 없으면(S10) 통과 |
-| `MCP-Session-Id` | MUST — 서버가 초기화 때 발급했으면 이후 모든 HTTP 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)) | 보이는 ASCII(0x21\~0x7E)만 쓴다(MUST). header 이름은 대소문자를 가리지 않아서, official 응답의 `Mcp-Session-Id`와 같은 header다 | 씀 — 없으면 `400`(C14), 모르는 값이면 `404`(S13) |
+| `MCP-Session-Id` | MUST — 서버가 초기화 때 발급했으면 이후 모든 HTTP 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)) | 보이는 ASCII(0x21\~0x7E)만 쓴다(MUST). header 이름은 대소문자를 가리지 않아서, official 응답의 `Mcp-Session-Id`와 같은 header다 | 씀 — 없으면 `400`(C14), 모르는 값이면 `404`(S13). stateless는 서버가 발급하지 않아 client도 보내지 않는다(stateless S3) |
 | `Origin` | client 쪽 요구 없음 · 서버는 모든 연결에서 검증 MUST, 있는데 무효면 `403` MUST ([Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning)) | browser가 붙이고, 서버 사이 호출에는 없다 | agent·`local-client`는 보내지 않는다. 허용한 `Origin`이 없어서 `Origin`이 붙은 요청은 token이 없어도 모두 `403`이다(C13 `http://evil.example`) |
 | `Host` | MCP 규정 없음 · 이 서버로 올 요청이 아니면 `421 Misdirected Request` ([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)) | DNS rebinding을 막는 데 쓴다 | `localhost:8111`·`127.0.0.1:8111`만 받고, 나머지는 token이 없어도 `421`(S14) |
 | `Accept` | MUST — `POST`는 `application/json`과 `text/event-stream` 둘 다, `GET`은 `text/event-stream` ([Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server)) | | 씀 — `text/event-stream`이 없으면 `400`(S15) |
@@ -192,7 +194,7 @@ Content-Type: application/json
 access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 한 MCP session은 `initialize` → `notifications/initialized` → `tools/list` → `tools/call` 순서로 간다.
 
-설명: [1장](01-mcp-basics.md) · [6장](06-mcp-call-and-validation.md) · [7장](07-local-client.md) · [10장](10-scope-and-step-up.md)
+설명: [1장](01-mcp-basics.md) · [6장](06-mcp-call-and-validation.md) · [7장](07-local-client.md) · [10장](10-scope-and-step-up.md) · [11장](11-stateless-and-handle.md)
 
 근거:
 
@@ -204,10 +206,10 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 
 | 메서드 | 규칙 | 응답 | 관측 |
 |---|---|---|---|
-| `initialize` | 첫 상호작용이어야 한다(MUST, [Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)) | `200` `application/json`, `Mcp-Session-Id` 발급 | `protocolVersion`은 `2025-11-25`(C7). `2026-07-28`을 요청해도 `2025-11-25`로 답한다([9장](09-versions.md)) |
+| `initialize` | 첫 상호작용이어야 한다(MUST, [Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)) | `200` `application/json`, `Mcp-Session-Id` 발급(stateless는 발급하지 않는다, stateless S3) | `protocolVersion`은 `2025-11-25`(C7). `2026-07-28`을 요청해도 `2025-11-25`로 답한다([9장](09-versions.md)) |
 | `notifications/initialized` | `initialize`가 성공한 뒤 보낸다(MUST) | `202`, 본문 없음 | C8 |
 | `tools/list` | | `200` `text/event-stream` | C9 |
-| `tools/call` | | `200` `text/event-stream` | `getStock`(C10) |
+| `tools/call` | | `200` `text/event-stream` | `getStock`(C10). stateless는 `application/json` 본문 하나로 답한다(stateless S5, S9-call) |
 
 **요청**
 
@@ -223,11 +225,11 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
 | `200`과 `Content-Type: application/json` | request면 이것과 SSE 중 하나 MUST, client는 둘 다 처리 MUST | JSON 객체 하나 | `initialize`(C7) |
-| `200`과 `Content-Type: text/event-stream` | 위와 같음 | SSE stream. 관련 request·notification을 보낸 뒤 response를 보내고, response 뒤에는 stream을 닫는다(SHOULD) | `tools/list`·`tools/call`(C9, C10) |
+| `200`과 `Content-Type: text/event-stream` | 위와 같음 | SSE stream. 관련 request·notification을 보낸 뒤 response를 보내고, response 뒤에는 stream을 닫는다(SHOULD) | `tools/list`·`tools/call`(C9, C10). stateless는 SSE로 답하지 않는다(`WebMvcStatelessServerTransport`) |
 | SSE 준비 event(event ID와 빈 `data`) | SHOULD — SSE 시작 직후 | client가 `Last-Event-ID`로 다시 붙을 수 있게 한다 | 보내지 않는다 — 첫 event가 곧 response다(C9, C10) |
 | SSE `id` | MAY, 있으면 session 안 모든 stream에서 전역 유일 MUST ([Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | 재개용 커서 | session ID를 그대로 쓴다(C9·C10 모두 `id:7c324e98-...`). 그래서 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([8장](08-security.md)) |
 | SSE `retry` | SHOULD — stream을 끝내지 않고 연결을 닫기 전 | | 쓰지 않음 |
-| `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `7c324e98-8854-4b88-9243-7a97e94fd80a`(C7) |
+| `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `7c324e98-8854-4b88-9243-7a97e94fd80a`(C7). stateless는 주지 않는다(stateless S3) |
 | `202 Accepted`, 본문 없음 | MUST — notification·response를 받아들였을 때 | | 씀(C8, S9) |
 
 **오류**
@@ -247,6 +249,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 
 official의 검사 순서는 `Origin`·`Host` → token → `MCP-Protocol-Version` → `Accept` → session이다([6장](06-mcp-call-and-validation.md)).
 `Accept`와 session은 Spring AI의 transport(`WebMvcStreamableServerTransportProvider`)가 본문을 읽기 전과 읽은 뒤에 차례로 검사한다.
+stateless의 transport `WebMvcStatelessServerTransport`는 session을 검사하지 않고, request의 응답을 `application/json` 본문 하나로 보낸다([11장](11-stateless-and-handle.md)).
 
 **예시** (C7)
 
@@ -281,7 +284,7 @@ Content-Type: application/json
 client가 먼저 `POST`하지 않아도 서버가 request·notification을 보낼 수 있게 SSE stream을 연다.
 서버는 SSE로 답하거나 `405`로 거절한다.
 
-설명: [1장](01-mcp-basics.md)
+설명: [1장](01-mcp-basics.md) · [11장](11-stateless-and-handle.md)
 
 근거:
 
@@ -292,7 +295,7 @@ client가 먼저 `POST`하지 않아도 서버가 request·notification을 보�
 
 | 이름 | 위치 | 요구 수준 | 설명 | official |
 |---|---|---|---|---|
-| 메서드 `GET` | 요청 줄 | MAY | | MCP Java SDK client(agent, `local-client`)가 session ID를 받은 뒤 연다 |
+| 메서드 `GET` | 요청 줄 | MAY | | MCP Java SDK client(agent, `local-client`)가 session ID를 받은 뒤 연다. stateless에서는 session ID 없이 `initialize` 응답을 받은 뒤 열어 보고, `405`면 요청과 응답만으로 돈다 |
 | `Accept: text/event-stream` | header | MUST | | 씀 |
 | `Authorization` | header | MUST (모든 HTTP 요청) | | 씀 — `local-client`는 기본 요청의 header가 그대로 붙는다 |
 | `MCP-Session-Id` | header | MUST — 서버가 발급했으면 이후 모든 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) 2번) | | 씀 — 없으면 `400 text/plain`(S12) |
@@ -303,14 +306,14 @@ client가 먼저 `POST`하지 않아도 서버가 request·notification을 보�
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
-| `Content-Type: text/event-stream` 또는 `405 Method Not Allowed` | MUST — 둘 중 하나 | stream에서 서버는 request·notification을 보낼 수 있고(MAY), 재개가 아니면 JSON-RPC response는 보내지 않는다(MUST NOT). 연결을 닫기 전에는 `retry`를 보낸다(SHOULD) | SSE 쪽 — 응답 header는 첫 event와 함께 나간다 |
+| `Content-Type: text/event-stream` 또는 `405 Method Not Allowed` | MUST — 둘 중 하나 | stream에서 서버는 request·notification을 보낼 수 있고(MAY), 재개가 아니면 JSON-RPC response는 보내지 않는다(MUST NOT). 연결을 닫기 전에는 `retry`를 보낸다(SHOULD) | SSE 쪽 — 응답 header는 첫 event와 함께 나간다. stateless는 `405` 쪽이다(stateless S4) |
 
 **오류**
 
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | `MCP-Session-Id` 없음 | `400` SHOULD — `Session ID required in mcp-session-id header`(S12) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
-| SSE stream을 제공하지 않는 서버 | `405` MUST | [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server) |
+| SSE stream을 제공하지 않는 서버 | `405` MUST — stateless가 이렇게 답한다(stateless S4) | [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
 S11에서는 5초 동안 상태 줄·header·본문이 오지 않고 연결만 열려 있었다(curl 종료 코드 28).
@@ -341,7 +344,7 @@ Session ID required in mcp-session-id header
 더 쓰지 않을 session을 client가 명시적으로 끝낸다.
 서버는 이 요청을 `405`로 거절할 수 있다.
 
-설명: [1장](01-mcp-basics.md)
+설명: [1장](01-mcp-basics.md) · [11장](11-stateless-and-handle.md)
 
 근거: [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), [MCP Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements), [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking)
 
@@ -349,7 +352,7 @@ Session ID required in mcp-session-id header
 
 | 이름 | 위치 | 요구 수준 | 설명 | official |
 |---|---|---|---|---|
-| 메서드 `DELETE` | 요청 줄 | SHOULD — 더 쓰지 않을 session | | MCP Java SDK client는 닫을 때 보낸다. `local-client`는 `closeGracefully`에서 보낸다 |
+| 메서드 `DELETE` | 요청 줄 | SHOULD — 더 쓰지 않을 session | | MCP Java SDK client는 session ID를 받았으면 닫을 때 보낸다(`local-client`는 `closeGracefully`에서). stateless에서는 session ID가 없어 보내지 않는다 |
 | `MCP-Session-Id` | header | MUST — 서버가 발급했으면 이후 모든 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) 2번) · 이 header를 넣은 `DELETE`로 session을 끝내는 것은 SHOULD (같은 절 5번) | 끝낼 session을 가리킨다 | 씀 |
 | `Authorization` | header | MUST (모든 HTTP 요청) | | `local-client`와 캡처 스크립트(C18)는 씀 — 없으면 `401`([7장](07-local-client.md)). agent가 앱 종료 때 보내는 `DELETE`에는 코드상 없다([준수표](reference-compliance.md#준수표) 36번) |
 | `MCP-Protocol-Version` | header | MUST (초기화 뒤 모든 요청) | | 씀 |
@@ -367,6 +370,7 @@ Session ID required in mcp-session-id header
 |---|---|---|
 | 끝낸 session ID로 다시 요청 | `404` MUST — `Session not found`(S16) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
 | 다른 사용자의 token으로 남의 session을 `DELETE` | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) |
+| session을 쓰지 않는 서버에 `DELETE` | stateless는 `DELETE` 경로가 없어 `404`로 답한다(stateless S4). session ID를 주지 않으므로 SDK client가 이 요청을 보낼 일은 없다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) — session 종료를 허용하지 않는 서버의 `405`는 MAY |
 
 **예시** (C18)
 
@@ -1177,4 +1181,4 @@ DCR은 선택 사항(MAY, MCP 2025-11-25)이고, 그래도 DCR을 쓰는 client�
 official은 DCR을 켜지 않는다.
 Spring Authorization Server의 기본값이 꺼짐이고, metadata에 `registration_endpoint`가 없다(C3).
 
-[← 10장](10-scope-and-step-up.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)
+[← 11장](11-stateless-and-handle.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)

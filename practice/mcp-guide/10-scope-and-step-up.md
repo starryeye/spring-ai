@@ -712,4 +712,4 @@ browser가 두 번 열린다.
 | JWT access token에는 token을 받은 client의 `client_id`가 있다 | [RFC 9068 §2.2](https://www.rfc-editor.org/rfc/rfc9068#section-2.2) | REQUIRED |
 | 2026-07-28의 POST 요청은 `Mcp-Method`와, `tools/call` 같은 요청이면 `Mcp-Name` header를 보낸다. 본문을 처리하는 server는 header와 본문의 값이 다르면 `400`과 `HeaderMismatch`로 거절한다 | [MCP 2026-07-28 Streamable HTTP — Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers), [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation) | REQUIRED, MUST |
 
-[← 9장](09-versions.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)
+[← 9장](09-versions.md) · [목차](README.md) · [11장 →](11-stateless-and-handle.md)

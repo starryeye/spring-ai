@@ -310,6 +310,6 @@ docs/superpowers/captures/stateless-local-client-run.sh > /tmp/stateless-local-c
 - [안내서 11장 stateless와 handle](../mcp-guide/11-stateless-and-handle.md): 이 practice로 session 없는 서버, handle의 소유권과 만료, tool 결과까지 기억하는 대화를 설명한다.
 - [6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자): 공유 MCP client에서 session이 사용자와 맞지 않는 이유를 처음 설명한다.
 - [9장 `initialize`와 session의 제거](../mcp-guide/09-versions.md#97-initialize와-session의-제거-2026-07-28): MCP 2026-07-28이 session을 없앤 이유와 handle로 상태를 다루는 방법을 설명한다.
-- [부록: 명세 준수표](../mcp-guide/reference-compliance.md): 36번(session 종료 `DELETE`의 token)처럼 session이 없는 이 practice에서 판정이 달라지는 행이 있다.
+- [부록: 명세 준수표](../mcp-guide/reference-compliance.md#mcp-stateless-handle에서-달라지는-행): 36번(session 종료 `DELETE`의 token)처럼 session이 없어 authz와 판정이 달라지는 행과, handle의 소유권·만료처럼 새로 생긴 행을 모았다.
 - [mcp-security-authz](../mcp-security-authz/README.md): 이 practice의 바탕이 된 practice다.
 - 다음 practice에서는 MCP Server가 token의 scope에 따라 `tools/list`에 보여 주는 tool을 달리하는 방법을 다룬다.
