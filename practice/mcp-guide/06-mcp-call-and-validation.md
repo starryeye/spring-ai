@@ -319,10 +319,10 @@ session 데이터를 `<user_id>:<session_id>` 같은 key로 두고, `user_id`는
 그러면 session ID를 알아내도 다른 사용자의 token으로는 그 session을 쓰지 못한다.
 
 이 권고에는 전제가 있다.
-MCP 명세의 구조에서 host(Claude Desktop 같은 앱)는 MCP Server마다 client를 하나 만든다.
+MCP 명세의 구조에서 host(Claude Code 같은 앱)는 MCP Server마다 client를 하나 만든다.
 client는 그 MCP Server와 1:1로 연결되고, session도 하나만 연다.
 client가 받는 token은 사용자 한 명의 것이므로, client 하나와 그 session은 사용자 한 명의 것이다.
-데스크톱 앱과 [7장](07-local-client.md)의 `local-client`가 이 구조다.
+사용자 기기의 앱과 [7장](07-local-client.md)의 `local-client`가 이 구조다.
 여러 사용자가 쓰는 서버형 agent도 token은 사용자별로 보관하므로, 이 구조를 따르려면 MCP client도 사용자별로 둔다.
 
 official의 agent는 이 구조를 따르지 않는다.

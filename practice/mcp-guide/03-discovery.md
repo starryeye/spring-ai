@@ -118,6 +118,7 @@ canonical URI는 scheme과 host를 소문자로 쓰고, fragment(`#` 뒤의 부�
 보통 client는 `401`의 `WWW-Authenticate` header에 있는 `resource_metadata` 주소로 PRM을 가져온다.
 MCP Server가 이 값을 주지 않으면, client는 MCP Server 주소로 PRM 주소를 직접 만든다.
 host와 path 사이에 `/.well-known/oauth-protected-resource`를 끼워 넣은 주소를 먼저 시도하고, 없으면 path를 뺀 주소를 시도한다.
+Claude도 `resource_metadata`가 없으면 이 순서로 PRM을 찾는다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
 
 | MCP Server 주소 | 1순위 | 2순위 |
 |---|---|---|

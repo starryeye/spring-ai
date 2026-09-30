@@ -227,6 +227,8 @@ filter가 tool의 scope를 찾으려면 tool 이름을 알아야 하는데, 2025
 challenge의 `products:write`만 요청하면 새 token에는 `products:read`가 없어서, 다시 보낸 `updateStock`부터 모든 MCP 요청이 `403`을 받는다.
 그래서 client는 이전 scope와 challenge의 scope를 합쳐 요청한다.
 agent의 로그에는 `step-up authorization request — 추가 scope=[products:write], 요청 scope=[openid, products:read, products:write]`가 남는다.
+Google OAuth에는 합치는 일을 Authorization Server가 맡는 방법도 있다.
+client가 `include_granted_scopes=true`를 보내면, Google은 사용자가 전에 허락한 scope를 새 token에 함께 넣는다([Google 문서](https://developers.google.com/identity/protocols/oauth2/web-server)).
 
 Authorization Server는 이번에도 consent 화면을 보여 주고, 새로 고를 체크박스는 `products:write` 하나다.
 `openid`와 `products:read`는 "You have already granted the following permissions to the above app" 아래에 체크된 채 나오고, 바꿀 수 없다.
@@ -341,11 +343,12 @@ MCP 명세에 없는 방식이다.
 ## 10.7 사용자 기기의 앱: 그 자리에서 다시 login
 
 사용자 기기의 앱은 사용자가 바로 앞에 있고, browser도 같은 기기에 있다(7장).
-그래서 카드를 거치지 않고 그 자리에서 browser를 다시 연다.
+그래서 카드를 거치지 않고 그 자리에서 browser를 다시 열 수 있다.
 사람이 확인하는 관문은 Authorization Server의 consent 화면이 맡는다.
-사용자 기기의 앱인 [Claude Code](https://code.claude.com/docs/en/mcp)는 `403 insufficient_scope`를 받으면 tool 호출을 실패로 끝내고, 서버가 요구한 scope를 알린다.
-그러면 사용자가 `/mcp`에서 그 서버를 다시 인증한다.
-`local-client`는 이 다시 인증하는 단계를 스스로 이어서 한다.
+실제 제품인 [Claude Code](https://code.claude.com/docs/en/mcp)는 browser를 스스로 다시 열지 않는다.
+`403 insufficient_scope`를 받으면 tool 호출을 실패로 끝내고, 서버가 요구한 scope를 알린다.
+사용자가 `/mcp`에서 그 서버를 다시 인증하면 그때 browser가 열린다.
+`local-client`는 사용자를 거치지 않고 바로 browser를 다시 연다.
 `local-client`의 출력은 다음과 같다.
 browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/authz-local-client-run.sh`로 받았고, 사람이 browser로 해도 출력은 같다.
 

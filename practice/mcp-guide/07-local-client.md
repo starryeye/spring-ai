@@ -413,8 +413,9 @@ public client에도 refresh token을 주는 Authorization Server라면, 앱은 r
 `local-mcp-client`는 official의 Authorization Server 한 곳에 미리 등록한 `client_id`다.
 Claude Code 같은 앱은 사용자가 어떤 MCP Server를 넣을지 모르므로, Authorization Server마다 미리 등록해 둘 수 없다.
 그래서 앱의 metadata 문서를 자기 `https` 주소에 올리고, CIMD를 지원하는 Authorization Server에서는 그 주소를 `client_id`로 쓴다(4장).
-Claude Code는 `https://claude.ai/oauth/claude-code-client-metadata`를 `client_id`로 쓴다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
-문서의 `redirect_uris`에는 `local-client`처럼 loopback 주소를 적는다.
+Claude Code는 CIMD를 지원하는 Authorization Server에서 `https://claude.ai/oauth/claude-code-client-metadata`를 `client_id`로 쓴다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
+이 문서의 `redirect_uris`에는 포트 없는 `http://localhost/callback`과 `http://127.0.0.1/callback`이 들어 있다.
+Authorization Server는 loopback 주소의 포트를 빼고 비교하므로, 실행마다 포트가 달라도 된다([4장](04-client-registration.md)의 4.4).
 
 **issuer별 등록 상태**
 

@@ -109,48 +109,58 @@ MCP client 가운데에는 desktop 앱과 명령줄 도구가 많아서, MCP에�
 
 **실제 제품으로 보면**
 
-두 종류를 가르는 것은 사용자가 보는 화면이 아니라, MCP client와 token이 어디에 있느냐다.
-데스크톱 앱이나 모바일 앱으로 써도, MCP Server를 부르는 쪽이 그 회사의 서버라면 서버에서 도는 agent다.
-authorization code가 돌아오는 주소(`redirect_uri`)를 보면 어느 쪽인지 알 수 있다.
+제품이 어느 형태인지는 사용자가 보는 화면이 아니라, MCP client와 token이 어디에 있느냐로 정해진다.
+desktop 앱이나 모바일 앱으로 써도, MCP Server를 부르는 쪽이 그 회사의 서버라면 서버에서 도는 agent다.
+authorization code가 돌아오는 주소(`redirect_uri`)를 보면 대개 어느 쪽인지 알 수 있다.
 
 | 형태 | 제품 | `redirect_uri` |
 |---|---|---|
 | 서버에서 도는 agent | ChatGPT | `https://chatgpt.com/connector_platform_oauth_redirect` |
-| | Claude.ai, Claude Desktop, Claude 모바일 앱의 원격 connector | `https://claude.ai/api/mcp/auth_callback` |
+| | claude.ai, Claude Desktop, Claude 모바일 앱의 원격 connector | `https://claude.ai/api/mcp/auth_callback` |
+| | official의 `shop-agent` | `http://localhost:8110/login/oauth2/code/authserver` |
 | 사용자 기기의 앱 | Claude Code | `http://localhost:<빈 포트>/callback` |
 | | Codex CLI | `http://127.0.0.1:<빈 포트>/callback` |
+| | official의 `local-client` | `http://127.0.0.1:<빈 포트>/callback` |
 
-주소는 각 제품의 문서([ChatGPT](https://developers.openai.com/plugins/build/auth), [Claude](https://claude.com/docs/connectors/building/authentication), [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp))에 있고, 제품이 바뀌면 달라질 수 있다.
-official에서도 agent는 서버 주소 `http://localhost:8110/login/oauth2/code/authserver`로, `local-client`는 `http://127.0.0.1:<빈 포트>/callback`으로 돌아온다.
+주소는 각 제품의 문서([ChatGPT](https://developers.openai.com/plugins/build/auth), [Claude](https://claude.com/docs/connectors/building/authentication), [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp))에서 가져왔다.
+제품이 바뀌면 주소도 달라질 수 있다.
+ChatGPT는 Authorization Server가 callback에 `iss`를 넣을 때만 이 고정 주소를 쓰고, 아니면 연결마다 다른 `https://chatgpt.com/connector/oauth/{callback_id}`를 쓴다(5장).
+official의 agent는 학습용이라 `localhost`에서 돌지만, 서버의 주소로 돌아온다는 점은 ChatGPT·claude.ai와 같다.
 
-Claude의 원격 connector는 claude.ai에서 쓰든 Claude Desktop이나 모바일 앱에서 쓰든 Anthropic 서버에서 MCP Server에 연결한다([Claude 도움말](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)).
-그래서 데스크톱 앱이어도 authorization code는 `claude.ai`의 서버로 돌아간다.
-Claude Desktop이 사용자 기기에서 직접 돌리는 것은 설정 파일에 적은 stdio server이고, 여기에는 이 장의 OAuth 흐름이 쓰이지 않는다(1장).
+claude.ai의 원격 connector는 web에서 쓰든 Claude Desktop이나 모바일 앱에서 쓰든 Anthropic 서버에서 MCP Server에 연결한다([Claude 도움말](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)).
+그래서 desktop 앱이어도 authorization code는 `claude.ai`의 서버로 돌아간다.
+ChatGPT의 connector 요청도 OpenAI가 공개한 IP 대역에서 나간다([OpenAI 문서](https://developers.openai.com/api/docs/guides/ip-addresses)).
+Claude Desktop이 사용자 기기에서 직접 띄우는 것은 설정 파일이나 desktop extension으로 넣은 로컬 stdio server다.
+stdio server는 환경 변수로 credentials를 받으므로 이 장의 OAuth 흐름을 쓰지 않는다(1장).
 
 한 회사의 제품도 형태가 나뉜다.
 OpenAI의 ChatGPT는 서버에서 도는 agent이고, Codex CLI는 `codex mcp login`으로 사용자 기기의 browser를 열어 loopback 주소로 callback을 받는다.
-Anthropic도 Claude.ai와 Claude Desktop의 원격 connector는 Anthropic 서버에서, Claude Code는 사용자 기기에서 MCP Server에 연결한다.
+Anthropic도 claude.ai와 Claude Desktop의 원격 connector는 Anthropic 서버에서, Claude Code는 사용자 기기에서 MCP Server에 연결한다.
+일반 사용자가 쓰는 AI 채팅 서비스는 대개 서버에서 도는 agent이고, 코딩 도구와 명령줄 도구는 대개 사용자 기기의 앱이다.
 
-일반 사용자가 쓰는 AI 채팅 서비스는 대개 서버에서 도는 agent다.
-코딩 도구와 명령줄 도구는 대개 사용자 기기의 앱이다.
+서버에서 돈다고 해서 늘 `client_secret`이 있는 것은 아니다.
+client 종류는 등록 방식에 따라 따로 정해진다(4장).
+claude.ai의 원격 connector는 CIMD나 DCR로 등록하면 비밀 없는 public client이고, 사용자가 client ID와 secret을 넣으면 confidential client다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
+어느 쪽이든 token은 사용자 기기가 아니라 Anthropic 서버에 있다.
 
-**예: ChatGPT에 Gmail을 연결한다면**
+**예: Claude에 Gmail MCP Server를 연결한다면**
 
-ChatGPT에서 Gmail을 tool로 쓰는 MCP Server를 연결한다고 해 보자.
-Google이 Gmail 전용 MCP Server를 공식으로 내놓은 것은 아니어서, 이 예는 그런 서버가 있다고 가정한 대응이다.
+Google은 Gmail을 tool로 내놓는 원격 MCP Server `https://gmailmcp.googleapis.com/mcp/v1`을 Workspace Developer Preview로 제공한다([Google 문서](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)).
+Google의 안내에서 사용자는 Google Cloud에서 Web application 종류의 OAuth client를 직접 만든다.
+redirect URI로는 `https://claude.ai/api/mcp/auth_callback`을 등록한다.
+그리고 받은 client ID와 secret을 Claude의 connector 설정(Advanced settings)에 넣는다.
 
 | official의 역할 | 이 예에서 |
 |---|---|
-| 사용자·browser | ChatGPT를 쓰는 사람과 그 browser나 ChatGPT 앱 |
-| `shop-agent` | ChatGPT다. OpenAI의 서버가 MCP client이고, 사용자별 token도 그 서버에 둔다 |
+| 사용자·browser | Claude를 쓰는 사람과 그 browser나 Claude 앱 |
+| `shop-agent` | Claude다. Anthropic 서버가 MCP client이고, 사용자가 넣은 client ID·secret과 token을 그 서버에 둔다 |
 | `auth-server` | Google의 OAuth Authorization Server다. Google 계정 login과 consent 화면을 보여 준다 |
-| `shop-mcp-server` | Gmail을 tool로 내놓는 MCP Server |
-| scope | `gmail.readonly`(메일 읽기), `gmail.send`(메일 보내기) 같은 [Gmail scope](https://developers.google.com/workspace/gmail/api/auth/scopes) |
+| `shop-mcp-server` | Google의 Gmail MCP Server |
+| client 등록 | 사용자가 만든 Web application client다. secret이 있는 confidential client다 |
+| scope | `gmail.readonly`(메일 읽기)와 `gmail.compose`(초안 쓰기) |
 
-같은 MCP Server를 Claude Code에서 연결하면, Claude Code가 `local-client` 자리에 선다.
-메일을 읽다가 처음 보내려 하면 `gmail.send`가 더 필요해지는데, 이것이 [10장](10-scope-and-step-up.md)의 step-up이다.
-Google OAuth에는 이미 허락한 scope를 새 token에 합쳐 주는 `include_granted_scopes=true` parameter가 있다([Google 문서](https://developers.google.com/identity/protocols/oauth2/web-server)).
-10장에서 client가 이전 scope와 합쳐 요청하는 것과 같은 생각이다.
+official은 운영자가 agent를 배포할 때 credentials를 설정에 넣고, 이 예에서는 사용자가 connector를 추가할 때 넣는다.
+넣는 사람만 다를 뿐, 연결하는 순서는 [4장](04-client-registration.md)의 4.8과 같다.
 
 ## 2.4 일반 OAuth와 다른 점
 
@@ -165,7 +175,7 @@ MCP client는 사용자가 넣은 어느 MCP Server에든 붙는다.
 | Authorization Server를 모른다 | 개발자가 Authorization Server 주소를 설정에 적는다 | client는 MCP Server 주소만 안다. Authorization Server는 discovery로 찾는다 | [3장](03-discovery.md) |
 | 처음 보는 client를 등록해야 한다 | 개발자가 Authorization Server에 앱을 미리 등록해 `client_id`를 받는다 | client와 Authorization Server가 서로 모르는 채 만난다. 미리 등록하는 방법 말고도 CIMD(client가 `https` 주소에 올린 자기 정보 문서의 주소를 `client_id`로 쓰는 방식)나 DCR(등록 endpoint에 `POST`해 `client_id`를 받는 방식)로 `client_id`를 얻는다 | [4장](04-client-registration.md) |
 | token의 대상을 MCP Server로 좁힌다 | token을 쓸 API가 정해져 있어 대상을 밝히지 않는 경우가 많다 | client가 `resource`로 MCP Server를 밝히고, MCP Server는 token의 `aud`에 자기가 있는지 본다 | [5장](05-authorization-and-token.md), [6장](06-mcp-call-and-validation.md) |
-| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 대부분이다. 한 client가 비밀을 미리 나눠 둘 수 없는 여러 Authorization Server를 만나서, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
+| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많고, claude.ai처럼 서버에서 도는 agent도 CIMD·DCR로 등록하면 비밀 없는 public client다. 한 client가 비밀을 미리 나눠 둘 수 없는 여러 Authorization Server를 만나서, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
 | token 말고 전송 단계도 검사한다 | token 검증이 API 보안의 중심이다 | 사용자 기기에서 authorization 없이 도는 MCP Server도 있다. browser를 거친 요청을 막으려고 `Origin`을 검사한다(official은 `Host`도) | [6장](06-mcp-call-and-validation.md) |
 
 세 번째와 다섯 번째 항목은 이유를 조금 더 살펴본다.
@@ -355,7 +365,8 @@ agent의 흐름을 curl로 한 단계씩 기록하는 스크립트도 있다: `d
 - 원격 MCP Server는 OAuth access token의 `sub`로 누구를 대신한 요청인지 알고, `aud`로 자기에게 온 token인지 안다.
 - MCP client는 OAuth client, MCP Server는 resource server이고, token은 따로 있는 Authorization Server가 발급한다.
 - 서버에서 도는 agent는 `client_secret`이 있는 confidential client이고, 사용자 기기의 앱은 비밀이 없는 public client다.
-- 두 종류를 가르는 것은 화면이 아니라 MCP client와 token이 있는 곳이다. ChatGPT·Claude.ai 같은 채팅 서비스는 서버의 agent이고, Claude Code·Codex CLI 같은 도구는 기기의 앱이다.
+- 제품이 어느 형태인지는 화면이 아니라 MCP client와 token이 있는 곳으로 정해진다. ChatGPT·claude.ai 같은 채팅 서비스는 서버에서 도는 agent이고, Claude Code·Codex CLI 같은 도구는 사용자 기기의 앱이다.
+- confidential client인지 public client인지는 등록 방식으로 따로 정해진다. 서버에서 도는 agent도 CIMD·DCR로 등록하면 public client다.
 - 흐름은 PKCE를 쓰는 authorization code grant 그대로이고, MCP는 discovery, 처음 보는 client의 등록(CIMD·DCR), `resource`·`aud`, public client 보호, 전송 보안을 더한다.
 
 ## 2.11 명세 근거
