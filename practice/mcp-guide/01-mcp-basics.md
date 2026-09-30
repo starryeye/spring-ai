@@ -30,7 +30,7 @@ flowchart LR
 | MCP client | host 안에서 MCP Server 하나와 연결을 맺고 메시지를 주고받는다 | `shop-agent` 안의 Spring AI MCP client |
 | MCP Server | tool 같은 기능을 제공하는 프로그램이다 | `shop-mcp-server` |
 
-Claude Desktop이나 Cursor 같은 앱이 host다. MCP client와 MCP Server는 1:1로 짝을 짓고, MCP Server는 LLM을 직접 부르지 않는다.
+Claude Desktop이나 ChatGPT 같은 앱이 host다. MCP client와 MCP Server는 1:1로 짝을 짓고, MCP Server는 LLM을 직접 부르지 않는다.
 
 server가 제공하는 기능은 tool, resource(읽을 수 있는 데이터), prompt(미리 만든 메시지 틀) 세 가지다.
 이 practice는 tool만 쓴다. official의 `shop-mcp-server`는 `getStock`과 `searchProducts` 두 tool을 제공한다.

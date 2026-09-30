@@ -5,7 +5,7 @@
 보통의 OAuth 앱은 개발자가 Authorization Server 주소를 설정 파일에 미리 적어 둔다.
 Spring Boot라면 `spring.security.oauth2.client.provider.<이름>.issuer-uri`를 적는다. client는 처음부터 어디로 가야 하는지 안다.
 
-MCP는 다르다. 사용자는 Claude Desktop이나 Cursor 같은 MCP client에 MCP Server 주소 하나만 넣는다.
+MCP는 다르다. 사용자는 Claude나 ChatGPT 같은 MCP client에 MCP Server 주소 하나만 넣는다.
 
 ```text
 https://mcp.example.com/mcp
@@ -115,8 +115,9 @@ canonical URI는 scheme과 host를 소문자로 쓰고, fragment(`#` 뒤의 부�
 
 **주소 규칙**
 
-PRM 주소는 MCP Server 주소의 host와 path 사이에 `/.well-known/oauth-protected-resource`를 끼워 넣어 만든다.
-header가 없을 때 client는 path가 붙은 주소를 먼저 시도하고, 없으면 path를 뺀 주소를 시도한다.
+보통 client는 `401`의 `WWW-Authenticate` header에 있는 `resource_metadata` 주소로 PRM을 가져온다.
+MCP Server가 이 값을 주지 않으면, client는 MCP Server 주소로 PRM 주소를 직접 만든다.
+host와 path 사이에 `/.well-known/oauth-protected-resource`를 끼워 넣은 주소를 먼저 시도하고, 없으면 path를 뺀 주소를 시도한다.
 
 | MCP Server 주소 | 1순위 | 2순위 |
 |---|---|---|

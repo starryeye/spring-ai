@@ -80,7 +80,7 @@ flowchart LR
 Authorization Server에 client로 등록되는 것은 `shop-agent` 앱이고, 그 `client_id`는 `official-shop-agent`다.
 
 `local-client`는 official에 함께 들어 있는 명령줄 앱이다.
-Claude Code나 Cursor처럼 사용자 기기에서 도는 MCP client를 흉내 내고, 7장에서 이 앱으로 흐름을 따라간다.
+Claude Code나 Codex CLI처럼 사용자 기기에서 도는 MCP client를 흉내 내고, 7장에서 이 앱으로 흐름을 따라간다.
 
 ## 2.3 client의 두 종류: confidential client와 public client
 
@@ -98,7 +98,7 @@ agent는 token request를 보낼 때 이 비밀을 `Authorization` header에 넣
 
 **사용자 기기의 앱: public client**
 
-Claude Code, Cursor 데스크톱 앱, VS Code 같은 MCP client는 사용자 기기에서 돌고, MCP Server에도 기기에서 직접 연결한다.
+Claude Code나 Codex CLI 같은 MCP client는 사용자 기기에서 돌고, MCP Server에도 기기에서 직접 연결한다.
 배포 파일에 비밀을 넣으면 누구든 꺼내 볼 수 있어서, 그 비밀은 더 이상 비밀이 아니다.
 그래서 이런 client는 비밀 없이 public client로 등록한다.
 official에서는 `local-mcp-client`가 그렇게 등록된 client이고, `local-client`가 이 `client_id`를 쓴다.
@@ -117,20 +117,19 @@ authorization code가 돌아오는 주소(`redirect_uri`)를 보면 어느 쪽�
 |---|---|---|
 | 서버에서 도는 agent | ChatGPT | `https://chatgpt.com/connector_platform_oauth_redirect` |
 | | Claude.ai, Claude Desktop, Claude 모바일 앱의 원격 connector | `https://claude.ai/api/mcp/auth_callback` |
-| | Cursor의 cloud agent | `https://www.cursor.com/agents/mcp/oauth/callback` |
 | 사용자 기기의 앱 | Claude Code | `http://localhost:<빈 포트>/callback` |
-| | Cursor 데스크톱 앱 | `http://localhost:8787/callback` |
-| | VS Code | `http://127.0.0.1:33418` |
+| | Codex CLI | `http://127.0.0.1:<빈 포트>/callback` |
 
-주소는 각 제품의 문서([ChatGPT](https://developers.openai.com/plugins/build/auth), [Claude](https://claude.com/docs/connectors/building/authentication), [Claude Code](https://code.claude.com/docs/en/mcp), [Cursor](https://cursor.com/docs/mcp), [VS Code](https://code.visualstudio.com/api/extension-guides/ai/mcp))에 있고, 제품이 바뀌면 달라질 수 있다.
+주소는 각 제품의 문서([ChatGPT](https://developers.openai.com/plugins/build/auth), [Claude](https://claude.com/docs/connectors/building/authentication), [Claude Code](https://code.claude.com/docs/en/mcp), [Codex](https://developers.openai.com/codex/mcp))에 있고, 제품이 바뀌면 달라질 수 있다.
 official에서도 agent는 서버 주소 `http://localhost:8110/login/oauth2/code/authserver`로, `local-client`는 `http://127.0.0.1:<빈 포트>/callback`으로 돌아온다.
 
 Claude의 원격 connector는 claude.ai에서 쓰든 Claude Desktop이나 모바일 앱에서 쓰든 Anthropic 서버에서 MCP Server에 연결한다([Claude 도움말](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)).
 그래서 데스크톱 앱이어도 authorization code는 `claude.ai`의 서버로 돌아간다.
 Claude Desktop이 사용자 기기에서 직접 돌리는 것은 설정 파일에 적은 stdio server이고, 여기에는 이 장의 OAuth 흐름이 쓰이지 않는다(1장).
-stdio만 아는 앱을 OAuth를 쓰는 원격 MCP Server에 잇는 [`mcp-remote`](https://github.com/geelen/mcp-remote) 같은 bridge도 있다.
-이 bridge는 사용자 기기에서 browser를 열고 loopback 주소로 callback을 받으므로, 사용자 기기의 앱 자리에 선다.
-Cursor처럼 한 제품이 두 형태를 모두 갖기도 한다.
+
+한 회사의 제품도 형태가 나뉜다.
+OpenAI의 ChatGPT는 서버에서 도는 agent이고, Codex CLI는 `codex mcp login`으로 사용자 기기의 browser를 열어 loopback 주소로 callback을 받는다.
+Anthropic도 Claude.ai와 Claude Desktop의 원격 connector는 Anthropic 서버에서, Claude Code는 사용자 기기에서 MCP Server에 연결한다.
 
 일반 사용자가 쓰는 AI 채팅 서비스는 대개 서버에서 도는 agent다.
 코딩 도구와 명령줄 도구는 대개 사용자 기기의 앱이다.
@@ -356,7 +355,7 @@ agent의 흐름을 curl로 한 단계씩 기록하는 스크립트도 있다: `d
 - 원격 MCP Server는 OAuth access token의 `sub`로 누구를 대신한 요청인지 알고, `aud`로 자기에게 온 token인지 안다.
 - MCP client는 OAuth client, MCP Server는 resource server이고, token은 따로 있는 Authorization Server가 발급한다.
 - 서버에서 도는 agent는 `client_secret`이 있는 confidential client이고, 사용자 기기의 앱은 비밀이 없는 public client다.
-- 두 종류를 가르는 것은 화면이 아니라 MCP client와 token이 있는 곳이다. ChatGPT·Claude.ai 같은 채팅 서비스는 서버의 agent이고, Claude Code·Cursor 데스크톱 앱 같은 도구는 기기의 앱이다.
+- 두 종류를 가르는 것은 화면이 아니라 MCP client와 token이 있는 곳이다. ChatGPT·Claude.ai 같은 채팅 서비스는 서버의 agent이고, Claude Code·Codex CLI 같은 도구는 기기의 앱이다.
 - 흐름은 PKCE를 쓰는 authorization code grant 그대로이고, MCP는 discovery, 처음 보는 client의 등록(CIMD·DCR), `resource`·`aud`, public client 보호, 전송 보안을 더한다.
 
 ## 2.11 명세 근거
