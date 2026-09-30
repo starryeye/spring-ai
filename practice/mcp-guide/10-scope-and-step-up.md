@@ -343,6 +343,9 @@ MCP 명세에 없는 방식이다.
 사용자 기기의 앱은 사용자가 바로 앞에 있고, browser도 같은 기기에 있다(7장).
 그래서 카드를 거치지 않고 그 자리에서 browser를 다시 연다.
 사람이 확인하는 관문은 Authorization Server의 consent 화면이 맡는다.
+사용자 기기의 앱인 [Claude Code](https://code.claude.com/docs/en/mcp)는 `403 insufficient_scope`를 받으면 tool 호출을 실패로 끝내고, 서버가 요구한 scope를 알린다.
+그러면 사용자가 `/mcp`에서 그 서버를 다시 인증한다.
+`local-client`는 이 다시 인증하는 단계를 스스로 이어서 한다.
 `local-client`의 출력은 다음과 같다.
 browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/authz-local-client-run.sh`로 받았고, 사람이 browser로 해도 출력은 같다.
 

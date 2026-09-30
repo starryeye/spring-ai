@@ -2,8 +2,8 @@
 
 ## 7.1 로컬 client의 필요성
 
-MCP를 쓰는 가장 흔한 모습은 사용자가 자기 기기의 앱에 원격 MCP Server 주소를 넣는 것이다.
-Claude Desktop, Cursor, Claude Code가 그런 앱이다.
+MCP를 쓰는 흔한 모습 하나는 사용자가 자기 기기의 앱에 원격 MCP Server 주소를 넣는 것이다.
+Claude Code, Cursor 데스크톱 앱, VS Code가 그런 앱이다(2장).
 주소를 받은 앱은 3~6장의 흐름을 혼자 모두 밟는다.
 discovery로 Authorization Server를 찾고, 사용자의 login과 consent를 거쳐 token을 받은 뒤, 그 token으로 MCP Server를 부른다.
 
@@ -411,8 +411,9 @@ public client에도 refresh token을 주는 Authorization Server라면, 앱은 r
 **CIMD로 정하는 `client_id`**
 
 `local-mcp-client`는 official의 Authorization Server 한 곳에 미리 등록한 `client_id`다.
-Claude Desktop 같은 앱은 사용자가 어떤 MCP Server를 넣을지 모르므로, Authorization Server마다 미리 등록해 둘 수 없다.
+Claude Code 같은 앱은 사용자가 어떤 MCP Server를 넣을지 모르므로, Authorization Server마다 미리 등록해 둘 수 없다.
 그래서 앱의 metadata 문서를 자기 `https` 주소에 올리고, CIMD를 지원하는 Authorization Server에서는 그 주소를 `client_id`로 쓴다(4장).
+Claude Code는 `https://claude.ai/oauth/claude-code-client-metadata`를 `client_id`로 쓴다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
 문서의 `redirect_uris`에는 `local-client`처럼 loopback 주소를 적는다.
 
 **issuer별 등록 상태**
