@@ -5,7 +5,7 @@
 보통의 OAuth 앱은 개발자가 Authorization Server 주소를 설정 파일에 미리 적어 둔다.
 Spring Boot라면 `spring.security.oauth2.client.provider.<이름>.issuer-uri`를 적는다. client는 처음부터 어디로 가야 하는지 안다.
 
-MCP는 다르다. 사용자는 Claude나 ChatGPT 같은 MCP client에 MCP Server 주소 하나만 넣는다.
+MCP는 다르다. 사용자는 Claude나 ChatGPT 같은 앱에 MCP Server 주소 하나만 넣는다.
 
 ```text
 https://mcp.example.com/mcp
