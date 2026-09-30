@@ -1,0 +1,39 @@
+# mcp-stateless-handle local-client 실행 — 2026-10-01 (stateless-local-client-run.sh, browser 대신 curl)
+
+[1] discovery: http://localhost:8151/mcp
+    Authorization Server: http://localhost:9040
+    처음 요청할 scope: products:read (401의 scope)
+[2] browser에서 login과 consent를 한다
+    http://localhost:9040/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A60150%2Fcallback&scope=products%3Aread&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8151%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:60150/callback
+[4] client_secret 없이 access token을 받았다(299초 뒤 만료, scope: products:read)
+[5] MCP 호출
+    initialize: protocolVersion=2025-11-25, server=stateless-shop-mcp-server
+    tool: getStock
+    tool: searchProducts
+    tool: updateStock
+    tool: addItem
+    tool: checkout
+    tool: createBasket
+    tool: getBasket
+    getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.
+    createBasket: 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA를 만들었습니다. 2026-09-30T20:52:47.763027Z에 만료됩니다.
+    addItem(p4, 1): 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA:
+- [p4] 인체공학 마우스 × 1 = 59,000원
+합계 59,000원. 2026-09-30T20:52:47.763027Z에 만료됩니다.
+    addItem(p9, 2): 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA:
+- [p4] 인체공학 마우스 × 1 = 59,000원
+- [p9] 휴대용 SSD 1TB × 2 = 278,000원
+합계 337,000원. 2026-09-30T20:52:47.763027Z에 만료됩니다.
+    getBasket: 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA:
+- [p4] 인체공학 마우스 × 1 = 59,000원
+- [p9] 휴대용 SSD 1TB × 2 = 278,000원
+합계 337,000원. 2026-09-30T20:52:47.763027Z에 만료됩니다.
+    getBasket(모르는 ID): [오류] 장바구니 bsk_AAAAAAAAAAAAAAAAAAAAAA를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요.
+    403 insufficient_scope — 필요한 scope: orders:write
+[6] step-up: products:read orders:write로 다시 authorization을 받는다
+    http://localhost:9040/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A60162%2Fcallback&scope=products%3Aread+orders%3Awrite&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8151%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:60162/callback
+[4] client_secret 없이 access token을 받았다(299초 뒤 만료, scope: products:read orders:write)
+[7] 새 token으로 같은 요청을 새로 보낸다
+    checkout: 주문 ord-1001를 접수했습니다.
