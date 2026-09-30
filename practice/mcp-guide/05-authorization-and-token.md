@@ -44,7 +44,7 @@ sequenceDiagram
 
 [다이어그램 그림으로 보기](diagrams/05-authorization-and-token-1.png)
 
-(1)(2)는 5.3·5.4, (3)~(6)은 5.5, (7)(8)은 5.6, (9)(10)은 5.7~5.9에서 다룬다.
+(1)(2)는 5.3·5.4, (3)\~(6)은 5.5, (7)(8)은 5.6, (9)(10)은 5.7\~5.9에서 다룬다.
 아래 예시는 official practice를 실제로 띄워 받은 값이다.
 여러 번 실행해 모은 값이라 `state`와 `code`는 절마다 다르다.
 
@@ -446,7 +446,7 @@ curl -s -o /dev/null -D - -G http://localhost:9010/oauth2/authorize \
 
 마지막 명령의 `resource`를 `http://localhost:8111/mcp`로 고치면, 요청이 올바르므로 login 화면(`http://localhost:9010/login`)으로 간다.
 
-login부터 token request, refresh까지 한 단계씩 기록하는 스크립트는 `docs/superpowers/captures/mcp-authorization-walkthrough.sh`다(출력의 4~6단계와 11단계).
+login부터 token request, refresh까지 한 단계씩 기록하는 스크립트는 `docs/superpowers/captures/mcp-authorization-walkthrough.sh`다(출력의 4\~6단계와 11단계).
 public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures/mcp-authorization-public-client.sh`로 볼 수 있다.
 
 ## 5.13 정리

@@ -137,6 +137,7 @@ python3 -m unittest discover -s .claude/skills/writing-practice-docs/scripts -p 
 | `body-capture` | 캡처 번호를 지우고 값만 보여 준다 |
 | `body-test` | 테스트 메서드 이름을 지우고 동작을 문장으로 쓴다 |
 | `html` | HTML 태그와 앵커 태그를 지운다. 링크는 제목 자동 앵커로 한다 |
+| `tilde` | 범위를 뜻하는 `~`를 `\~`로 쓴다. 한 문단에 `~`가 둘이면 GitHub이 그 사이를 취소선으로 그린다 |
 | `link` | 없는 파일이나 앵커로 가는 링크를 고친다 |
 | `mermaid` | 선언 안 된 participant, 짝 없는 블록, 괄호 짝을 고친다 |
 | `diagram-link` | `render_diagrams.py`를 돌려 그림 링크를 넣거나 이름을 고친다. 그래도 걸리면 fence 모양을 본다 |

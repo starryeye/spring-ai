@@ -8,7 +8,7 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 판정은 예(지킨다), **아니오**(어긴다), 다루지 않음(그 기능을 쓰지 않는다), 해당 없음(조건이 생기지 않는다) 넷이고, 뒤에 근거인 클래스·설정·테스트(`클래스#메서드`)·캡처 번호를 붙인다.
 "같음"은 왼쪽 칸과 같다는 뜻이고, "코드로 판정"은 캡처 없이 코드를 읽고 내린 판정이라는 뜻이다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 `docs/superpowers/captures/`의 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호이고, chat-memory·community 캡처도 같은 번호를 쓴다.
-`local-client`의 `[1]`~`[5]`는 [local-client 캡처](../../docs/superpowers/captures/2026-09-26-local-client.txt)의 줄이다.
+`local-client`의 `[1]`\~`[5]`는 [local-client 캡처](../../docs/superpowers/captures/2026-09-26-local-client.txt)의 줄이다.
 "설명" 열은 그 내용을 설명하는 장이고, 공격은 [8장](08-security.md), 기준 버전(transport는 2025-11-25, authorization은 2025-11-25에 2026-07-28 추가분)은 [9장](09-versions.md)에 있다.
 
 ## mcp-security-authz에서 달라지는 행
@@ -18,12 +18,12 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 표에 없는 행의 판정은 official과 같다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 A 캡처의 요청은 agent가 아니라 curl이 agent의 credentials(`authz-shop-agent`)로 보낸 것이다.
-authz `local-client`의 `[1]`~`[7]`은 [authz local-client 캡처](../../docs/superpowers/captures/2026-09-29-authz-local-client.txt)의 줄이다.
+authz `local-client`의 `[1]`\~`[7]`은 [authz local-client 캡처](../../docs/superpowers/captures/2026-09-29-authz-local-client.txt)의 줄이다.
 설명은 [10장](10-scope-and-step-up.md)에 있다.
 
 | # | 항목 | 요구 수준 | official | authz | 근거 |
 |---|---|---|---|---|---|
-| 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용 | 예 — tool마다 scope를 두고, 사용자를 대신하는 두 client는 `403`을 받으면 step-up을 한다 | `RequiredScope`, `ToolScopeRegistry`, `ToolScopeFilter`, agent `StepUpAuthorizationErrorHandler`, `local-client` `StepUp`. A6 → A8-call, `local-client` `[5]`~`[7]` |
+| 16 | scope 설계·step-up authorization | SHOULD ([Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling)) | 다루지 않음 — 인증된 요청은 모든 tool 허용 | 예 — tool마다 scope를 두고, 사용자를 대신하는 두 client는 `403`을 받으면 step-up을 한다 | `RequiredScope`, `ToolScopeRegistry`, `ToolScopeFilter`, agent `StepUpAuthorizationErrorHandler`, `local-client` `StepUp`. A6 → A8-call, `local-client` `[5]`\~`[7]` |
 | 17 | RFC 9068 access token 프로파일 | 참고 — MCP는 요구하지 않음 ([RFC 9068 §2.1](https://www.rfc-editor.org/rfc/rfc9068#section-2.1) · [§2.2](https://www.rfc-editor.org/rfc/rfc9068#section-2.2) · [RFC 8693 §4.2](https://www.rfc-editor.org/rfc/rfc8693#section-4.2)) | 아니오(불일치) — header에 `typ` 없음, `client_id` claim 없음, `scope`가 JSON 배열 | 아니오(불일치) — `client_id` claim은 있지만, header에 `typ`이 없고 `scope`는 JSON 배열이다 | `ResourceAudienceTokenCustomizer`가 `client_id`를 더한다(A4-token의 `"client_id":"authz-shop-agent"`, `"scope":["products:read","openid"]`). `AuthorizationServerConfig`가 official과 같아 `typ`은 없다(코드로 판정) |
 | 37 | client의 scope 선택 — `401`의 `scope` → PRM의 `scopes_supported` → `scope` 생략 | SHOULD ([Scope Selection Strategy](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-selection-strategy)) | **아니오** — `401`과 PRM에 scope가 없는데 `openid profile`을 보낸다 | 예(agent는 OIDC login의 `openid`를 더한다) — 두 client 모두 `401`의 `products:read`를 고른다 | A1, agent `McpAuthorizationDiscovery#selectScopes`와 `DiscoveredClientRegistrationRepository`(`DiscoveredClientRegistrationRepositoryTest#발견한_엔드포인트로_등록을_만든다`). `local-client` `ScopeSelection#select`, `[1]`의 `처음 요청할 scope: products:read (401의 scope)`와 `[2]`의 `scope=products%3Aread` |
 | 새 | scope가 모자란 요청에 `403`과 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답한다 | SHOULD ([MCP Runtime Insufficient Scope Errors](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#runtime-insufficient-scope-errors)) · SHOULD, `scope`는 MAY ([RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1)) | 다루지 않음 — scope를 검사하지 않는다 | 예 — transport 앞의 filter가 HTTP `403`으로 답한다. 모든 MCP 요청에 `products:read`를, `tools/call`에는 그 tool의 scope를 요구한다 | `ToolScopeFilter#insufficientScope`, `ResourceMetadataUrl`. A6, `McpScopeTest#조회_scope_token으로_재고를_바꾸려_하면_403과_필요한_scope를_받는다` |

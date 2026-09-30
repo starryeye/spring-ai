@@ -30,7 +30,7 @@ flowchart LR
 | MCP client | host 안에서 MCP Server 하나와 연결을 맺고 메시지를 주고받는다 | `shop-agent` 안의 Spring AI MCP client |
 | MCP Server | tool 같은 기능을 제공하는 프로그램이다 | `shop-mcp-server` |
 
-Claude Desktop이나 Cursor 같은 앱이 host다. MCP client와 MCP Server는 1:1로 짝을 짓고, MCP Server는 LLM을 직접 부르지 않는다.
+Claude Desktop이나 ChatGPT 같은 앱이 host다. MCP client와 MCP Server는 1:1로 짝을 짓고, MCP Server는 LLM을 직접 부르지 않는다.
 
 server가 제공하는 기능은 tool, resource(읽을 수 있는 데이터), prompt(미리 만든 메시지 틀) 세 가지다.
 이 practice는 tool만 쓴다. official의 `shop-mcp-server`는 `getStock`과 `searchProducts` 두 tool을 제공한다.
@@ -98,7 +98,7 @@ sequenceDiagram
 
 아래 예시는 official practice를 실제로 띄워 받은 응답이다.
 official의 MCP Server는 token이 없는 요청을 `401`로 거절해서, 모든 요청에 `Authorization` header가 있다.
-token을 받는 과정은 3~5장, 이 header를 검사하는 과정은 6장에서 다룬다. 이 장에서는 이 header를 건너뛰고 읽어도 된다.
+token을 받는 과정은 3\~5장, 이 header를 검사하는 과정은 6장에서 다룬다. 이 장에서는 이 header를 건너뛰고 읽어도 된다.
 
 ## 1.4 1단계: `initialize`로 서로를 소개한다
 
@@ -315,7 +315,7 @@ JSON-RPC는 메시지 형식만 정하고, 메시지를 나르는 통로는 정�
 
 stdio server는 stdout에 MCP 메시지만 쓰고, 로그는 표준 오류(stderr)로 보낸다. stdout에 로그 한 줄만 섞여도 client가 메시지를 읽지 못하기 때문이다.
 
-Streamable HTTP에서 `POST`는 1.4~1.7에서 본 대로 메시지 하나를 보내고, `DELETE`는 session을 끝낸다.
+Streamable HTTP에서 `POST`는 1.4\~1.7에서 본 대로 메시지 하나를 보내고, `DELETE`는 session을 끝낸다.
 `GET`은 server가 먼저 보내는 메시지를 받는 SSE stream을 연다. tool 목록이 바뀌었다는 notification(`notifications/tools/list_changed`)이 그런 메시지다.
 MCP Java SDK client는 session ID를 받자마자 이 stream을 연다. official에 `GET /mcp`를 보내면 응답 header도 오지 않은 채 연결이 열려 있다. stream을 제공하지 않는 server는 `GET`에 `405`로 답한다.
 
@@ -404,7 +404,7 @@ LLM이 `getStock`을 `{"productId": "p1"}`로 부르겠다고 답하면, Spring 
 ## 1.13 직접 해 보기
 
 official의 MCP Server는 token 없는 요청을 모두 거절해서, 이 장의 요청을 직접 보내려면 access token이 있어야 한다.
-token을 받는 과정은 3~5장에서 다룬다. 2~5장을 읽은 뒤 해 보기를 권한다.
+token을 받는 과정은 3\~5장에서 다룬다. 2\~5장을 읽은 뒤 해 보기를 권한다.
 practice는 `practice/mcp-security-authn-official/run.sh`로 띄운다.
 
 browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고 "p1 재고 알려줘"라고 묻는다.
@@ -417,7 +417,7 @@ MCP 요청과 응답을 직접 보려면 캡처 스크립트를 돌린다. 스�
 docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/walkthrough.txt
 ```
 
-출력의 7~10단계가 이 장의 1~4단계이고, 18단계가 5단계다. 14단계는 session ID가 없는 요청, 15단계는 모르는 버전 header를 보낸 요청이다.
+출력의 7\~10단계가 이 장의 1\~4단계이고, 18단계가 5단계다. 14단계는 session ID가 없는 요청, 15단계는 모르는 버전 header를 보낸 요청이다.
 각 단계의 curl 명령은 스크립트 안에 있다. token이 있다면 그 명령으로 한 단계씩 직접 보내 볼 수 있다.
 
 ## 1.14 정리

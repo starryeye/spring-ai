@@ -94,7 +94,7 @@ sequenceDiagram
 | 단계 | 검사 | 하는 곳 | 실패 응답 | 막는 것 |
 |---|---|---|---|---|
 | 1단계 (2)(3) | `Origin`·`Host` | `McpTransportSecurityFilter` | `403`·`421` | browser를 거쳐 들어오는 요청(DNS rebinding) |
-| 2단계 (4)~(9) | token의 signature·`iss`·`aud`·`exp` | Spring Security | `401` | token 없는 요청, 위조·만료된 token, 다른 서버용 token |
+| 2단계 (4)\~(9) | token의 signature·`iss`·`aud`·`exp` | Spring Security | `401` | token 없는 요청, 위조·만료된 token, 다른 서버용 token |
 | 3단계 (10) | `MCP-Protocol-Version` | `McpProtocolVersionFilter` | `400` | 서버가 모르는 버전을 쓰는 요청 |
 | 4단계 (11)(12) | session | Spring AI의 transport | `400`·`404` | 어느 연결인지 알 수 없는 요청 |
 
@@ -319,10 +319,10 @@ session 데이터를 `<user_id>:<session_id>` 같은 key로 두고, `user_id`는
 그러면 session ID를 알아내도 다른 사용자의 token으로는 그 session을 쓰지 못한다.
 
 이 권고에는 전제가 있다.
-MCP 명세의 구조에서 host(Claude Desktop 같은 앱)는 MCP Server마다 client를 하나 만든다.
+MCP 명세의 구조에서 Claude Code(CLI) 같은 host는 MCP Server마다 client를 하나 만든다.
 client는 그 MCP Server와 1:1로 연결되고, session도 하나만 연다.
 client가 받는 token은 사용자 한 명의 것이므로, client 하나와 그 session은 사용자 한 명의 것이다.
-데스크톱 앱과 [7장](07-local-client.md)의 `local-client`가 이 구조다.
+사용자 기기의 앱과 [7장](07-local-client.md)의 `local-client`가 이 구조다.
 여러 사용자가 쓰는 서버형 agent도 token은 사용자별로 보관하므로, 이 구조를 따르려면 MCP client도 사용자별로 둔다.
 
 official의 agent는 이 구조를 따르지 않는다.
@@ -533,7 +533,7 @@ curl http://localhost:9010/oauth2/jwks
 ```
 
 token이 필요한 요청은 캡처 스크립트로 본다.
-`docs/superpowers/captures/mcp-authorization-walkthrough.sh` 출력의 12~15단계가 ID token의 `401`, `Origin`의 `403`, session ID가 없는 `400`, 모르는 버전의 `400`이다.
+`docs/superpowers/captures/mcp-authorization-walkthrough.sh` 출력의 12\~15단계가 ID token의 `401`, `Origin`의 `403`, session ID가 없는 `400`, 모르는 버전의 `400`이다.
 `Host`의 `421`과 끝난 session의 `404`는 `docs/superpowers/captures/mcp-authorization-supplement.sh`에 있다.
 각 단계의 curl 명령은 스크립트 안에 있어서, token이 있다면 한 단계씩 직접 보내 볼 수 있다.
 

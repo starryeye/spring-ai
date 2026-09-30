@@ -323,6 +323,9 @@ def check_style(path: str, prose) -> list[Issue]:
                 break
         if HTML_TAG.search(re.sub(r"`[^`]*`", " ", line)):
             issues.append(Issue(path, no, "html", "HTML 태그·앵커 태그를 쓰지 않는다"))
+        # GitHub은 한 문단의 `~` 두 개 사이를 취소선으로 그린다. 범위의 `~`는 `\~`로 쓴다.
+        if re.search(r"(?<!\\)~", clean(line)):
+            issues.append(Issue(path, no, "tilde", "범위를 뜻하는 `~`는 `\\~`로 쓴다(취소선 방지)"))
     return issues
 
 

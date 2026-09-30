@@ -74,17 +74,17 @@ sequenceDiagram
 
 | 단계 | 볼 값 |
 |---|---|
-| 1단계 (1)~(9): 먼저 조회 scope만 받는다 | `401`의 `scope`, PRM의 `scopes_supported`, token의 `scope` |
+| 1단계 (1)\~(9): 먼저 조회 scope만 받는다 | `401`의 `scope`, PRM의 `scopes_supported`, token의 `scope` |
 | 2단계 (10)(11): 쓰기를 처음 시도하면 `403`이 온다 | `WWW-Authenticate`의 `error`와 `scope` |
-| 3단계 (12)~(16): 합친 scope로 다시 authorization을 받는다 | 합친 `scope`, 새 token |
+| 3단계 (12)\~(16): 합친 scope로 다시 authorization을 받는다 | 합친 `scope`, 새 token |
 
-(5)~(7)과 (12)~(14)는 5장의 authorization code 흐름을 줄여 그렸고, callback과 token request는 생략했다.
+(5)\~(7)과 (12)\~(14)는 5장의 authorization code 흐름을 줄여 그렸고, callback과 token request는 생략했다.
 (11)과 (12) 사이에 사용자에게 묻는 방법은 client마다 다르다.
 웹 agent는 채팅 화면에 consent 카드를 띄우고(10.6), 사용자 기기의 앱은 그 자리에서 browser를 연다(10.7).
 
 아래 예시는 `practice/mcp-security-authz`를 실제로 띄워 받은 값이다.
 Authorization Server는 `http://localhost:9030`, MCP Server는 `http://localhost:8141/mcp`, agent는 `http://localhost:8140`이다.
-그림의 scope 값과 1~3단계의 값은 curl이 agent의 client `authz-shop-agent`로 보낸 요청에서 받았다.
+그림의 scope 값과 1\~3단계의 값은 curl이 agent의 client `authz-shop-agent`로 보낸 요청에서 받았다.
 `local-client`는 `openid` 없이 요청한다(10.3).
 
 ## 10.3 1단계: 먼저 조회 scope만 받는다
@@ -227,6 +227,8 @@ filter가 tool의 scope를 찾으려면 tool 이름을 알아야 하는데, 2025
 challenge의 `products:write`만 요청하면 새 token에는 `products:read`가 없어서, 다시 보낸 `updateStock`부터 모든 MCP 요청이 `403`을 받는다.
 그래서 client는 이전 scope와 challenge의 scope를 합쳐 요청한다.
 agent의 로그에는 `step-up authorization request — 추가 scope=[products:write], 요청 scope=[openid, products:read, products:write]`가 남는다.
+Google OAuth에는 합치는 일을 Authorization Server가 맡는 방법도 있다.
+client가 `include_granted_scopes=true`를 보내면, Google은 사용자가 전에 그 client에 허락한 scope를 새 token에 함께 넣는다([Google 문서](https://developers.google.com/identity/protocols/oauth2/web-server)).
 
 Authorization Server는 이번에도 consent 화면을 보여 주고, 새로 고를 체크박스는 `products:write` 하나다.
 `openid`와 `products:read`는 "You have already granted the following permissions to the above app" 아래에 체크된 채 나오고, 바꿀 수 없다.
@@ -331,9 +333,9 @@ tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 �
 이 버튼은 `/step-up/retry`로 가서 시도 기록을 지우고 step-up을 처음부터 다시 시작한다.
 
 널리 쓰이는 AI client도 권한이 더 필요하면 사용자에게 다시 묻는다.
-[Claude.ai](https://claude.com/docs/connectors/building/lazy-authentication)는 tool 호출이 `401`을 받으면 대화 안에 Connect 카드를 띄우고, login이 끝나면 같은 tool 호출을 다시 보낸다.
+[claude.ai](https://claude.com/docs/connectors/building/lazy-authentication)는 tool 호출이 `401`을 받으면 대화 안에 Connect 카드를 띄우고, login이 끝나면 같은 tool 호출을 다시 보낸다.
 `403 insufficient_scope`를 받아도 다시 authorization을 받게 한다.
-Claude.ai는 popup에서 login하게 해 대화를 이어 가지만, 이 agent는 채팅 응답을 끝내고 browser를 consent 화면으로 보낸다.
+claude.ai는 popup에서 login하게 해 대화를 이어 가지만, 이 agent는 채팅 응답을 끝내고 browser를 consent 화면으로 보낸다.
 ChatGPT의 [Apps SDK](https://developers.openai.com/apps-sdk/build/auth)는 HTTP `403` 대신 오류 tool 결과의 `_meta["mcp/www_authenticate"]`에 challenge를 넣게 하고, ChatGPT는 이 값을 보고 login 화면을 띄운다.
 MCP 명세에 없는 방식이다.
 [Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent)도 agent 채팅 안의 consent 카드로 사용자의 허락을 받는다.
@@ -341,8 +343,11 @@ MCP 명세에 없는 방식이다.
 ## 10.7 사용자 기기의 앱: 그 자리에서 다시 login
 
 사용자 기기의 앱은 사용자가 바로 앞에 있고, browser도 같은 기기에 있다(7장).
-그래서 카드를 거치지 않고 그 자리에서 browser를 다시 연다.
+그래서 카드를 거치지 않고 그 자리에서 browser를 다시 열 수 있다.
 사람이 확인하는 관문은 Authorization Server의 consent 화면이 맡는다.
+다만 [Claude Code(CLI)](https://code.claude.com/docs/en/mcp)는 `403 insufficient_scope`를 받으면 tool 호출을 실패로 끝내고, 서버가 요구한 scope를 알린다.
+browser는 사용자가 `/mcp`에서 그 서버를 다시 인증할 때 열린다.
+`local-client`는 사용자를 거치지 않고 바로 browser를 다시 연다.
 `local-client`의 출력은 다음과 같다.
 browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/authz-local-client-run.sh`로 받았고, 사람이 browser로 해도 출력은 같다.
 
@@ -547,7 +552,7 @@ official의 `local-client`는 transport의 기본 요청에 `Authorization` head
 
 ## 10.10 요청과 scope 한눈에 보기
 
-10.3~10.7은 요청을 단계마다 나눠 보았다.
+10.3\~10.7은 요청을 단계마다 나눠 보았다.
 여기서는 두 client가 주고받는 요청과 응답을 client마다 표 하나로 모은다.
 요청마다 어느 endpoint로 가고 그때 scope가 무엇인지 따라가면, step-up 앞뒤로 무엇이 바뀌는지 보인다.
 `response_type`처럼 늘 같은 parameter와 `state`·`nonce`·`code_challenge`는 표에서 뺐다.
@@ -657,7 +662,7 @@ curl http://localhost:8141/.well-known/oauth-protected-resource/mcp
 Spring AI가 tool 예외를 채팅 응답까지 전하면서 남기는 줄이라서, step-up이 정상으로 진행될 때도 남는다.
 
 **token이 필요한 요청**: 캡처 스크립트 `docs/superpowers/captures/mcp-authz-walkthrough.sh`로 본다.
-스크립트를 통째로 돌리면 1~3단계와 일부 허락이 한 번에 기록된다(출력의 JWT는 앞 20자만 남는다).
+스크립트를 통째로 돌리면 1\~3단계와 일부 허락이 한 번에 기록된다(출력의 JWT는 앞 20자만 남는다).
 저장된 consent가 없어야 consent 화면이 나오므로, 스크립트는 `./stop.sh`와 `./run.sh`로 다시 띄운 직후에 돌린다.
 스크립트가 `products:write`까지 consent한 기록을 남기므로, 웹 agent는 스크립트보다 먼저 해 보거나 다시 띄운 뒤에 해 본다.
 아래 명령을 직접 보내려면 `READ_TOKEN`에 `products:read`만 담긴 access token을 넣는다.
