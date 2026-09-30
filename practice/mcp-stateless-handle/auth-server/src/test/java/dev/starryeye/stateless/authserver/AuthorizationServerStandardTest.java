@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -774,5 +775,21 @@ class AuthorizationServerStandardTest {
 		String body = 토큰요청(parameters, 400);
 
 		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
+	}
+
+	@Test
+	void agent_client는_orders_write를_허락받아_token에_담는다() throws Exception {
+		UriComponents response = 기밀클라이언트_인가(
+				기밀클라이언트_인가요청_URI("openid products:read orders:write"), "products:read", "orders:write");
+		String body = 토큰요청(인가코드교환(응답파라미터(response, "code"), RESOURCE), 200);
+
+		assertThat(토큰의_scope(JsonPath.read(body, "$.access_token")))
+				.containsExactlyInAnyOrder("openid", "products:read", "orders:write");
+	}
+
+	@Test
+	void 두_번째_계정_user2로_login할_수_있다() throws Exception {
+		this.mockMvc.perform(formLogin("/login").user("user2").password("password"))
+				.andExpect(authenticated().withUsername("user2"));
 	}
 }

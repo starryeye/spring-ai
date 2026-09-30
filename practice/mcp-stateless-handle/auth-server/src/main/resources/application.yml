@@ -33,9 +33,10 @@ spring:
                 - http://localhost:8150/login/oauth2/code/authserver
               scopes:
                 - openid
-                # MCP Server의 tool을 부를 때 쓰는 scope다. 조회와 재고 변경을 나눈다(안내서 10장).
+                # MCP Server의 tool을 부를 때 쓰는 scope다. 조회, 재고 변경, 주문을 나눈다(안내서 10·11장).
                 - products:read
                 - products:write
+                - orders:write
             # MCP 2025-11-25는 PKCE(S256)를 반드시 쓰게 한다(MUST).
             # 이 값이 true면 code_challenge 없는 authorization request를 거부한다.
             require-proof-key: true
@@ -67,6 +68,7 @@ spring:
               scopes:
                 - products:read
                 - products:write
+                - orders:write
             # public client에는 비밀이 없다. 그래서 가로챈 code를 쓰지 못하게 막는 장치는
             # code_challenge뿐이다(RFC 7636, MCP 2025-11-25 MUST).
             require-proof-key: true
