@@ -62,6 +62,7 @@ public class BasketTools {
 
 	@McpTool(name = "addItem",
 			description = "장바구니에 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해진다. "
+					+ "한 장바구니에는 같은 상품을 " + BasketStore.MAX_QUANTITY_PER_PRODUCT + "개까지 담을 수 있다. "
 					+ "basketId는 createBasket이 준 값이다.")
 	@RequiredScope("products:read")
 	public CallToolResult addItem(McpTransportContext context,
@@ -69,12 +70,14 @@ public class BasketTools {
 			String basketId,
 			@McpToolParam(description = "상품 ID. 예: p1", required = true)
 			String productId,
-			@McpToolParam(description = "담을 수량. 1 이상의 정수", required = true)
+			@McpToolParam(description = "담을 수량. 1 이상 " + BasketStore.MAX_QUANTITY_PER_PRODUCT + " 이하의 정수",
+					required = true)
 			int quantity) {
 		McpCaller caller = McpCaller.from(context);
 		log.info("addItem 호출 (사용자={}, productId={}, quantity={})", caller.subject(), productId, quantity);
-		if (quantity < 1) {
-			return error("수량은 1 이상이어야 합니다. (받은 값: %d)".formatted(quantity));
+		if (quantity < 1 || quantity > BasketStore.MAX_QUANTITY_PER_PRODUCT) {
+			return error("수량은 1 이상 %d 이하여야 합니다. (받은 값: %d)"
+					.formatted(BasketStore.MAX_QUANTITY_PER_PRODUCT, quantity));
 		}
 		if (this.products.findById(productId).isEmpty()) {
 			return error("상품 %s를 찾을 수 없습니다. searchProducts로 상품 ID를 확인하세요.".formatted(productId));
@@ -118,7 +121,7 @@ public class BasketTools {
 					.structuredContent(Map.of("orderId", orderId))
 					.build();
 		}
-		catch (BasketException | IllegalStateException ex) {
+		catch (BasketException | IllegalStateException | IllegalArgumentException ex) {
 			return error(ex.getMessage());
 		}
 	}

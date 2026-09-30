@@ -61,8 +61,16 @@ public class ProductRepository {
     /**
      * 주문할 수량만큼 재고를 한꺼번에 줄인다.
      * 하나라도 모자라거나 없는 상품이면 아무것도 줄이지 않고 예외를 던진다(checkout의 all-or-nothing 요구).
+     * 0 이하의 수량을 빼면 재고가 오히려 늘므로, 그런 수량은 재고를 건드리기 전에 거절한다.
      */
     public synchronized void reserve(Map<String, Integer> quantities) {
+        List<String> invalid = quantities.entrySet().stream()
+                .filter(entry -> entry.getValue() < 1)
+                .map(Map.Entry::getKey)
+                .toList();
+        if (!invalid.isEmpty()) {
+            throw new IllegalArgumentException("주문 수량은 1 이상이어야 합니다: " + String.join(", ", invalid));
+        }
         List<String> shortages = quantities.entrySet().stream()
                 .filter(entry -> {
                     Product product = store.get(entry.getKey());

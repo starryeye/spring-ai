@@ -67,6 +67,42 @@ class BasketToolsTest {
 	}
 
 	@Test
+	void 한_상품을_99개_넘게_담으면_tool_오류이고_장바구니는_그대로다() {
+		String handle = 새_장바구니("user");
+		this.tools.addItem(사용자("user"), handle, "p4", 98);
+
+		CallToolResult over = this.tools.addItem(사용자("user"), handle, "p4", 2);
+
+		assertThat(over.isError()).isTrue();
+		assertThat(글(over)).contains("99개까지");
+		assertThat(this.tools.addItem(사용자("user"), handle, "p4", 100).isError()).isTrue();
+		assertThat(this.tools.addItem(사용자("user"), handle, "p4", Integer.MAX_VALUE).isError()).isTrue();
+		assertThat(글(this.tools.getBasket(사용자("user"), handle))).contains("× 98 =");
+	}
+
+	@Test
+	void 재고_확보가_잘못된_수량을_거절해도_tool_오류다() {
+		// 장바구니는 수량을 1 이상으로 지키므로, 0을 넘기는 저장소로 이 경로를 만든다.
+		ProductRepository zero = new ProductRepository() {
+			@Override
+			public synchronized void reserve(Map<String, Integer> quantities) {
+				super.reserve(Map.of("p4", 0));
+			}
+		};
+		BasketTools tools = new BasketTools(new BasketStore(Clock.systemUTC()), zero);
+		CallToolResult created = tools.createBasket(사용자("user"));
+		@SuppressWarnings("unchecked")
+		String handle = (String) ((Map<String, Object>) created.structuredContent()).get("basketId");
+		tools.addItem(사용자("user"), handle, "p4", 1);
+
+		CallToolResult result = tools.checkout(사용자("user"), handle);
+
+		assertThat(result.isError()).isTrue();
+		assertThat(글(result)).contains("p4");
+		assertThat(zero.findById("p4").orElseThrow().stock()).isEqualTo(145);
+	}
+
+	@Test
 	void 다른_사용자의_handle은_찾을_수_없다는_tool_오류다() {
 		String handle = 새_장바구니("user");
 

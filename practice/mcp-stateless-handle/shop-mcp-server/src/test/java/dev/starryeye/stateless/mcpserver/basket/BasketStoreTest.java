@@ -83,6 +83,48 @@ class BasketStoreTest {
 	}
 
 	@Test
+	void 한_상품은_합쳐서_99개까지_담고_넘으면_장바구니가_그대로다() {
+		String handle = this.store.create("user").handle();
+		this.store.addItem("user", handle, "p4", 98);
+
+		BasketException over = catchBasket(() -> this.store.addItem("user", handle, "p4", 2));
+
+		assertThat(over.reason()).isEqualTo(BasketException.Reason.QUANTITY);
+		assertThat(over.getMessage()).contains("99개까지").contains("지금 98개").contains("더하려는 수량 2개");
+		assertThat(this.store.view("user", handle).items()).containsExactly(Map.entry("p4", 98));
+		assertThat(this.store.addItem("user", handle, "p4", 1).items()).containsExactly(Map.entry("p4", 99));
+	}
+
+	@Test
+	void int를_넘는_수량을_더해도_수량이_음수로_바뀌지_않는다() {
+		String handle = this.store.create("user").handle();
+
+		// int끼리 더하면 넘쳐서 음수가 된다. 그런 수량으로 결제하면 재고가 오히려 는다.
+		assertThat(이유(() -> this.store.addItem("user", handle, "p1", Integer.MAX_VALUE)))
+				.isEqualTo(BasketException.Reason.QUANTITY);
+		assertThat(이유(() -> this.store.addItem("user", handle, "p1", Integer.MAX_VALUE)))
+				.isEqualTo(BasketException.Reason.QUANTITY);
+		assertThat(this.store.view("user", handle).items()).isEmpty();
+
+		this.store.addItem("user", handle, "p1", 1);
+		assertThat(이유(() -> this.store.addItem("user", handle, "p1", Integer.MAX_VALUE)))
+				.isEqualTo(BasketException.Reason.QUANTITY);
+		assertThat(this.store.view("user", handle).items()).containsExactly(Map.entry("p1", 1));
+	}
+
+	@Test
+	void 수량이_1보다_작으면_담지_않는다() {
+		String handle = this.store.create("user").handle();
+		this.store.addItem("user", handle, "p4", 3);
+
+		for (int quantity : new int[] { 0, -3, Integer.MIN_VALUE }) {
+			assertThatThrownBy(() -> this.store.addItem("user", handle, "p4", quantity))
+					.isInstanceOf(IllegalArgumentException.class);
+		}
+		assertThat(this.store.view("user", handle).items()).containsExactly(Map.entry("p4", 3));
+	}
+
+	@Test
 	void 다른_사용자는_같은_handle을_찾지_못한다() {
 		String handle = this.store.create("user").handle();
 
@@ -198,7 +240,7 @@ class BasketStoreTest {
 	}
 
 	@Test
-	void 모양이_틀린_handle은_찾을_수_없다() {
+	void 형식이_틀린_handle은_찾을_수_없다() {
 		String handle = this.store.create("user").handle();
 
 		for (String wrong : new String[] { " " + handle, handle + " ", "basket_1", "", null }) {
@@ -207,8 +249,8 @@ class BasketStoreTest {
 	}
 
 	@Test
-	void 모양이_틀린_handle의_오류_메시지는_입력을_그대로_보여주지_않는다() {
-		// 모델이 보낸 값이 handle 모양이 아니면 오류 문장에 그대로 되풀이하지 않는다.
+	void 형식이_틀린_handle의_오류_메시지는_입력을_그대로_보여주지_않는다() {
+		// 모델이 보낸 값이 handle 형식이 아니면 오류 문장에 그대로 되풀이하지 않는다.
 		BasketException ex = catchBasket(() -> this.store.view("user", "basket_1"));
 
 		assertThat(ex.getMessage()).contains("(올바르지 않은 ID)");

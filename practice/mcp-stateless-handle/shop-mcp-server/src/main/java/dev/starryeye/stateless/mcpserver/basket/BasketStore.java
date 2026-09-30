@@ -29,6 +29,13 @@ public class BasketStore {
 
 	public static final int MAX_OPEN_PER_USER = 5;
 
+	/**
+	 * 한 장바구니에 같은 상품을 담을 수 있는 수량이다.
+	 * 수량을 int로 더하다 넘치면 음수가 되고, 음수 수량으로 주문하면 재고가 오히려 는다.
+	 * 그래서 담기 전에 합친 수량을 이 값과 비교한다.
+	 */
+	public static final int MAX_QUANTITY_PER_PRODUCT = 99;
+
 	private static final class Basket {
 
 		final String handle;
@@ -94,9 +101,19 @@ public class BasketStore {
 		return basket.view();
 	}
 
+	/** 합친 수량이 {@link #MAX_QUANTITY_PER_PRODUCT}를 넘으면 장바구니를 바꾸지 않고 예외를 던진다. */
 	public synchronized BasketView addItem(String subject, String handle, String productId, int quantity) {
+		if (quantity < 1) {
+			throw new IllegalArgumentException("수량은 1 이상이어야 한다: " + quantity);
+		}
 		Basket basket = open(subject, handle);
-		basket.items.merge(productId, quantity, Integer::sum);
+		int current = basket.items.getOrDefault(productId, 0);
+		// long으로 더해야 int 범위를 넘는 합도 상한을 넘은 것으로 본다.
+		long total = (long) current + quantity;
+		if (total > MAX_QUANTITY_PER_PRODUCT) {
+			throw BasketException.quantity(current, quantity);
+		}
+		basket.items.put(productId, (int) total);
 		return basket.view();
 	}
 
