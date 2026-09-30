@@ -36,9 +36,20 @@ public final class ChatEvents {
     }
 
     public static Flux<ServerSentEvent<String>> of(Flux<String> content, StepUpState state) {
+        return of(content, state, () -> {
+        });
+    }
+
+    /**
+     * {@code onStepUp}은 step-up event를 만들기 직전에 부른다.
+     * agent는 여기서 끊긴 turn을 대화 기억에서 되돌린다.
+     */
+    public static Flux<ServerSentEvent<String>> of(Flux<String> content, StepUpState state, Runnable onStepUp) {
         return content.map(text -> event(MESSAGE, JSON.writeValueAsString(text)))
-                .onErrorResume(error -> StepUpRequiredException.find(error).isPresent(),
-                        error -> Flux.just(stepUp(StepUpRequiredException.find(error).orElseThrow(), state)));
+                .onErrorResume(error -> StepUpRequiredException.find(error).isPresent(), error -> {
+                    onStepUp.run();
+                    return Flux.just(stepUp(StepUpRequiredException.find(error).orElseThrow(), state));
+                });
     }
 
     /**

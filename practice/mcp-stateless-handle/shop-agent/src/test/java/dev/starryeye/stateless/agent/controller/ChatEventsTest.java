@@ -8,6 +8,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -59,5 +60,17 @@ class ChatEventsTest {
     void 다른_예외는_그대로_흘려보낸다() {
         assertThatThrownBy(() -> events(Flux.error(new IllegalStateException("모델 오류"))))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void step_up_event를_보내기_전에_onStepUp을_부른다() {
+        AtomicBoolean called = new AtomicBoolean();
+        Flux<String> content = Flux.error(new StepUpRequiredException(List.of("orders:write"), "checkout"));
+
+        List<ServerSentEvent<String>> events = ChatEvents.of(content, new StepUpState(), () -> called.set(true))
+                .collectList().block();
+
+        assertThat(called).isTrue();
+        assertThat(events).extracting(ServerSentEvent::event).containsExactly("step-up");
     }
 }

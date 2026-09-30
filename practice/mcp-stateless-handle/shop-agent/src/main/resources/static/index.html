@@ -17,6 +17,7 @@
 <p>로그인한 사용자를 대신해 MCP 서버의 툴을 호출합니다. 예: <code>노트북 재고 있어?</code>, <code>p1 재고를 10개로 바꿔 줘</code></p>
 <input id="q" placeholder="질문을 입력하세요" autofocus>
 <button id="send">보내기</button>
+<button id="reset">새 대화</button>
 <pre id="out"></pre>
 <div id="card" class="card" hidden>
     <p id="card-text"></p>
@@ -25,6 +26,7 @@
 <script>
     const out = document.getElementById('out');
     const send = document.getElementById('send');
+    const reset = document.getElementById('reset');
     const q = document.getElementById('q');
     const card = document.getElementById('card');
     const cardText = document.getElementById('card-text');
@@ -107,6 +109,14 @@
 
     send.addEventListener('click', ask);
     q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
+
+    // 대화 기억을 지운다. 장바구니 handle을 기억하는 대화도 함께 사라진다.
+    reset.addEventListener('click', async () => {
+        sessionStorage.removeItem(PENDING);
+        const res = await fetch('/api/chat/reset', {method: 'POST', headers: csrfHeaders()});
+        card.hidden = true;
+        out.textContent = res.ok ? '대화를 비웠습니다.' : '오류: HTTP ' + res.status;
+    });
 
     // consent 화면에서 돌아왔으면 멈췄던 질문을 한 번 다시 보낸다.
     window.addEventListener('load', () => {
