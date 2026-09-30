@@ -1,9 +1,11 @@
 package dev.starryeye.stateless.mcpserver.config;
 
+import dev.starryeye.stateless.mcpserver.basket.BasketStore;
 import dev.starryeye.stateless.mcpserver.filter.McpProtocolVersionFilter;
 import dev.starryeye.stateless.mcpserver.filter.McpTransportSecurityFilter;
 import dev.starryeye.stateless.mcpserver.filter.ToolScopeFilter;
 import dev.starryeye.stateless.mcpserver.security.McpCaller;
+import dev.starryeye.stateless.mcpserver.tool.BasketTools;
 import dev.starryeye.stateless.mcpserver.tool.ProductTools;
 import dev.starryeye.stateless.mcpserver.tool.ToolScopeRegistry;
 
@@ -19,6 +21,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.time.Clock;
 import java.util.List;
 
 /**
@@ -66,9 +69,15 @@ public class McpTransportConfig {
 		return registration;
 	}
 
+	/** 장바구니 저장소다. 만료 계산은 {@link Clock}으로 한다(테스트가 시간을 돌릴 수 있게). */
 	@Bean
-	public ToolScopeRegistry toolScopeRegistry(ProductTools productTools) {
-		return ToolScopeRegistry.scan(productTools);
+	public BasketStore basketStore() {
+		return new BasketStore(Clock.systemUTC());
+	}
+
+	@Bean
+	public ToolScopeRegistry toolScopeRegistry(ProductTools productTools, BasketTools basketTools) {
+		return ToolScopeRegistry.scan(productTools, basketTools);
 	}
 
 	/**

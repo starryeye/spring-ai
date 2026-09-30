@@ -57,4 +57,24 @@ public class ProductRepository {
                 new Product(product.id(), product.name(), product.category(), product.price(), stock));
         return Optional.ofNullable(updated);
     }
+
+    /**
+     * 주문할 수량만큼 재고를 한꺼번에 줄인다.
+     * 하나라도 모자라거나 없는 상품이면 아무것도 줄이지 않고 예외를 던진다(checkout의 all-or-nothing 요구).
+     */
+    public synchronized void reserve(Map<String, Integer> quantities) {
+        List<String> shortages = quantities.entrySet().stream()
+                .filter(entry -> {
+                    Product product = store.get(entry.getKey());
+                    return product == null || product.stock() < entry.getValue();
+                })
+                .map(Map.Entry::getKey)
+                .toList();
+        if (!shortages.isEmpty()) {
+            throw new IllegalStateException("재고가 모자라 주문할 수 없습니다: " + String.join(", ", shortages));
+        }
+        quantities.forEach((id, quantity) -> store.computeIfPresent(id, (key, product) ->
+                new Product(product.id(), product.name(), product.category(), product.price(),
+                        product.stock() - quantity)));
+    }
 }

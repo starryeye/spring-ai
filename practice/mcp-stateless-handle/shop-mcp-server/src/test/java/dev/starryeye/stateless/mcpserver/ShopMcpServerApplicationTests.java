@@ -68,6 +68,7 @@ class ShopMcpServerApplicationTests {
 				.map(spec -> spec.tool().name())
 				.toList();
 
-		assertThat(toolNames).containsExactlyInAnyOrder("searchProducts", "getStock", "updateStock");
+		assertThat(toolNames).containsExactlyInAnyOrder("searchProducts", "getStock", "updateStock",
+				"createBasket", "addItem", "getBasket", "checkout");
 	}
 }
