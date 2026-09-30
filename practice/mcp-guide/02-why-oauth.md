@@ -187,14 +187,20 @@ sequenceDiagram
 | MCP 호출 | (15)(16) | 요청마다 token을 붙이고, MCP Server는 그 token을 검증한다 | [6장](06-mcp-call-and-validation.md) |
 
 두 client는 같은 순서를 밟지만, 몇 단계에서 하는 일이 다르다.
+표의 번호는 위 다이어그램의 메시지 번호다.
 
 | 메시지 | `shop-agent` | `local-client` |
 |---|---|---|
 | (7) | browser의 요청에 `302`로 답해 authorization request 주소로 보낸다 | 사용자 기기의 browser를 그 주소로 연다 |
-| (9)(10) | login만 한다. consent 화면이 나오지 않는다 | login한 뒤 consent 화면에서 `profile`을 고른다. 매번 consent를 받는다 |
+| (9)(10) | login만 한다. official은 이 client를 consent 화면 없이 등록했다 | login한 뒤 consent 화면이 나온다. consent를 저장하지 않아서 실행할 때마다 나온다 |
 | (11)(12) | agent 서버의 `http://localhost:8110/login/oauth2/code/authserver`로 돌아온다 | `127.0.0.1`의 빈 포트에 잠깐 연 callback server로 돌아온다 |
 | (13) | `client_secret`으로 자기를 증명한다 | 비밀 없이 `client_id`와 `code_verifier`만 보낸다 |
 | (14) | refresh token도 받는다 | refresh token은 받지 않는다 |
+
+(9)는 Authorization Server가 browser에 보여 주는 login·consent 화면이고, (10)은 사용자가 그 화면에서 제출하는 것이다.
+`local-client`의 consent 화면에서 고를 체크박스는 `profile` 하나다.
+`openid`는 consent 대상이 아니라서 체크박스가 없다.
+agent의 consent를 끈 이유와 public client에게 매번 묻는 이유는 [4장](04-client-registration.md)에서, `profile`을 요청하는 이유는 [5장](05-authorization-and-token.md)에서 본다.
 
 agent는 discovery 결과를 기억해 두고, 사용자가 login할 때마다 (7)~(14)로 그 사용자의 token을 받는다.
 그 뒤의 채팅에서는 (15)(16)만 되풀이하고, token이 만료되면 refresh token으로 새 token을 받는다(5장).
