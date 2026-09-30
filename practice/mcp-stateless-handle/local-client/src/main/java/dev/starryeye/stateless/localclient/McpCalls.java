@@ -20,14 +20,13 @@ import java.util.function.Supplier;
  * 보내 옛 token이 그대로 실리므로 쓸 수 없다). {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터
  * 새로 만들어(=customizer가 다시 불려 새 token이 실린 요청으로) 한 번만 다시 보낸다.
  *
- * <p>장바구니는 이 session도 인자도 아닌 handle로 다룬다(안내서 11장): {@code createBasket}이 돌려준
- * {@code basketId}를 이 app이 {@code addItem}·{@code getBasket}·{@code checkout}의 인자로 그대로
- * 넘긴다. {@code checkout}만 {@code orders:write}를 요구하므로, 조회 token으로 부르면 403이 오고 그
- * 자리에서 step-up이 일어난다.
+ * <p>장바구니는 session이 아니라 서버가 만든 handle로 다룬다(안내서 11장).
+ * 이 앱은 {@code createBasket}이 돌려준 {@code basketId}를 {@code addItem}·{@code getBasket}·{@code checkout}의 인자로 그대로 넘긴다.
+ * {@code checkout}만 {@code orders:write}를 요구하므로, 조회 token으로 부르면 403이 오고 그 자리에서 step-up이 일어난다.
  */
 public final class McpCalls {
 
-	/** 이 사용자가 만든 적 없는 handle이다. 모양은 맞지만 서버에 없다. */
+	/** 이 사용자가 만든 적 없는 handle이다. 형식은 맞지만 서버에 없다. */
 	static final String UNKNOWN_BASKET = "bsk_" + "A".repeat(22);
 
 	private McpCalls() {
@@ -68,7 +67,7 @@ public final class McpCalls {
 			print(out, "addItem(p9, 2)", callOnce(() -> call(client, "addItem",
 					Map.of("basketId", basketId, "productId", "p9", "quantity", 2)), out));
 			print(out, "getBasket", callOnce(() -> call(client, "getBasket", Map.of("basketId", basketId)), out));
-			// 이 사용자의 것이 아닌 handle은 "찾을 수 없다"다. 가진 것만으로는 쓸 수 없다.
+			// 만든 적 없는 handle은 "찾을 수 없다"다. 가진 것만으로는 쓸 수 없다.
 			print(out, "getBasket(모르는 ID)",
 					callOnce(() -> call(client, "getBasket", Map.of("basketId", UNKNOWN_BASKET)), out));
 			// 주문은 orders:write가 필요하다. 조회 token이면 403 → 그 자리에서 step-up → 새 요청으로 다시 보낸다.
