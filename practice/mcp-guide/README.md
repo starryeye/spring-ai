@@ -23,7 +23,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 1장부터 11장까지 차례로 읽는다.
 뒤 장은 앞 장에서 본 요청과 용어를 다시 설명하지 않는다.
 10장은 5\~7장에서 본 흐름에 scope와 step-up을 더하므로, 7장 다음에 읽어도 된다.
-11장은 10장의 scope와 step-up 위에 session 없는 서버와 handle을 더하므로, 10장 다음에 읽는다.
+11장은 10장의 scope와 step-up에 session 없는 서버와 handle을 더하므로, 10장 다음에 읽는다.
 
 시간이 없으면 2·3·5·6장만 읽는다.
 2장에서 전체 흐름을 보고, 3장의 discovery, 5장의 token 발급, 6장의 token 검증으로 흐름의 중심을 따라간다.
@@ -55,7 +55,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [8. 보안](08-security.md) | SSRF, code 가로채기, 사칭, mix-up, confused deputy, token passthrough, DNS rebinding, session hijacking과 각 공격을 막는 장치 | agent의 callback에 다른 `iss`를 넣어 `401` 받기 |
 | [9. 버전](09-versions.md) | 2025-03-26부터 2026-07-28까지 authorization과 transport가 바뀐 이유, official이 따르는 기준 버전 | `2026-07-28`로 요청해 official이 `2025-11-25`로 답하고 `_meta` 요청을 `400`으로 거절하는 것 보기 |
 | [10. scope와 step-up](10-scope-and-step-up.md) | tool별 scope, 조회 scope로 시작해 쓰기 tool을 처음 부를 때 `403 insufficient_scope`를 받아 scope를 늘리는 step-up, 웹 agent와 사용자 기기의 앱이 사용자에게 다시 묻는 방법 | `401`의 `scope`와 PRM의 `scopes_supported` 읽기, 조회 token으로 `403 insufficient_scope` 받기, 웹 agent의 consent 카드와 `local-client`의 step-up 해 보기 |
-| [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, 웹 agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | 웹 agent에서 장바구니를 담고 결제하기, 캡처 스크립트로 session 없는 `initialize`와 GET의 `405`, `user2`가 남의 handle로 받는 결과 보기, `local-client`로 handle을 넘기고 step-up하기 |
+| [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, 웹 agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | 웹 agent에서 장바구니에 상품을 담고 결제하기, 캡처 스크립트로 session 없는 `initialize`와 GET의 `405`, `user2`가 남의 handle로 받는 결과 보기, `local-client`로 handle을 넘기고 step-up하기 |
 
 ## 부록
 

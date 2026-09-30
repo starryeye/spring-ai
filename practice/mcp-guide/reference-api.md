@@ -7,7 +7,7 @@
 "요구 수준" 칸은 원문 단어(REQUIRED, MUST 등)를 그대로 쓰고, 단어가 없으면 "표시 없음"이라고 쓰며, 명세마다 다르면 모두 적는다.
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
 scope를 다루는 몇 행에는 [mcp-security-authz practice](../mcp-security-authz/README.md)(authz)의 동작도 official 동작 옆에 적는다.
-session을 다루는 몇 행에는 authz를 session 없이 돌리는 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)(stateless)의 동작도 적는다.
+session과 응답 형식을 다루는 몇 행에는 authz를 session 없이 돌리는 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)(stateless)의 동작도 적는다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 `stateless S<n>`은 [stateless 캡처](../../docs/superpowers/captures/2026-10-01-stateless-walkthrough.txt)의 단계 번호이고, supplement 캡처의 `S<n>`과 구별하려고 앞에 stateless를 붙인다.
@@ -208,7 +208,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 |---|---|---|---|
 | `initialize` | 첫 상호작용이어야 한다(MUST, [Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)) | `200` `application/json`, `Mcp-Session-Id` 발급(stateless는 발급하지 않는다, stateless S3) | `protocolVersion`은 `2025-11-25`(C7). `2026-07-28`을 요청해도 `2025-11-25`로 답한다([9장](09-versions.md)) |
 | `notifications/initialized` | `initialize`가 성공한 뒤 보낸다(MUST) | `202`, 본문 없음 | C8 |
-| `tools/list` | | `200` `text/event-stream` | C9 |
+| `tools/list` | | `200` `text/event-stream` | C9. stateless는 `application/json` 본문 하나로 답한다(`WebMvcStatelessServerTransport`) |
 | `tools/call` | | `200` `text/event-stream` | `getStock`(C10). stateless는 `application/json` 본문 하나로 답한다(stateless S5, S9-call) |
 
 **요청**
