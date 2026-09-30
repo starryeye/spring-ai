@@ -4,6 +4,7 @@ import dev.starryeye.stateless.agent.controller.ChatController;
 import dev.starryeye.stateless.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.stateless.agent.discovery.McpAuthorizationDiscovery;
 import dev.starryeye.stateless.agent.security.StepUpRequiredException;
+import dev.starryeye.stateless.agent.security.StepUpState;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -101,6 +102,23 @@ class StepUpMemoryRollbackTest {
 
 		assertThat(events).extracting(ServerSentEvent::event).last().isEqualTo("step-up");
 		assertThat(this.chatMemory.get("rollback-user")).extracting(Message::getText)
+				.containsExactly("장바구니 만들어 줘", "bsk_x를 만들었어요");
+	}
+
+	@Test
+	void 거절_안내로_끝난_turn도_기억에서_되돌린다() {
+		List<Message> earlier = List.of(new UserMessage("장바구니 만들어 줘"), new AssistantMessage("bsk_x를 만들었어요"));
+		this.chatMemory.add("declined-user", earlier);
+		// 이 session에서 orders:write로 한 번 step-up했으므로, 다시 403이 오면 카드 대신 거절 안내가 간다.
+		MockHttpSession session = new MockHttpSession();
+		StepUpState.of(session).start(List.of("orders:write"));
+
+		List<ServerSentEvent<String>> events = this.chatController
+				.chat("결제해 줘", session, new TestingAuthenticationToken("declined-user", null))
+				.collectList().block(Duration.ofSeconds(10));
+
+		assertThat(events).extracting(ServerSentEvent::event).last().isEqualTo("step-up-declined");
+		assertThat(this.chatMemory.get("declined-user")).extracting(Message::getText)
 				.containsExactly("장바구니 만들어 줘", "bsk_x를 만들었어요");
 	}
 

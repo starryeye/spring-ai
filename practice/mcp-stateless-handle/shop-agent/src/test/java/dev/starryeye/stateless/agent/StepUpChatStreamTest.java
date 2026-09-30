@@ -119,7 +119,7 @@ class StepUpChatStreamTest {
                 // conversation ID가 없으면 그 advisor가 IllegalArgumentException을 던진다.
                 // 호출마다 새 id를 써서, 다른 test의 기억과 섞이지 않게 한다.
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, UUID.randomUUID().toString()))
-                .toolCallbacks(권한이_모자란_updateStock)
+                .tools(권한이_모자란_updateStock)
                 .stream()
                 .content();
     }

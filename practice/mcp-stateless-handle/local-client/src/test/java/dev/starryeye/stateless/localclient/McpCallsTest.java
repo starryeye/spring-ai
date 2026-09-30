@@ -119,5 +119,6 @@ class McpCallsTest {
 				.hasMessage("orders:write 권한을 받지 못했다");
 
 		assertThat(calls("checkout")).hasSize(1);
+		assertThat(this.requested).containsExactly(Set.of("products:read", "orders:write"));
 	}
 }

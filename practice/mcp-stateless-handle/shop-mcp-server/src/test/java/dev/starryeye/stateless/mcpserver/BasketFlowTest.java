@@ -78,8 +78,11 @@ class BasketFlowTest {
 
 	@Test
 	void 다른_사용자의_token으로는_handle을_써도_찾을_수_없다() throws Exception {
-		String handle = JsonPath.read(응답(토큰("user", "products:read"), 호출("createBasket", "{}")),
-				"$.result.structuredContent.basketId");
+		String read = 토큰("user", "products:read");
+		String handle = JsonPath.read(응답(read, 호출("createBasket", "{}")), "$.result.structuredContent.basketId");
+		String added = 응답(read,
+				호출("addItem", "{\"basketId\":\"%s\",\"productId\":\"p4\",\"quantity\":1}".formatted(handle)));
+		assertThat(added).contains("[p4]");
 
 		String other = 응답(토큰("user2", "products:read"), 호출("getBasket", "{\"basketId\":\"%s\"}".formatted(handle)));
 

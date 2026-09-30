@@ -7,7 +7,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -55,12 +54,11 @@ class StatelessTransportTest {
 	}
 
 	@Test
-	void DELETE는_성공하지_않는다() throws Exception {
-		int status = this.mockMvc.perform(delete("/mcp")
+	void DELETE는_경로가_없어_404다() throws Exception {
+		// stateless transport의 router에는 GET과 POST만 있다.
+		this.mockMvc.perform(delete("/mcp")
 						.header("Host", McpAuthorizationStandardTest.HOST)
 						.header("Authorization", "Bearer " + McpScopeTest.토큰("products:read")))
-				.andReturn().getResponse().getStatus();
-		// stateless transport의 router에는 GET·POST만 있다. 실제 값(404나 405)은 보고서와 안내서에 적는다.
-		assertThat(status).isGreaterThanOrEqualTo(400);
+				.andExpect(status().isNotFound());
 	}
 }
