@@ -74,6 +74,10 @@
         // 지금 질문을 보내는 이상, bfcache 복원 등으로 남아 있던 이전 질문은 나중에 다시 보내면 안 된다.
         sessionStorage.removeItem(PENDING);
         send.disabled = true;
+        // turn이 도는 중에 기억을 지우면, 그 turn이 지운 뒤에도 기억에 계속 쓴다.
+        // step-up으로 끊기면 되돌리기가 지우기 전 기억을 다시 넣기도 한다.
+        // 그래서 turn이 끝날 때까지 "새 대화" 버튼도 send 버튼과 함께 막아 둔다.
+        reset.disabled = true;
         card.hidden = true;
         out.textContent = '생각 중... (로컬 모델은 30~100초 걸립니다)';
         try {
@@ -104,6 +108,7 @@
             out.textContent = '오류: ' + e;
         } finally {
             send.disabled = false;
+            reset.disabled = false;
         }
     }
 
@@ -113,9 +118,13 @@
     // 대화 기억을 지운다. 장바구니 handle을 기억하는 대화도 함께 사라진다.
     reset.addEventListener('click', async () => {
         sessionStorage.removeItem(PENDING);
-        const res = await fetch('/api/chat/reset', {method: 'POST', headers: csrfHeaders()});
         card.hidden = true;
-        out.textContent = res.ok ? '대화를 비웠습니다.' : '오류: HTTP ' + res.status;
+        try {
+            const res = await fetch('/api/chat/reset', {method: 'POST', headers: csrfHeaders()});
+            out.textContent = res.ok ? '대화를 비웠습니다.' : '오류: HTTP ' + res.status;
+        } catch (e) {
+            out.textContent = '오류: ' + e;
+        }
     });
 
     // consent 화면에서 돌아왔으면 멈췄던 질문을 한 번 다시 보낸다.

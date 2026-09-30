@@ -43,8 +43,8 @@ public class ChatController {
             Authentication authentication) {
         // 대화 기억은 로그인 사용자(sub)마다 따로 둔다.
         String conversationId = authentication.getName();
-        // step-up으로 끊기면 이 turn에서 기억에 들어간 질문과 결과 없는 tool 호출을 되돌린다.
-        // consent 뒤 browser가 같은 질문을 다시 보내므로, 그 turn이 깨끗하게 시작해야 한다.
+        // consent 뒤 browser가 같은 질문을 다시 보내므로, 그 turn은 끊기기 전의 기억에서 다시 시작해야 한다.
+        // 그래서 turn을 시작하기 전 기억을 복사해 두고, step-up으로 끊기면 그대로 되돌린다.
         List<Message> before = List.copyOf(this.chatMemory.get(conversationId));
         Flux<String> content = this.chatClient.prompt()
                 .user(message)
@@ -62,7 +62,9 @@ public class ChatController {
     }
 
     /**
+     * turn을 시작하기 전의 기억으로 되돌린다.
      * 같은 사용자가 두 tab에서 동시에 결제하다 한쪽이 step-up으로 끊기면, 다른 tab이 그 사이에 쌓은 기억도 되돌려진다.
+     * tool을 여러 단계 부른 뒤 step-up으로 끊긴 turn이면, 그 단계들은 이미 서버에서 끝난 일이라 다시 보낸 질문이 그 단계들을 다시 부른다(addItem은 수량을 또 더한다).
      * 이 practice는 이 경우를 다루지 않는다.
      */
     private void restore(String conversationId, List<Message> before) {

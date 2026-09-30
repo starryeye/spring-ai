@@ -8,6 +8,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,13 +65,26 @@ class ChatEventsTest {
 
     @Test
     void step_up_event를_보내기_전에_onStepUp을_부른다() {
-        AtomicBoolean called = new AtomicBoolean();
+        // 호출 순서를 직접 보려고, callback과 event 둘 다 같은 list에 기록한다.
+        List<String> order = new CopyOnWriteArrayList<>();
         Flux<String> content = Flux.error(new StepUpRequiredException(List.of("orders:write"), "checkout"));
 
-        List<ServerSentEvent<String>> events = ChatEvents.of(content, new StepUpState(), () -> called.set(true))
+        List<ServerSentEvent<String>> events = ChatEvents.of(content, new StepUpState(), () -> order.add("onStepUp"))
+                .doOnNext(event -> order.add(event.event()))
                 .collectList().block();
 
-        assertThat(called).isTrue();
+        assertThat(order).containsExactly("onStepUp", "step-up");
         assertThat(events).extracting(ServerSentEvent::event).containsExactly("step-up");
+    }
+
+    @Test
+    void step_up이_아닌_예외는_onStepUp을_부르지_않는다() {
+        AtomicBoolean called = new AtomicBoolean();
+
+        assertThatThrownBy(() -> ChatEvents.of(Flux.error(new IllegalStateException("모델 오류")), new StepUpState(),
+                () -> called.set(true)).collectList().block())
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(called).isFalse();
     }
 }
