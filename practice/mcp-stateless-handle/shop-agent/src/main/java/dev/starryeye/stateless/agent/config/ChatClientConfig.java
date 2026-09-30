@@ -1,6 +1,8 @@
 package dev.starryeye.stateless.agent.config;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
@@ -24,9 +26,13 @@ public class ChatClientConfig {
      * 이 줄을 지워도 앱은 뜨고 답변도 온다. 하지만 모델은 tool 없이 기억으로만 답한다.
      */
     @Bean
-    public ChatClient shopChatClient(ChatClient.Builder builder,
+    public ChatClient shopChatClient(ChatClient.Builder builder, ChatMemory chatMemory,
                                      ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
-        ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
+        ChatClient.Builder configured = builder
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory)
+                        .order(ChatMemoryConfig.MEMORY_ADVISOR_ORDER)
+                        .build());
         toolCallbackProvider.ifAvailable(configured::defaultTools);
         return configured.build();
     }

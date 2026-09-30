@@ -9,6 +9,7 @@ import dev.starryeye.stateless.agent.security.StepUpState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.model.ChatModel;
@@ -112,6 +113,8 @@ class StepUpChatStreamTest {
     Flux<String> 재고를_바꿔_달라고_한다() {
         return this.chatClient.prompt()
                 .user("p1 재고를 10개로 바꿔 줘")
+                // Task 6에서 대화 기억 advisor가 기본 advisor로 들어왔다 — conversation ID 없이는 그 advisor가 IllegalArgumentException을 던진다.
+                .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, "step-up-test"))
                 .toolCallbacks(권한이_모자란_updateStock)
                 .stream()
                 .content();

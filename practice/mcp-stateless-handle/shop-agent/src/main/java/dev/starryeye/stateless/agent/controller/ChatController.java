@@ -5,8 +5,10 @@ import dev.starryeye.stateless.agent.security.StepUpState;
 
 import jakarta.servlet.http.HttpSession;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,9 +32,13 @@ public class ChatController {
      * 답은 SSE event로 보낸다. tool이 step-up을 요구하면 consent 카드 event로 끝난다({@link ChatEvents}).
      */
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSession session) {
+    public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSession session,
+            Authentication authentication) {
+        // 대화 기억은 로그인 사용자(sub)마다 따로 둔다.
+        String conversationId = authentication.getName();
         return ChatEvents.of(chatClient.prompt()
                 .user(message)
+                .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content(), StepUpState.of(session));
     }
