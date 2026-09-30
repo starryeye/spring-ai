@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BasketStoreTest {
@@ -120,6 +121,21 @@ class BasketStoreTest {
 	}
 
 	@Test
+	void 결제한_장바구니는_30분_뒤_지워져_찾을_수_없다() {
+		String handle = this.store.create("user").handle();
+		this.store.addItem("user", handle, "p4", 1);
+		this.store.checkout("user", handle, this.reserved::add);
+
+		// 결제하고 29분까지는 "이미 주문"을 알려 준다.
+		this.clock.지나감(Duration.ofMinutes(29));
+		assertThat(이유(() -> this.store.view("user", handle))).isEqualTo(BasketException.Reason.ORDERED);
+
+		// 결제하고 30분이 지나면 지워져 "찾을 수 없음"이 된다.
+		this.clock.지나감(Duration.ofMinutes(1));
+		assertThat(이유(() -> this.store.view("user", handle))).isEqualTo(BasketException.Reason.NOT_FOUND);
+	}
+
+	@Test
 	void 결제한_장바구니는_다시_결제할_수_없다() {
 		String handle = this.store.create("user").handle();
 		this.store.addItem("user", handle, "p4", 1);
@@ -173,9 +189,12 @@ class BasketStoreTest {
 		}
 		this.clock.지나감(Duration.ofMinutes(30));
 
-		for (int i = 0; i < 5; i++) {
-			this.store.create("user");
-		}
+		// 결제됐거나 만료된 장바구니는 개수에 세지 않으므로 5개를 더 만들 수 있다.
+		assertThatCode(() -> {
+			for (int i = 0; i < 5; i++) {
+				this.store.create("user");
+			}
+		}).doesNotThrowAnyException();
 	}
 
 	@Test
@@ -185,6 +204,15 @@ class BasketStoreTest {
 		for (String wrong : new String[] { " " + handle, handle + " ", "basket_1", "", null }) {
 			assertThat(이유(() -> this.store.view("user", wrong))).isEqualTo(BasketException.Reason.NOT_FOUND);
 		}
+	}
+
+	@Test
+	void 모양이_틀린_handle의_오류_메시지는_입력을_그대로_보여주지_않는다() {
+		// 모델이 보낸 값이 handle 모양이 아니면 오류 문장에 그대로 되풀이하지 않는다.
+		BasketException ex = catchBasket(() -> this.store.view("user", "basket_1"));
+
+		assertThat(ex.getMessage()).contains("(올바르지 않은 ID)");
+		assertThat(ex.getMessage()).doesNotContain("basket_1");
 	}
 
 	static BasketException catchBasket(Runnable call) {

@@ -32,7 +32,8 @@ public class BasketException extends RuntimeException {
 
 	static BasketException expired(String handle) {
 		return new BasketException(Reason.EXPIRED,
-				"장바구니 %s는 만료되었습니다(만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.".formatted(handle));
+				"장바구니 %s는 만료되었습니다(만든 뒤 %d분). createBasket으로 새 장바구니를 만드세요."
+						.formatted(handle, BasketStore.TTL.toMinutes()));
 	}
 
 	static BasketException ordered(String handle, String orderId) {
