@@ -106,6 +106,7 @@ handle은 추측으로 맞힐 수 없어야 한다.
 | `bsk_` 뒤에 22자가 오는 형식이 아닌 값 | 같은 문장이고, handle 자리에 `(올바르지 않은 ID)`가 들어간다 |
 | 본인 handle, 만든 뒤 30분이 지남 | `장바구니 bsk_…는 만료되었습니다(만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.` |
 | 본인 handle, 이미 주문함 | `장바구니 bsk_…는 이미 주문했습니다(주문 번호 ord-…).` |
+| 이미 담은 수량과 합쳐 99개를 넘는 `addItem` | `한 장바구니에는 같은 상품을 99개까지 담을 수 있습니다(지금 98개, 더하려는 수량 2개).`처럼 지금 수량과 더하려는 수량이 붙는다. 장바구니는 그대로다 |
 | 빈 장바구니의 `checkout` | `장바구니 bsk_…가 비어 있습니다. addItem으로 상품을 담으세요.` |
 | 재고가 모자란 상품이 있는 `checkout` | `재고가 모자라 주문할 수 없습니다: p3`처럼 모자란 상품 ID가 붙는다. 장바구니는 열린 채로 남는다 |
 | 열린 장바구니가 이미 5개인 사용자의 `createBasket` | `열린 장바구니는 5개까지 만들 수 있습니다. 쓰던 장바구니를 이어 쓰세요.` |
@@ -241,7 +242,7 @@ MCP Server에는 authz에 없는 하위 package 두 개가 더 있다.
 | `shop-mcp-server` | `application.yml` | `spring.ai.mcp.server.protocol: STATELESS`로 session 없는 transport를 쓴다 | [11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답) |
 | | `McpTransportConfig` | Spring AI 자동 구성 대신 `WebMvcStatelessServerTransport` bean을 직접 만들어 `contextExtractor`에 `McpCaller::context`를 넣는다. `BasketStore` bean도 만들고, `ToolScopeRegistry`가 `BasketTools`의 scope도 읽게 한다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `McpCaller` | Spring Security가 검증한 JWT에서 `sub`와 `client_id`를 꺼내 `McpTransportContext`에 넣는다. tool은 같은 클래스로 이 값을 꺼내고, 인증이 없으면 예외를 던진다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
-| | `BasketStore` | 장바구니를 `<sub>:<handle>` key로 메모리에 두고, handle을 만든다. 만료(30분)와 사용자당 개수(5개)를 지키고, 같은 장바구니를 두 번 주문하지 못하게 한다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
+| | `BasketStore` | 장바구니를 `<sub>:<handle>` key로 메모리에 두고, handle을 만든다. 만료(30분), 사용자당 개수(5개), 상품당 수량(99개)을 지키고, 같은 장바구니를 두 번 주문하지 못하게 한다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `BasketException`, `BasketView` | 장바구니를 쓸 수 없는 이유와 모델이 읽을 문장을 정한다. `BasketView`는 tool에 돌려주는 장바구니 내용(handle, 만료 시각, 담은 상품)이다 | [handle과 소유권](#handle과-소유권) |
 | | `BasketTools` | 장바구니 tool 네 개다. `CallToolResult`를 직접 만들어 handle과 주문 번호를 `structuredContent`에도 넣고, 쓸 수 없는 장바구니는 `isError: true`로 알린다 | [11장 2단계](../mcp-guide/11-stateless-and-handle.md#114-2단계-handle을-만들고-넘긴다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `ProductRepository` | `reserve`가 주문 수량만큼 재고를 한꺼번에 줄인다. 하나라도 모자라면 아무것도 줄이지 않는다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
@@ -290,6 +291,7 @@ LLM의 답은 `qwen3:8b`의 출력이라 문장이 매번 조금씩 다르다.
 `SyncMcpToolCallback`의 `Exception while tool calling` 한 줄과 `MessageAggregator`의 `Aggregation Error` 두 줄이다.
 이 줄들은 Spring AI가 tool 예외를 채팅 응답까지 전하면서 남긴다.
 실패가 아니라 step-up이 정상으로 진행될 때 남는 로그다.
+찾을 수 없는 장바구니처럼 `isError: true`인 tool 결과가 오면 `SyncMcpToolCallback`이 `Error calling tool: [TextContent[…]]`라는 `ERROR` 줄을 남기고, 모델은 이 문자열을 tool 결과로 받아 답을 이어 간다.
 
 `mcp-stateless-walkthrough.sh`는 agent의 client `stateless-shop-agent`로 `user`와 `user2`의 token을 받고, 장바구니 흐름과 `checkout`의 step-up까지 밟는다.
 login과 consent는 browser 대신 curl이 한다.

@@ -10,7 +10,8 @@ session ID를 주는 서버는 이 값으로 그 session에 둔 상태를 찾는
 **공유 MCP client에서는 session의 상태가 사용자끼리 섞인다**
 
 official과 authz의 agent는 MCP client 하나를 모든 사용자가 같이 써서, 어느 사용자의 요청이든 같은 session으로 간다([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)).
-그래서 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보이고, 앱을 끌 때 보내는 `DELETE`에는 붙일 사용자 token도 없다([부록: 준수표](reference-compliance.md)의 36번).
+그래서 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보인다.
+앱을 끌 때 보내는 `DELETE`에는 붙일 사용자 token도 없다([준수표](reference-compliance.md) 36번).
 
 **session이 있으면 서버를 여러 대로 늘리기 어렵다**
 
@@ -30,7 +31,7 @@ MCP Server에는 장바구니 tool 네 개가 더 있다.
 | tool | 하는 일 | scope |
 |---|---|---|
 | `createBasket()` | 새 장바구니를 만들고 handle(`basketId`)을 돌려준다 | `products:read` |
-| `addItem(basketId, productId, quantity)` | 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해진다 | `products:read` |
+| `addItem(basketId, productId, quantity)` | 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해지고, 한 상품은 99개까지 담을 수 있다 | `products:read` |
 | `getBasket(basketId)` | 담은 상품, 합계, 만료 시각을 보여 준다 | `products:read` |
 | `checkout(basketId)` | 재고를 줄이고 주문 번호를 돌려준다. 장바구니는 닫힌다 | `orders:write` |
 
@@ -104,12 +105,12 @@ HTTP/1.1 404
 ```
 
 GET의 `405`는 "이 endpoint는 SSE stream을 주지 않는다"는 뜻이다.
-stateless 서버는 연결을 기억하지 않으므로, 먼저 보낼 메시지를 어느 client에게 보낼지 가릴 방법이 없다.
+stateless 서버는 연결을 기억하지 않으므로, 먼저 보낼 메시지를 어느 client에게 보내야 할지 알 방법이 없다.
 MCP Java SDK의 client는 `initialize` 응답을 받은 뒤 GET으로 이 stream을 열어 보고, `405`가 오면 요청과 응답만으로 돈다.
 
 MCP Java SDK의 client는 session ID를 받지 않았으면 닫을 때 DELETE를 보내지 않는다.
 그래서 공유 client가 앱을 끌 때 token 없는 DELETE를 보내는 일(준수표 36번)도 생기지 않는다.
-명세는 session 종료를 허용하지 않는 서버가 `405`로 답할 수 있다고 하지만, 이 서버는 DELETE를 받을 일이 없어 경로 자체를 두지 않으므로 `404`다.
+명세는 session 종료를 허용하지 않는 서버가 `405`로 답할 수 있다고 하지만, Spring AI의 stateless transport는 DELETE 경로를 두지 않으므로 `404`다.
 
 **요청 형식은 2025-11-25 그대로다**
 
@@ -203,6 +204,7 @@ token은 유효하고 scope도 충분하므로 `401`이나 `403`이 아니다.
 요청은 tool까지 가서 실행되었고, 거절은 HTTP `200` 안의 `isError: true`인 tool 결과로 온다.
 명세는 이런 오류를 JSON-RPC 오류가 아니라 tool 결과로 알리게 한다.
 모델은 이 문장을 읽고 새 장바구니를 만들어 이어 갈 수 있다.
+웹 agent에서는 Spring AI의 `SyncMcpToolCallback`이 이 결과를 예외로 바꾸고, 모델은 이 문장이 든 예외 메시지 `Error calling tool: [TextContent[…]]`를 tool 결과로 받는다.
 
 **handle은 추측할 수 없어야 한다**
 
@@ -361,7 +363,8 @@ turn이 도는 중에 기억을 지우면 그 turn이 지운 뒤에도 기억에
 
 **이 practice의 한계**
 
-SEP-2567은 대화를 줄일 때 handle이 든 tool 결과를 잃지 않게 하는 일을 client의 몫으로 보는데, 이 practice의 대화 기억에는 다음 한계가 있다.
+SEP-2567은 대화를 줄일 때 handle이 든 tool 결과를 지키는 일을 client가 맡는다고 본다.
+이 practice의 대화 기억에는 다음 한계가 있다.
 
 - 기억은 최근 메시지 20개다. 넘치면 `MessageWindowChatMemory`는 오래된 메시지를 다음 사용자 질문 앞까지 한꺼번에 지운다. 그래서 한 turn에서 tool을 10번쯤 넘게 부르면 그 turn이 통째로 기억에서 빠질 수 있다.
 - 마지막 답은 stream이 끝나야 저장된다. browser가 도중에 끊으면 기억에는 tool 호출과 결과만 남고 답은 없다.
@@ -442,6 +445,10 @@ public WebMvcStatelessServerTransport webMvcStatelessServerTransport(
 
 이 transport의 경로는 POST와 GET뿐이고, GET에는 `405`로 답한다.
 
+tool이 사용자를 `McpTransportContext` 인자로 받으면 사용자를 쓴다는 것이 메서드 선언에 보이고, 테스트도 security context 없이 이 인자만 넘겨 tool을 부를 수 있다.
+thread에 묶인 값에 기대지 않는다는 점도 있다.
+지금의 stateless WebMVC sync 서버는 요청 thread에서 tool을 부르므로 `SecurityContextHolder`도 쓸 수 있고, authz에서 온 `ProductTools`는 로그에 남길 사용자만 거기서 읽는다.
+
 **`McpCaller`: token의 사용자**
 
 ```java
@@ -515,7 +522,7 @@ public CallToolResult checkout(McpTransportContext context, /* basketId 인자 *
                 .structuredContent(Map.of("orderId", orderId))
                 .build();
     }
-    catch (BasketException | IllegalStateException ex) {
+    catch (BasketException | IllegalStateException | IllegalArgumentException ex) {
         return error(ex.getMessage());
     }
 }
@@ -523,7 +530,7 @@ public CallToolResult checkout(McpTransportContext context, /* basketId 인자 *
 
 `@RequiredScope("orders:write")`는 10장의 `ToolScopeFilter`가 읽으므로, 조회 token의 `checkout`은 이 메서드에 닿기 전에 `403`으로 끝난다.
 Spring AI는 tool이 문자열을 돌려주면 text 하나인 결과로 만들므로, 이 tool은 `structuredContent`와 `isError`를 정하려고 `CallToolResult`를 직접 만든다.
-장바구니 문제(`BasketException`)와 재고 부족(`IllegalStateException`)은 `error`가 `isError: true`인 결과로 바꾼다.
+장바구니 문제(`BasketException`), 재고 부족(`IllegalStateException`), 0 이하의 주문 수량(`IllegalArgumentException`)은 `error`가 `isError: true`인 결과로 바꾼다.
 
 ## 11.10 client 코드에서 보기
 
@@ -639,7 +646,7 @@ step-up의 consent 화면에서는 `products:read`와 `orders:write`를 모두 �
 | 더 쓰지 않는 session은 client가 `DELETE`로 끝낸다. session 종료를 허용하지 않는 서버는 `405`로 답할 수 있다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | SHOULD, MAY |
 | GET에 서버는 `text/event-stream`으로 stream을 열거나 `405`로 답한다 | [MCP 2025-11-25 Transports — Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server) | MUST |
 | POST로 온 요청에 서버는 `text/event-stream`이나 `application/json` 하나로 답하고, client는 둘 다 처리한다 | [MCP 2025-11-25 Transports — Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) | MUST |
-| authorization을 쓰는 서버는 모든 요청을 검증하고 session으로 인증하지 않는다. session ID는 안전한 무작위 값으로 만들고, `<user_id>:<session_id>`처럼 token에서 꺼낸 사용자에게 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/docs/2025-11-25/tutorials/security/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
+| authorization을 쓰는 서버는 모든 요청을 검증하고 session으로 인증하지 않는다. session ID는 안전한 무작위 값으로 만들고, `<user_id>:<session_id>`처럼 token에서 꺼낸 사용자에게 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
 | 2026-07-28은 protocol 수준의 session과 `Mcp-Session-Id`를 없애고, 호출 사이의 상태는 서버가 만든 handle을 tool 인자로 주고받아 다룬다 | [MCP 2026-07-28 Key Changes — Major changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes) | — |
 | handle은 protocol의 기능이 아니라 권하는 tool 설계다. handle은 불투명하게 만들고, 인증하는 서버는 호출마다 handle과 사용자를 함께 확인하며, 수명은 만드는 tool의 설명에 적고, 만료된 handle에는 만료를 알린다 | [SEP-2567 — Guidance for servers](https://modelcontextprotocol.io/seps/2567-sessionless-mcp#guidance-for-servers), [Security Implications](https://modelcontextprotocol.io/seps/2567-sessionless-mcp#security-implications) | 권고(규칙 아님) |
 | authorization을 쓰는 서버는 모든 요청을 검증하고, handle을 가진 것만으로 인증하지 않는다. handle은 안전한 무작위 값으로 만들고, `<user_id>:<handle>`처럼 검증한 token의 사용자에게 묶어 다른 사용자가 보낸 handle은 거절한다 | [MCP 2026-07-28 Security Best Practices — State Handle Hijacking](https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices#state-handle-hijacking) | MUST, MUST NOT, SHOULD |
