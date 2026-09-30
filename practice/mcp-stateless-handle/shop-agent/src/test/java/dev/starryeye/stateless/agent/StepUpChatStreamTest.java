@@ -30,6 +30,7 @@ import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,9 +43,10 @@ import static org.mockito.BDDMockito.given;
  *
  * <p>{@code ChatEventsTest}는 {@code Flux.error}를 손으로 만든다.
  * 이 테스트는 {@code ChatController}가 쓰는 {@link ChatClient} bean을 그대로 쓴다.
- * 그 bean은 context의 {@code ChatClient.Builder}로 만들었으므로 자동 구성된 {@code ToolCallingAdvisor}와
- * {@code ToolCallingManager}, 그리고 {@code StepUpToolExecutionExceptionProcessor}가 그 안에 있다.
- * 바꾸는 것은 모델과 tool 둘뿐이다.
+ * 그 bean은 context의 {@code ChatClient.Builder}로 만들었으므로 {@code ChatMemoryConfig}가 등록한
+ * {@code ToolCallingAdvisor.Builder}와 {@code ToolCallingManager}, 그리고
+ * {@code StepUpToolExecutionExceptionProcessor}가 그 안에 있다.
+ * 모델과 tool 말고 바꾸는 것 하나는, 대화 기억 advisor가 요구하는 conversation ID뿐이다.
  * 모델은 한 번 글을 쓴 뒤 {@code updateStock} tool을 부른다.
  * tool은 {@code SyncMcpToolCallback}처럼 MCP SDK가 감싼 예외를 {@link ToolExecutionException}에 담아 던진다.
  */
@@ -113,8 +115,10 @@ class StepUpChatStreamTest {
     Flux<String> 재고를_바꿔_달라고_한다() {
         return this.chatClient.prompt()
                 .user("p1 재고를 10개로 바꿔 줘")
-                // Task 6에서 대화 기억 advisor가 기본 advisor로 들어왔다 — conversation ID 없이는 그 advisor가 IllegalArgumentException을 던진다.
-                .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, "step-up-test"))
+                // 대화 기억 advisor가 기본 advisor로 들어와 있다.
+                // conversation ID가 없으면 그 advisor가 IllegalArgumentException을 던진다.
+                // 호출마다 새 id를 써서, 다른 test의 기억과 섞이지 않게 한다.
+                .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, UUID.randomUUID().toString()))
                 .toolCallbacks(권한이_모자란_updateStock)
                 .stream()
                 .content();
