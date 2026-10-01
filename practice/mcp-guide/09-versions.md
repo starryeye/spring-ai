@@ -195,6 +195,7 @@ handle은 채팅 기록에 남으므로, 가졌다는 것만으로 권한을 주
 authorization을 쓰는 server는 호출마다 handle과 token의 사용자를 함께 보고, 그 사용자의 장바구니인지 확인한다.
 [6장](06-mcp-call-and-validation.md)에서 session을 사용자에 묶던 일이 2026-07-28에서는 이 확인으로 바뀐다.
 official의 tool은 호출 사이에 상태를 두지 않아서 handle이 필요 없다.
+[11장](11-stateless-and-handle.md)에서는 요청 형식은 2025-11-25 그대로 두고, `mcp-stateless-handle` practice로 이 방식을 써 본다.
 
 **다른 버전을 만나면**
 

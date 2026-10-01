@@ -344,6 +344,7 @@ session이 없으므로, official처럼 client 하나를 두고 요청마다 그
 chat-memory처럼 session을 사용자에 묶는 일도 필요 없어진다.
 호출 사이에 상태가 필요한 서버는 스스로 만든 handle을 tool 인자로 주고받고, 그 handle이 요청한 사용자의 것인지 token으로 확인한다.
 자세한 것은 9장에서 본다.
+session 없이 도는 서버와 handle은 [11장](11-stateless-and-handle.md)에서 `mcp-stateless-handle` practice로 본다.
 
 ## 6.8 agent가 token을 붙이는 방법
 

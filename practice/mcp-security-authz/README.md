@@ -276,4 +276,4 @@ docs/superpowers/captures/authz-local-client-run.sh > /tmp/authz-local-client.tx
 - [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증): `401 invalid_token`과 `403 insufficient_scope`의 차이, step-up의 개념을 설명한다.
 - [부록: 명세 준수표](../mcp-guide/reference-compliance.md#mcp-security-authz에서-달라지는-행): 16번(scope 설계와 step-up)과 37번(client의 scope 선택)처럼 이 practice에서 official과 판정이나 근거가 달라지는 행을 모았다.
 - [mcp-security-authn-official](../mcp-security-authn-official/README.md): 이 practice의 바탕이 된 practice다.
-- 다음 practice에서는 MCP Server를 session 없이(stateless) 두고, 장바구니처럼 호출 사이에 남는 상태를 서버가 만든 handle로 넘기는 방법을 다룬다.
+- [mcp-stateless-handle](../mcp-stateless-handle/README.md): 다음 practice다. MCP Server를 session 없이(stateless) 두고, 장바구니처럼 호출 사이에 남는 상태를 서버가 만든 handle로 넘긴다.

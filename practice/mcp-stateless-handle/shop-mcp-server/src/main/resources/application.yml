@@ -1,0 +1,34 @@
+server:
+  # 서버가 연결을 받을 네트워크 주소다. 127.0.0.1이면 이 기기 안에서만 접속할 수 있다.
+  # MCP 2025-11-25 Transports는 로컬에서 도는 서버가 localhost(127.0.0.1)에만 bind하기를 권한다(SHOULD).
+  # 실제 배포에서 container나 reverse proxy 뒤에 둔다면 0.0.0.0(모든 interface)이나
+  # 그 네트워크의 interface 주소를 쓴다. 외부에 무엇을 열지는 proxy와 방화벽이 정한다.
+  address: 127.0.0.1
+  port: 8151
+
+spring:
+  application:
+    name: stateless-shop-mcp-server
+  ai:
+    mcp:
+      server:
+        name: stateless-shop-mcp-server
+        version: 0.0.1
+        # session 없이 돈다. initialize 응답에 Mcp-Session-Id를 주지 않고, GET stream과 DELETE가 없다.
+        # 요청 하나하나가 token만으로 처리되므로, 공유 MCP client를 여러 사용자가 써도 섞일 상태가 없다(안내서 11장).
+        protocol: STATELESS
+        # SYNC다. @McpTool 메서드가 Mono를 반환하면 오류 없이 등록에서 빠진다.
+        type: SYNC
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9040
+          # RFC 8707로 정한 aud를 검증한다. 이 값이 없으면 같은 Authorization Server가 발급한
+          # 다른 resource용 token도 그대로 통과한다(confused deputy).
+          audiences: http://localhost:8151/mcp
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    org.springframework.security: DEBUG
