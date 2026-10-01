@@ -7,13 +7,30 @@
 session ID를 주는 서버는 이 값으로 그 session에 둔 상태를 찾는다.
 장바구니처럼 tool 호출 사이에 남아야 하는 상태도 session에 두기 쉽다.
 
-**공유 MCP client에서는 session의 상태가 사용자끼리 섞인다**
+**MCP client 하나를 여러 사용자가 같이 쓰면 session의 상태가 섞인다**
 
 official과 authz의 agent는 MCP client 하나를 모든 사용자가 같이 써서, 어느 사용자의 요청이든 같은 session으로 간다([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)).
 그래서 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보인다.
 앱을 끌 때 보내는 `DELETE`에는 붙일 사용자 token도 없다([준수표](reference-compliance.md) 36번).
 
-**session이 있으면 서버를 여러 대로 늘리기 어렵다**
+이 섞임은 여러 사용자가 session 하나를 같이 쓰고, 서버가 사용자 상태를 그 session에 둘 때만 생긴다.
+official과 authz의 tool은 session에 아무것도 두지 않아서, 실제로 섞인 적은 없다.
+MCP Server는 session이 아니라 요청마다 붙는 token으로 사용자를 구별하기 때문이다.
+agent가 사용자마다 MCP client를 따로 열면 session도 사용자마다 따로 생겨서, session에 둔 상태도 사용자끼리 섞이지 않는다.
+앱을 끌 때 보내는 `DELETE`에도 그 사용자의 token을 붙일 수 있다([`mcp-security-authn-chat-memory`](../mcp-security-authn-chat-memory/README.md#사용자별-mcp-client의-필요성)).
+ChatGPT와 claude.ai의 connector도 사용자마다 그 사용자가 login해 받은 token으로 MCP Server를 부른다([2장](02-why-oauth.md#23-client의-두-종류-confidential-client와-public-client)).
+게다가 [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp)을 쓸 무렵(2026년 3월)에 ChatGPT는 tool 호출마다 새 session을 열었고, claude.ai도 그 얼마 전까지 그랬다.
+그런 client에서는 session에 둔 상태가 다음 호출까지 남지도 않는다.
+
+**session을 없앤 이유는 session의 범위가 client마다 달라서다**
+
+session이 언제 시작해 언제 끝나는지는 명세가 정하지 않았고, client마다 달랐다([9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)).
+tool 호출마다 새로 여는 client도, 앱을 켤 때 열어 끌 때까지 쓰는 client도, page를 열 때마다 여는 client도 있었다.
+그래서 서버는 session에 둔 상태가 언제까지 남는지 알 수 없었다.
+사용자마다 session을 따로 두어도, 앱을 켤 때 하나만 열어 계속 쓰면 같은 사용자의 두 대화가 장바구니 하나를 같이 쓴다.
+session 하나에는 장바구니도 하나만 둘 수 있고, client는 session이 바뀔 때마다 tool 목록을 다시 받아야 했다.
+
+**session이 있으면 서버를 여러 대로 늘리기도 어렵다**
 
 session의 상태는 그 session을 연 서버의 메모리에 있어서, 같은 session의 다음 요청도 그 서버로 가야 한다.
 그래서 요청을 고르게 나눠 주는 보통의 load balancer를 그대로 쓰기 어렵고, 그 서버가 내려가면 상태도 함께 사라진다.
