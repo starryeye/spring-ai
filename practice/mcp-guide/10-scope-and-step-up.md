@@ -43,6 +43,23 @@ client는 사용자의 consent를 다시 받아 scope를 늘린다.
 | `products:read` | 상품과 재고를 본다 | `initialize`·`tools/list`를 포함한 모든 MCP 요청, `searchProducts`, `getStock` |
 | `products:write` | 재고를 바꾼다 | `updateStock` 호출. `products:read`를 포함하지 않으므로 두 scope가 모두 있어야 한다 |
 
+**실제 MCP Server는 두 방식이 섞여 있다**
+
+처음에 필요한 scope를 모두 받는 서버도 있고, 필요할 때 늘리는 서버도 있다(2026년 10월에 각 문서로 확인).
+Google의 [Gmail MCP Server](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)는 처음 연결할 때 `gmail.readonly`와 `gmail.compose`를 함께 받는다.
+[Linear](https://linear.app/docs/mcp)는 연결할 때 `read` scope만 요청하거나 읽기 전용 endpoint에 연결하면 읽기 전용으로 쓰게 한다.
+나중에 쓰기 권한을 더 받는 방법은 Linear 문서에 없다.
+GitHub의 원격 MCP Server는 OAuth로 연결하면, tool이 아직 허락받지 않은 scope를 필요로 할 때 그 자리에서 허락을 받는다([GitHub changelog](https://github.blog/changelog/2026-01-28-github-mcp-server-new-projects-tools-oauth-scope-filtering-and-new-features/)).
+classic PAT로 연결하면 scope가 처음부터 정해져 있어서, 쓸 수 없는 tool을 목록에서 숨긴다.
+Claude의 connector 문서도 공개 tool은 login 없이 쓰게 하고, 보호된 tool을 부를 때 login을, 권한이 더 필요할 때 `403`으로 step-up을 하라고 권한다([Claude 문서](https://claude.com/docs/connectors/building/lazy-authentication)).
+
+처음에 모두 받는 방식이 아직 흔한 이유는 client마다 step-up을 다르게 다루기 때문이다.
+claude.ai는 `403`을 받으면 다시 허락을 받아 이어 가고, ChatGPT는 자기만의 방식으로 받는다(10.6).
+Claude Code(CLI)는 사용자가 다시 인증해야 하고, Codex CLI는 오류로 멈춘다는 보고가 있다(10.7).
+그래서 어느 client에서나 같게 동작하려면 처음에 다 받아 두는 편이 쉽다.
+대신 consent 화면이 처음부터 많은 권한을 묻고, 위에서 본 것처럼 token이 새면 할 수 있는 일이 많다.
+이 practice는 명세가 권하는 대로 조회 scope만 받아 시작하고, 쓰기는 필요할 때 늘린다.
+
 ## 10.2 시퀀스 다이어그램
 
 ```mermaid
@@ -202,6 +219,10 @@ MCP Server는 이 거절을 `scope 부족 — 사용자=user, client_id=authz-sh
 이 practice는 2026-07-28을 따라 `products:write`만 적으므로, 2025-11-25의 권고와는 다르다.
 challenge의 scope만 요청하는 client까지 받아야 하는 서버라면 `products:read`도 함께 적는다.
 
+claude.ai는 다시 authorization을 받을 때 `403`의 `scope`와 처음 연결할 때의 scope만 합쳐 요청한다([Claude 문서](https://claude.com/docs/connectors/building/lazy-authentication#ask-for-more-scope-with-403)).
+앞선 step-up으로 받은 scope가 다음 step-up에 이어진다는 보장이 없어서, Claude 문서는 아직 필요한 scope를 모두 적으라고 권한다.
+그래서 쓰기 scope를 여러 번 나눠 늘리는 서버가 모자란 scope만 적으면, 앞서 받은 쓰기 scope가 다음 token에서 빠질 수 있다.
+
 **서버가 HTTP 단계에서 검사하는 이유**
 
 scope 검사는 tool 메서드에 Spring Security의 `@PreAuthorize`를 붙여서도 할 수 있다.
@@ -334,11 +355,13 @@ tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 �
 
 널리 쓰이는 AI client도 권한이 더 필요하면 사용자에게 다시 묻는다.
 [claude.ai](https://claude.com/docs/connectors/building/lazy-authentication)는 tool 호출이 `401`을 받으면 대화 안에 Connect 카드를 띄우고, login이 끝나면 같은 tool 호출을 다시 보낸다.
-`403 insufficient_scope`를 받아도 다시 authorization을 받게 한다.
+`403 insufficient_scope`를 받아도 다시 허락을 받고, 같은 tool 호출을 새 token으로 다시 보낸다.
 claude.ai는 popup에서 login하게 해 대화를 이어 가지만, 이 agent는 채팅 응답을 끝내고 browser를 consent 화면으로 보낸다.
+claude.ai는 tool 호출 하나를 다시 보내고, 이 agent는 질문 전체를 다시 보낸다.
 ChatGPT의 [Apps SDK](https://developers.openai.com/apps-sdk/build/auth)는 HTTP `403` 대신 오류 tool 결과의 `_meta["mcp/www_authenticate"]`에 challenge를 넣게 하고, ChatGPT는 이 값을 보고 login 화면을 띄운다.
+이미 연결한 사용자에게 scope를 더 받을 때도 ChatGPT는 이렇게 다시 authorization을 받는다.
 MCP 명세에 없는 방식이다.
-[Copilot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/mcp-add-existing-server-to-agent)도 agent 채팅 안의 consent 카드로 사용자의 허락을 받는다.
+tool의 `securitySchemes` 선언과 오류 결과의 `_meta`가 둘 다 있어야 ChatGPT가 그 tool의 연결 화면을 띄우므로, HTTP `403`만 보내는 서버로는 이 화면이 뜨지 않는다.
 
 ## 10.7 사용자 기기의 앱: 그 자리에서 다시 login
 
@@ -347,6 +370,8 @@ MCP 명세에 없는 방식이다.
 사람이 확인하는 관문은 Authorization Server의 consent 화면이 맡는다.
 다만 [Claude Code(CLI)](https://code.claude.com/docs/en/mcp)는 `403 insufficient_scope`를 받으면 tool 호출을 실패로 끝내고, 서버가 요구한 scope를 알린다.
 browser는 사용자가 `/mcp`에서 그 서버를 다시 인증할 때 열린다.
+설정에 `oauth.scopes`를 고정해 두었다면 Claude Code(CLI)는 서버가 알린 scope 대신 고정한 scope를 요청하므로, 그 scope를 먼저 설정에 더해야 한다.
+Codex CLI 저장소에는 `403 insufficient_scope`를 받으면 step-up 없이 오류로 멈춘다는 issue가 2026년 4월부터 열려 있다([openai/codex#20518](https://github.com/openai/codex/issues/20518)).
 `local-client`는 사용자를 거치지 않고 바로 browser를 다시 연다.
 `local-client`의 출력은 다음과 같다.
 browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/authz-local-client-run.sh`로 받았고, 사람이 browser로 해도 출력은 같다.
