@@ -93,8 +93,8 @@ MCP Server가 **사용자가 원래 할 수 없는 tool은 목록에서 숨기�
 2. 없거나 TTL(5분)이 지났으면 그 token으로 `tools/list`를 받아 둔다. 만료 항목은 꺼낼 때 지운다.
 3. 꺼낸 목록을 그 질문에만 넣는다. 앱 시작 때 고정한 목록은 쓰지 않는다.
 4. tool 호출이 "모르는 tool" 오류로 끝나면 그 token의 항목을 버린다. 같은 turn에서 바로 다시 받지는 않는다. 모델에게는 그 오류 문장이 tool 결과로 가고 turn은 이어진다.
-6. 모델이 이 질문의 목록에 없는 tool을 부르면 Spring AI가 MCP 요청 없이 `IllegalStateException("No ToolCallback found for tool name: …")`으로 stream을 끝낸다. agent는 이것을 받아 그 turn을 대화 기억에서 되돌리고, 화면에 "이 계정에서 쓸 수 없는 tool"이라는 안내 event를 보낸다.
 5. step-up이나 token 갱신으로 token이 바뀌면 key가 달라져 다시 받는다.
+6. 모델이 이 질문의 목록에 없는 tool을 부르면 Spring AI가 MCP 요청 없이 `IllegalStateException("No ToolCallback found for tool name: …")`으로 stream을 끝낸다. agent는 이것을 받아 그 turn을 대화 기억에서 되돌리고, 화면에 "이 계정에서 쓸 수 없는 tool"이라는 안내 event를 보낸다.
 
 ## 5. module별 변경 (`mcp-stateless-handle` 대비)
 
