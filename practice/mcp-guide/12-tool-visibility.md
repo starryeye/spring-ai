@@ -3,7 +3,7 @@
 ## 12.1 권한별 tool 목록의 필요성
 
 10장과 11장의 MCP Server는 누구에게나 같은 tool 목록을 준다.
-조회 token으로도 `tools/list`에 `updateStock`과 `checkout`이 보이고, scope는 tool을 부를 때 검사한다.
+조회 token으로도 `tools/list`에 `updateStock`이(11장에서는 `checkout`도) 보이고, scope는 tool을 부를 때 검사한다.
 그런데 실제 서비스에는 허락을 아무리 받아도 할 수 없는 일이 있다.
 가게의 손님은 재고를 바꿀 수 없고, 손님이 consent 화면에서 무엇을 허락하든 이 사실은 그대로다.
 
@@ -11,7 +11,7 @@
 
 손님에게도 `updateStock`이 보이면, 손님이 `p1 재고를 10개로 바꿔 줘`라고 할 때 모델은 이 tool을 부른다.
 MCP Server는 `403`으로 `products:write`를 요구하고, client는 손님에게 consent 화면을 띄운다.
-서버가 scope만 검사하면 손님은 consent 한 번으로 재고를 바꾸고, 역할까지 검사해 거절하면 쓸 수도 없는 권한을 묻는 화면만 본다.
+서버가 scope만 검사하면 손님은 consent 한 번으로 재고를 바꾸고, 역할까지 검사해 거절하면 받아도 쓸 수 없는 scope를 묻는 consent 화면만 본다.
 어느 쪽이든 목록은 그 사용자가 알 필요 없는 기능의 이름과 설명을 보여 준다.
 
 **지금 token의 scope로 거르면 step-up 입구가 사라진다**
@@ -215,8 +215,8 @@ browser에서 점원이 "권한 허용"을 누르면 consent 화면의 새 체�
 **tool 설명의 마지막 문장**
 
 `updateStock`과 `checkout`의 설명은 `처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다.`와 `처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.`로 끝난다.
-모델은 token에 어떤 scope가 있는지 모르고, 이 문장으로 권한이 아직 없어도 이 tool을 불러도 된다는 것을 안다.
-모델이 권한을 걱정해 이 tool을 피하면 `403`이 오지 않아, 12.1에서 본 것처럼 step-up이 시작되지 않는다.
+모델은 token에 어떤 scope가 있는지 모르고, 이 문장으로 scope가 아직 없어도 이 tool을 불러도 된다는 것을 안다.
+모델이 scope가 모자랄까 걱정해 이 tool을 피하면 `403`이 오지 않아, 12.1에서 본 것처럼 step-up이 시작되지 않는다.
 
 **검사 순서**
 
@@ -237,7 +237,7 @@ browser에서 점원이 "권한 허용"을 누르면 consent 화면의 새 체�
 3. Authorization Server는 역할을 모르므로, 손님이 허락하면 `products:write`가 든 token을 준다.
 4. 새 token으로 다시 부르면 그제야 역할 검사에서 "모르는 tool"이 된다.
 
-손님은 쓸 수 없는 권한을 허락하고도 아무것도 하지 못하고, token에는 쓸모없는 넓은 scope가 남는다.
+손님은 받아도 쓸 수 없는 scope를 허락하고도 아무것도 하지 못하고, token에는 쓸모없는 넓은 scope가 남는다.
 그래서 보이는 tool인지를 scope보다 먼저 본다.
 
 ## 12.6 권한을 판단하는 곳
@@ -367,6 +367,7 @@ tool loop는 `ToolExecutionException`만 잡으므로, 그대로 두면 채팅 s
 consent 카드는 뜨지 않았고, 모델이 `updateStock`을 부르지 않았으므로 `tool-unavailable` 안내도 나오지 않았다.
 모델이 목록에 없는 tool을 부를지는 모델에 달려 있어서, 두 경로는 매번 볼 수 있는 것이 아니다.
 낡은 목록의 경로는 점원이 질문한 뒤 agent가 그 token의 목록을 아직 쓰는 동안(12.7), 위처럼 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면 볼 수 있다.
+MCP Server만 다시 띄우는 명령은 12.13에 있다.
 
 ## 12.9 사용자 기기의 앱
 
@@ -599,6 +600,22 @@ practice/mcp-tool-visibility/run.sh
 
 해 볼 것과 기대 결과의 전체 목록은 [practice README의 직접 확인할 것](../mcp-tool-visibility/README.md#직접-확인할-것)에 있다.
 
+**낡은 목록**: 12.8의 "모르는 tool" 경로는 위 표의 마지막 줄 직후, agent가 점원의 새 token으로 받은 목록을 아직 쓰는 동안 본다.
+그 목록은 token을 받은 뒤 4분쯤까지만 쓰이므로, 다음을 바로 이어서 한다.
+`shop-mcp-server`의 `McpTransportConfig`에서 역할 표 `Map.of("user", ToolVisibility.Role.STAFF)`를 `Map.of()`로 바꾸고, MCP Server만 다시 띄운다.
+`run.sh`는 포트가 이미 쓰이고 있는 서버를 건너뛰므로, 나머지 두 서버는 그대로 두고 MCP Server만 새로 띄운다.
+
+```bash
+# 저장소 최상위 폴더에서
+kill $(lsof -ti tcp:8161 -sTCP:LISTEN)
+practice/mcp-tool-visibility/run.sh
+```
+
+`run.sh`가 `[건너뜀] shop-mcp-server`를 찍으면 옛 MCP Server가 아직 내려가는 중이므로, 몇 초 뒤 `run.sh`를 다시 실행한다.
+그 뒤 점원이 재고를 다시 바꿔 달라고 해서 모델이 `updateStock`을 부르면, MCP Server 로그에 `숨긴 tool 호출 — 사용자=user, 역할=CUSTOMER, tool=updateStock`이 찍힌다.
+agent 로그에는 `모르는 tool 오류로 이 token의 tool 목록을 버린다`가 찍히고, 답은 끊기지 않고 이어진다.
+확인한 뒤에는 역할 표를 되돌리고, 같은 명령으로 MCP Server를 다시 띄운다.
+
 **token이 필요한 요청**: 캡처 스크립트 `docs/superpowers/captures/mcp-visibility-walkthrough.sh`로 본다.
 두 사용자의 `tools/list`, 숨긴 tool과 없는 tool의 응답 비교, 점원의 `403`, `products:write`를 받은 손님의 호출이 한 번에 기록된다.
 consent 화면이 나오고 재고가 처음 값이어야 하므로, 서버를 다시 띄운 직후에 돌린다.
@@ -643,6 +660,6 @@ docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility
 | 서버는 tool마다 알맞은 접근 제어를 하고, 무단 접근을 막는 데 `cacheScope`에만 기대지 않는다 | [MCP 2026-07-28 Caching — Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#security-considerations) | MUST, MUST NOT |
 | 없는 tool은 tool 결과가 아니라 JSON-RPC 오류(protocol error)로 알린다. 예는 `-32602`와 `Unknown tool: invalid_tool_name`이다. client는 protocol error를 모델에게 넘길 수 있다 | [MCP 2025-11-25 Tools — Error Handling](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling) | —(서버), MAY(client) |
 | scope가 모자란 요청에 서버는 `403`, `error="insufficient_scope"`, 필요한 `scope`, `resource_metadata`로 답한다. 사용자를 대신하는 client는 step-up을 한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) | SHOULD |
-| 최소 scope로 시작해 권한이 필요한 작업을 처음 할 때 늘린다. token에 적힌 scope만 믿고 서버 쪽 권한 판단을 하지 않는 것은 흔한 실수다 | [MCP Security Best Practices — Scope Minimization](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#scope-minimization) | — |
+| 최소 scope로 시작해 더 넓은 scope가 필요한 작업을 처음 할 때 늘린다. token에 적힌 scope만 믿고 서버 쪽 권한 판단을 하지 않는 것은 흔한 실수다 | [MCP Security Best Practices — Scope Minimization](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#scope-minimization) | — |
 
 [← 11장](11-stateless-and-handle.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)

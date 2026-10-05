@@ -248,6 +248,22 @@ agent의 목록이 낡아 MCP Server가 "모르는 tool"로 답하면, `SyncMcpT
 이 practice에서는 `McpTransportConfig`의 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면 이렇게 된다.
 agent는 이 오류를 받아 그 token의 목록을 버리고 모델에게 문장으로 돌려주므로, turn은 이어진다.
 
+직접 보려면 점원의 step-up이 끝난 직후에 한다.
+agent는 step-up으로 받은 token의 목록을 그 뒤 4분쯤까지만 쓰기 때문이다.
+`shop-mcp-server`의 `McpTransportConfig`에서 역할 표 `Map.of("user", ToolVisibility.Role.STAFF)`를 `Map.of()`로 바꾸고, MCP Server만 다시 띄운다.
+`run.sh`는 포트가 이미 쓰이고 있는 서버를 건너뛰므로, 나머지 두 서버는 그대로 두고 MCP Server만 새로 띄운다.
+
+```bash
+# practice/mcp-tool-visibility에서
+kill $(lsof -ti tcp:8161 -sTCP:LISTEN)
+./run.sh
+```
+
+`run.sh`가 `[건너뜀] shop-mcp-server`를 찍으면 옛 MCP Server가 아직 내려가는 중이므로, 몇 초 뒤 `./run.sh`를 다시 실행한다.
+그 뒤 점원이 재고를 다시 바꿔 달라고 해서 모델이 `updateStock`을 부르면, MCP Server 로그에 `숨긴 tool 호출 — 사용자=user, 역할=CUSTOMER, tool=updateStock`이 찍힌다.
+`logs/shop-agent.log`에는 위의 `ERROR` 줄과 `모르는 tool 오류로 이 token의 tool 목록을 버린다`가 찍힌다.
+확인한 뒤에는 역할 표를 되돌리고, 같은 명령으로 MCP Server를 다시 띄운다.
+
 agent는 SSE stream을 시작하기 전에, 요청 thread에서 그 사용자의 목록을 꺼낸다.
 그래서 목록을 새로 받다가 실패하면 화면에는 `오류: HTTP 500`만 나오고, 원인은 `logs/shop-agent.log`에 있다.
 MCP Server가 꺼져 있거나, `auth-server`만 다시 띄워 agent가 옛 token으로 보낸 요청이 `401`을 받거나, token refresh가 실패한 경우다.
