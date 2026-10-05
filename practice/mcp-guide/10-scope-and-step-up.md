@@ -59,6 +59,7 @@ Claude Code(CLI)는 사용자가 다시 인증해야 하고, Codex CLI는 오류
 그래서 어느 client에서나 같게 동작하려면 처음에 다 받아 두는 편이 쉽다.
 대신 consent 화면이 처음부터 많은 권한을 묻고, 위에서 본 것처럼 token이 새면 할 수 있는 일이 많다.
 이 practice는 명세가 권하는 대로 조회 scope만 받아 시작하고, 쓰기는 필요할 때 늘린다.
+[12장](12-tool-visibility.md)에서는 `mcp-tool-visibility` practice로, 사용자가 권한을 받을 수 없는 tool은 목록에서 숨기고 받을 수 있는 tool은 보여 준 뒤 step-up하게 하는 방법을 본다.
 
 ## 10.2 시퀀스 다이어그램
 
@@ -652,7 +653,7 @@ scope가 모자라 거절한 요청을 로그에 남길 때 MCP Server는 이 �
 - 조직이 대신하는 승인: 조직의 identity provider가 사용자 대신 승인해, 사용자가 consent 화면을 거치지 않게 하는 Enterprise-Managed Authorization도 같은 확장 모음에 있다.
 - 위임 사슬의 token exchange: MCP Server가 뒤쪽 API를 부를 때는 받은 token을 그대로 넘기지 않는다([8장](08-security.md)). 더 좁은 token을 받는 방법으로 RFC 8693 token exchange가 있고, 새 token의 `act` claim에는 사용자를 대신해 부른 쪽이 적힌다. MCP 명세 본문은 token passthrough 금지까지만 정한다.
 - tool 정의의 scope: tool 정의에 필요한 scope를 적는 표준 field는 없다. OpenAI Apps SDK의 `securitySchemes`를 표준에 넣자는 [SEP-1488](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1488)은 Draft다.
-- scope별 tool 목록: 조회 token으로도 `tools/list`에 `updateStock`이 보인다. token의 scope에 따라 다른 tool 목록을 주는 서버는 뒤의 practice에서 다룬다.
+- 사용자별 tool 목록: 지금 token의 scope가 아니라 사용자의 역할로 tool 목록을 거르는 서버는 [12장](12-tool-visibility.md)에서 다룬다.
 
 ## 10.12 직접 해 보기
 

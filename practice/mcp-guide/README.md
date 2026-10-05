@@ -7,6 +7,7 @@ OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP�
 요청·응답 예시는 대부분 [official practice](../mcp-security-authn-official/README.md)를 실제로 띄워 받은 것이다.
 10장의 예시는 official에 scope와 step-up을 더한 [mcp-security-authz practice](../mcp-security-authz/README.md)를 실제로 띄워 받은 것이다.
 11장의 예시는 authz의 MCP Server를 session 없이 돌리고 장바구니 tool을 더한 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)를 실제로 띄워 받은 것이다.
+12장의 예시는 stateless에 사용자 역할을 더해 사용자마다 다른 tool 목록을 주는 [mcp-tool-visibility practice](../mcp-tool-visibility/README.md)를 실제로 띄워 받은 것이다.
 official 밖의 서버를 가정한 예시는 명세의 예시이거나 설명을 위해 만든 값이다.
 3장의 issuer `auth.example.com/tenant1`, 4장에서 `app.example.com`에 올린 client 정보 문서, 8장에서 공격자가 넣는 내부망 주소 `169.254.169.254`가 그런 예다.
 장마다 그 단계가 왜 있는지를 먼저 보고, 실제 요청·응답과 official 코드를 본 뒤, 직접 해 본다.
@@ -20,10 +21,11 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 
 ## 읽는 순서
 
-1장부터 11장까지 차례로 읽는다.
+1장부터 12장까지 차례로 읽는다.
 뒤 장은 앞 장에서 본 요청과 용어를 다시 설명하지 않는다.
 10장은 5\~7장에서 본 흐름에 scope와 step-up을 더하므로, 7장 다음에 읽어도 된다.
 11장은 10장의 scope와 step-up에 session 없는 서버와 handle을 더하므로, 10장 다음에 읽는다.
+12장은 10장의 step-up과 11장의 session 없는 서버에 사용자별 tool 목록을 더하므로, 10·11장 다음에 읽는다.
 
 시간이 없으면 2·3·5·6장만 읽는다.
 2장에서 전체 흐름을 보고, 3장의 discovery, 5장의 token 발급, 6장의 token 검증으로 흐름의 중심을 따라간다.
@@ -36,6 +38,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 official을 띄우는 방법과 필요한 도구는 [official README의 실행](../mcp-security-authn-official/README.md#실행)에 있다.
 10장의 명령은 official 대신 [mcp-security-authz practice](../mcp-security-authz/README.md#실행)를 띄운 상태에서 보낸다.
 11장의 명령은 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md#실행)를 띄운 상태에서 보낸다.
+12장의 명령은 [mcp-tool-visibility practice](../mcp-tool-visibility/README.md#실행)를 띄운 상태에서 보낸다.
 
 다이어그램은 mermaid로 그렸다.
 GitHub와 IntelliJ는 mermaid를 그림으로 보여 준다.
@@ -56,13 +59,14 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [9. 버전](09-versions.md) | 2025-03-26부터 2026-07-28까지 authorization과 transport가 바뀐 이유, official이 따르는 기준 버전 | `2026-07-28`로 요청해 official이 `2025-11-25`로 답하고 `_meta` 요청을 `400`으로 거절하는 것 보기 |
 | [10. scope와 step-up](10-scope-and-step-up.md) | tool별 scope, 조회 scope로 시작해 쓰기 tool을 처음 부를 때 `403 insufficient_scope`를 받아 scope를 늘리는 step-up, 웹 agent와 사용자 기기의 앱이 사용자에게 다시 묻는 방법 | `401`의 `scope`와 PRM의 `scopes_supported` 읽기, 조회 token으로 `403 insufficient_scope` 받기, 웹 agent의 consent 카드와 `local-client`의 step-up 해 보기 |
 | [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, 웹 agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | 웹 agent에서 장바구니에 상품을 담고 결제하기, 캡처 스크립트로 session 없는 `initialize`와 GET의 `405`, `user2`가 남의 handle로 받는 결과 보기, `local-client`로 handle을 넘기고 step-up하기 |
+| [12. tool 목록과 권한](12-tool-visibility.md) | 권한을 받을 수 없는 tool은 목록에서 숨기고 받을 수 있는 tool은 step-up하는 MCP Server, 숨긴 tool의 호출에 없는 tool과 같은 오류로 답하는 이유, 웹 agent가 사용자별 목록을 access token마다 따로 cache하는 방법 | 웹 agent에서 손님 `user2`와 점원 `user`로 재고 변경을 요청해 consent 카드가 점원에게만 뜨는 것 보기, 캡처 스크립트로 두 사용자의 `tools/list`와 숨긴 tool·없는 tool의 응답 비교하기, `local-client`로 숨긴 tool 불러 보기 |
 
 ## 부록
 
 | 부록 | 내용 |
 |---|---|
 | [API 레퍼런스](reference-api.md) | endpoint마다 명세가 정한 parameter·header·field를 모두 모은 사전이다. 요구 수준과 official의 동작을 함께 적는다 |
-| [명세 준수표](reference-compliance.md) | official·chat-memory·community 세 practice가 명세 항목을 어디까지 지키는지 판정한 표다. 구현 위치 지도, 남은 위반, mcp-security-authz와 mcp-stateless-handle에서 달라지는 행도 있다 |
+| [명세 준수표](reference-compliance.md) | official·chat-memory·community 세 practice가 명세 항목을 어디까지 지키는지 판정한 표다. 구현 위치 지도, 남은 위반, mcp-security-authz·mcp-stateless-handle·mcp-tool-visibility에서 달라지는 행도 있다 |
 
 ## 다른 practice
 
@@ -72,5 +76,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
   10장은 이 practice로 scope와 step-up을 설명한다.
 - [mcp-stateless-handle](../mcp-stateless-handle/README.md): authz의 MCP Server를 session 없이 돌리고, 장바구니처럼 호출 사이에 남는 상태를 서버가 만든 handle로 주고받는다.
   11장은 이 practice로 stateless와 handle을 설명한다.
+- [mcp-tool-visibility](../mcp-tool-visibility/README.md): stateless에 사용자 역할을 더해, 사용자가 권한을 받을 수 없는 tool은 목록에서 숨기고 받을 수 있는 tool은 step-up하게 한다.
+  12장은 이 practice로 사용자별 tool 목록과 그 목록의 cache를 설명한다.
 - [agent-mcp](../agent-mcp/README.md)와 [agent-mcps](../agent-mcps/README.md): authorization 없이 MCP Server와 agent만 다룬다.
   1장의 내용을 더 작은 예제로 볼 수 있다.

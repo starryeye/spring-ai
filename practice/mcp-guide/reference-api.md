@@ -8,9 +8,11 @@
 "official" 칸은 official practice(agent `shop-agent`와 public client `local-client` 포함)의 동작이고, chat-memory·community practice와 다른 점은 [준수표](reference-compliance.md)에 있다.
 scope를 다루는 몇 행에는 [mcp-security-authz practice](../mcp-security-authz/README.md)(authz)의 동작도 official 동작 옆에 적는다.
 session과 응답 형식을 다루는 몇 행에는 authz를 session 없이 돌리는 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)(stateless)의 동작도 적는다.
+`tools/list`와 `tools/call` 행에는 stateless에 사용자 역할을 더한 [mcp-tool-visibility practice](../mcp-tool-visibility/README.md)(visibility)의 동작도 적는다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 `stateless S<n>`은 [stateless 캡처](../../docs/superpowers/captures/2026-10-01-stateless-walkthrough.txt)의 단계 번호이고, supplement 캡처의 `S<n>`과 구별하려고 앞에 stateless를 붙인다.
+캡처 번호 `V<n>`은 [visibility 캡처](../../docs/superpowers/captures/2026-10-05-visibility-walkthrough.txt)의 단계 번호다.
 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
 JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
@@ -22,7 +24,7 @@ JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 | MCP Server | [MCP 요청 header](#mcp-요청-header) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [11장](11-stateless-and-handle.md) |
 | MCP Server | [`POST /mcp` — token 없는 요청](#post-mcp--token-없는-요청) | [3장](03-discovery.md), [6장](06-mcp-call-and-validation.md), [10장](10-scope-and-step-up.md) |
 | MCP Server | [`GET /.well-known/oauth-protected-resource[/mcp]`](#get-well-knownoauth-protected-resourcemcp--protected-resource-metadata) | [3장](03-discovery.md), [10장](10-scope-and-step-up.md) |
-| MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md), [10장](10-scope-and-step-up.md), [11장](11-stateless-and-handle.md) |
+| MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md), [10장](10-scope-and-step-up.md), [11장](11-stateless-and-handle.md), [12장](12-tool-visibility.md) |
 | MCP Server | [`GET /mcp`](#get-mcp--서버가-보내는-메시지의-sse-stream) | [1장](01-mcp-basics.md), [11장](11-stateless-and-handle.md) |
 | MCP Server | [`DELETE /mcp`](#delete-mcp--session-종료) | [1장](01-mcp-basics.md), [11장](11-stateless-and-handle.md) |
 | Authorization Server | [`GET /.well-known/oauth-authorization-server`](#get-well-knownoauth-authorization-server--authorization-server-metadata) | [3장](03-discovery.md), [4장](04-client-registration.md) |
@@ -194,7 +196,7 @@ Content-Type: application/json
 access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 한 MCP session은 `initialize` → `notifications/initialized` → `tools/list` → `tools/call` 순서로 간다.
 
-설명: [1장](01-mcp-basics.md) · [6장](06-mcp-call-and-validation.md) · [7장](07-local-client.md) · [10장](10-scope-and-step-up.md) · [11장](11-stateless-and-handle.md)
+설명: [1장](01-mcp-basics.md) · [6장](06-mcp-call-and-validation.md) · [7장](07-local-client.md) · [10장](10-scope-and-step-up.md) · [11장](11-stateless-and-handle.md) · [12장](12-tool-visibility.md)
 
 근거:
 
@@ -208,8 +210,8 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 |---|---|---|---|
 | `initialize` | 첫 상호작용이어야 한다(MUST, [Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)) | `200` `application/json`, `Mcp-Session-Id` 발급(stateless는 발급하지 않는다, stateless S3) | `protocolVersion`은 `2025-11-25`(C7). `2026-07-28`을 요청해도 `2025-11-25`로 답한다([9장](09-versions.md)) |
 | `notifications/initialized` | `initialize`가 성공한 뒤 보낸다(MUST) | `202`, 본문 없음 | C8 |
-| `tools/list` | | `200` `text/event-stream` | C9. stateless는 `application/json` 본문 하나로 답한다(`WebMvcStatelessServerTransport`) |
-| `tools/call` | | `200` `text/event-stream` | `getStock`(C10). stateless는 `application/json` 본문 하나로 답한다(stateless S5, S9-call) |
+| `tools/list` | 2026-07-28: 목록은 요청의 authorization에 따라 달라도 되지만(MAY), 연결마다 달라지면 안 된다(MUST NOT). tool 집합이 같으면 같은 순서로 준다(SHOULD, [Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities)) | `200` `text/event-stream` | official은 SSE로 답하고(C9), stateless는 `application/json` 본문 하나로 답한다(`WebMvcStatelessServerTransport`). visibility는 token의 `sub`로 찾은 역할로 목록을 걸러, scope가 같아도 `user`는 7개(V1-list), `user2`는 `updateStock`을 뺀 6개(V2-list)를 받는다 |
+| `tools/call` | 없는 tool은 tool 결과가 아니라 JSON-RPC 오류(protocol error)로 알린다(표시 없음, [Tools — Error Handling](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling)) | `200` `text/event-stream` | official은 SSE로 답하고(`getStock`, C10), stateless는 `application/json` 본문 하나로 답한다(stateless S5, S9-call). visibility에서 숨긴 tool을 부르면, 없는 tool처럼 `200` 안의 JSON-RPC 오류 `-32602`(`Unknown tool: invalid_tool_name`)를 받는다(V3·V4) |
 
 **요청**
 
@@ -1181,4 +1183,4 @@ DCR은 선택 사항(MAY, MCP 2025-11-25)이고, 그래도 DCR을 쓰는 client�
 official은 DCR을 켜지 않는다.
 Spring Authorization Server의 기본값이 꺼짐이고, metadata에 `registration_endpoint`가 없다(C3).
 
-[← 11장](11-stateless-and-handle.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)
+[← 12장](12-tool-visibility.md) · [목차](README.md) · [부록: 명세 준수표 →](reference-compliance.md)

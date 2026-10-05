@@ -600,7 +600,7 @@ public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSessi
 
 - 2026-07-28의 요청 형식: `initialize` 대신 요청마다 `_meta`에 버전과 capability를 넣는 방식, `server/discover`, `Mcp-Name` header, GET을 대신하는 `subscriptions/listen`, SSE 재개(`Last-Event-ID`)가 빠진 것은 SDK가 2026-07-28을 지원한 뒤의 practice에서 다룬다.
 - 영속 저장과 서버 여러 대: 장바구니와 대화 기억은 메모리에 있어서 다시 띄우면 사라지고, MCP Server는 한 대로만 돈다. 여러 대로 늘리려면 Redis 같은 공유 저장소에 `<sub>:<handle>` key로 두고, 한 번만 되는 주문도 그 저장소의 원자적 갱신으로 지킨다.
-- scope별 tool 목록: 조회 token으로도 `tools/list`에 `checkout`이 보인다. token의 scope에 따라 다른 tool 목록을 주는 서버는 다음 practice에서 다룬다.
+- 사용자별 tool 목록: 지금 token의 scope가 아니라 사용자의 역할로 tool 목록을 거르는 서버는 [12장](12-tool-visibility.md)에서 다룬다.
 - 장바구니를 지우는 tool과 목록 tool: SEP-2567은 `destroy_*`·`list_*` tool을 두면 좋다고 하지만 꼭 두라고 하지는 않는다. 이 practice의 장바구니는 만료로만 사라진다.
 
 ## 11.12 직접 해 보기
@@ -670,4 +670,4 @@ step-up의 consent 화면에서는 `products:read`와 `orders:write`를 모두 �
 | `structuredContent`를 주는 tool은 같은 내용을 JSON 문자열로 `text`에도 넣는다 | [MCP 2025-11-25 Tools — Structured Content](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#structured-content) | SHOULD |
 | 입력 검증과 업무 규칙의 오류는 `isError: true`인 tool 결과로 알리고, client는 이 결과를 모델에게 넘긴다 | [MCP 2025-11-25 Tools — Error Handling](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling) | —(서버), SHOULD(client) |
 
-[← 10장](10-scope-and-step-up.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)
+[← 10장](10-scope-and-step-up.md) · [목차](README.md) · [12장 →](12-tool-visibility.md)
