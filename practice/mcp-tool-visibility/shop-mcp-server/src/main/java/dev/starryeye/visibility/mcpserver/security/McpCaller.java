@@ -4,6 +4,7 @@ import io.modelcontextprotocol.common.McpTransportContext;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.servlet.function.ServerRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,15 +23,28 @@ public record McpCaller(String subject, String clientId) {
 
 	static final String CLIENT_ID = "client_id";
 
-	/** Spring Security가 검증한 token을 읽는다. 인증이 없으면 빈 context다. */
+	/**
+	 * Spring Security가 검증한 token을 읽는다.
+	 * 인증이 없으면 빈 context다.
+	 * token에 {@code sub}가 없으면 {@link #SUBJECT}를 넣지 않는다.
+	 * {@code Map.of}가 null 값을 받지 않아 예외가 나는 것도 피하고, 사용자를 모르는 요청으로 남겨 손님으로 다루게 한다.
+	 */
 	public static McpTransportContext context(ServerRequest request) {
 		return request.principal()
 				.filter(JwtAuthenticationToken.class::isInstance)
 				.map(JwtAuthenticationToken.class::cast)
-				.map(authentication -> McpTransportContext.create(Map.of(
-						SUBJECT, authentication.getToken().getSubject(),
-						CLIENT_ID, Objects.toString(authentication.getToken().getClaimAsString(CLIENT_ID), ""))))
+				.map(authentication -> McpTransportContext.create(claims(authentication)))
 				.orElse(McpTransportContext.EMPTY);
+	}
+
+	private static Map<String, Object> claims(JwtAuthenticationToken authentication) {
+		Map<String, Object> claims = new HashMap<>();
+		String subject = authentication.getToken().getSubject();
+		if (subject != null && !subject.isBlank()) {
+			claims.put(SUBJECT, subject);
+		}
+		claims.put(CLIENT_ID, Objects.toString(authentication.getToken().getClaimAsString(CLIENT_ID), ""));
+		return claims;
 	}
 
 	public static McpCaller from(McpTransportContext context) {

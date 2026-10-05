@@ -9,12 +9,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -29,6 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Import(McpAuthorizationStandardTest.StubAuthorizationServer.class)
 class HiddenToolCallTest {
+
+	static final JsonMapper JSON = JsonMapper.builder().build();
 
 	@Autowired
 	MockMvc mockMvc;
@@ -46,6 +51,13 @@ class HiddenToolCallTest {
 		return """
 				{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"%s","arguments":%s}}"""
 				.formatted(tool, arguments);
+	}
+
+	/** params에 tool 이름과 임의의 나머지 field를 그대로 넣는다. 인자가 이상한 모양인 요청을 만들 때 쓴다. */
+	static String 이상한_호출(String tool, String restOfParams) {
+		return """
+				{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"%s",%s}}"""
+				.formatted(tool, restOfParams);
 	}
 
 	MockHttpServletResponse 응답(String token, String body) throws Exception {
@@ -90,11 +102,57 @@ class HiddenToolCallTest {
 
 	@Test
 	void 숨긴_tool은_인자가_틀려도_모르는_tool이다() throws Exception {
-		// 입력 검증이 먼저 돌면 "그런 tool은 있다"가 드러난다.
+		// 입력 검증이 먼저 돌면 그런 tool이 있다는 것을 알게 된다.
 		String body = 응답(토큰("user2", "products:read"), 호출("updateStock", "{}"))
 				.getContentAsString(StandardCharsets.UTF_8);
 
 		assertThat(body).contains("Unknown tool: invalid_tool_name");
+	}
+
+	@Test
+	void 인자가_빈_문자열이어도_숨긴_tool과_없는_tool의_응답이_같다() throws Exception {
+		같은_응답이다("\"arguments\":\"\"");
+	}
+
+	@Test
+	void _meta가_빈_문자열이어도_숨긴_tool과_없는_tool의_응답이_같다() throws Exception {
+		같은_응답이다("\"arguments\":{\"productId\":\"p1\",\"quantity\":10},\"_meta\":\"\"");
+	}
+
+	/**
+	 * 요청 모양마다 SDK가 어떻게 답하는지는 내부 변환에 달려 있다.
+	 * wrapper가 SDK보다 너그럽게 변환하면, 어떤 모양에서만 숨긴 tool이 다르게 답해 그런 tool이 있다는 것을 알게 된다.
+	 * 그래서 숨긴 tool(updateStock)과 같은 길이의 없는 tool(updateStack)이 같은 응답을 받는지 본다.
+	 * 500 응답의 본문에는 stack trace가 들어 있어서, 본문 전체가 아니라 JSON-RPC 오류의 code와 message를 비교한다.
+	 */
+	private void 같은_응답이다(String restOfParams) throws Exception {
+		String token = 토큰("user2", "products:read");
+		MockHttpServletResponse hidden = 응답(token, 이상한_호출("updateStock", restOfParams));
+		MockHttpServletResponse unknown = 응답(token, 이상한_호출("updateStack", restOfParams));
+
+		assertThat(hidden.getStatus()).isEqualTo(unknown.getStatus());
+		assertThat(내용_header들(hidden)).isEqualTo(내용_header들(unknown));
+		JsonNode hiddenError = jsonRpc오류(hidden);
+		JsonNode unknownError = jsonRpc오류(unknown);
+		assertThat(hiddenError.get("code")).isEqualTo(unknownError.get("code"));
+		assertThat(hiddenError.get("message")).isEqualTo(unknownError.get("message"));
+	}
+
+	/**
+	 * 정상 오류 응답은 {@code error}에, SDK가 처리하지 못해 500으로 끝난 응답은 직렬화된 McpError의 {@code jsonRpcError}에 code와 message가 있다.
+	 */
+	private static JsonNode jsonRpc오류(MockHttpServletResponse response) throws Exception {
+		JsonNode body = JSON.readTree(response.getContentAsString(StandardCharsets.UTF_8));
+		JsonNode error = body.has("error") ? body.get("error") : body.get("jsonRpcError");
+		assertThat(error).as("code와 message가 있는 오류 응답").isNotNull();
+		return error;
+	}
+
+	/** 이름의 길이로만 달라지는 Content-Length는 뺀다. */
+	static Map<String, List<String>> 내용_header들(MockHttpServletResponse response) {
+		Map<String, List<String>> headers = new TreeMap<>(header들(response));
+		headers.remove("Content-Length");
+		return headers;
 	}
 
 	@Test

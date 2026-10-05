@@ -23,7 +23,8 @@ import java.util.List;
  * server가 생성될 때 넘기는 handler를 감싸, 결과가 JSON으로 바뀌기 전에 {@code ListToolsResult}를 거른다.
  *
  * <p>숨긴 tool의 {@code tools/call}도 여기서 답한다.
- * tool spec을 감싸면 SDK가 입력 검증을 먼저 돌려 "그런 tool은 있다"가 드러나므로, SDK가 tool을 찾기 전에 handler에서 답한다.
+ * tool spec을 감싸면 SDK가 입력 검증을 먼저 돌려서 그런 tool이 있다는 사실을 알게 되므로,
+ * SDK가 tool을 찾기 전에 handler에서 답한다.
  * 답은 SDK가 정말 없는 tool에 주는 오류와 같아서, 호출한 쪽은 숨긴 tool과 없는 tool을 구별할 수 없다.
  */
 public final class ToolVisibilityTransport implements McpStatelessServerTransport {
@@ -32,7 +33,8 @@ public final class ToolVisibilityTransport implements McpStatelessServerTranspor
 
 	/**
 	 * SDK 2.0.1이 없는 tool에 주는 message다(이름은 넣지 않는 고정 문자열이다).
-	 * 숨긴 tool도 이 값으로 답해야 정말 없는 tool과 구별되지 않는다. SDK를 올리면 다시 확인한다.
+	 * 숨긴 tool도 이 값으로 답해야 정말 없는 tool과 구별되지 않는다.
+	 * SDK를 올리면 다시 확인한다.
 	 */
 	static final String UNKNOWN_TOOL_MESSAGE = "Unknown tool: invalid_tool_name";
 
@@ -109,7 +111,13 @@ public final class ToolVisibilityTransport implements McpStatelessServerTranspor
 			});
 		}
 
-		/** SDK와 같은 변환으로 이름을 읽는다. 읽을 수 없으면 SDK가 같은 params로 오류를 내도록 넘긴다. */
+		/**
+		 * SDK server가 쓰는 mapper로 params에서 이름을 읽는다.
+		 * 이 mapper는 SDK와 똑같이 변환해야 한다.
+		 * 더 너그럽게 변환하면, 예를 들어 {@code "arguments":""}를 받아들이는 mapper는 SDK가 오류로 답할 요청을 숨긴 tool만 "모르는 tool"로 답해서
+		 * 그런 tool이 있다는 사실을 알려 준다.
+		 * 읽을 수 없으면 SDK가 같은 params로 오류를 내도록 넘긴다.
+		 */
 		private String toolName(Object params) {
 			try {
 				return jsonMapper.convertValue(params, new TypeRef<McpSchema.CallToolRequest>() {

@@ -48,6 +48,16 @@ class McpCallerTest {
 	}
 
 	@Test
+	void sub가_없는_token이어도_context를_만들고_사용자는_없다() {
+		McpTransportContext context = McpCaller.context(요청(인증(null, "local-mcp-client")));
+
+		// 예외 없이 만들어져야 ToolVisibility가 사용자를 모르는 요청을 손님으로 다룰 수 있다.
+		assertThat(McpCaller.subject(context)).isEmpty();
+		assertThatThrownBy(() -> McpCaller.from(context)).isInstanceOf(IllegalStateException.class)
+				.hasMessage("인증된 사용자가 없다");
+	}
+
+	@Test
 	void 인증이_없으면_빈_context이고_사용자를_꺼내면_예외다() {
 		McpTransportContext context = McpCaller.context(요청(null));
 
