@@ -7,7 +7,7 @@
 그런데 실제 서비스에는 허락을 아무리 받아도 할 수 없는 일이 있다.
 가게의 손님은 재고를 바꿀 수 없고, 손님이 consent 화면에서 무엇을 허락하든 이 사실은 그대로다.
 
-**할 수 없는 일의 tool을 보여 주면**
+**할 수 없는 일을 하는 tool을 보여 주면**
 
 손님에게도 `updateStock`이 보이면, 손님이 `p1 재고를 10개로 바꿔 줘`라고 할 때 모델은 이 tool을 부른다.
 MCP Server는 `403`으로 `products:write`를 요구하고, client는 손님에게 consent 화면을 띄운다.
@@ -17,12 +17,13 @@ MCP Server는 `403`으로 `products:write`를 요구하고, client는 손님에�
 **지금 token의 scope로 거르면 step-up 입구가 사라진다**
 
 쓸 수 없는 tool을 숨기는 가장 쉬운 기준은 지금 token의 scope다.
-2026-07-28 명세도 목록을 요청의 authorization에 따라 달리해도 된다고 하면서, token의 scope가 허락하는 tool만 주는 예를 든다.
-그러나 이 기준은 [10장](10-scope-and-step-up.md)의 step-up과 부딪친다.
+2026-07-28 server/tools도 `tools/list`가 연결에 따라 달라지면 안 되지만 요청에 붙은 authorization에 따라서는 달라도 된다고 하면서, token의 scope가 허락하는 tool만 주는 예를 든다.
+그러나 이 기준은 [10장](10-scope-and-step-up.md)의 step-up과 충돌한다.
 점원 `user`의 첫 token에는 `products:read`만 있으므로, 이 기준이면 점원에게도 `updateStock`이 보이지 않는다.
 모델은 목록에 없는 tool을 모르므로 부르지 않고, 그런 기능이 없다고 답한다.
 `403`이 오지 않으니 step-up도 시작되지 않고, 점원은 재고를 바꿀 길이 없다.
-scope로 거르는 방식은 필요한 scope를 처음부터 모두 받는 client에서만 제대로 돌고, 그러면 10장에서 본 최소 권한의 이점을 잃는다.
+scope로 거르는 방식은 필요한 scope를 처음부터 모두 받는 client에서만 제대로 동작한다.
+그런데 처음부터 모두 받으면 10장에서 본 최소 권한의 이점을 잃는다.
 
 **두 질문을 나눈다**
 
@@ -40,13 +41,7 @@ scope로 거르는 방식은 필요한 scope를 처음부터 모두 받는 clien
 scope는 사용자가 이 client에게 맡긴 범위이고, token에 들어 있다([10장 최소 권한의 필요성](10-scope-and-step-up.md#101-최소-권한의-필요성)).
 client가 사용자 대신 실제로 할 수 있는 일은 권한과 scope가 겹치는 부분이다.
 권한 밖의 tool은 숨기고, 권한 안이지만 scope 밖의 tool은 보여 준 뒤 step-up한다.
-
-**목록은 요청의 authorization에 따라 달라도 된다**
-
-2026-07-28 server/tools에 따르면 `tools/list`는 요청한 client가 지금 쓸 수 있는 tool을 돌려준다.
-이 목록은 연결마다, 또는 다른 요청의 부수 효과로 달라지면 안 되지만, 요청에 붙은 authorization에 따라서는 달라도 된다.
-credentials는 연결의 상태가 아니라 요청마다 들어오는 값이기 때문이다.
-이 practice의 목록은 요청에 붙은 token의 `sub`만으로 정해지므로 이 규칙에 맞는다.
+이 practice의 목록은 요청에 붙은 token의 `sub`만으로 정해지므로, 연결이 아니라 authorization에 따라 달라진다는 명세의 조건에 맞는다.
 쓸 수 없는 tool을 숨길지, 보여 주고 부를 때 거절할지는 명세가 정하지 않았다.
 
 이 장의 practice `mcp-tool-visibility`는 11장의 `mcp-stateless-handle`에 사용자 역할을 더한다.
@@ -96,8 +91,7 @@ Authorization Server는 `http://localhost:9050`, MCP Server는 `http://localhost
 
 ## 12.3 1단계: 역할로 거른 `tools/list`
 
-점원과 손님은 같은 client로 같은 scope를 받았다.
-두 access token은 `scope`(`["products:read","openid"]`)와 `client_id`(`visibility-shop-agent`)가 같고, `sub`만 `user`와 `user2`로 다르다.
+점원과 손님은 같은 client로 같은 scope를 받았으므로, 두 access token은 `scope`(`["products:read","openid"]`)와 `client_id`(`visibility-shop-agent`)가 같고, `sub`만 `user`와 `user2`로 다르다.
 각 token을 붙여 같은 `tools/list`를 보낸다.
 
 ```http
@@ -155,7 +149,6 @@ prompt cache는 앞부분이 같은 prompt의 계산을 다시 쓰는 기능이�
 목록에서 뺐다고 그 tool을 부를 수 없게 되는 것은 아니다.
 client는 이름만 알면 `tools/call`을 보낼 수 있고, 그 이름은 낡은 cache, 다른 사용자의 목록, 모델이 지어낸 이름, prompt injection에서 올 수 있다.
 그래서 MCP Server는 부를 때도 다시 막는다.
-2026-07-28 Caching도 목록을 어디까지 나눠 쓸지 알려 주는 값에만 기대지 말고, 서버가 tool마다 접근을 제어하라고 한다.
 
 손님 `user2`의 조회 token으로 다음 `tools/call`을 보낸다.
 
@@ -173,7 +166,7 @@ Content-Length: 129
 {"jsonrpc":"2.0","id":7,"error":{"code":-32602,"message":"Unknown tool: invalid_tool_name","data":"Tool not found: updateStock"}}
 ```
 
-같은 token으로 `updateStock`과 길이가 같은, 서버에 없는 이름 `updateStack`도 불러 두 응답을 견주면 다음과 같다.
+같은 token으로 `updateStock`과 길이가 같은, 서버에 없는 이름 `updateStack`도 불러 두 응답을 비교하면 다음과 같다.
 
 | 비교 | 숨긴 `updateStock` | 없는 `updateStack` |
 |---|---|---|
@@ -182,7 +175,8 @@ Content-Length: 129
 | `error`의 `code`와 `message` | `-32602`, `Unknown tool: invalid_tool_name` | 같다 |
 | `error`의 `data` | `Tool not found: updateStock` | `Tool not found: updateStack` |
 
-`data`와 `Content-Length`에는 요청한 이름이 들어가므로, 길이가 같은 이름과 견주어야 이름 말고 다른 곳이 없는지 볼 수 있다.
+`data`에는 요청한 이름이 들어가고, `Content-Length`는 그 이름의 길이에 따라 달라진다.
+그래서 길이가 같은 이름과 비교해야 이름 말고 다른 점이 없는지 볼 수 있다.
 `message`의 `Unknown tool: invalid_tool_name`은 요청한 이름과 상관없는 고정 문자열이다.
 2025-11-25 명세가 없는 tool의 오류 예로 든 문장을 MCP Java SDK가 그대로 쓴다.
 
@@ -192,7 +186,6 @@ Content-Length: 129
 이름을 바꿔 가며 불러 보면 숨긴 tool의 이름을 하나씩 알아낼 수 있고, 관리자용 tool의 이름은 공격할 곳을 찾는 사람에게 쓸모 있는 정보다.
 응답이 없는 tool과 같으면, 손님은 숨긴 tool과 처음부터 없는 tool을 구별하지 못한다.
 명세는 없는 tool을 tool 결과가 아니라 JSON-RPC 오류(protocol error)로 다루므로, 이 응답은 명세의 형식 그대로다.
-MCP Server는 이 호출을 `숨긴 tool 호출 — 사용자=user2, 역할=CUSTOMER, tool=updateStock`으로 로그에 남긴다.
 
 **`products:write`가 있어도 같다**
 
@@ -202,8 +195,7 @@ curl로 이렇게 받은 token의 `scope`는 `["openid","products:read","product
 그래도 이 token으로 받은 목록은 6개이고, `updateStock(p1, 10)`은 같은 "모르는 tool" 오류이며, 호출 전후의 `getStock(p1)` 결과는 모두 재고 7개다.
 MCP Server는 token의 scope가 아니라 역할로 숨길지를 정하기 때문이다.
 Security Best Practices도 token에 적힌 scope만 믿고 서버 쪽 권한 판단을 하지 않는 것을 흔한 실수로 꼽는다.
-웹 agent와 `local-client`는 손님의 token에 `products:write`를 요청할 일이 없다.
-MCP Server가 손님에게 `products:write`를 요구하는 `403`을 보내지 않기 때문이다.
+MCP Server가 손님에게 `products:write`를 요구하는 `403`을 보내지 않으므로, 웹 agent와 `local-client`가 이 scope를 요청할 일은 없다.
 
 ## 12.5 3단계: 받을 수 있는 tool은 그대로 step-up
 
@@ -263,8 +255,7 @@ token은 누구인지(`sub`)만 알려 주고, 그 사람이 점원인지는 MCP
 | 목록에서 숨길 tool | MCP Server가 역할 표로 바로 안다 | token에는 지금 scope만 있다. 언젠가 받을 수 있는지 알려면 역할을 claim으로 넣거나 Authorization Server에 따로 묻는다 |
 | 역할이 바뀌면 | MCP Server는 다음 요청부터 바뀐 역할로 판단한다 | 이미 발급한 token은 만료될 때까지 옛 scope를 가진다 |
 
-두 방법을 함께 쓰면 손님은 쓸 수 없는 scope를 받지도 못하고, MCP Server도 역할로 한 번 더 막는다.
-어느 쪽이든 MCP Server는 token의 scope만 믿지 않고 자기 판단으로 거절할 수 있어야 한다(12.4).
+두 방법을 함께 쓰면 손님은 쓸 수 없는 scope를 받지도 못하고, MCP Server도 역할로 한 번 더 막는다(12.4).
 
 **GitHub의 두 연결 방식**
 
@@ -275,14 +266,13 @@ OAuth로 연결하면 tool이 아직 허락받지 않은 scope를 필요로 할 
 
 **client 등록으로 정해지는 경우**
 
-언젠가 받을 수 있는 scope는 사용자의 권한만으로 정해지지 않는다.
-Authorization Server는 client 등록에 없는 scope를 요청받으면 `invalid_scope`로 거절한다([10장 1단계](10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다)).
+Authorization Server는 client 등록에 없는 scope를 `invalid_scope`로 거절하므로, 언젠가 받을 수 있는 scope는 client 등록으로도 정해진다([10장 1단계](10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다)).
 그래서 등록 scope가 `products:read`뿐인 읽기 전용 client는 점원이 써도 `products:write`를 받을 수 없고, MCP Server는 token의 `client_id`를 보고 쓰기 tool을 숨길 수 있다.
 이 practice의 두 client는 세 scope가 모두 등록되어 있어서, 이 경우는 코드로 다루지 않는다.
 
 ## 12.7 웹 agent: 사용자별 tool 목록 cache
 
-**목록 하나를 같이 쓰면 다른 사용자에게 간다**
+**목록 하나를 같이 쓰면 한 사용자의 목록이 다른 사용자에게 간다**
 
 11장까지의 agent는 Spring AI 자동 구성의 tool provider를 `ChatClient`의 기본 tool로 넣는다([1장 official 코드에서 보기](01-mcp-basics.md#112-official-코드에서-보기)).
 이 provider는 처음 불릴 때 `tools/list`를 보내고, 목록이 바뀌었다는 알림이 올 때까지 그 목록을 모든 사용자에게 쓴다.
@@ -311,9 +301,8 @@ MCP client는 여전히 하나이고, 목록을 받는 `tools/list`에는 질문
 **이 practice가 따르는 것**
 
 이 practice의 MCP Server는 2025-11-25라서 `ttlMs`와 `cacheScope`를 보내지 않는다.
-`ttlMs`가 없으면 client가 자기 기준을 더할 수 있으므로, agent는 TTL을 5분으로 스스로 정한다(2026-07-28의 예시 값 `ttlMs: 300000`과 같다).
-그리고 두 규칙을 미리 따른다.
-사용자마다 거른 목록을 `"private"`으로 보아 다른 access token과 나누지 않고, "모르는 tool" 오류가 오면 TTL 전이라도 그 token의 목록을 버린다.
+`ttlMs`가 없으면 client는 자기 기준에 기댈 수 있으므로, agent는 TTL을 5분으로 스스로 정한다(2026-07-28의 예시 값 `ttlMs: 300000`과 같다).
+그리고 두 규칙을 미리 따라, 사용자마다 거른 목록을 `"private"`으로 보아 다른 access token과 나누지 않고, "모르는 tool" 오류가 오면 TTL 전이라도 그 token의 목록을 버린다.
 
 질문이 오면 `UserToolCatalog`는 그 사용자의 access token 값의 SHA-256 hex로 key를 만들고 목록을 찾는다.
 목록이 없거나 5분이 지났으면 그 token으로 `tools/list`를 보내 받은 목록을 5분 동안 두고, 있으면 `tools/list` 없이 그 목록을 쓴다.
@@ -340,11 +329,12 @@ key를 token 값 대신 SHA-256 hex로 두는 것은, cache를 로그에 찍거�
 **이 practice의 한계**
 
 - agent는 SSE stream을 시작하기 전에 요청 thread에서 목록을 꺼낸다. 그래서 목록을 새로 받다가 실패하면 화면에는 `오류: HTTP 500`만 나오고, 원인은 `logs/shop-agent.log`에 있다.
-- 목록이 바뀌었다는 알림은 받지 않는다. stateless MCP Server는 GET stream에 `405`로 답하므로([11장 1단계](11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답)), agent는 TTL과 오류로만 다시 받는다.
+- 목록이 바뀌었다는 알림은 받지 않는다. stateless MCP Server는 GET stream에 `405`로 답하므로([11장 1단계](11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답)), agent는 TTL이 지났을 때, token이 바뀌었을 때, "모르는 tool" 오류가 왔을 때만 다시 받는다.
 
 ## 12.8 웹 agent: 목록에 없는 tool을 모델이 부를 때
 
-모델은 그 질문에 넣은 목록의 tool을 부르지만, 목록에 없는 tool이 불리는 경우가 둘 있다.
+모델은 그 질문에 넣은 목록의 tool을 부른다.
+그래도 이 사용자에게 지금 보이는 목록에 없는 tool이 불리는 경우가 둘 있다.
 
 **낡은 목록의 tool: "모르는 tool" 오류를 모델에게 돌려준다**
 
@@ -354,7 +344,7 @@ agent는 목록을 한동안 그대로 쓰므로, 그사이 MCP Server의 목록
 
 Spring AI 2.0.1의 `SyncMcpToolCallback`은 이 JSON-RPC 오류(`McpError`)를 감싸지 않고 그대로 던진다.
 tool loop는 `ToolExecutionException`만 잡으므로, 그대로 두면 채팅 stream이 오류로 끝난다.
-그래서 agent는 목록의 callback마다 `UnknownToolAwareToolCallback`을 씌운다.
+그래서 agent는 목록의 callback마다 `UnknownToolAwareToolCallback`으로 감싼다.
 이 callback은 "모르는 tool" 오류를 받으면 그 token의 목록을 버리고, 오류를 `ToolExecutionException`으로 바꿔 던진다.
 그러면 모델은 `Unknown tool: invalid_tool_name`을 tool 결과로 받고 turn은 이어진다.
 그 turn은 받아 둔 목록을 계속 쓰고, 다음 질문에서 목록을 새로 받는다.
@@ -375,7 +365,8 @@ tool loop는 `ToolExecutionException`만 잡으므로, 그대로 두면 채팅 s
 손님으로 `p1 재고를 10개로 바꿔 줘`를 보낸 browser 확인에서는, 모델이 보이는 tool인 `getStock`만 불렀다.
 답은 `재고 수량 변경은 현재 제공된 도구로는 지원되지 않습니다. 상품 p1의 재고가 7개인 상태에서 추가 구매하시려면 장바구니에 담아 주문해 주세요.`였다.
 consent 카드는 뜨지 않았고, 모델이 `updateStock`을 부르지 않았으므로 `tool-unavailable` 안내도 나오지 않았다.
-그래서 이 절의 두 경로는 browser에서 본 것이 아니라 코드의 동작으로 설명한 것이다.
+모델이 목록에 없는 tool을 부를지는 모델에 달려 있어서, 두 경로는 매번 볼 수 있는 것이 아니다.
+낡은 목록의 경로는 점원이 질문한 뒤 agent가 그 token의 목록을 아직 쓰는 동안(12.7), 위처럼 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면 볼 수 있다.
 
 ## 12.9 사용자 기기의 앱
 
@@ -419,16 +410,13 @@ public boolean hidden(String subject, String tool) {
     return this.registry.all().containsKey(tool)
             && !grantable(roleOf(subject)).contains(this.registry.scopeFor(tool));
 }
-
-/** client cache와 모델의 prompt cache가 맞도록, 순서는 SDK가 준 순서 그대로 둔다. */
-public List<McpSchema.Tool> visible(String subject, List<McpSchema.Tool> tools) {
-    return tools.stream().filter(tool -> !hidden(subject, tool.name())).toList();
-}
 ```
 
 `ToolVisibility`는 역할마다 받을 수 있는 scope(12.3의 표)를 `GRANTABLE`로 두고, `roleOf`는 표에 없거나 `null`인 사용자를 손님으로 본다.
-`hidden`은 등록된 tool 가운데, 10장의 `ToolScopeRegistry`가 `@RequiredScope`에서 모은 그 tool의 scope를 이 역할이 받을 수 없는 것만 숨긴다.
+`hidden`은 등록된 tool만 본다.
+그 tool의 scope(10장의 `ToolScopeRegistry`가 `@RequiredScope`에서 모은 값)를 이 역할이 받을 수 없으면 숨긴다.
 등록되지 않은 이름은 숨긴 tool이 아니고, SDK가 "모르는 tool"로 답한다.
+`visible`은 SDK가 준 목록에서 `hidden`인 tool만 빼고 순서는 그대로 둔다.
 역할 표는 `McpTransportConfig`가 `new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF))`로 만든다.
 
 **`ToolVisibilityTransport`: SDK handler를 감싼다**
@@ -465,7 +453,8 @@ public Mono<McpSchema.JSONRPCResponse> handleRequest(McpTransportContext context
 }
 ```
 
-`subject`는 11장의 `contextExtractor`가 검증한 JWT에서 꺼내 둔 `sub`이고, token에 `sub`가 없으면 `null`이라 손님으로 다뤄진다.
+`subject`는 11장의 `contextExtractor`가 검증한 JWT에서 꺼내 둔 `sub`다.
+token에 `sub`가 없으면 `null`이고, `ToolVisibility`는 이 요청을 손님으로 본다.
 `UNKNOWN_TOOL_MESSAGE`는 SDK 2.0.1이 없는 tool에 쓰는 `Unknown tool: invalid_tool_name`이고, SDK를 올리면 다시 확인할 값이다.
 
 숨긴 tool의 호출을 tool마다 감싸 막지 않는 데는 이유가 있다.
@@ -514,7 +503,8 @@ agent의 클래스는 `practice/mcp-tool-visibility/shop-agent/src/main/java/dev
 
 **agent: 설정과 `UserToolCatalog`**
 
-`application.yml`의 `spring.ai.mcp.client.toolcallback.enabled: false`는 자동 구성의 tool provider만 끄고, MCP client bean(`mcpSyncClients`)은 그대로 둔다.
+`application.yml`의 `spring.ai.mcp.client.toolcallback.enabled: false`는 자동 구성의 tool provider를 끈다.
+MCP client bean(`mcpSyncClients`)은 그대로 남는다.
 `ChatClientConfig`는 기본 tool을 넣지 않고, `ToolCatalogConfig`는 이 MCP client로 `UserToolCatalog` bean을 만든다.
 cache key의 access token은 MCP 요청에 token을 붙이는 customizer와 같은 `OAuth2AuthorizedClientManager.authorize(...)`로 얻는다.
 token이 만료되었으면 이 호출이 refresh하므로, key의 token과 실제로 붙는 token이 같다.
@@ -545,8 +535,7 @@ callback의 이름은 `prefixedToolName(tool.name())`으로 서버가 준 이름
 
 `call`은 감싼 `SyncMcpToolCallback`이 던진 `McpError` 가운데 "모르는 tool"만 잡는다.
 잡으면 `onUnknownTool`로 목록을 버리고 `new ToolExecutionException(getToolDefinition(), ex)`를 던지며, 다른 `McpError`는 그대로 던진다.
-`isUnknownTool`은 JSON-RPC 오류의 `code`가 `-32602`이고 `message`가 `Unknown tool: invalid_tool_name`인지 본다.
-`-32602`는 인자 오류에도 쓰이므로 `message`까지 본다.
+`-32602`는 인자 오류에도 쓰이므로, `isUnknownTool`은 `code`와 함께 `message`가 `Unknown tool: invalid_tool_name`인지 본다.
 `ToolExecutionException`은 10장의 `StepUpToolExecutionExceptionProcessor`를 지나 Spring AI의 기본 처리로 가고, 모델은 예외 메시지를 tool 결과로 받는다.
 
 **agent: `ChatController`와 `ChatEvents`**
@@ -578,8 +567,7 @@ Spring AI 2.0.1에는 이 경우를 위한 예외 타입이 따로 없어서 메
 
 **local-client: `McpCalls.ToolList`**
 
-`ToolList#printIfTokenChanged`는 목록을 받은 token을 기억해 두고, 지금 token이 그와 다를 때만 `tools/list`를 다시 보내 `tools:` 줄을 찍는다.
-목록을 받다가 step-up이 났을 수 있으므로, 기억하는 token은 목록을 받은 뒤의 token이다.
+`ToolList#printIfTokenChanged`는 목록을 받은 뒤의 token을 기억해 두고, 지금 token이 그와 다를 때만 `tools/list`를 다시 보내 `tools:` 줄을 찍는다.
 `McpCalls#run`은 `initialize` 직후와 `checkout` 뒤에 이 메서드를 부른다.
 처음 받은 목록에 `updateStock`이 없으면 `callHidden`이 그 tool을 부르고, SDK가 던진 `McpError`를 그 자리에서 잡아 `updateStock(목록에 없음)` 줄을 찍는다.
 
@@ -609,7 +597,6 @@ practice/mcp-tool-visibility/run.sh
 | `user`: `p1 재고를 10개로 바꿔 줘` | `products:write`를 요청하는 consent 카드가 뜬다. MCP Server 로그에 `보인 tool=7/7`과 `scope 부족` 줄이 찍힌다 |
 | `user`: "권한 허용" 뒤 `products:write`를 체크 | 질문이 다시 가고 재고가 바뀐다. agent 로그에 `tool 목록을 새로 받았다 (사용자=user, 7개)`가 한 번 더 찍힌다 |
 
-로컬 모델이라 기기에 따라 답 하나에 30\~100초가 걸린다.
 해 볼 것과 기대 결과의 전체 목록은 [practice README의 직접 확인할 것](../mcp-tool-visibility/README.md#직접-확인할-것)에 있다.
 
 **token이 필요한 요청**: 캡처 스크립트 `docs/superpowers/captures/mcp-visibility-walkthrough.sh`로 본다.
@@ -630,6 +617,7 @@ docs/superpowers/captures/mcp-visibility-walkthrough.sh > /tmp/visibility-walkth
 browser 대신 curl로 두 계정을 차례로 돌리려면 저장소 최상위 폴더에서 다음을 실행한다.
 
 ```bash
+# ./gradlew run을 부르므로 JAVA_HOME이 Java 21을 가리켜야 한다
 docs/superpowers/captures/visibility-local-client-run.sh user > /tmp/visibility-local-client-user.txt
 docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility-local-client-user2.txt
 ```
@@ -646,7 +634,7 @@ docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility
 
 | 내용 | 명세 | 요구 수준 |
 |---|---|---|
-| `tools/list`에는 요청한 client가 지금 쓸 수 있는 tool로 답한다. 목록은 연결마다나 다른 요청의 부수 효과로 달라지면 안 되지만, 요청의 authorization(예: 허락된 scope)에 따라서는 달라도 된다 | [MCP 2026-07-28 Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities) | MUST, MUST NOT, MAY |
+| `tools/list`에는 요청한 client가 지금 쓸 수 있는 tool로 답한다. 목록은 연결에 따라, 또는 다른 요청의 부수 효과로 달라지면 안 되지만, 요청의 authorization(예: 허락된 scope)에 따라서는 달라도 된다 | [MCP 2026-07-28 Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities) | MUST, MUST NOT, MAY |
 | 서버는 tool 집합이 같으면 늘 같은 순서로 돌려준다. 그래야 client가 목록을 cache하고, prompt cache도 잘 맞는다 | [MCP 2026-07-28 Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities) | SHOULD |
 | 서버는 `tools/list` 같은 결과에 `ttlMs`와 `cacheScope`를 넣는다. `ttlMs`는 0 이상이다 | [MCP 2026-07-28 Caching — Cacheable Results](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cacheable-results), [Time-to-Live (TTL) Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#time-to-live-ttl-field) | MUST |
 | `"private"` 결과는 같은 authorization context에서 다시 쓸 수 있지만, 다른 authorization context와 cache를 나누면 안 된다(access token이 다르면 cache도 다르다). 사용자마다 거른 목록에는 `"private"`이 맞다 | [MCP 2026-07-28 Caching — Cache Scope Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cache-scope-field) | MAY, MUST NOT |
