@@ -20,6 +20,7 @@ import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilte
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
@@ -120,5 +121,16 @@ public class McpTransportConfig {
 	@Bean
 	public ToolVisibility toolVisibility(ToolScopeRegistry registry) {
 		return new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF));
+	}
+
+	/**
+	 * 자동 구성의 server는 transport를 {@code McpStatelessServerTransport} 타입으로 받으므로, {@code @Primary}인 이 bean이 간다.
+	 * router는 {@code WebMvcStatelessServerTransport} 타입으로 받으므로 원래 bean이 그대로 간다.
+	 */
+	@Bean
+	@Primary
+	public ToolVisibilityTransport toolVisibilityTransport(WebMvcStatelessServerTransport transport,
+			ToolVisibility visibility) {
+		return new ToolVisibilityTransport(transport, visibility);
 	}
 }

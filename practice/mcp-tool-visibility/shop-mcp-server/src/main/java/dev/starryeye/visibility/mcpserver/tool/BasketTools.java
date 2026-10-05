@@ -107,7 +107,8 @@ public class BasketTools {
 
 	@McpTool(name = "checkout",
 			description = "장바구니를 주문한다. 재고를 줄이고 주문 번호를 돌려주며, 장바구니는 닫힌다. "
-					+ "사용자가 주문이나 결제를 분명히 요청할 때만 사용한다.")
+					+ "사용자가 주문이나 결제를 분명히 요청할 때만 사용한다."
+					+ " 처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.")
 	@RequiredScope("orders:write")
 	public CallToolResult checkout(McpTransportContext context,
 			@McpToolParam(description = "장바구니 ID. createBasket이 준 bsk_로 시작하는 값", required = true)

@@ -81,6 +81,7 @@ public class ProductTools {
             description = "상품 ID의 재고 수량을 quantity로 바꾼다. "
                     + "사용자가 재고를 바꿔 달라고 분명히 요청할 때만 사용한다. "
                     + "바뀐 뒤의 재고를 반환한다."
+                    + " 처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다."
     )
     @RequiredScope("products:write")
     public String updateStock(
