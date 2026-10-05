@@ -80,7 +80,7 @@ MCP Server가 **사용자가 원래 할 수 없는 tool은 목록에서 숨기�
 
 ### 4.1 tool 목록
 1. client가 사용자 token으로 `tools/list`를 보낸다.
-2. MCP Server는 token의 `sub`로 역할을 찾고, 그 역할이 받을 수 있는 scope로 tool을 거른다. 순서는 등록 순서 그대로다.
+2. MCP Server는 token의 `sub`로 역할을 찾고, 그 역할이 받을 수 있는 scope로 tool을 거른다. 순서는 SDK가 준 순서 그대로다(bean마다 메서드 이름 순, bean은 생성 순). 한 서버 안에서는 늘 같지만 실행 환경마다 다를 수 있어서, 테스트는 절대 순서가 아니라 반복 요청의 순서와 상대 순서를 비교한다.
 3. 같은 사용자는 step-up 전후로 같은 목록을 받는다(역할로만 달라진다).
 
 ### 4.2 tool 호출
@@ -92,7 +92,8 @@ MCP Server가 **사용자가 원래 할 수 없는 tool은 목록에서 숨기�
 1. 질문이 오면 `ChatController`가 현재 사용자의 access token을 key로 보관소에서 목록을 찾는다.
 2. 없거나 TTL(5분)이 지났으면 그 token으로 `tools/list`를 받아 둔다. 만료 항목은 꺼낼 때 지운다.
 3. 꺼낸 목록을 그 질문에만 넣는다. 앱 시작 때 고정한 목록은 쓰지 않는다.
-4. tool 호출이 "모르는 tool" 오류로 끝나면 그 token의 항목을 버린다. 같은 turn에서 바로 다시 받지는 않는다.
+4. tool 호출이 "모르는 tool" 오류로 끝나면 그 token의 항목을 버린다. 같은 turn에서 바로 다시 받지는 않는다. 모델에게는 그 오류 문장이 tool 결과로 가고 turn은 이어진다.
+6. 모델이 이 질문의 목록에 없는 tool을 부르면 Spring AI가 MCP 요청 없이 `IllegalStateException("No ToolCallback found for tool name: …")`으로 stream을 끝낸다. agent는 이것을 받아 그 turn을 대화 기억에서 되돌리고, 화면에 "이 계정에서 쓸 수 없는 tool"이라는 안내 event를 보낸다.
 5. step-up이나 token 갱신으로 token이 바뀌면 key가 달라져 다시 받는다.
 
 ## 5. module별 변경 (`mcp-stateless-handle` 대비)
@@ -111,7 +112,8 @@ MCP Server가 **사용자가 원래 할 수 없는 tool은 목록에서 숨기�
 ### shop-agent (웹 agent)
 - 자동 구성의 tool 목록 provider를 끄고, access token별 tool 목록 보관소(가칭 `UserToolCatalog`)를 둔다. key는 token 값의 hash, TTL 5분(`Clock` 주입), 만료 항목은 꺼낼 때 지운다.
 - `ChatController`가 질문마다 현재 사용자의 목록을 꺼내 넣는다.
-- "모르는 tool" 오류를 받으면 그 token의 항목을 버린다(tool 실행 예외 처리에서).
+- "모르는 tool" 오류를 받으면 그 token의 항목을 버린다. Spring AI 2.0.1의 `SyncMcpToolCallback`은 `McpError`를 감싸지 않고 그대로 던져서 tool 실행 예외 처리(`ToolExecutionExceptionProcessor`)까지 오지 않는다. 그래서 목록의 callback마다 감싸는 callback을 두어, "모르는 tool"이면 항목을 버리고 `ToolExecutionException`으로 바꿔 모델에게 문장으로 돌려준다.
+- 목록에 없는 tool을 모델이 부를 때의 `IllegalStateException`은 `ChatEvents`가 받아 turn을 되돌리고 `tool-unavailable` event를 보낸다(4.3의 6).
 - 로그: 목록을 새로 받을 때와 cache에서 꺼낼 때를 구분해 남긴다.
 - 대화 기억, step-up 되돌리기, "새 대화"는 그대로다.
 
@@ -132,25 +134,27 @@ MCP Server가 **사용자가 원래 할 수 없는 tool은 목록에서 숨기�
 - MCP Server
   - 역할별 보이는 tool, 표에 없는 사용자는 손님.
   - 실제 filter chain과 transport: 두 사용자 JWT의 `tools/list`가 다르고 순서가 같다, 같은 요청을 두 번 보내도 순서가 같다.
-  - 손님의 `updateStock`과 없는 tool의 응답이 같다(상태, 본문, header).
+  - 손님의 `updateStock`과 같은 길이의 없는 tool(`updateStack`)의 응답이 같다(상태, header, 이름만 바꾼 본문). `data`와 `Content-Length`에 이름이 들어가므로 길이가 같은 이름과 비교한다.
   - 손님의 `updateStock`은 `403`이 아니다(검사 순서). 점원의 조회 token `updateStock`은 `403 insufficient_scope`다.
 - agent
   - token마다 목록이 따로다. 다른 token으로 목록이 새지 않는다.
   - 5분 안에는 다시 받지 않고, 지나면 다시 받는다(`Clock`).
   - token이 바뀌면 다시 받는다.
-  - "모르는 tool" 오류 뒤 그 token의 항목이 없어진다.
+  - "모르는 tool" 오류 뒤 그 token의 항목이 없어지고, 모델은 그 오류 문장을 tool 결과로 받는다.
+  - 목록에 없는 tool을 모델이 부르면 turn이 되돌려지고 `tool-unavailable` event가 간다.
   - `ChatController`가 질문마다 그 사용자의 목록을 넣는다.
 - local-client: 가짜 MCP Server가 사용자마다 다른 목록을 줄 때의 출력, 숨긴 tool 호출 오류 처리, step-up 뒤 목록 다시 받기.
 - browser 확인(controller): 손님의 "p1 재고를 10개로 바꿔 줘"에 consent 카드 없이 할 수 없다는 답, 점원은 consent 카드, agent 로그의 cache 사용과 step-up 뒤 다시 받기.
 
-## 8. 구현 전에 확인할 것
+## 8. 구현 전에 확인한 것 (2026-10-05, SDK 2.0.1·Spring AI 2.0.1 bytecode와 실행으로 확인)
 
-- `McpStatelessSyncServer`와 `WebMvcStatelessServerTransport` 사이에서 `tools/list` 결과를 거를 수 있는 자리(handler 감싸기, transport 감싸기 등)와, Spring AI 자동 구성과 맞물리는 방법.
-- SDK 2.0.1이 없는 tool의 `tools/call`에 주는 응답(JSON-RPC 오류 code·message, HTTP 상태). 숨긴 tool 응답을 이것과 똑같이 맞춘다.
-- Spring AI 2.0.1에서 자동 tool 목록 provider를 끄는 설정과, 요청마다 tool을 넣는 API(`tools(...)`)가 tool loop 안에서도 그 목록을 쓰는지.
-- agent가 `tools/list`를 보낼 때 그 사용자의 token이 붙는지(요청 thread와 tool loop thread).
-- "모르는 tool" 오류가 agent에서 어떤 예외로 오는지(`SyncMcpToolCallback`의 `isError`·`McpError` 처리).
-- qwen3:8b가 숨긴 tool 없이 "할 수 없다"고 답하는지, 보이는 tool 설명의 "권한을 묻는다"를 보고 피하지 않는지.
+- `tools/list` 거르는 자리: `WebMvcStatelessServerTransport`는 `final`이라 상속할 수 없다. `McpStatelessServerTransport`를 구현한 감싸는 transport를 `@Primary` bean으로 두고, `setMcpHandler`에서 SDK handler를 감싼다. 자동 구성의 server는 interface 타입으로 받아 감싼 쪽을, router는 구체 타입으로 받아 원래 bean을 쓴다. tool spec 단위로 감싸면 SDK의 입력 검증이 먼저 돌아 숨긴 tool이 드러나므로 쓰지 않는다.
+- 없는 tool의 `tools/call` 응답: HTTP 200, `application/json`, `WWW-Authenticate` 없음, 본문 `{"jsonrpc":"2.0","id":…,"error":{"code":-32602,"message":"Unknown tool: invalid_tool_name","data":"Tool not found: <이름>"}}`. message는 고정 문자열이고 이름은 `data`에만 있다. 감싸는 handler가 숨긴 tool에 같은 값을 만든다.
+- `ToolScopeFilter`: 기본 scope 검사 뒤, 숨긴 tool이면 tool별 scope 검사를 건너뛰고 transport로 넘긴다. 그래서 정말 없는 tool과 같은 뒤 단계를 지나 응답이 같다.
+- agent: `spring.ai.mcp.client.toolcallback.enabled: false`로 자동 provider를 끈다. `List<McpSyncClient>` bean(`mcpSyncClients`)은 남는다. callback은 `SyncMcpToolCallback.builder().mcpClient(c).tool(t).prefixedToolName(t.name()).build()`로 만든다. 질문마다 `.tools(...)`로 넣은 callback만 tool loop가 쓴다.
+- agent의 `listTools()`를 요청 thread에서 부르면 그 사용자의 token이 붙는다. cache key의 token은 token을 붙이는 customizer와 같은 `OAuth2AuthorizedClientManager.authorize(...)`로 얻는다(만료면 갱신된 같은 token).
+- `@SpringBootTest`는 `main()`을 돌리지 않아 `Hooks.enableAutomaticContextPropagation()`이 꺼져 있다. tool loop thread의 token을 확인하는 테스트는 hook을 직접 켠다.
+- local-client: `callTool`은 JSON-RPC 오류를 `McpError`로 던진다(step-up 없음). step-up 뒤 새 `listTools()` 요청은 새 token으로 간다.
 
 ## 다루지 않는 것
 
