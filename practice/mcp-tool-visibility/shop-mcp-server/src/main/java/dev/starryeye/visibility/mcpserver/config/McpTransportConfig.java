@@ -137,7 +137,7 @@ public class McpTransportConfig {
 	public ToolVisibilityTransport toolVisibilityTransport(WebMvcStatelessServerTransport transport,
 			ToolVisibility visibility) {
 		// SDK server는 mapper를 따로 받지 않아 McpJsonDefaults의 mapper를 쓴다(Spring AI 자동 구성이 넘기지 않는다).
-		// wrapper가 params를 SDK와 다르게 변환하면 요청 모양에 따라 숨긴 tool만 다르게 답해 존재가 알려지므로, 같은 mapper를 쓴다.
+		// wrapper가 params를 SDK와 다르게 변환하면 요청 형식에 따라 숨긴 tool만 다르게 답해 존재가 알려지므로, 같은 mapper를 쓴다.
 		// mcpServerJsonMapper는 빈 문자열을 null 객체로 받아들이는 등 더 너그러워서 쓰면 안 된다.
 		return new ToolVisibilityTransport(transport, visibility, McpJsonDefaults.getMapper());
 	}

@@ -64,7 +64,8 @@ public final class McpCalls {
 			// 서버는 사용자 역할로 목록을 거른다(안내서 12장).
 			ToolList tools = new ToolList(client, holder, out);
 			if (!tools.printIfTokenChanged().contains("updateStock")) {
-				// 목록에 없는 tool을 일부러 불러 본다. 권한을 늘려도 쓸 수 없는 tool이라 step-up이 아니라 JSON-RPC 오류가 온다.
+				// 목록에 없는 tool을 일부러 불러 본다.
+				// scope를 늘려도 쓸 수 없는 tool이라 step-up이 아니라 JSON-RPC 오류가 온다.
 				callHidden(client, out);
 			}
 			print(out, "getStock(p1)", callOnce(() -> call(client, "getStock", Map.of("productId", "p1")), out));

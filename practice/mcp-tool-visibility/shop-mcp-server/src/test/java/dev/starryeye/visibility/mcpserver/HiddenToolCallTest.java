@@ -53,7 +53,10 @@ class HiddenToolCallTest {
 				.formatted(tool, arguments);
 	}
 
-	/** params에 tool 이름과 임의의 나머지 field를 그대로 넣는다. 인자가 이상한 모양인 요청을 만들 때 쓴다. */
+	/**
+	 * params에 tool 이름과 임의의 나머지 field를 그대로 넣는다.
+	 * params의 형식이 잘못된 요청을 만들 때 쓴다.
+	 */
 	static String 이상한_호출(String tool, String restOfParams) {
 		return """
 				{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"%s",%s}}"""
@@ -120,8 +123,8 @@ class HiddenToolCallTest {
 	}
 
 	/**
-	 * 요청 모양마다 SDK가 어떻게 답하는지는 내부 변환에 달려 있다.
-	 * wrapper가 SDK보다 너그럽게 변환하면, 어떤 모양에서만 숨긴 tool이 다르게 답해 그런 tool이 있다는 것을 알게 된다.
+	 * 요청 형식마다 SDK가 어떻게 답하는지는 내부 변환에 달려 있다.
+	 * wrapper가 SDK보다 너그럽게 변환하면, 어떤 형식에서만 숨긴 tool이 다르게 답해 그런 tool이 있다는 것을 알게 된다.
 	 * 그래서 숨긴 tool(updateStock)과 같은 길이의 없는 tool(updateStack)이 같은 응답을 받는지 본다.
 	 * 500 응답의 본문에는 stack trace가 들어 있어서, 본문 전체가 아니라 JSON-RPC 오류의 code와 message를 비교한다.
 	 */

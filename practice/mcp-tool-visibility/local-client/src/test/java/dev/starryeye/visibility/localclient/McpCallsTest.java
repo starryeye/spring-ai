@@ -136,7 +136,8 @@ class McpCallsTest {
 				.contains("checkout: 주문 ord-1001를 접수했습니다.");
 		assertThat(calls("updateStock")).extracting(FakeMcpServer.Recorded::authorization)
 				.containsExactly("Bearer read-token");
-		// 숨긴 tool은 step-up을 부르지 않는다. 권한을 더 받은 것은 checkout의 orders:write 한 번뿐이다.
+		// 숨긴 tool은 step-up을 부르지 않는다.
+		// scope를 더 받은 것은 checkout의 orders:write 한 번뿐이다.
 		assertThat(this.requested).containsExactly(Set.of("products:read", "orders:write"));
 	}
 

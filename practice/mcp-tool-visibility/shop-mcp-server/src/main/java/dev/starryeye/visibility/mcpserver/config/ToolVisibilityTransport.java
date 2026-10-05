@@ -86,7 +86,8 @@ public final class ToolVisibilityTransport implements McpStatelessServerTranspor
 			if (McpSchema.METHOD_TOOLS_CALL.equals(request.method())) {
 				String name = toolName(request.params());
 				if (name != null && visibility.hidden(subject, name)) {
-					// 받을 수 없는 권한의 tool이라 step-up하지 않는다. 있다는 사실도 알리지 않는다.
+					// 이 역할이 받을 수 없는 scope의 tool이라 step-up하지 않는다.
+					// 그런 tool이 있다는 사실도 알리지 않는다.
 					log.info("숨긴 tool 호출 — 사용자={}, 역할={}, tool={}", subject, visibility.roleOf(subject), name);
 					return Mono.just(McpSchema.JSONRPCResponse.error(request.id(),
 							new McpSchema.JSONRPCResponse.JSONRPCError(McpSchema.ErrorCodes.INVALID_PARAMS,
@@ -113,9 +114,9 @@ public final class ToolVisibilityTransport implements McpStatelessServerTranspor
 
 		/**
 		 * SDK server가 쓰는 mapper로 params에서 이름을 읽는다.
-		 * 이 mapper는 SDK와 똑같이 변환해야 한다.
-		 * 더 너그럽게 변환하면, 예를 들어 {@code "arguments":""}를 받아들이는 mapper는 SDK가 오류로 답할 요청을 숨긴 tool만 "모르는 tool"로 답해서
-		 * 그런 tool이 있다는 사실을 알려 준다.
+		 * 더 너그러운 mapper를 쓰면, 예를 들어 {@code "arguments":""}를 받아들이면, SDK가 오류로 답할 요청에 숨긴 tool만 "모르는 tool"로 답하게 된다.
+		 * 그러면 그런 tool이 있다는 사실이 알려진다.
+		 * 그래서 이 mapper는 SDK와 똑같이 변환해야 한다.
 		 * 읽을 수 없으면 SDK가 같은 params로 오류를 내도록 넘긴다.
 		 */
 		private String toolName(Object params) {

@@ -26,8 +26,8 @@ public record McpCaller(String subject, String clientId) {
 	/**
 	 * Spring Security가 검증한 token을 읽는다.
 	 * 인증이 없으면 빈 context다.
-	 * token에 {@code sub}가 없으면 {@link #SUBJECT}를 넣지 않는다.
-	 * {@code Map.of}가 null 값을 받지 않아 예외가 나는 것도 피하고, 사용자를 모르는 요청으로 남겨 손님으로 다루게 한다.
+	 * {@code sub}가 없는 token의 요청은 사용자를 모르는 요청이라 손님으로 다뤄야 한다.
+	 * 그래서 token에 {@code sub}가 없으면 {@link #SUBJECT}를 넣지 않는다.
 	 */
 	public static McpTransportContext context(ServerRequest request) {
 		return request.principal()
