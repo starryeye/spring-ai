@@ -59,7 +59,7 @@ Claude Code(CLI)는 사용자가 다시 인증해야 하고, Codex CLI는 오류
 그래서 어느 client에서나 같게 동작하려면 처음에 다 받아 두는 편이 쉽다.
 대신 consent 화면이 처음부터 많은 권한을 묻고, 위에서 본 것처럼 token이 새면 할 수 있는 일이 많다.
 이 practice는 명세가 권하는 대로 조회 scope만 받아 시작하고, 쓰기는 필요할 때 늘린다.
-[12장](12-tool-visibility.md)에서는 `mcp-tool-visibility` practice로, 사용자가 권한을 받을 수 없는 tool은 목록에서 숨기고 받을 수 있는 tool은 보여 준 뒤 step-up하게 하는 방법을 본다.
+[12장](12-tool-visibility.md)에서는 `mcp-tool-visibility` practice로, 사용자의 권한으로는 쓸 수 없는 tool은 목록에서 숨기고 권한은 있지만 아직 scope를 받지 않은 tool은 보여 준 뒤 step-up하게 하는 방법을 본다.
 
 ## 10.2 시퀀스 다이어그램
 

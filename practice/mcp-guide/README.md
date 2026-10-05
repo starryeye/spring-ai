@@ -59,7 +59,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [9. 버전](09-versions.md) | 2025-03-26부터 2026-07-28까지 authorization과 transport가 바뀐 이유, official이 따르는 기준 버전 | `2026-07-28`로 요청해 official이 `2025-11-25`로 답하고 `_meta` 요청을 `400`으로 거절하는 것 보기 |
 | [10. scope와 step-up](10-scope-and-step-up.md) | tool별 scope, 조회 scope로 시작해 쓰기 tool을 처음 부를 때 `403 insufficient_scope`를 받아 scope를 늘리는 step-up, 웹 agent와 사용자 기기의 앱이 사용자에게 다시 묻는 방법 | `401`의 `scope`와 PRM의 `scopes_supported` 읽기, 조회 token으로 `403 insufficient_scope` 받기, 웹 agent의 consent 카드와 `local-client`의 step-up 해 보기 |
 | [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, 웹 agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | 웹 agent에서 장바구니에 상품을 담고 결제하기, 캡처 스크립트로 session 없는 `initialize`와 GET의 `405`, `user2`가 남의 handle로 받는 결과 보기, `local-client`로 handle을 넘기고 step-up하기 |
-| [12. tool 목록과 권한](12-tool-visibility.md) | 권한을 받을 수 없는 tool은 목록에서 숨기고 받을 수 있는 tool은 step-up하는 MCP Server, 숨긴 tool의 호출에 없는 tool과 같은 오류로 답하는 이유, 웹 agent가 사용자별 목록을 access token마다 따로 cache하는 방법 | 웹 agent에서 손님 `user2`와 점원 `user`로 재고 변경을 요청해 consent 카드가 점원에게만 뜨는 것 보기, 캡처 스크립트로 두 사용자의 `tools/list`와 숨긴 tool·없는 tool의 응답 비교하기, `local-client`로 숨긴 tool 불러 보기 |
+| [12. tool 목록과 권한](12-tool-visibility.md) | 사용자의 권한 밖의 tool은 숨기고 권한 안이지만 scope 밖의 tool은 step-up하는 MCP Server, 숨긴 tool의 호출에 없는 tool과 같은 오류로 답하는 이유, 웹 agent가 사용자별 목록을 access token마다 따로 cache하는 방법 | 웹 agent에서 손님 `user2`와 점원 `user`로 재고 변경을 요청해 consent 카드가 점원에게만 뜨는 것 보기, 캡처 스크립트로 두 사용자의 `tools/list`와 숨긴 tool·없는 tool의 응답 비교하기, `local-client`로 숨긴 tool 불러 보기 |
 
 ## 부록
 
@@ -76,7 +76,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
   10장은 이 practice로 scope와 step-up을 설명한다.
 - [mcp-stateless-handle](../mcp-stateless-handle/README.md): authz의 MCP Server를 session 없이 돌리고, 장바구니처럼 호출 사이에 남는 상태를 서버가 만든 handle로 주고받는다.
   11장은 이 practice로 stateless와 handle을 설명한다.
-- [mcp-tool-visibility](../mcp-tool-visibility/README.md): stateless에 사용자 역할을 더해, 사용자가 권한을 받을 수 없는 tool은 목록에서 숨기고 받을 수 있는 tool은 step-up하게 한다.
+- [mcp-tool-visibility](../mcp-tool-visibility/README.md): stateless에 사용자 역할을 더해, 사용자의 권한으로는 쓸 수 없는 tool은 목록에서 숨기고 권한은 있지만 아직 scope를 받지 않은 tool은 step-up하게 한다.
   12장은 이 practice로 사용자별 tool 목록과 그 목록의 cache를 설명한다.
 - [agent-mcp](../agent-mcp/README.md)와 [agent-mcps](../agent-mcps/README.md): authorization 없이 MCP Server와 agent만 다룬다.
   1장의 내용을 더 작은 예제로 볼 수 있다.
