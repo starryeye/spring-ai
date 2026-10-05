@@ -61,4 +61,13 @@ class McpCallerTest {
 		assertThatThrownBy(() -> McpCaller.from(McpTransportContext.create(Map.of("sub", " "))))
 				.isInstanceOf(IllegalStateException.class);
 	}
+
+	@Test
+	void subject는_인증된_sub만_돌려준다() {
+		assertThat(McpCaller.subject(McpTransportContext.create(java.util.Map.of(McpCaller.SUBJECT, "user2"))))
+				.contains("user2");
+		assertThat(McpCaller.subject(McpTransportContext.EMPTY)).isEmpty();
+		assertThat(McpCaller.subject(McpTransportContext.create(java.util.Map.of(McpCaller.SUBJECT, " "))))
+				.isEmpty();
+	}
 }

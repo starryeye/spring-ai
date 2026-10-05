@@ -6,6 +6,7 @@ import org.springframework.web.servlet.function.ServerRequest;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * tool을 부른 사용자다. token의 {@code sub}와 {@code client_id}다.
@@ -37,5 +38,11 @@ public record McpCaller(String subject, String clientId) {
 			throw new IllegalStateException("인증된 사용자가 없다");
 		}
 		return new McpCaller(subject, Objects.toString(context.get(CLIENT_ID), ""));
+	}
+
+	/** stateless transport가 넣어 둔 token의 sub다. 인증이 없으면 비어 있다. */
+	public static Optional<String> subject(McpTransportContext context) {
+		return (context.get(SUBJECT) instanceof String subject && !subject.isBlank())
+				? Optional.of(subject) : Optional.empty();
 	}
 }

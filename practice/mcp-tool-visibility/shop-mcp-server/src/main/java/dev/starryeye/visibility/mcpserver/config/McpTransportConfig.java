@@ -8,6 +8,7 @@ import dev.starryeye.visibility.mcpserver.security.McpCaller;
 import dev.starryeye.visibility.mcpserver.tool.BasketTools;
 import dev.starryeye.visibility.mcpserver.tool.ProductTools;
 import dev.starryeye.visibility.mcpserver.tool.ToolScopeRegistry;
+import dev.starryeye.visibility.mcpserver.tool.ToolVisibility;
 
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
@@ -23,6 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 
 /**
  * MCP endpoint에만 적용하는 servlet filter 세 개를 등록한다.
@@ -109,5 +111,14 @@ public class McpTransportConfig {
 		// scope 검사 뒤에 돈다.
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 2);
 		return registration;
+	}
+
+	/**
+	 * 학습용 역할 표다. {@code user}만 점원이고, 표에 없는 사용자({@code user2} 포함)는 손님이다.
+	 * 실제 서비스라면 이 표는 가게의 사용자 저장소에 있다.
+	 */
+	@Bean
+	public ToolVisibility toolVisibility(ToolScopeRegistry registry) {
+		return new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF));
 	}
 }
