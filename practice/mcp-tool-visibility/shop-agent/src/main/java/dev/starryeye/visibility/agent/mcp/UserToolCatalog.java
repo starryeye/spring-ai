@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
 /**
- * 사용자마다 다른 MCP tool 목록을 access token별로 들고 있는다(안내서 12장).
+ * 사용자마다 다른 MCP tool 목록을 access token별로 들고 있다(안내서 12장).
  *
  * <p>MCP Server는 사용자 역할로 목록을 거른다.
  * 그래서 모든 사용자가 같이 쓰는 목록 하나를 cache하면, 먼저 받은 사람의 목록이 다른 사람에게 간다.
@@ -79,7 +79,7 @@ public class UserToolCatalog {
 
 	/**
 	 * 이 사용자의 tool 목록이다.
-	 * 요청 thread에서 부른다. 목록을 새로 받을 때 그 thread의 SecurityContext로 사용자 token이 붙는다.
+	 * 요청 thread에서 부른다. 목록을 새로 받을 때 그 thread의 SecurityContext로 사용자 token이 붙으므로, 호출자는 현재 thread의 Authentication을 넘겨야 한다.
 	 */
 	public List<ToolCallback> callbacks(Authentication user) {
 		String key = key(this.accessToken.apply(user));
@@ -106,7 +106,7 @@ public class UserToolCatalog {
 		}
 	}
 
-	/** token 값을 그대로 key로 두지 않는다. 로그나 heap dump에서 token이 그대로 보이지 않게 하려는 것이다. */
+	/** 로그나 heap dump에서 token이 그대로 보이지 않게 하려고 token 값을 그대로 key로 두지 않는다. */
 	static String key(String accessToken) {
 		try {
 			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")

@@ -80,4 +80,13 @@ class UnknownToolAwareToolCallbackTest {
 		assertThat(callback.getToolDefinition()).isSameAs(UPDATE_STOCK);
 		assertThat(this.invalidated).hasValue(0);
 	}
+
+	@Test
+	void 알려진_message지만_다른_code면_그대로_던지고_목록을_버리지_않는다() {
+		McpError other = 오류(-32601, "Unknown tool: invalid_tool_name", null);
+		ToolCallback callback = new UnknownToolAwareToolCallback(던지는_tool(other), this.invalidated::incrementAndGet);
+
+		assertThatThrownBy(() -> callback.call("{}")).isSameAs(other);
+		assertThat(this.invalidated).hasValue(0);
+	}
 }
