@@ -57,7 +57,7 @@ class ChatMemoryToolResultTest {
 
 		@Override
 		public String call(String toolInput) {
-			return "장바구니 bsk_test를 만들었습니다.";
+			return "장바구니를 만들었습니다. ID는 bsk_test입니다.";
 		}
 	};
 

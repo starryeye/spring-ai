@@ -27,23 +27,23 @@ public class BasketException extends RuntimeException {
 
 	static BasketException notFound(String handle) {
 		return new BasketException(Reason.NOT_FOUND,
-				"장바구니 %s를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요.".formatted(shown(handle)));
+				"찾을 수 없는 장바구니입니다(%s). createBasket으로 새 장바구니를 만드세요.".formatted(shown(handle)));
 	}
 
 	static BasketException expired(String handle) {
 		return new BasketException(Reason.EXPIRED,
-				"장바구니 %s는 만료되었습니다(만든 뒤 %d분). createBasket으로 새 장바구니를 만드세요."
+				"만료된 장바구니입니다(%s, 만든 뒤 %d분). createBasket으로 새 장바구니를 만드세요."
 						.formatted(handle, BasketStore.TTL.toMinutes()));
 	}
 
 	static BasketException ordered(String handle, String orderId) {
 		return new BasketException(Reason.ORDERED,
-				"장바구니 %s는 이미 주문했습니다(주문 번호 %s).".formatted(handle, orderId));
+				"이미 주문한 장바구니입니다(%s, 주문 번호 %s).".formatted(handle, orderId));
 	}
 
 	static BasketException empty(String handle) {
 		return new BasketException(Reason.EMPTY,
-				"장바구니 %s가 비어 있습니다. addItem으로 상품을 담으세요.".formatted(handle));
+				"비어 있는 장바구니입니다(%s). addItem으로 상품을 담으세요.".formatted(handle));
 	}
 
 	static BasketException limit() {
@@ -59,6 +59,6 @@ public class BasketException extends RuntimeException {
 
 	/** 모델이 보낸 값이 handle 형식이 아니면 그대로 되풀이하지 않는다. */
 	private static String shown(String handle) {
-		return (handle != null && HANDLE.matcher(handle).matches()) ? handle : "(올바르지 않은 ID)";
+		return (handle != null && HANDLE.matcher(handle).matches()) ? handle : "올바르지 않은 ID";
 	}
 }

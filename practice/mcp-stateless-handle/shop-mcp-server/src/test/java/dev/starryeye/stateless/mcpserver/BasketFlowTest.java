@@ -86,6 +86,6 @@ class BasketFlowTest {
 
 		String other = 응답(토큰("user2", "products:read"), 호출("getBasket", "{\"basketId\":\"%s\"}".formatted(handle)));
 
-		assertThat(other).contains("\"isError\":true").contains("찾을 수 없습니다").doesNotContain("p4");
+		assertThat(other).contains("\"isError\":true").contains("찾을 수 없는 장바구니").doesNotContain("p4");
 	}
 }

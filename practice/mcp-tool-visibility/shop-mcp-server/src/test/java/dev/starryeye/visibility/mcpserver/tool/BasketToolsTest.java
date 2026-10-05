@@ -42,9 +42,13 @@ class BasketToolsTest {
 		CallToolResult created = this.tools.createBasket(사용자("user"));
 
 		assertThat(created.isError()).isFalse();
-		String handle = 새_장바구니("user");
+		@SuppressWarnings("unchecked")
+		Map<String, Object> structured = (Map<String, Object>) created.structuredContent();
+		String handle = (String) structured.get("basketId");
 		assertThat(handle).startsWith("bsk_");
-		assertThat(글(created)).contains("bsk_").contains("만료");
+		// handle의 끝 글자에 따라 조사가 달라지지 않도록, handle 바로 뒤에는 "이고"를 둔다.
+		assertThat(글(created)).isEqualTo("장바구니를 만들었습니다. ID는 %s이고, %s에 만료됩니다."
+				.formatted(handle, structured.get("expiresAt")));
 	}
 
 	@Test
@@ -109,7 +113,7 @@ class BasketToolsTest {
 		CallToolResult result = this.tools.getBasket(사용자("user2"), handle);
 
 		assertThat(result.isError()).isTrue();
-		assertThat(글(result)).contains("찾을 수 없습니다");
+		assertThat(글(result)).contains("찾을 수 없는 장바구니");
 	}
 
 	@Test
@@ -121,7 +125,7 @@ class BasketToolsTest {
 		CallToolResult ordered = this.tools.checkout(사용자("user"), handle);
 
 		assertThat(ordered.isError()).isFalse();
-		assertThat(글(ordered)).contains("ord-");
+		assertThat(글(ordered)).matches("주문을 접수했습니다\\. 주문 번호는 ord-\\d+입니다\\.");
 		assertThat(재고("p9")).isEqualTo(before - 2);
 	}
 
