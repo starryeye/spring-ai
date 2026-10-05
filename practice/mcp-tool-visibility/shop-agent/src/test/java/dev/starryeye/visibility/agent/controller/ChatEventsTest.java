@@ -87,4 +87,28 @@ class ChatEventsTest {
 
         assertThat(called).isFalse();
     }
+
+    @Test
+    void 목록에_없는_tool을_부르면_되돌리고_tool_unavailable_event를_보낸다() {
+        AtomicBoolean interrupted = new AtomicBoolean();
+        Flux<String> content = Flux.concat(Flux.just("잠시만요"),
+                Flux.error(new IllegalStateException("No ToolCallback found for tool name: updateStock")));
+
+        List<ServerSentEvent<String>> events = ChatEvents.of(content, new StepUpState(), () -> interrupted.set(true))
+                .collectList().block();
+
+        assertThat(events).extracting(ServerSentEvent::event).containsExactly("message", "tool-unavailable");
+        assertThat(events.get(1).data()).isEqualTo("{\"tool\":\"updateStock\"}");
+        assertThat(interrupted).isTrue();
+    }
+
+    @Test
+    void 다른_IllegalStateException은_그대로_오류다() {
+        AtomicBoolean interrupted = new AtomicBoolean();
+        Flux<String> content = Flux.error(new IllegalStateException("다른 문제"));
+
+        assertThatThrownBy(() -> ChatEvents.of(content, new StepUpState(), () -> interrupted.set(true))
+                .collectList().block()).hasMessageContaining("다른 문제");
+        assertThat(interrupted).isFalse();
+    }
 }

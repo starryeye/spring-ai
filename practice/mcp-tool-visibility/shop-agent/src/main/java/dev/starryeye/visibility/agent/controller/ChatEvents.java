@@ -13,6 +13,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 채팅 답을 SSE event로 바꾼다(안내서 10장).
@@ -21,6 +22,7 @@ import java.util.Map;
  * tool 호출이 step-up을 요구하면 답을 멈추고 {@code step-up} event(consent 카드)를 보낸다.
  * 이미 step-up을 거친 scope면 {@code step-up-declined} event(거절 안내)를 보낸다.
  * 사용자가 거절한 권한을 카드로 되풀이해 묻지 않기 위해서다.
+ * 모델이 이 사용자의 목록에 없는 tool을 부르면 {@code tool-unavailable} event로 끝낸다.
  */
 public final class ChatEvents {
 
@@ -29,6 +31,11 @@ public final class ChatEvents {
     static final String STEP_UP = "step-up";
 
     static final String STEP_UP_DECLINED = "step-up-declined";
+
+    static final String TOOL_UNAVAILABLE = "tool-unavailable";
+
+    /** 목록에 없는 tool을 모델이 부를 때 Spring AI 2.0.1이 던지는 message의 앞부분이다. Spring AI를 올리면 다시 확인한다. */
+    private static final String NO_TOOL_CALLBACK = "No ToolCallback found for tool name: ";
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -41,15 +48,32 @@ public final class ChatEvents {
     }
 
     /**
-     * {@code onStepUp}은 step-up event를 만들기 직전에 부른다.
+     * {@code onInterrupted}는 tool 결과 없이 끊긴 turn을 끝내기 직전에 부른다.
+     * step-up이 필요할 때와, 모델이 이 사용자의 목록에 없는 tool을 불렀을 때다.
      * agent는 여기서 끊긴 turn을 대화 기억에서 되돌린다.
      */
-    public static Flux<ServerSentEvent<String>> of(Flux<String> content, StepUpState state, Runnable onStepUp) {
+    public static Flux<ServerSentEvent<String>> of(Flux<String> content, StepUpState state, Runnable onInterrupted) {
         return content.map(text -> event(MESSAGE, JSON.writeValueAsString(text)))
                 .onErrorResume(error -> StepUpRequiredException.find(error).isPresent(), error -> {
-                    onStepUp.run();
+                    onInterrupted.run();
                     return Flux.just(stepUp(StepUpRequiredException.find(error).orElseThrow(), state));
+                })
+                .onErrorResume(error -> unavailableTool(error).isPresent(), error -> {
+                    onInterrupted.run();
+                    return Flux.just(event(TOOL_UNAVAILABLE,
+                            JSON.writeValueAsString(Map.of("tool", unavailableTool(error).orElseThrow()))));
                 });
+    }
+
+    /** 원인 사슬에서 "목록에 없는 tool" 오류를 찾아 그 tool 이름을 돌려준다. */
+    static Optional<String> unavailableTool(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof IllegalStateException && cause.getMessage() != null
+                    && cause.getMessage().startsWith(NO_TOOL_CALLBACK)) {
+                return Optional.of(cause.getMessage().substring(NO_TOOL_CALLBACK.length()).trim());
+            }
+        }
+        return Optional.empty();
     }
 
     /**

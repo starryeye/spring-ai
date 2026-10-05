@@ -53,6 +53,7 @@
         if (event === 'message') out.textContent += value;
         else if (event === 'step-up') showCard(value, message, false);
         else if (event === 'step-up-declined') showCard(value, message, true);
+        else if (event === 'tool-unavailable') out.textContent = '이 계정에서는 ' + value.tool + '을(를) 쓸 수 없습니다.';
     }
 
     function showCard(info, message, declined) {
@@ -75,7 +76,7 @@
         sessionStorage.removeItem(PENDING);
         send.disabled = true;
         // turn이 도는 중에 기억을 지우면, 그 turn이 지운 뒤에도 기억에 계속 쓴다.
-        // step-up으로 끊기면 되돌리기가 지우기 전 기억을 다시 넣기도 한다.
+        // step-up이나 tool-unavailable로 끊기면 되돌리기가 지우기 전 기억을 다시 넣기도 한다.
         // 그래서 turn이 끝날 때까지 "새 대화" 버튼도 send 버튼과 함께 막아 둔다.
         reset.disabled = true;
         card.hidden = true;
