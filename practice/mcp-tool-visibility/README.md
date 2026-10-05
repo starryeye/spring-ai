@@ -226,7 +226,7 @@ package는 `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`, `local-cli
 | `products:write`를 체크해 제출 | 채팅 화면으로 돌아와 질문이 다시 가고, `상품 p1 (게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`처럼 답한다. MCP Server 로그에는 `updateStock 호출 (productId=p1, quantity=10, 사용자=user)`가 찍힌다 |
 | `grep 'tool 목록' logs/shop-agent.log` | `user2`의 줄과 따로 `tool 목록을 새로 받았다 (사용자=user, 7개)`가 두 번 이상 있다. step-up이나 refresh로 token이 바뀔 때마다 목록을 새로 받기 때문이다 |
 | `local-client`에서 `./gradlew -q run` 뒤 `user2`로 두 번의 consent | `tools: getStock, searchProducts, addItem, checkout, createBasket, getBasket` 바로 아래에 `updateStock(목록에 없음): JSON-RPC 오류 -32602 Unknown tool: invalid_tool_name (Tool not found: updateStock)`가 찍힌다 |
-| 이어지는 `local-client`의 출력 | step-up은 `checkout`의 `403 insufficient_scope — 필요한 scope: orders:write` 한 번뿐이다. `checkout: 주문 ord-…를 접수했습니다.` 뒤에 같은 6개의 `tools:` 줄이 한 번 더 찍힌다 |
+| 이어지는 `local-client`의 출력 | step-up은 `checkout`의 `403 insufficient_scope — 필요한 scope: orders:write` 한 번뿐이다. `checkout: 주문을 접수했습니다. 주문 번호는 ord-…입니다.` 뒤에 같은 6개의 `tools:` 줄이 한 번 더 찍힌다 |
 | `local-client`에서 `./gradlew -q run --args="--no-browser"` 뒤 찍힌 두 주소를 `user`가 login된 시크릿 창에 차례로 붙여 넣기 | `tools: getStock, searchProducts, updateStock, addItem, checkout, createBasket, getBasket`가 찍히고, `목록에 없음` 줄은 없다. step-up 뒤에도 같은 7개의 `tools:` 줄이 찍힌다 |
 | `local-client` 실행 뒤 `grep '숨긴 tool' ../logs/shop-mcp-server.log` | `숨긴 tool 호출 — 사용자=user2, 역할=CUSTOMER, tool=updateStock` |
 | 서버를 다시 띄운 뒤 `docs/superpowers/captures/mcp-visibility-walkthrough.sh` 실행 | 점원 token의 목록은 `names(7개): getStock,searchProducts,updateStock,addItem,checkout,createBasket,getBasket`, 손님 token의 목록은 `names(6개): getStock,searchProducts,addItem,checkout,createBasket,getBasket`다. 점원 token으로 한 번 더 받은 목록도 순서가 같다 |

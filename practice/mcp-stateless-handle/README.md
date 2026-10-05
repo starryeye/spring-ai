@@ -102,12 +102,12 @@ handle은 추측으로 맞힐 수 없어야 한다.
 
 | 경우 | tool 결과의 문장 |
 |---|---|
-| 모르는 handle, 다른 사용자의 handle | `장바구니 bsk_…를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요.` |
-| `bsk_` 뒤에 22자가 오는 형식이 아닌 값 | 같은 문장이고, handle 자리에 `(올바르지 않은 ID)`가 들어간다 |
-| 본인 handle, 만든 뒤 30분이 지남 | `장바구니 bsk_…는 만료되었습니다(만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.` |
-| 본인 handle, 이미 주문함 | `장바구니 bsk_…는 이미 주문했습니다(주문 번호 ord-…).` |
+| 모르는 handle, 다른 사용자의 handle | `찾을 수 없는 장바구니입니다(bsk_…). createBasket으로 새 장바구니를 만드세요.` |
+| `bsk_` 뒤에 22자가 오는 형식이 아닌 값 | 같은 문장이고, 괄호 안의 handle 자리에 `올바르지 않은 ID`가 들어간다 |
+| 본인 handle, 만든 뒤 30분이 지남 | `만료된 장바구니입니다(bsk_…, 만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.` |
+| 본인 handle, 이미 주문함 | `이미 주문한 장바구니입니다(bsk_…, 주문 번호 ord-…).` |
 | 이미 담은 수량과 합쳐 99개를 넘는 `addItem` | `한 장바구니에는 같은 상품을 99개까지 담을 수 있습니다(지금 98개, 더하려는 수량 2개).`처럼 지금 수량과 더하려는 수량이 붙는다. 장바구니는 그대로다 |
-| 빈 장바구니의 `checkout` | `장바구니 bsk_…가 비어 있습니다. addItem으로 상품을 담으세요.` |
+| 빈 장바구니의 `checkout` | `비어 있는 장바구니입니다(bsk_…). addItem으로 상품을 담으세요.` |
 | 재고가 모자란 상품이 있는 `checkout` | `재고가 모자라 주문할 수 없습니다: p3`처럼 모자란 상품 ID가 붙는다. 장바구니는 열린 채로 남는다 |
 | 열린 장바구니가 이미 5개인 사용자의 `createBasket` | `열린 장바구니는 5개까지 만들 수 있습니다. 쓰던 장바구니를 이어 쓰세요.` |
 
@@ -272,15 +272,15 @@ handle은 앞 turn의 대화 기억으로 이어지고, `orders:write`는 한 �
 | "권한 허용" 누르기 | consent 화면에서 새로 고를 항목은 `orders:write` 하나다. `openid`와 `products:read`는 "You have already granted the following permissions to the above app" 아래에 나온다 |
 | `orders:write`를 체크해 제출 | 채팅 화면으로 돌아와 질문이 다시 가고, 주문 번호 `ord-1001`로 두 상품을 주문했다는 답이 나온다. `logs/shop-mcp-server.log`에는 `checkout 호출 (사용자=user, client_id=stateless-shop-agent)`가 찍힌다 |
 | "새 대화"를 누르고 `장바구니 보여 줘` 보내기 | `대화를 비웠습니다.`가 나온다. 모델은 옛 handle을 몰라 `createBasket`으로 새 장바구니를 만들고, 장바구니가 비어 있다고 답한다 |
-| `local-client`에서 `./gradlew -q run` 뒤 두 번의 consent | `createBasket: 장바구니 bsk_…를 만들었습니다.` 뒤에 `addItem` 두 번과 `getBasket`이 찍히고, `getBasket`에는 `합계 337,000원`이 나온다. 이어서 `getBasket(모르는 ID): [오류] 장바구니 bsk_AAAAAAAAAAAAAAAAAAAAAA를 찾을 수 없습니다.`로 시작하는 줄이 찍힌다 |
-| 이어지는 `local-client`의 출력 | `403 insufficient_scope — 필요한 scope: orders:write` 뒤에 `[6]`, `[3]`, `[4]`(`scope: products:read orders:write`), `[7]` 순서로 찍힌다. 마지막에 `checkout: 주문 ord-…를 접수했습니다.`가 찍힌다 |
+| `local-client`에서 `./gradlew -q run` 뒤 두 번의 consent | `createBasket: 장바구니를 만들었습니다. ID는 bsk_…이고,`로 시작하는 줄 뒤에 `addItem` 두 번과 `getBasket`이 찍히고, `getBasket`에는 `합계 337,000원`이 나온다. 이어서 `getBasket(모르는 ID): [오류] 찾을 수 없는 장바구니입니다(bsk_AAAAAAAAAAAAAAAAAAAAAA).`로 시작하는 줄이 찍힌다 |
+| 이어지는 `local-client`의 출력 | `403 insufficient_scope — 필요한 scope: orders:write` 뒤에 `[6]`, `[3]`, `[4]`(`scope: products:read orders:write`), `[7]` 순서로 찍힌다. 마지막에 `checkout: 주문을 접수했습니다. 주문 번호는 ord-…입니다.`가 찍힌다 |
 | `local-client` 실행 뒤 `grep 'createBasket 호출' ../logs/shop-mcp-server.log` | `client_id=local-mcp-client`인 줄이 더 있다. 같은 `user`라도 어느 client를 거친 요청인지 로그로 구분된다 |
 | 서버를 다시 띄운 뒤 `docs/superpowers/captures/mcp-stateless-walkthrough.sh` 실행 | `initialize` 응답 header에 `Mcp-Session-Id`가 없다. GET `/mcp`는 `HTTP/1.1 405`, DELETE `/mcp`는 `HTTP/1.1 404`다 |
-| 같은 출력의 `createBasket` 응답 | `"structuredContent":{"basketId":"bsk_hXq50IBUX_9-Wyt_6m15yA","expiresAt":"2026-09-30T20:51:51.928045Z"}`처럼 handle과 만료 시각이 온다. 두 값은 실행마다 다르다 |
-| 같은 출력에서 `user2`의 token으로 보낸 `getBasket` | `"isError":true`와 `장바구니 bsk_…를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요.` |
+| 같은 출력의 `createBasket` 응답 | `"structuredContent":{"basketId":"bsk_9VXC2asqgK2Ym9ZSdNo3Kg","expiresAt":"2026-10-05T17:58:03.151952Z"}`처럼 handle과 만료 시각이 온다. 두 값은 실행마다 다르다 |
+| 같은 출력에서 `user2`의 token으로 보낸 `getBasket` | `"isError":true`와 `찾을 수 없는 장바구니입니다(bsk_…). createBasket으로 새 장바구니를 만드세요.` |
 | 같은 출력에서 조회 token으로 보낸 `checkout` | `403`과 `WWW-Authenticate: Bearer error="insufficient_scope", scope="orders:write", resource_metadata="http://localhost:8151/.well-known/oauth-protected-resource/mcp"` |
-| 같은 출력에서 step-up 뒤에 보낸 `checkout` | `주문 ord-1001를 접수했습니다.`와 `"structuredContent":{"orderId":"ord-1001"}` |
-| 같은 출력에서 같은 handle로 다시 보낸 `checkout` | `"isError":true`와 `장바구니 bsk_…는 이미 주문했습니다(주문 번호 ord-1001).` |
+| 같은 출력에서 step-up 뒤에 보낸 `checkout` | `주문을 접수했습니다. 주문 번호는 ord-1001입니다.`와 `"structuredContent":{"orderId":"ord-1001"}` |
+| 같은 출력에서 같은 handle로 다시 보낸 `checkout` | `"isError":true`와 `이미 주문한 장바구니입니다(bsk_…, 주문 번호 ord-1001).` |
 | `auth-server`, `shop-mcp-server`, `shop-agent`, `local-client` 폴더에서 각각 `./gradlew test` | `user2` login, session 없는 transport, 장바구니의 소유권·만료·한 번만 주문, tool 결과까지 남는 대화 기억과 되돌리기, `local-client`의 handle 전달을 확인하는 테스트가 통과한다 |
 
 LLM의 답은 `qwen3:8b`의 출력이라 문장이 매번 조금씩 다르다.

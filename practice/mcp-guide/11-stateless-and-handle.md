@@ -145,7 +145,7 @@ POST /mcp HTTP/1.1
 Content-Type: application/json
 Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2025-11-25
-Authorization: Bearer eyJraWQiOiIwYTIwZGRi...
+Authorization: Bearer eyJraWQiOiI2M2I5YTdm...
 
 {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"createBasket","arguments":{}}}
 ```
@@ -154,9 +154,9 @@ Authorization: Bearer eyJraWQiOiIwYTIwZGRi...
 
 ```json
 {"jsonrpc": "2.0", "id": 7, "result": {
-  "content": [{"type": "text", "text": "장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA를 만들었습니다. 2026-09-30T20:51:51.928045Z에 만료됩니다."}],
+  "content": [{"type": "text", "text": "장바구니를 만들었습니다. ID는 bsk_9VXC2asqgK2Ym9ZSdNo3Kg이고, 2026-10-05T17:58:03.151952Z에 만료됩니다."}],
   "isError": false,
-  "structuredContent": {"basketId": "bsk_hXq50IBUX_9-Wyt_6m15yA", "expiresAt": "2026-09-30T20:51:51.928045Z"}}}
+  "structuredContent": {"basketId": "bsk_9VXC2asqgK2Ym9ZSdNo3Kg", "expiresAt": "2026-10-05T17:58:03.151952Z"}}}
 ```
 
 handle은 결과의 두 곳에 있다.
@@ -177,7 +177,7 @@ SEP-2567의 예시도 `text`에 `Created basket bsk_a1b2c3` 같은 문장을 쓴
 모델이나 코드는 받은 handle을 다음 tool 호출의 인자에 그대로 넣는다.
 
 ```json
-{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"addItem","arguments":{"basketId":"bsk_hXq50IBUX_9-Wyt_6m15yA","productId":"p4","quantity":1}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"addItem","arguments":{"basketId":"bsk_9VXC2asqgK2Ym9ZSdNo3Kg","productId":"p4","quantity":1}}}
 ```
 
 응답의 `text`에는 담은 상품 `- [p4] 인체공학 마우스 × 1 = 59,000원`과 합계가 적혀 있고, 같은 handle로 부른 `getBasket`도 같은 문장을 준다.
@@ -213,10 +213,10 @@ client가 보낸 값이 아니므로, 다른 사용자의 `sub`를 흉내 낼 �
 이번에는 같은 client로 login한 `user2`의 token을 붙여 `user`의 handle로 `getBasket`을 부른다.
 
 ```json
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요."}],"isError":true}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"찾을 수 없는 장바구니입니다(bsk_9VXC2asqgK2Ym9ZSdNo3Kg). createBasket으로 새 장바구니를 만드세요."}],"isError":true}}
 ```
 
-서버는 `user2:bsk_hXq50IBUX_9-Wyt_6m15yA`로 찾고, 그런 key는 없다.
+서버는 `user2:bsk_9VXC2asqgK2Ym9ZSdNo3Kg`로 찾고, 그런 key는 없다.
 token은 유효하고 scope도 충분하므로 `401`이나 `403`이 아니다.
 요청은 tool까지 가서 실행되었고, 거절은 HTTP `200` 안의 `isError: true`인 tool 결과로 온다.
 명세는 이런 오류를 JSON-RPC 오류가 아니라 tool 결과로 알리게 한다.
@@ -237,9 +237,9 @@ SEP-2567도 만료된 handle에 "invalid argument" 대신 만료되었다고 알
 
 | 경우 | tool 결과의 문장 |
 |---|---|
-| 모르는 handle, 다른 사용자의 handle | `장바구니 bsk_…를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요.` |
-| 본인 handle, 만든 뒤 30분이 지남 | `장바구니 bsk_…는 만료되었습니다(만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.` |
-| 본인 handle, 이미 주문함 | `장바구니 bsk_…는 이미 주문했습니다(주문 번호 ord-…).` |
+| 모르는 handle, 다른 사용자의 handle | `찾을 수 없는 장바구니입니다(bsk_…). createBasket으로 새 장바구니를 만드세요.` |
+| 본인 handle, 만든 뒤 30분이 지남 | `만료된 장바구니입니다(bsk_…, 만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.` |
+| 본인 handle, 이미 주문함 | `이미 주문한 장바구니입니다(bsk_…, 주문 번호 ord-…).` |
 | 열린 장바구니가 이미 5개인 사용자의 `createBasket` | `열린 장바구니는 5개까지 만들 수 있습니다. 쓰던 장바구니를 이어 쓰세요.` |
 
 만료되거나 주문한 장바구니는 30분 더 남겨 두었다가 지운다.
@@ -255,11 +255,11 @@ SEP-2567도 만료된 handle에 "invalid argument" 대신 만료되었다고 알
 **주문은 한 번만 된다**
 
 같은 장바구니를 두 번 주문하면 재고가 두 번 줄고 주문도 둘이 된다.
-step-up 뒤 새 token으로 보낸 `checkout`은 `주문 ord-1001를 접수했습니다.`와 `"structuredContent":{"orderId":"ord-1001"}`를 돌려준다.
+step-up 뒤 새 token으로 보낸 `checkout`은 `주문을 접수했습니다. 주문 번호는 ord-1001입니다.`와 `"structuredContent":{"orderId":"ord-1001"}`를 돌려준다.
 같은 handle로 `checkout`을 한 번 더 보내면 다음 결과가 온다.
 
 ```json
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA는 이미 주문했습니다(주문 번호 ord-1001)."}],"isError":true}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"이미 주문한 장바구니입니다(bsk_9VXC2asqgK2Ym9ZSdNo3Kg, 주문 번호 ord-1001)."}],"isError":true}}
 ```
 
 `BasketStore#checkout`은 장바구니 찾기, 재고 줄이기, 닫기를 `synchronized` 메서드 하나 안에서 한다(11.9).
@@ -401,23 +401,23 @@ ChatGPT도 tool 결과의 `content`와 `structuredContent`를 대화 기록에 �
 ```text
 [5] MCP 호출
     getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.
-    createBasket: 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA를 만들었습니다. 2026-09-30T20:52:47.763027Z에 만료됩니다.
-    addItem(p4, 1): 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA:
+    createBasket: 장바구니를 만들었습니다. ID는 bsk_mnshrpY_OfULti14leL2MA이고, 2026-10-05T17:58:20.312005Z에 만료됩니다.
+    addItem(p4, 1): 장바구니 bsk_mnshrpY_OfULti14leL2MA:
 - [p4] 인체공학 마우스 × 1 = 59,000원
-합계 59,000원. 2026-09-30T20:52:47.763027Z에 만료됩니다.
+합계 59,000원. 2026-10-05T17:58:20.312005Z에 만료됩니다.
     addItem(p9, 2): (생략)
-    getBasket: 장바구니 bsk_lC9K7ohngy3NkrN2RnnenA:
+    getBasket: 장바구니 bsk_mnshrpY_OfULti14leL2MA:
 - [p4] 인체공학 마우스 × 1 = 59,000원
 - [p9] 휴대용 SSD 1TB × 2 = 278,000원
-합계 337,000원. 2026-09-30T20:52:47.763027Z에 만료됩니다.
-    getBasket(모르는 ID): [오류] 장바구니 bsk_AAAAAAAAAAAAAAAAAAAAAA를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요.
+합계 337,000원. 2026-10-05T17:58:20.312005Z에 만료됩니다.
+    getBasket(모르는 ID): [오류] 찾을 수 없는 장바구니입니다(bsk_AAAAAAAAAAAAAAAAAAAAAA). createBasket으로 새 장바구니를 만드세요.
     403 insufficient_scope — 필요한 scope: orders:write
 [6] step-up: products:read orders:write로 다시 authorization을 받는다
-    http://localhost:9040/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A60162%2Fcallback&scope=products%3Aread+orders%3Awrite&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8151%2Fmcp
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:60162/callback
+    http://localhost:9040/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A61964%2Fcallback&scope=products%3Aread+orders%3Awrite&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8151%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:61964/callback
 [4] client_secret 없이 access token을 받았다(299초 뒤 만료, scope: products:read orders:write)
 [7] 새 token으로 같은 요청을 새로 보낸다
-    checkout: 주문 ord-1001를 접수했습니다.
+    checkout: 주문을 접수했습니다. 주문 번호는 ord-1001입니다.
 ```
 
 | 줄 | 볼 곳 |
@@ -503,7 +503,7 @@ private Basket open(String subject, String handle) {
 ```
 
 `removeEnded`는 끝난 지 30분이 지난 장바구니를 지우고, `key`는 `subject + ":" + handle`을 만든다.
-형식이 맞지 않는 값의 오류 문장에는 받은 값 대신 `(올바르지 않은 ID)`가 들어가서, 모델이 보낸 엉뚱한 값을 되풀이하지 않는다.
+형식이 맞지 않는 값의 오류 문장에는 받은 값 대신 `올바르지 않은 ID`가 들어가서, 모델이 보낸 엉뚱한 값을 되풀이하지 않는다.
 주문 여부를 만료보다 먼저 보므로, 주문한 장바구니는 만료 시각이 지나도 "이미 주문"으로 답한다.
 
 같은 클래스의 `checkout`은 장바구니 찾기, 재고 줄이기, 닫기를 lock 하나 안에서 한다.
@@ -535,7 +535,7 @@ public CallToolResult checkout(McpTransportContext context, /* basketId 인자 *
     try {
         String orderId = this.baskets.checkout(caller.subject(), basketId, this.products::reserve);
         return CallToolResult.builder()
-                .addTextContent("주문 %s를 접수했습니다.".formatted(orderId))
+                .addTextContent("주문을 접수했습니다. 주문 번호는 %s입니다.".formatted(orderId))
                 .structuredContent(Map.of("orderId", orderId))
                 .build();
     }

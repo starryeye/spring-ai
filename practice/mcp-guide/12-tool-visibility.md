@@ -385,7 +385,7 @@ discovery와 login(`[1]`\~`[4]`), 장바구니 줄, step-up의 주소와 `[3]`·
     403 insufficient_scope — 필요한 scope: orders:write
 [6] step-up: products:read orders:write로 다시 authorization을 받는다
 [7] 새 token으로 같은 요청을 새로 보낸다
-    checkout: 주문 ord-1002를 접수했습니다.
+    checkout: 주문을 접수했습니다. 주문 번호는 ord-1002입니다.
     tools: getStock, searchProducts, addItem, checkout, createBasket, getBasket
 ```
 
