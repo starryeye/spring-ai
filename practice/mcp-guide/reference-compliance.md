@@ -75,6 +75,42 @@ stateless `local-client`의 `[1]`\~`[7]`은 [stateless local-client 캡처](../.
 - handle 행 네 개는 2026-07-28 Security Best Practices의 State Handle Hijacking 절을 기준으로 판정한다.
   stateless의 요청 형식은 2025-11-25지만, session 대신 handle로 상태를 다루므로 이 규칙으로 판정한다.
 
+## mcp-tool-visibility에서 달라지는 행
+
+[mcp-tool-visibility](../mcp-tool-visibility/README.md)(이하 visibility)는 stateless에 사용자 역할을 더해, MCP Server가 사용자마다 다른 tool 목록을 주는 practice다.
+아래 표는 visibility에서 tool 목록과 목록 cache를 다루면서 새로 생긴 항목이다.
+표에 없는 행의 판정은 stateless와 같으므로, 위 stateless 표, authz 표, [준수표](#준수표)의 official 칸 순서로 찾는다.
+캡처 번호 `V<n>`은 [visibility 캡처](../../docs/superpowers/captures/2026-10-05-visibility-walkthrough.txt)의 단계 번호다.
+V 캡처의 요청은 agent가 아니라 curl이 agent의 credentials(`visibility-shop-agent`)로 `user`(점원)와 `user2`(손님)의 token을 받아 보낸 것이다.
+visibility `local-client`의 `[1]`\~`[7]`은 [`user` 캡처](../../docs/superpowers/captures/2026-10-05-visibility-local-client-user.txt)와 [`user2` 캡처](../../docs/superpowers/captures/2026-10-05-visibility-local-client-user2.txt)의 줄이다.
+설명은 [12장](12-tool-visibility.md)에 있다.
+
+| # | 항목 | 요구 수준 | stateless | visibility | 근거 |
+|---|---|---|---|---|---|
+| 새 | `tools/list`의 tool 집합은 요청의 authorization에 따라 달라도 된다. 명세가 드는 예는 허락받은 scope로 부를 수 있는 tool만 주는 것이다 | MAY ([MCP 2026-07-28 Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities)) | 다루지 않음 — scope와 상관없이 누구에게나 tool 7개를 모두 준다 | 예 — token의 `sub`로 찾은 역할이 받을 수 있는 scope로 거른다. 명세의 예와 달리 지금 token의 scope로는 거르지 않는다(표 아래 셋째 항목) | `ToolVisibility#hidden`·`#visible`, `ToolVisibilityTransport`가 감싼 SDK handler. scope가 같은 두 token으로 `user`는 7개(V1-list), `user2`는 `updateStock`을 뺀 6개(V2-list)를 받는다(`ToolListVisibilityTest#손님은_updateStock만_빠진_목록을_같은_순서로_받는다`) |
+| 새 | tool 집합은 연결마다, 또는 같은 연결의 다른 요청의 부수 효과로 달라지면 안 된다 | MUST NOT ([Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities)) | 예(코드로 판정) — 목록이 모두에게 늘 같다 | 예 — 목록은 요청에 붙은 token의 `sub`만으로 정해진다. step-up으로 scope가 늘어도 같은 사용자의 목록은 그대로다 | `ToolVisibilityTransport`는 요청의 transport context에서 `sub`만 꺼내 역할을 찾는다(`ToolListVisibilityTest#목록은_역할로만_정해지고_token의_scope로는_바뀌지_않는다`). V6은 V1-list와 같고, `products:write`를 더 받은 `user2`의 V7-list도, `orders:write`를 더 받은 `local-client`의 `[7]` 뒤 `tools:` 줄도 처음 목록과 같다 |
+| 새 | tool 집합이 바뀌지 않았으면 요청마다 같은 순서로 준다. 그래야 client가 목록을 믿고 cache할 수 있고, 모델의 prompt cache도 잘 맞는다 | SHOULD ([Tools — Capabilities](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities)) | 예(코드로 판정) — SDK가 등록한 순서대로 준다 | 예 — 숨길 tool만 빼고 SDK가 준 순서를 그대로 둔다 | `ToolVisibility#visible`(`ToolListVisibilityTest#같은_사용자는_몇_번을_받아도_같은_순서다`). V6은 V1-list와 순서까지 같고, V2-list는 V1-list에서 `updateStock`만 뺀 것이다 |
+| 새 | 없는 tool은 tool 결과(`isError: true`)가 아니라 JSON-RPC 오류(protocol error)로 알린다. 명세의 예는 `-32602`와 `Unknown tool: invalid_tool_name`이다 | 표시 없음 ([MCP 2025-11-25 Tools — Error Handling](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling)) | 예(코드로 판정) — 같은 SDK가 HTTP `200` 안의 이 오류로 답한다 | 예 — 숨긴 tool에도 없는 tool과 같은 오류로 답한다. HTTP `200`이고 `WWW-Authenticate`가 없으며, 본문은 `data`의 이름만 다르다 | `ToolVisibilityTransport`가 SDK보다 먼저 답하고, `ToolScopeFilter`는 숨긴 tool이면 scope를 보지 않고 넘긴다. V3(숨긴 `updateStock`)과 V4(없는 `updateStack`)는 상태·`Content-Length: 129`·`code`·`message`가 같다(`HiddenToolCallTest#손님이_숨긴_tool을_부르면_없는_tool과_같은_응답이다`) |
+| 새 | 서버는 tool마다 알맞은 접근 제어를 하고, 무단 접근을 막는 데 `cacheScope`에만 기대지 않는다 | MUST ([MCP 2025-11-25 Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations)) · MUST, MUST NOT ([MCP 2026-07-28 Caching — Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#security-considerations)) | 예 — `tools/call`마다 그 tool의 scope를 검사한다(authz와 같다). `cacheScope`는 보내지 않는다 | 예 — 목록에서 숨긴 tool은 부를 때도 역할로 막고, 보이는 tool은 scope를 검사한다. `products:write`가 든 손님 token으로도 재고는 그대로다 | `ToolVisibilityTransport`, `ToolScopeFilter`(`HiddenToolCallTest#손님은_products_write가_있어도_숨긴_tool을_부를_수_없다`). V7-token의 `scope`는 `["openid","products:read","products:write"]`이고, V7-call은 "모르는 tool"이며 V7-before·V7-after의 재고는 모두 7개다 |
+| 새 | `"private"` 결과는 같은 authorization context에서는 다시 쓸 수 있지만, 다른 authorization context와 cache를 나누면 안 된다(access token이 다르면 cache도 다르다). 사용자마다 거른 목록에는 `"private"`이 맞다 | MAY, MUST NOT ([MCP 2026-07-28 Caching — Cache Scope Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cache-scope-field)) | 해당 없음 — 목록이 모두에게 같다. agent는 자동 구성의 tool provider가 받은 목록 하나를 모든 사용자에게 쓴다 | 예(2026-07-28을 미리 따름) — 서버는 `cacheScope`를 보내지 않지만, agent는 사용자마다 다른 목록을 `"private"`으로 보고 access token마다 따로 둔다. `local-client`는 token이 바뀌면 목록을 다시 받는다 | agent `UserToolCatalog#callbacks`(key는 access token 값의 SHA-256 hex, `UserToolCatalogTest#token이_다르면_목록을_따로_둔다`), `application.yml`의 `spring.ai.mcp.client.toolcallback.enabled: false`(`UserToolsPerRequestTest#자동_구성의_tool_provider는_없다`). `local-client` `McpCalls.ToolList#printIfTokenChanged`, `[7]` 뒤의 `tools:` 줄 |
+| 새 | client는 `ttlMs`가 없는 결과를 바로 낡은 것(0)으로 보고 자기 기준이나 알림에 기대며, TTL을 polling 주기로 쓰지 않는다. tool 호출에 뜻밖의 오류가 오면 TTL 전에 다시 받을 수 있고, protocol error는 모델에게 넘길 수 있다 | SHOULD ([Caching — Time-to-Live (TTL) Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#time-to-live-ttl-field)) · SHOULD NOT, MAY ([Freshness Calculation](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#freshness-calculation)) · MAY ([2025-11-25 Tools — Error Handling](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#error-handling)) | 다루지 않음 — 자동 구성의 tool provider가 처음 받은 목록을 목록 변경 알림이 올 때까지 쓴다. "모르는 tool" 오류는 모델에게 가지 않고 채팅 stream을 끝낸다 | 예(2026-07-28을 미리 따름, 표 아래 다섯째 항목) — agent는 TTL을 5분으로 정하고, 목록을 꺼낼 때만 만료를 본다. "모르는 tool" 오류가 오면 TTL 전이라도 그 token의 목록을 버리고, 오류를 tool 결과로 모델에게 넘긴다 | `UserToolCatalog#callbacks`·`TTL`(`UserToolCatalogTest#TTL이_지나면_다시_받고_만료_항목은_지운다`), `UnknownToolAwareToolCallback#call`(`UnknownToolAwareToolCallbackTest#모르는_tool_오류면_목록을_버리고_모델에게_돌려줄_ToolExecutionException으로_바꾼다`). 캡처 없음 |
+
+- visibility에 남은 MUST 위반은 stateless와 같은 12·27번이고, SHOULD 수준에서 지키지 않는 것도 stateless와 같다.
+  challenge `scope`도 stateless처럼 모자란 `products:write`만 담는다(V5).
+- 앞의 목록 행 세 개와 뒤의 cache 행 두 개는 2026-07-28을 기준으로 판정한다.
+  visibility의 요청 형식은 2025-11-25 그대로지만, 2025-11-25에는 tool 목록을 사용자마다 달리하거나 cache하는 규칙이 없기 때문이다.
+- 2026-07-28 Tools는 `tools/list`가 요청한 client가 지금 쓸 수 있는 tool로 답하게 한다(MUST).
+  명세는 허락된 scope로 거르는 것을 MAY로 두므로, "지금 쓸 수 있는"이 지금 token의 scope를 뜻한다고 보기 어렵다.
+  visibility는 step-up으로 scope를 더 받으면 부를 수 있는 tool도 지금 쓸 수 있는 tool로 보아 목록에 넣는다.
+  지금 token의 scope로 거르면 모델이 그 tool을 몰라 step-up이 시작되지 않기 때문이다([12장](12-tool-visibility.md#121-권한별-tool-목록의-필요성)).
+- 서버가 `tools/list` 결과에 `ttlMs`와 `cacheScope`를 넣으라는 2026-07-28 Caching의 규칙(MUST, [Cacheable Results](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cacheable-results))은 판정하지 않는다.
+  visibility의 MCP Server는 2025-11-25라 두 field를 보내지 않고, agent의 TTL 5분은 agent가 정한 값이다.
+- `ttlMs`가 없는 결과를 0으로 보라는 규칙은 client가 자기 기준이나 알림에 기대도 된다는 말과 함께 있다.
+  명세는 이런 결과가 옛 버전의 서버에서만 온다고 보고, visibility의 MCP Server가 그런 2025-11-25 서버다.
+  그래서 agent가 스스로 정한 TTL 5분을 그 자기 기준으로 보아 예로 판정한다.
+- 목록의 순서는 bean 안에서는 `@McpTool` 메서드 이름 순이고 bean끼리는 만들어진 순서라서, 실행 환경이 다르면 달라질 수 있다(코드로 판정).
+  명세는 같은 tool 집합에 대해 요청 사이의 순서가 같기를 바라므로, 한 서버 안에서 순서가 같으면 된다.
+
 ## 구현 위치 지도
 
 세 practice는 Authorization Server, MCP Server, agent를 서로 다른 process로 띄운다.
