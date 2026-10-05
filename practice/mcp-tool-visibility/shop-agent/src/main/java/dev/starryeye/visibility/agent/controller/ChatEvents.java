@@ -11,9 +11,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 채팅 답을 SSE event로 바꾼다(안내서 10장).
@@ -22,7 +25,9 @@ import java.util.Optional;
  * tool 호출이 step-up을 요구하면 답을 멈추고 {@code step-up} event(consent 카드)를 보낸다.
  * 이미 step-up을 거친 scope면 {@code step-up-declined} event(거절 안내)를 보낸다.
  * 사용자가 거절한 권한을 카드로 되풀이해 묻지 않기 위해서다.
- * 모델이 이 사용자의 목록에 없는 tool을 부르면 {@code tool-unavailable} event로 끝낸다.
+ * 모델이 이 사용자의 목록에 없는 tool을 부르면 Spring AI가 오류로 stream을 끝낸다.
+ * 그대로 두면 화면에는 오류만 남고, 결과 없는 tool 호출이 대화 기억에 남는다.
+ * 그래서 이 경우는 {@code tool-unavailable} event로 끝낸다.
  */
 public final class ChatEvents {
 
@@ -34,7 +39,11 @@ public final class ChatEvents {
 
     static final String TOOL_UNAVAILABLE = "tool-unavailable";
 
-    /** 목록에 없는 tool을 모델이 부를 때 Spring AI 2.0.1이 던지는 message의 앞부분이다. Spring AI를 올리면 다시 확인한다. */
+    /**
+     * Spring AI 2.0.1에는 이 오류를 위한 전용 예외 type이 없어서 message 글자로 알아본다.
+     * 목록에 없는 tool을 모델이 부를 때 던지는 message의 앞부분이다.
+     * Spring AI를 올리면 다시 확인한다.
+     */
     private static final String NO_TOOL_CALLBACK = "No ToolCallback found for tool name: ";
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
@@ -65,9 +74,14 @@ public final class ChatEvents {
                 });
     }
 
-    /** 원인 사슬에서 "목록에 없는 tool" 오류를 찾아 그 tool 이름을 돌려준다. */
+    /**
+     * 원인 사슬에서 "목록에 없는 tool" 오류를 찾아 그 tool 이름을 돌려준다.
+     * {@code initCause}는 자기 자신만 막으므로 A → B → A 같은 고리가 생길 수 있다.
+     * 한 번 본 예외를 다시 만나면 멈춘다. {@link StepUpRequiredException#find}와 같다.
+     */
     static Optional<String> unavailableTool(Throwable error) {
-        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable cause = error; cause != null && seen.add(cause); cause = cause.getCause()) {
             if (cause instanceof IllegalStateException && cause.getMessage() != null
                     && cause.getMessage().startsWith(NO_TOOL_CALLBACK)) {
                 return Optional.of(cause.getMessage().substring(NO_TOOL_CALLBACK.length()).trim());
