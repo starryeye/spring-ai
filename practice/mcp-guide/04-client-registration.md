@@ -131,7 +131,7 @@ Authorization Server는 요청을 보낸 것이 진짜 `local-client`인지 확�
 | 비밀 없이 등록한다(`none`) | `client-authentication-methods: [none]` | 배포 파일의 비밀은 누구나 꺼낼 수 있다. 꺼낸 비밀로 다른 프로그램이 이 client 행세를 한다 |
 | PKCE를 반드시 쓴다 | `require-proof-key: true` | loopback redirect로 온 code를 같은 기기의 다른 프로그램이 가로채 token으로 바꾼다(5장) |
 | loopback redirect의 포트는 자유다 | Spring이 loopback IP 주소의 포트를 빼고 비교한다 | 포트를 고정하면 그 포트를 다른 프로그램이 쓰고 있을 때 login이 실패한다 |
-| consent를 매번 받는다 | `require-authorization-consent: true`와 두 클래스 | 다른 프로그램이 `client_id`에 `local-mcp-client`를 넣어 요청하면 사용자 모르게 code가 발급된다 |
+| consent를 매번 받는다 | `require-authorization-consent: true`와 consent·scope를 다루는 클래스 두 개(4.9) | 다른 프로그램이 `client_id`에 `local-mcp-client`를 넣어 요청하면 사용자 모르게 code가 발급된다 |
 | refresh token을 주지 않는다 | Spring 기본 동작 | 새어 나간 refresh token 하나로 누구든 오랫동안 새 token을 받는다 |
 
 **비밀 없음: `none`**
@@ -158,7 +158,7 @@ path가 다르면 그 주소로 redirect하지 않고 오류로 끝난다.
 **consent를 매번 받는 이유**
 
 다른 프로그램이 `client_id=local-mcp-client`와 자기 loopback 포트를 넣어 browser를 연다고 해 보자.
-사용자는 이미 login해 있고, 예전에 `local-mcp-client`에 consent한 적이 있다.
+사용자는 이미 login한 상태이고, 예전에 `local-mcp-client`에 consent한 적이 있다.
 Authorization Server가 그 consent를 기억해 화면 없이 넘어가면, code는 곧장 그 프로그램에게 간다.
 이때 PKCE는 도움이 되지 않는다.
 요청을 시작한 쪽이 그 프로그램이라 `code_verifier`도 그 프로그램에게 있기 때문이다.

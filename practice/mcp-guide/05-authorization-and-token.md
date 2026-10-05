@@ -119,7 +119,7 @@ public client에는 그런 비밀이 없다.
 PKCE(Proof Key for Code Exchange)는 요청마다 한 번 쓰는 비밀을 client가 스스로 만들어 이 자리를 채운다.
 
 1. client는 무작위 문자열 `code_verifier`를 만들어 밖으로 보내지 않고 간직한다.
-2. `code_verifier`의 SHA-256 해시를 base64url로 쓴 값이 `code_challenge`다. authorization request에는 이 값을 보낸다.
+2. `code_verifier`의 SHA-256 해시를 base64url로 인코딩한 값이 `code_challenge`다. authorization request에는 이 값을 보낸다.
 3. token request에서 `code_verifier`를 보낸다. Authorization Server는 해시를 다시 계산해 받아 둔 `code_challenge`와 비교한다.
 
 `local-client`의 `Pkce`가 이 계산을 한다.

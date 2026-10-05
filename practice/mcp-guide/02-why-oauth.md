@@ -12,8 +12,8 @@
 1장에서 본 대로 session ID는 보낸 사람을 증명하지 않는다.
 
 MCP client와 MCP Server는 대개 만든 곳이 다르다.
-사용자가 Claude Desktop에 쇼핑몰 password를 맡기면, Claude Desktop은 그 계정으로 무엇이든 할 수 있다.
-그래서 password 대신 권한만 빌려주는 OAuth를 쓴다.
+사용자가 Claude Desktop에 쇼핑몰 비밀번호를 맡기면, Claude Desktop은 그 계정으로 무엇이든 할 수 있다.
+그래서 비밀번호 대신 권한만 빌려주는 OAuth를 쓴다.
 MCP client는 access token을 받아 요청에 붙이고, MCP Server는 그 token으로 누구의 요청인지 안다.
 
 official에서 발급된 access token의 payload는 다음과 같다.
@@ -135,7 +135,7 @@ stdio server는 환경 변수로 credentials를 받으므로 이 장의 OAuth �
 ChatGPT도 connector 요청을 OpenAI 서버에서 보내고, 그 요청은 OpenAI가 공개한 IP 대역에서 나간다([OpenAI 문서](https://developers.openai.com/api/docs/guides/ip-addresses)).
 
 한 회사의 제품도 형태가 나뉜다.
-OpenAI의 ChatGPT는 서버에서 도는 agent이고, Codex CLI는 `codex mcp login`으로 login을 시작하고, 사용자 기기의 loopback 주소로 callback을 받는다.
+OpenAI의 ChatGPT는 서버에서 도는 agent다. Codex CLI는 `codex mcp login`으로 login을 시작하고, 사용자 기기의 loopback 주소로 callback을 받는다.
 Anthropic도 claude.ai와 Claude Desktop의 원격 connector는 Anthropic 서버에서, Claude Code(CLI)는 사용자 기기에서 MCP Server에 연결한다.
 일반 사용자가 쓰는 AI 채팅 서비스는 대개 서버에서 도는 agent이고, 코딩 도구와 명령줄 도구는 대개 사용자 기기의 앱이다.
 
@@ -176,7 +176,7 @@ MCP client는 사용자가 넣은 어느 MCP Server에든 붙는다.
 | Authorization Server를 모른다 | 개발자가 Authorization Server 주소를 설정에 적는다 | client는 MCP Server 주소만 안다. Authorization Server는 discovery로 찾는다 | [3장](03-discovery.md) |
 | 처음 보는 client를 등록해야 한다 | 개발자가 Authorization Server에 앱을 미리 등록해 `client_id`를 받는다 | client와 Authorization Server가 서로 모르는 채 만난다. 미리 등록하는 방법 말고도 CIMD(client가 `https` 주소에 올린 자기 정보 문서의 주소를 `client_id`로 쓰는 방식)나 DCR(등록 endpoint에 `POST`해 `client_id`를 받는 방식)로 `client_id`를 얻는다 | [4장](04-client-registration.md) |
 | token의 대상을 MCP Server로 좁힌다 | token을 쓸 API가 정해져 있어 대상을 밝히지 않는 경우가 많다 | client가 `resource`로 MCP Server를 밝히고, MCP Server는 token의 `aud`에 자기가 있는지 본다 | [5장](05-authorization-and-token.md), [6장](06-mcp-call-and-validation.md) |
-| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많고, claude.ai처럼 서버에서 도는 agent도 CIMD·DCR로 등록하면 비밀 없는 public client다. 한 client가 비밀을 미리 나눠 둘 수 없는 여러 Authorization Server를 만나서, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
+| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많고, claude.ai처럼 서버에서 도는 agent도 CIMD·DCR로 등록하면 비밀 없는 public client다. 한 client가 미리 비밀을 나눠 두지 않은 여러 Authorization Server를 만나므로, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
 | token 말고 전송 단계도 검사한다 | token 검증이 API 보안의 중심이다 | 사용자 기기에서 authorization 없이 도는 MCP Server도 있다. browser를 거친 요청을 막으려고 `Origin`을 검사한다(official은 `Host`도) | [6장](06-mcp-call-and-validation.md) |
 
 세 번째와 다섯 번째 항목은 이유를 조금 더 살펴본다.

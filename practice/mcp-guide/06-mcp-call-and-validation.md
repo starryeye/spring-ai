@@ -323,7 +323,7 @@ MCP 명세의 구조에서 Claude Code(CLI) 같은 host는 MCP Server마다 clie
 client는 그 MCP Server와 1:1로 연결되고, session도 하나만 연다.
 client가 받는 token은 사용자 한 명의 것이므로, client 하나와 그 session은 사용자 한 명의 것이다.
 사용자 기기의 앱과 [7장](07-local-client.md)의 `local-client`가 이 구조다.
-여러 사용자가 쓰는 서버형 agent도 token은 사용자별로 보관하므로, 이 구조를 따르려면 MCP client도 사용자별로 둔다.
+여러 사용자가 쓰는 서버에서 도는 agent도 token은 사용자별로 보관하므로, 이 구조를 따르려면 MCP client도 사용자별로 둔다.
 
 official의 agent는 이 구조를 따르지 않는다.
 Spring AI 자동 구성은 설정한 MCP 연결마다 앱 전체가 함께 쓰는 client 하나를 만든다.
@@ -555,13 +555,13 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 | 내용 | 명세 | 요구 수준 |
 |---|---|---|
 | client는 같은 session이라도 모든 HTTP 요청의 `Authorization` header에 access token을 넣고, query string에는 넣지 않는다. 그 MCP Server의 Authorization Server가 발급한 token만 보낸다 | [MCP 2025-11-25 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements), [Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [OAuth 2.1 §5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.1.1) | MUST, MUST NOT |
-| server는 모든 연결의 `Origin`을 검증하고, 있는데 유효하지 않으면 `403`으로 답한다. 로컬 서버는 `127.0.0.1`에만 bind하고, 모든 연결에 인증을 둔다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST, SHOULD |
+| 서버는 모든 연결의 `Origin`을 검증하고, 있는데 유효하지 않으면 `403`으로 답한다. 로컬 서버는 `127.0.0.1`에만 bind하고, 모든 연결에 인증을 둔다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST, SHOULD |
 | 이 서버로 올 요청이 아니면 `421 Misdirected Request`로 답할 수 있다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) | — |
 | MCP Server는 요청을 처리하기 전에 token을 검증하고, 자신을 audience로 발급된 token만 받는다. 유효하지 않거나 만료된 token에는 `401`로 답한다 | [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT |
 | RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
 | token의 scope가 모자라면 MCP Server는 `403`과 `WWW-Authenticate`의 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답하고, `scope`에는 이 요청에 필요한 scope를 넣는다. 사용자를 대신하는 client는 그 scope로 step-up authorization을 하고(`client_credentials`처럼 자기 권한으로 동작하는 client는 바로 멈춰도 된다), 다시 시도하는 횟수를 제한한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | SHOULD, MAY |
 | 지원하지 않는 `MCP-Protocol-Version`에는 `400`, session ID가 없으면 `400`, 끝난 session에는 `404`로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MUST, SHOULD |
-| host는 MCP Server마다 client를 하나 만들고, client는 그 server와 1:1로 연결되어 session을 하나 연다 | [MCP 2025-11-25 Architecture — Clients](https://modelcontextprotocol.io/specification/2025-11-25/architecture#clients) | — |
+| host는 MCP Server마다 client를 하나 만들고, client는 그 서버와 1:1로 연결되어 session을 하나 연다 | [MCP 2025-11-25 Architecture — Clients](https://modelcontextprotocol.io/specification/2025-11-25/architecture#clients) | — |
 | authorization을 구현한 MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없는 값으로 만들고, 사용자 정보에 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
 | 2026-07-28은 protocol 수준의 session과 `Mcp-Session-Id`를 없앤다 | [MCP 2026-07-28 Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | — |
 

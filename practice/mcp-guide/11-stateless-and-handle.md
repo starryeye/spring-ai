@@ -42,7 +42,7 @@ MCP 2026-07-28에서는 protocol 수준의 session과 `Mcp-Session-Id`가 없어
 서버는 요청마다 token으로 사용자를 알아내고, 받은 handle이 그 사용자의 것인지 확인한다.
 
 이 장의 practice `mcp-stateless-handle`은 이 방식을 2025-11-25 형식 위에서 보여 준다.
-handle을 다음 호출로 넘기는 것은 웹 agent에서는 모델이고, 사용자 기기의 앱에서는 코드다.
+handle을 다음 호출로 넘기는 것은 web agent에서는 모델이고, 사용자 기기의 앱에서는 코드다.
 MCP Server에는 장바구니 tool 네 개가 더 있다.
 
 | tool | 하는 일 | scope |
@@ -97,7 +97,7 @@ Authorization Server는 `http://localhost:9040`, MCP Server는 `http://localhost
 session을 주지 않는 서버는 요청이 어느 연결에서 왔는지 기억하지 않고, 요청 하나하나를 그 요청에 붙은 token만으로 처리한다.
 MCP Server에서는 `application.yml`의 `spring.ai.mcp.server.protocol: STATELESS`가 이 방식을 고른다(11.9).
 
-`products:read` token을 붙여 `initialize`를 보내면 다음 응답이 온다(캐시·보안용 header는 뺐다).
+`products:read` token을 붙여 `initialize`를 보내면 다음 응답이 온다(cache·보안용 header는 뺐다).
 
 ```http
 HTTP/1.1 200
@@ -123,7 +123,7 @@ HTTP/1.1 404
 
 GET의 `405`는 "이 endpoint는 SSE stream을 주지 않는다"는 뜻이다.
 stateless 서버는 연결을 기억하지 않으므로, 먼저 보낼 메시지를 어느 client에게 보내야 할지 알 방법이 없다.
-MCP Java SDK의 client는 `initialize` 응답을 받은 뒤 GET으로 이 stream을 열어 보고, `405`가 오면 요청과 응답만으로 돈다.
+MCP Java SDK의 client는 `initialize` 응답을 받은 뒤 GET으로 이 stream을 열어 보고, `405`가 오면 요청과 응답만 주고받는다.
 
 MCP Java SDK의 client는 session ID를 받지 않았으면 닫을 때 DELETE를 보내지 않는다.
 그래서 공유 client가 앱을 끌 때 token 없는 DELETE를 보내는 일(준수표 36번)도 생기지 않는다.
@@ -167,7 +167,7 @@ handle은 결과의 두 곳에 있다.
 | `content`의 `text` | handle과 만료 시각을 적은 문장 | 모델 |
 | `structuredContent` | 같은 값을 담은 JSON object | 코드. `local-client`는 여기서 `basketId`를 꺼낸다(11.8) |
 
-웹 agent에서 Spring AI는 tool 결과의 `content`를 JSON 문자열로 바꿔 모델에게 주고, `structuredContent`는 넘기지 않는다.
+web agent에서 Spring AI는 tool 결과의 `content`를 JSON 문자열로 바꿔 모델에게 주고, `structuredContent`는 넘기지 않는다.
 그래서 handle이 `text`에도 있어야 모델이 본다.
 명세는 옛 client를 위해 같은 내용을 JSON 문자열로 `text`에도 넣기를 권하지만, 이 practice의 `text`는 같은 값을 담은 문장이다.
 SEP-2567의 예시도 `text`에 `Created basket bsk_a1b2c3` 같은 문장을 쓴다.
@@ -221,7 +221,7 @@ token은 유효하고 scope도 충분하므로 `401`이나 `403`이 아니다.
 요청은 tool까지 가서 실행되었고, 거절은 HTTP `200` 안의 `isError: true`인 tool 결과로 온다.
 명세는 이런 오류를 JSON-RPC 오류가 아니라 tool 결과로 알리게 한다.
 모델은 이 문장을 읽고 새 장바구니를 만들어 이어 갈 수 있다.
-웹 agent에서는 Spring AI의 `SyncMcpToolCallback`이 이 결과를 예외로 바꾸고, 모델은 이 문장이 든 예외 메시지 `Error calling tool: [TextContent[…]]`를 tool 결과로 받는다.
+web agent에서는 Spring AI의 `SyncMcpToolCallback`이 이 결과를 예외로 바꾸고, 모델은 이 문장이 든 예외 메시지 `Error calling tool: [TextContent[…]]`를 tool 결과로 받는다.
 
 **handle은 추측할 수 없어야 한다**
 
@@ -287,9 +287,9 @@ client는 호출마다 이 handle을 보내고, 서버는 signature를 확인해
 signed handle은 서버 저장소 없이도 될 것처럼 보이지만, 주문처럼 한 번만 해야 하는 일은 결국 서버 기록이 필요하다.
 그래서 이 practice는 불투명 handle과 서버 저장소를 쓴다.
 
-## 11.7 웹 agent: tool 결과까지 기억하는 대화
+## 11.7 web agent: tool 결과까지 기억하는 대화
 
-웹 agent에서 handle을 다음 tool 호출에 넘기는 것은 모델이다.
+web agent에서 handle을 다음 tool 호출에 넘기는 것은 모델이다.
 turn은 사용자 질문 하나와 그 답까지다.
 사용자가 `휴대용 SSD도 두 개 담아 줘`라고 하면, 모델은 앞 turn의 `createBasket` 결과에서 `basketId`를 찾아 `addItem`에 넣어야 한다.
 그러려면 다음 turn의 prompt에 앞 turn의 tool 결과가 들어 있어야 한다.
@@ -312,7 +312,7 @@ agent는 두 설정으로 tool 호출과 결과까지 기억에 남긴다.
 
 `ChatClientConfig`의 system prompt도 앞선 tool 결과의 `basketId`를 이어 쓰고, 찾을 수 없음·만료·이미 주문이라는 결과가 오면 `createBasket`으로 새로 만들라고 적는다.
 
-두 번째 turn `휴대용 SSD도 두 개 담아 줘`는 다음 순서로 돈다.
+두 번째 turn `휴대용 SSD도 두 개 담아 줘`는 다음 순서로 진행된다.
 
 ```mermaid
 sequenceDiagram
@@ -320,7 +320,7 @@ sequenceDiagram
     participant G as ChatController
     participant T as ToolCallingAdvisor
     participant H as 대화 기억 advisor
-    participant L as LLM
+    participant L as 모델
     participant M as MCP Server
     G->>T: 질문 (conversation ID = sub)
     T->>H: System + 질문
@@ -376,7 +376,8 @@ turn이 step-up으로 끝나면, `ChatEvents`가 consent 카드나 거절 안내
 
 화면의 "새 대화" 버튼은 `POST /api/chat/reset`으로 그 사용자의 대화 기억을 지운다.
 이어서 `장바구니 보여 줘`를 보내면 모델은 전에 받은 handle을 몰라 `createBasket`으로 새 장바구니를 만들고, 비어 있다고 답한다.
-turn이 도는 중에 기억을 지우면 그 turn이 지운 뒤에도 기억에 계속 쓰므로, 화면은 turn이 끝날 때까지 이 버튼을 막아 둔다.
+turn이 진행되는 중에 기억을 지우면, 그 turn은 지운 뒤에도 기억에 계속 쓴다.
+그래서 화면은 turn이 끝날 때까지 이 버튼을 막아 둔다.
 
 **이 practice의 한계**
 
@@ -437,7 +438,7 @@ static String basketId(McpSchema.CallToolResult created) {
 }
 ```
 
-코드는 `text`의 문장에서 handle을 잘라 내지 않고 `structuredContent`의 `basketId`를 읽으므로, 서버가 문장을 바꿔도 그대로 돈다.
+코드는 `text`의 문장에서 handle을 잘라 내지 않고 `structuredContent`의 `basketId`를 읽으므로, 서버가 문장을 바꿔도 그대로 동작한다.
 
 ## 11.9 서버 코드에서 보기
 
@@ -463,7 +464,7 @@ public WebMvcStatelessServerTransport webMvcStatelessServerTransport(
 이 transport의 경로는 POST와 GET뿐이고, GET에는 `405`로 답한다.
 
 tool이 사용자를 `McpTransportContext` 인자로 받으면 사용자를 쓴다는 것이 메서드 선언에 보이고, 테스트도 security context 없이 이 인자만 넘겨 tool을 부를 수 있다.
-thread에 묶인 값에 기대지 않는다는 점도 있다.
+또 thread에 묶인 값에 기대지 않아도 된다.
 지금의 stateless WebMVC sync 서버는 요청 thread에서 tool을 부르므로 `SecurityContextHolder`도 쓸 수 있고, authz에서 온 `ProductTools`는 로그에 남길 사용자만 거기서 읽는다.
 
 **`McpCaller`: token의 사용자**
@@ -618,7 +619,7 @@ curl -i -X POST http://localhost:8151/mcp -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"curl","version":"1.0"}}}'
 ```
 
-**웹 agent**: browser로 `http://localhost:8150`을 열고 `user`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
+**web agent**: browser로 `http://localhost:8150`을 열고 `user`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
 아래 질문을 차례로 보내고, `practice/mcp-stateless-handle/logs/shop-mcp-server.log`에서 tool 호출을 본다.
 
 | 질문 | 볼 것 |
@@ -642,7 +643,7 @@ practice/mcp-stateless-handle/run.sh
 docs/superpowers/captures/mcp-stateless-walkthrough.sh > /tmp/stateless-walkthrough.txt
 ```
 
-스크립트는 `user`의 consent를 `orders:write`까지 남기므로, 그 뒤에 웹 agent를 처음부터 해 보려면 서버를 다시 띄운다.
+스크립트는 `user`의 consent를 `orders:write`까지 남기므로, 그 뒤에 web agent를 처음부터 해 보려면 서버를 다시 띄운다.
 
 **local-client**: `JAVA_HOME`을 Java 21로 맞춘 뒤 `practice/mcp-stateless-handle/local-client`에서 `./gradlew run`을 실행한다([practice README의 실행](../mcp-stateless-handle/README.md#실행)).
 step-up의 consent 화면에서는 `products:read`와 `orders:write`를 모두 체크한다.
@@ -653,7 +654,7 @@ step-up의 consent 화면에서는 `products:read`와 `orders:write`를 모두 �
 - 호출 사이의 상태는 서버가 만든 handle로 가리킨다. handle은 protocol의 기능이 아니라 tool 결과와 인자의 문자열이고, 수명은 tool 설명에 적는다.
 - handle을 가졌다고 쓰게 하지 않는다. 서버는 검증한 token의 `sub`로 `<sub>:<handle>` key를 만들어 찾고, handle은 추측할 수 없는 무작위 값으로 만든다.
 - 쓸 수 없는 장바구니는 모델이 읽고 이어 갈 수 있는 `isError: true` tool 결과로 알리고, 주문은 lock 안에서 장바구니를 닫아 한 번만 되게 한다.
-- 웹 agent는 대화 기억을 tool loop 안에 두어 모델이 앞 turn의 handle을 다시 쓰게 하고, 사용자 기기의 앱은 코드가 `structuredContent`의 handle을 넘긴다.
+- web agent는 대화 기억을 tool loop 안에 두어 모델이 앞 turn의 handle을 다시 쓰게 하고, 사용자 기기의 앱은 코드가 `structuredContent`의 handle을 넘긴다.
 
 ## 11.14 명세 근거
 
