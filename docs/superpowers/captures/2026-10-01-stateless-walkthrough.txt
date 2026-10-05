@@ -12,13 +12,13 @@ POST /login → HTTP 302
 HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" value="products:read" id="products:read">
 체크한 scope: products:read
-Location: http://localhost:8150/login/oauth2/code/authserver?code=h6euNvDr2J7w...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9040
+Location: http://localhost:8150/login/oauth2/code/authserver?code=TQL5_sGl-6Jv...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9040
 
 
 ===== S2-token. token request =====
-{"access_token":"eyJraWQiOiIwYTIwZGRi...","refresh_token":"u9hUOBYeZR3X...","scope":"products:read openid","id_token":"eyJraWQiOiIwYTIwZGRi...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI2M2I5YTdm...","refresh_token":"AWj-SS4f4mjC...","scope":"products:read openid","id_token":"eyJraWQiOiI2M2I5YTdm...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8151/mcp","nbf":1790799711,"scope":["products:read","openid"],"iss":"http://localhost:9040","exp":1790800011,"iat":1790799711,"jti":"6305dc65-1845-4c6e-881b-f90b696fe9a6","client_id":"stateless-shop-agent"}
+{"sub":"user","aud":"http://localhost:8151/mcp","nbf":1791221282,"scope":["products:read","openid"],"iss":"http://localhost:9040","exp":1791221582,"iat":1791221282,"jti":"b45f33b1-fd2a-4022-82da-f8279414ec17","client_id":"stateless-shop-agent"}
 
 
 ===== S3. READ_TOKEN으로 initialize → 응답 header 전체(Mcp-Session-Id가 없어야 한다) =====
@@ -37,10 +37,10 @@ HTTP/1.1 404
 ===== S5. createBasket → handle =====
 HTTP/1.1 200 
 Content-Type: application/json
-Content-Length: 303
+Content-Length: 316
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA를 만들었습니다. 2026-09-30T20:51:51.928045Z에 만료됩니다."}],"isError":false,"structuredContent":{"basketId":"bsk_hXq50IBUX_9-Wyt_6m15yA","expiresAt":"2026-09-30T20:51:51.928045Z"}}}
-HANDLE=bsk_hXq50IBUX_9-Wyt_6m15yA
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니를 만들었습니다. ID는 bsk_9VXC2asqgK2Ym9ZSdNo3Kg이고, 2026-10-05T17:58:03.151952Z에 만료됩니다."}],"isError":false,"structuredContent":{"basketId":"bsk_9VXC2asqgK2Ym9ZSdNo3Kg","expiresAt":"2026-10-05T17:58:03.151952Z"}}}
+HANDLE=bsk_9VXC2asqgK2Ym9ZSdNo3Kg
 
 
 ===== S6. addItem(HANDLE, p4, 1) → getBasket(HANDLE) =====
@@ -48,12 +48,12 @@ HTTP/1.1 200
 Content-Type: application/json
 Content-Length: 244
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA:\n- [p4] 인체공학 마우스 × 1 = 59,000원\n합계 59,000원. 2026-09-30T20:51:51.928045Z에 만료됩니다."}],"isError":false}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_9VXC2asqgK2Ym9ZSdNo3Kg:\n- [p4] 인체공학 마우스 × 1 = 59,000원\n합계 59,000원. 2026-10-05T17:58:03.151952Z에 만료됩니다."}],"isError":false}}
 HTTP/1.1 200 
 Content-Type: application/json
 Content-Length: 244
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA:\n- [p4] 인체공학 마우스 × 1 = 59,000원\n합계 59,000원. 2026-09-30T20:51:51.928045Z에 만료됩니다."}],"isError":false}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_9VXC2asqgK2Ym9ZSdNo3Kg:\n- [p4] 인체공학 마우스 × 1 = 59,000원\n합계 59,000원. 2026-10-05T17:58:03.151952Z에 만료됩니다."}],"isError":false}}
 
 
 ===== S7. user2(새 JAR)로 login → authorize → consent → token(USER2_TOKEN) → getBasket(HANDLE)은 찾을 수 없다 =====
@@ -61,21 +61,21 @@ POST /login → HTTP 302
 HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" value="products:read" id="products:read">
 체크한 scope: products:read
-Location: http://localhost:8150/login/oauth2/code/authserver?code=j0msMsiPt0LE...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9040
+Location: http://localhost:8150/login/oauth2/code/authserver?code=1GrM1PQttR-W...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9040
 
 
 ===== S7-token. token request =====
-{"access_token":"eyJraWQiOiIwYTIwZGRi...","refresh_token":"JWlUL5xq50mV...","scope":"products:read openid","id_token":"eyJraWQiOiIwYTIwZGRi...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI2M2I5YTdm...","refresh_token":"gq36WsAjs3mO...","scope":"products:read openid","id_token":"eyJraWQiOiI2M2I5YTdm...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user2","aud":"http://localhost:8151/mcp","nbf":1790799712,"scope":["products:read","openid"],"iss":"http://localhost:9040","exp":1790800012,"iat":1790799712,"jti":"e3cadf6e-4aa9-45f3-8c55-c5f2d40fe445","client_id":"stateless-shop-agent"}
+{"sub":"user2","aud":"http://localhost:8151/mcp","nbf":1791221283,"scope":["products:read","openid"],"iss":"http://localhost:9040","exp":1791221583,"iat":1791221283,"jti":"7dc8b2ff-c9c7-4e97-90fa-7fa709b9c5f4","client_id":"stateless-shop-agent"}
 
 
 ===== S7-call. user2로 getBasket(HANDLE) =====
 HTTP/1.1 200 
 Content-Type: application/json
-Content-Length: 208
+Content-Length: 209
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA를 찾을 수 없습니다. createBasket으로 새 장바구니를 만드세요."}],"isError":true}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"찾을 수 없는 장바구니입니다(bsk_9VXC2asqgK2Ym9ZSdNo3Kg). createBasket으로 새 장바구니를 만드세요."}],"isError":true}}
 
 
 ===== S8. READ_TOKEN으로 checkout(HANDLE) → 403 insufficient_scope(orders:write) =====
@@ -91,26 +91,26 @@ HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" id="openid" checked disabled>
 <input class="form-check-input" type="checkbox" name="scope" id="products:read" checked disabled>
 체크한 scope: orders:write
-Location: http://localhost:8150/login/oauth2/code/authserver?code=klXjbzndJMQr...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9040
+Location: http://localhost:8150/login/oauth2/code/authserver?code=zwlie396FILn...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9040
 
 
 ===== S9-token. 두 scope가 담긴 token =====
-{"access_token":"eyJraWQiOiIwYTIwZGRi...","refresh_token":"ZMc1anPxVuGk...","scope":"orders:write openid products:read","id_token":"eyJraWQiOiIwYTIwZGRi...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI2M2I5YTdm...","refresh_token":"voQzl4TlUhIp...","scope":"orders:write openid products:read","id_token":"eyJraWQiOiI2M2I5YTdm...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8151/mcp","nbf":1790799712,"scope":["orders:write","openid","products:read"],"iss":"http://localhost:9040","exp":1790800012,"iat":1790799712,"jti":"bb87c04c-8a39-4079-a3f5-24703ea0873a","client_id":"stateless-shop-agent"}
+{"sub":"user","aud":"http://localhost:8151/mcp","nbf":1791221283,"scope":["orders:write","openid","products:read"],"iss":"http://localhost:9040","exp":1791221583,"iat":1791221283,"jti":"5bfeb3bb-2f9e-43c1-8a4e-ffd3f4a8ff44","client_id":"stateless-shop-agent"}
 
 
 ===== S9-call. checkout(HANDLE) → 주문 접수 =====
 HTTP/1.1 200 
 Content-Type: application/json
-Content-Length: 170
+Content-Length: 197
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"주문 ord-1001를 접수했습니다."}],"isError":false,"structuredContent":{"orderId":"ord-1001"}}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"주문을 접수했습니다. 주문 번호는 ord-1001입니다."}],"isError":false,"structuredContent":{"orderId":"ord-1001"}}}
 
 
 ===== S10. 같은 HANDLE로 다시 checkout → 이미 주문했다 =====
 HTTP/1.1 200 
 Content-Type: application/json
-Content-Length: 181
+Content-Length: 179
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"장바구니 bsk_hXq50IBUX_9-Wyt_6m15yA는 이미 주문했습니다(주문 번호 ord-1001)."}],"isError":true}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"이미 주문한 장바구니입니다(bsk_9VXC2asqgK2Ym9ZSdNo3Kg, 주문 번호 ord-1001)."}],"isError":true}}

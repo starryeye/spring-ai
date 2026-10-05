@@ -51,7 +51,7 @@ public class BasketTools {
 		try {
 			BasketView basket = this.baskets.create(caller.subject());
 			return CallToolResult.builder()
-					.addTextContent("장바구니 %s를 만들었습니다. %s에 만료됩니다.".formatted(basket.handle(), basket.expiresAt()))
+					.addTextContent("장바구니를 만들었습니다. ID는 %s이고, %s에 만료됩니다.".formatted(basket.handle(), basket.expiresAt()))
 					.structuredContent(Map.of("basketId", basket.handle(), "expiresAt", basket.expiresAt().toString()))
 					.build();
 		}
@@ -80,7 +80,7 @@ public class BasketTools {
 					.formatted(BasketStore.MAX_QUANTITY_PER_PRODUCT, quantity));
 		}
 		if (this.products.findById(productId).isEmpty()) {
-			return error("상품 %s를 찾을 수 없습니다. searchProducts로 상품 ID를 확인하세요.".formatted(productId));
+			return error("찾을 수 없는 상품입니다(%s). searchProducts로 상품 ID를 확인하세요.".formatted(productId));
 		}
 		try {
 			return text(describe(this.baskets.addItem(caller.subject(), basketId, productId, quantity)));
@@ -117,7 +117,7 @@ public class BasketTools {
 		try {
 			String orderId = this.baskets.checkout(caller.subject(), basketId, this.products::reserve);
 			return CallToolResult.builder()
-					.addTextContent("주문 %s를 접수했습니다.".formatted(orderId))
+					.addTextContent("주문을 접수했습니다. 주문 번호는 %s입니다.".formatted(orderId))
 					.structuredContent(Map.of("orderId", orderId))
 					.build();
 		}
@@ -128,7 +128,7 @@ public class BasketTools {
 
 	private String describe(BasketView basket) {
 		if (basket.items().isEmpty()) {
-			return "장바구니 %s는 비어 있습니다. %s에 만료됩니다.".formatted(basket.handle(), basket.expiresAt());
+			return "장바구니 %s에 담긴 상품이 없습니다. %s에 만료됩니다.".formatted(basket.handle(), basket.expiresAt());
 		}
 		long total = 0;
 		StringBuilder lines = new StringBuilder("장바구니 %s:\n".formatted(basket.handle()));

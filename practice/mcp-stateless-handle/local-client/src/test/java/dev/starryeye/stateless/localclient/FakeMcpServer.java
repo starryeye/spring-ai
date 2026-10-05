@@ -96,16 +96,16 @@ final class FakeMcpServer implements AutoCloseable {
 		Map<String, Object> result = new LinkedHashMap<>();
 		switch (toolName) {
 			case "createBasket" -> {
-				result.put("content", List.of(Map.of("type", "text", "text", "장바구니 " + BASKET_ID + "를 만들었습니다.")));
+				result.put("content", List.of(Map.of("type", "text", "text", "장바구니를 만들었습니다. ID는 " + BASKET_ID + "입니다.")));
 				result.put("structuredContent", Map.of("basketId", BASKET_ID));
 			}
 			case "getBasket" -> {
 				boolean known = BASKET_ID.equals(arguments.get("basketId"));
 				result.put("content", List.of(Map.of("type", "text",
-						"text", known ? "장바구니 " + BASKET_ID + ": p4 × 1" : "장바구니를 찾을 수 없습니다.")));
+						"text", known ? "장바구니 " + BASKET_ID + ": p4 × 1" : "찾을 수 없는 장바구니입니다.")));
 				result.put("isError", !known);
 			}
-			case "checkout" -> result.put("content", List.of(Map.of("type", "text", "text", "주문 ord-1001를 접수했습니다.")));
+			case "checkout" -> result.put("content", List.of(Map.of("type", "text", "text", "주문을 접수했습니다. 주문 번호는 ord-1001입니다.")));
 			default -> result.put("content", List.of(Map.of("type", "text", "text", toolName + " 완료")));
 		}
 		respondResult(exchange, id, result, null);

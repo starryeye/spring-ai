@@ -66,7 +66,7 @@ class McpCallsTest {
 		assertThat(checkouts).extracting(FakeMcpServer.Recorded::authorization)
 				.containsExactly("Bearer read-token", "Bearer write-token");
 		assertThat(this.requested).containsExactly(Set.of("products:read", "orders:write"));
-		assertThat(printed()).contains("[7]").contains("checkout: 주문 ord-1001를 접수했습니다.");
+		assertThat(printed()).contains("[7]").contains("checkout: 주문을 접수했습니다. 주문 번호는 ord-1001입니다.");
 	}
 
 	@Test
@@ -94,7 +94,7 @@ class McpCallsTest {
 				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
 				Duration.ofSeconds(20), this.out);
 
-		assertThat(printed()).contains("getBasket(모르는 ID): [오류] 장바구니를 찾을 수 없습니다.");
+		assertThat(printed()).contains("getBasket(모르는 ID): [오류] 찾을 수 없는 장바구니입니다.");
 	}
 
 	@Test
@@ -133,7 +133,7 @@ class McpCallsTest {
 		assertThat(printed()).contains("tools: getStock, createBasket, addItem, getBasket, checkout\n")
 				.contains("updateStock(목록에 없음): JSON-RPC 오류 -32602 Unknown tool: invalid_tool_name "
 						+ "(Tool not found: updateStock)")
-				.contains("checkout: 주문 ord-1001를 접수했습니다.");
+				.contains("checkout: 주문을 접수했습니다. 주문 번호는 ord-1001입니다.");
 		assertThat(calls("updateStock")).extracting(FakeMcpServer.Recorded::authorization)
 				.containsExactly("Bearer read-token");
 		// 숨긴 tool은 step-up을 부르지 않는다.
