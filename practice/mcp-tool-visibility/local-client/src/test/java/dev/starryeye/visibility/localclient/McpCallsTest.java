@@ -109,6 +109,51 @@ class McpCallsTest {
 	}
 
 	@Test
+	void 받은_tool_목록을_한_줄로_찍는다() {
+		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
+
+		McpCalls.run(this.mcp.origin() + "/mcp", holder,
+				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
+				Duration.ofSeconds(20), this.out);
+
+		assertThat(printed()).contains("tools: getStock, createBasket, addItem, getBasket, checkout, updateStock")
+				.doesNotContain("목록에 없음");
+		assertThat(calls("updateStock")).isEmpty();
+	}
+
+	@Test
+	void 목록에_updateStock이_없으면_불러_보고_모르는_tool_오류를_찍은_뒤_이어_간다() {
+		this.mcp.hidden.add("updateStock");
+		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
+
+		McpCalls.run(this.mcp.origin() + "/mcp", holder,
+				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
+				Duration.ofSeconds(20), this.out);
+
+		assertThat(printed()).contains("tools: getStock, createBasket, addItem, getBasket, checkout\n")
+				.contains("updateStock(목록에 없음): JSON-RPC 오류 -32602 Unknown tool: invalid_tool_name "
+						+ "(Tool not found: updateStock)")
+				.contains("checkout: 주문 ord-1001를 접수했습니다.");
+		assertThat(calls("updateStock")).extracting(FakeMcpServer.Recorded::authorization)
+				.containsExactly("Bearer read-token");
+		// 숨긴 tool은 step-up을 부르지 않는다. 권한을 더 받은 것은 checkout의 orders:write 한 번뿐이다.
+		assertThat(this.requested).containsExactly(Set.of("products:read", "orders:write"));
+	}
+
+	@Test
+	void step_up으로_token이_바뀌면_목록을_다시_받는다() {
+		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
+
+		McpCalls.run(this.mcp.origin() + "/mcp", holder,
+				stepUp(holder, new TokenResponse("write-token", 300, "products:read orders:write")),
+				Duration.ofSeconds(20), this.out);
+
+		assertThat(this.mcp.requests).filteredOn(r -> "tools/list".equals(r.rpcMethod()))
+				.extracting(FakeMcpServer.Recorded::authorization)
+				.containsExactly("Bearer read-token", "Bearer write-token");
+	}
+
+	@Test
 	void authorizer가_orders_write를_못_주면_실패하고_checkout을_다시_보내지_않는다() {
 		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
 		StepUp stepUp = stepUp(holder, new TokenResponse("still-read-token", 300, "products:read"));

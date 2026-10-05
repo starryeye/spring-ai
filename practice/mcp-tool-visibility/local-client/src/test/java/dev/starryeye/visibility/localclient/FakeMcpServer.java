@@ -9,9 +9,11 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -35,6 +37,12 @@ final class FakeMcpServer implements AutoCloseable {
 	private final HttpServer server;
 
 	final List<Recorded> requests = new CopyOnWriteArrayList<>();
+
+	/** 서버에 있는 tool이다. 이 순서로 목록을 준다. */
+	List<String> tools = List.of("getStock", "createBasket", "addItem", "getBasket", "checkout", "updateStock");
+
+	/** 이 사용자에게 숨긴 tool이다. 목록에서 빠지고, 부르면 "모르는 tool" 오류다. */
+	Set<String> hidden = new HashSet<>();
 
 	FakeMcpServer() throws IOException {
 		this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
@@ -80,7 +88,10 @@ final class FakeMcpServer implements AutoCloseable {
 							Map.of("name", "fake-mcp-server", "version", "0.0.1")),
 					null);
 			case "notifications/initialized" -> respond(exchange, 202, Map.of(), null);
-			case "tools/list" -> respondResult(exchange, id, Map.of("tools", List.of()), null);
+			case "tools/list" -> respondResult(exchange, id, Map.of("tools", this.tools.stream()
+					.filter(name -> !this.hidden.contains(name))
+					.map(name -> Map.of("name", name, "inputSchema", Map.of("type", "object")))
+					.toList()), null);
 			case "tools/call" -> handleToolCall(exchange, id, toolName, arguments, authorization);
 			default -> respond(exchange, 404, Map.of(), null);
 		}
@@ -88,6 +99,13 @@ final class FakeMcpServer implements AutoCloseable {
 
 	private void handleToolCall(HttpExchange exchange, Object id, String toolName, Map<String, Object> arguments,
 			String authorization) throws IOException {
+		// MCP Java SDK 2.0.1 서버가 없는 tool에 주는 응답과 같다. HTTP 200이라 step-up handler는 불리지 않는다.
+		if (this.hidden.contains(toolName)) {
+			String body = MAPPER.writeValueAsString(Map.of("jsonrpc", "2.0", "id", id, "error", Map.of(
+					"code", -32602, "message", "Unknown tool: invalid_tool_name", "data", "Tool not found: " + toolName)));
+			respond(exchange, 200, Map.of("Content-Type", "application/json"), body);
+			return;
+		}
 		if ("checkout".equals(toolName) && "Bearer read-token".equals(authorization)) {
 			respond(exchange, 403,
 					Map.of("WWW-Authenticate", "Bearer error=\"insufficient_scope\", scope=\"orders:write\""), null);

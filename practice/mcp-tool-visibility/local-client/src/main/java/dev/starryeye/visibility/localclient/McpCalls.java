@@ -4,11 +4,13 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import io.modelcontextprotocol.client.transport.customizer.McpHttpClientTransportAuthorizationErrorHandler;
+import io.modelcontextprotocol.spec.McpError;
 import io.modelcontextprotocol.spec.McpSchema;
 
 import java.io.PrintStream;
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -23,6 +25,10 @@ import java.util.function.Supplier;
  * <p>장바구니는 session이 아니라 서버가 만든 handle로 다룬다(안내서 11장).
  * 이 앱은 {@code createBasket}이 돌려준 {@code basketId}를 {@code addItem}·{@code getBasket}·{@code checkout}의 인자로 그대로 넘긴다.
  * {@code checkout}만 {@code orders:write}를 요구하므로, 조회 token으로 부르면 403이 오고 그 자리에서 step-up이 일어난다.
+ *
+ * <p>서버는 사용자 역할로 tool 목록을 거른다(안내서 12장).
+ * 그래서 받은 tool 목록을 한 줄로 찍고, 목록에 없는 {@code updateStock}은 일부러 불러서 "모르는 tool" 오류를 보여 준다.
+ * 이 오류는 HTTP 200의 JSON-RPC 오류라 step-up이 일어나지 않는다.
  */
 public final class McpCalls {
 
@@ -55,7 +61,12 @@ public final class McpCalls {
 			McpSchema.InitializeResult initialized = callOnce(client::initialize, out);
 			out.println("    initialize: protocolVersion=" + initialized.protocolVersion()
 					+ ", server=" + initialized.serverInfo().name());
-			callOnce(client::listTools, out).tools().forEach(tool -> out.println("    tool: " + tool.name()));
+			// 서버는 사용자 역할로 목록을 거른다(안내서 12장).
+			ToolList tools = new ToolList(client, holder, out);
+			if (!tools.printIfTokenChanged().contains("updateStock")) {
+				// 목록에 없는 tool을 일부러 불러 본다. 권한을 늘려도 쓸 수 없는 tool이라 step-up이 아니라 JSON-RPC 오류가 온다.
+				callHidden(client, out);
+			}
 			print(out, "getStock(p1)", callOnce(() -> call(client, "getStock", Map.of("productId", "p1")), out));
 
 			// handle은 서버가 만든다. 이 앱은 받은 handle을 다음 호출의 인자로 넘긴다(안내서 11장).
@@ -72,6 +83,8 @@ public final class McpCalls {
 					callOnce(() -> call(client, "getBasket", Map.of("basketId", UNKNOWN_BASKET)), out));
 			// 주문은 orders:write가 필요하다. 조회 token이면 403 → 그 자리에서 step-up → 새 요청으로 다시 보낸다.
 			print(out, "checkout", callOnce(() -> call(client, "checkout", Map.of("basketId", basketId)), out));
+			// step-up으로 token이 바뀌었으면 목록을 다시 받는다. 새 요청이라 customizer가 새 token을 붙인다.
+			tools.printIfTokenChanged();
 		}
 		catch (RuntimeException ex) {
 			// step-up에서 난 LocalClientException은 SDK를 거치며 감싸일 수 있다. 원인 사슬에서 찾아 그대로 올린다.
@@ -113,6 +126,53 @@ public final class McpCalls {
 			}
 		}
 		return false;
+	}
+
+	/** 목록을 받은 token을 기억해 두고, token이 바뀌었을 때만 다시 받아 한 줄로 찍는다. */
+	static final class ToolList {
+
+		private final McpSyncClient client;
+
+		private final TokenHolder holder;
+
+		private final PrintStream out;
+
+		private String listedWith;
+
+		private List<String> names = List.of();
+
+		ToolList(McpSyncClient client, TokenHolder holder, PrintStream out) {
+			this.client = client;
+			this.holder = holder;
+			this.out = out;
+		}
+
+		List<String> printIfTokenChanged() {
+			String token = this.holder.accessToken();
+			if (!token.equals(this.listedWith)) {
+				this.names = callOnce(this.client::listTools, this.out).tools().stream()
+						.map(McpSchema.Tool::name).toList();
+				// 목록을 받다가 step-up이 났을 수 있으므로, 처음 읽은 token이 아니라 받은 뒤의 token을 기억한다.
+				this.listedWith = this.holder.accessToken();
+				this.out.println("    tools: " + String.join(", ", this.names));
+			}
+			return this.names;
+		}
+	}
+
+	/**
+	 * 숨긴 tool 호출은 HTTP 200의 JSON-RPC 오류다. SDK는 이것을 {@link McpError}로 던진다.
+	 * 바깥의 {@code catch}가 모든 예외를 {@link LocalClientException}으로 바꾸므로, 이 호출 바로 둘레에서 잡아 이어 간다.
+	 */
+	private static void callHidden(McpSyncClient client, PrintStream out) {
+		try {
+			print(out, "updateStock(목록에 없음)", call(client, "updateStock", Map.of("productId", "p1", "quantity", 10)));
+		}
+		catch (McpError ex) {
+			McpSchema.JSONRPCResponse.JSONRPCError error = ex.getJsonRpcError();
+			out.println("    updateStock(목록에 없음): JSON-RPC 오류 " + error.code() + " " + error.message()
+					+ " (" + error.data() + ")");
+		}
 	}
 
 	private static McpSchema.CallToolResult call(McpSyncClient client, String tool, Map<String, Object> arguments) {
