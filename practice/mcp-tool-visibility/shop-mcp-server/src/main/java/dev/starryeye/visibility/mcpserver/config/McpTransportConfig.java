@@ -37,6 +37,9 @@ import java.util.Map;
  * </ul>
  *
  * <p>stateless transport bean은 사용자를 읽는 {@code contextExtractor}를 넣으려고 직접 만든다.
+ *
+ * <p>학습용 역할 표({@link ToolVisibility})도 여기서 만든다.
+ * {@code @Primary}인 transport wrapper는 역할에 따라 {@code tools/list}를 거르고, 숨긴 tool의 호출에 "모르는 tool"로 답한다.
  */
 @Configuration
 public class McpTransportConfig {
@@ -90,9 +93,10 @@ public class McpTransportConfig {
 	 */
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
-			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
-		FilterRegistrationBean<ToolScopeFilter> registration =
-				new FilterRegistrationBean<>(new ToolScopeFilter(registry, jsonMapper, ResourceMetadataUrl::of));
+			ToolVisibility visibility, @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
+			McpServerStreamableHttpProperties properties) {
+		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(
+				new ToolScopeFilter(registry, visibility, jsonMapper, ResourceMetadataUrl::of));
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
 		return registration;
@@ -130,7 +134,7 @@ public class McpTransportConfig {
 	@Bean
 	@Primary
 	public ToolVisibilityTransport toolVisibilityTransport(WebMvcStatelessServerTransport transport,
-			ToolVisibility visibility) {
-		return new ToolVisibilityTransport(transport, visibility);
+			ToolVisibility visibility, @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
+		return new ToolVisibilityTransport(transport, visibility, new JacksonMcpJsonMapper(jsonMapper));
 	}
 }

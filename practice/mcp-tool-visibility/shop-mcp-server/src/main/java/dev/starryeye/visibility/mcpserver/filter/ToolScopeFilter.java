@@ -1,6 +1,7 @@
 package dev.starryeye.visibility.mcpserver.filter;
 
 import dev.starryeye.visibility.mcpserver.tool.ToolScopeRegistry;
+import dev.starryeye.visibility.mcpserver.tool.ToolVisibility;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -38,6 +39,10 @@ import java.util.stream.Collectors;
  * (RFC 6750 §3.1, MCP 2025-11-25 Authorization — Scope Challenge Handling).
  * challenge에는 이 요청에 필요한 scope만 적는다. scope 목록 전체를 알리지 않는다.
  *
+ * <p>검사 순서는 기본 scope, 보이는 tool인가, tool의 scope 순이다.
+ * 숨긴 tool은 scope를 늘려도 쓸 수 없어서 step-up을 시작하지 않고, scope를 보지 않은 채 transport로 넘어간다.
+ * 그러면 {@code ToolVisibilityTransport}가 정말 없는 tool과 같은 "모르는 tool" 오류로 답한다.
+ *
  * <p>tool 이름은 JSON-RPC 본문의 {@code params.name}에 있어 본문을 읽어야 한다.
  * MCP 2026-07-28은 이 이름을 {@code Mcp-Name} header로도 보내게 해서, 서버는 본문 없이 같은 검사를 할 수 있다.
  * 지금 SDK는 2025-11-25라 본문을 읽는다.
@@ -65,13 +70,16 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private final ToolScopeRegistry registry;
 
+	private final ToolVisibility visibility;
+
 	private final JsonMapper jsonMapper;
 
 	private final Function<HttpServletRequest, String> resourceMetadataUrl;
 
-	public ToolScopeFilter(ToolScopeRegistry registry, JsonMapper jsonMapper,
+	public ToolScopeFilter(ToolScopeRegistry registry, ToolVisibility visibility, JsonMapper jsonMapper,
 			Function<HttpServletRequest, String> resourceMetadataUrl) {
 		this.registry = registry;
+		this.visibility = visibility;
 		this.jsonMapper = jsonMapper;
 		this.resourceMetadataUrl = resourceMetadataUrl;
 	}
@@ -107,7 +115,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			}
 
 			String tool = toolName(message);
-			String missing = (tool != null && !granted.contains(this.registry.scopeFor(tool)))
+			// 숨긴 tool은 scope를 늘려도 쓸 수 없으니 step-up을 시작하면 안 된다.
+			// 그래서 scope를 보지 않고 transport로 넘겨, 정말 없는 tool과 같은 "모르는 tool" 응답을 받게 한다.
+			boolean hidden = tool != null && this.visibility.hidden(token.getToken().getSubject(), tool);
+			String missing = (tool != null && !hidden && !granted.contains(this.registry.scopeFor(tool)))
 					? this.registry.scopeFor(tool) : null;
 			if (missing != null) {
 				insufficientScope(request, response, token, tool, missing, granted);

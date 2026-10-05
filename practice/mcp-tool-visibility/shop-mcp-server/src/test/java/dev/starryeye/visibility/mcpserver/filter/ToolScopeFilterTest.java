@@ -3,6 +3,7 @@ package dev.starryeye.visibility.mcpserver.filter;
 import dev.starryeye.visibility.mcpserver.repository.ProductRepository;
 import dev.starryeye.visibility.mcpserver.tool.ProductTools;
 import dev.starryeye.visibility.mcpserver.tool.ToolScopeRegistry;
+import dev.starryeye.visibility.mcpserver.tool.ToolVisibility;
 
 import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,6 +24,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,8 +32,12 @@ class ToolScopeFilterTest {
 
 	static final String METADATA = "http://localhost:8161/.well-known/oauth-protected-resource/mcp";
 
-	ToolScopeFilter filter = new ToolScopeFilter(ToolScopeRegistry.scan(new ProductTools(new ProductRepository())),
-			JsonMapper.builder().build(), request -> METADATA);
+	ToolScopeRegistry registry = ToolScopeRegistry.scan(new ProductTools(new ProductRepository()));
+
+	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
+	ToolScopeFilter filter = new ToolScopeFilter(registry,
+			new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)), JsonMapper.builder().build(),
+			request -> METADATA);
 
 	@AfterEach
 	void clear() {
