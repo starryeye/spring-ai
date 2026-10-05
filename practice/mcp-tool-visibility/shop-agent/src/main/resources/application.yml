@@ -41,6 +41,11 @@ spring:
         # 기동할 때는 대신할 사용자가 없어 token도 없다. MCP Server는 token 없는 요청에 모두 401을 준다.
         # 기동 중에 initialize를 보내면 실패해 application context가 뜨지 못하므로, 첫 요청으로 미룬다.
         initialized: false
+        # 자동 구성의 tool 목록 provider를 끈다.
+        # 그 provider는 처음 받은 목록 하나를 모든 사용자에게 같이 쓰는데, 이 서버는 사용자마다 다른 목록을 준다.
+        # MCP client(List<McpSyncClient> bean "mcpSyncClients")는 그대로 남는다.
+        toolcallback:
+          enabled: false
         streamable-http:
           connections:
             shop:

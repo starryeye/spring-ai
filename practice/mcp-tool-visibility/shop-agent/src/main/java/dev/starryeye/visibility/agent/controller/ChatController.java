@@ -1,12 +1,14 @@
 package dev.starryeye.visibility.agent.controller;
 
 import dev.starryeye.visibility.agent.mcp.SecurityMcpTransportContextProvider;
+import dev.starryeye.visibility.agent.mcp.UserToolCatalog;
 import dev.starryeye.visibility.agent.security.StepUpState;
 
 import jakarta.servlet.http.HttpSession;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
@@ -25,9 +27,12 @@ public class ChatController {
 
     private final ChatMemory chatMemory;
 
-    public ChatController(ChatClient chatClient, ChatMemory chatMemory) {
+    private final UserToolCatalog toolCatalog;
+
+    public ChatController(ChatClient chatClient, ChatMemory chatMemory, UserToolCatalog toolCatalog) {
         this.chatClient = chatClient;
         this.chatMemory = chatMemory;
+        this.toolCatalog = toolCatalog;
     }
 
     /**
@@ -46,8 +51,11 @@ public class ChatController {
         // consent 뒤 browser가 같은 질문을 다시 보내므로, 그 turn은 끊기기 전의 기억에서 다시 시작해야 한다.
         // 그래서 turn을 시작하기 전 기억을 복사해 두고, step-up으로 끊기면 그대로 되돌린다.
         List<Message> before = List.copyOf(this.chatMemory.get(conversationId));
+        // 이 사용자의 tool 목록이다. 요청 thread에서 꺼내야 목록을 새로 받을 때 이 사용자의 token이 붙는다.
+        List<ToolCallback> tools = this.toolCatalog.callbacks(authentication);
         Flux<String> content = this.chatClient.prompt()
                 .user(message)
+                .tools(tools.toArray())
                 .advisors(advisor -> advisor.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .stream()
                 .content();

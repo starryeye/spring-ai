@@ -2,6 +2,7 @@ package dev.starryeye.visibility.agent;
 
 import dev.starryeye.visibility.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.visibility.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.visibility.agent.mcp.UserToolCatalog;
 import dev.starryeye.visibility.agent.security.StepUpRequiredException;
 import dev.starryeye.visibility.agent.security.StepUpState;
 
@@ -14,8 +15,6 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -66,15 +65,8 @@ class ChatCsrfTest {
 	@MockitoBean
 	ChatModel chatModel;
 
-	/**
-	 * 기본 {@code Answers.RETURNS_DEFAULTS} 는 배열 반환 타입을 특별 취급하지 않아
-	 * {@code getToolCallbacks()} 가 스텁 전(=context 기동 시점)에 호출되면 null 을
-	 * 준다 — {@code ToolCallingAutoConfiguration} 이 {@code List.of(pr.getToolCallbacks())}
-	 * 를 기동 중에 즉시 실행하다가 NPE 를 낸다. {@code RETURNS_MOCKS} 는 배열을 빈 배열로
-	 * 기본값을 준다.
-	 */
-	@MockitoBean(answers = org.mockito.Answers.RETURNS_MOCKS)
-	ToolCallbackProvider toolCallbackProvider;
+	@MockitoBean
+	UserToolCatalog toolCatalog;
 
 	@Autowired
 	MockMvc mockMvc;
@@ -83,7 +75,7 @@ class ChatCsrfTest {
 	void setUp() {
 		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
 				.willReturn(DiscoveryFixtures.discovered());
-		given(this.toolCallbackProvider.getToolCallbacks()).willReturn(new ToolCallback[0]);
+		given(this.toolCatalog.callbacks(any())).willReturn(List.of());
 		// ChatClient 가 Prompt 를 만들며 chatModel.getOptions() 를 부른다 — 기본 답변은 null 이라 NPE 가 난다.
 		given(this.chatModel.getOptions()).willReturn(org.springframework.ai.chat.prompt.ChatOptions.builder().build());
 		given(this.chatModel.stream(any(Prompt.class))).willReturn(

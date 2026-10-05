@@ -3,6 +3,7 @@ package dev.starryeye.visibility.agent;
 import dev.starryeye.visibility.agent.controller.ChatController;
 import dev.starryeye.visibility.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.visibility.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.visibility.agent.mcp.UserToolCatalog;
 import dev.starryeye.visibility.agent.security.StepUpRequiredException;
 import dev.starryeye.visibility.agent.security.StepUpState;
 
@@ -18,7 +19,6 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.execution.ToolExecutionException;
@@ -68,8 +68,8 @@ class StepUpMemoryRollbackTest {
 	@MockitoBean
 	ChatModel chatModel;
 
-	@MockitoBean(answers = org.mockito.Answers.RETURNS_MOCKS)
-	ToolCallbackProvider toolCallbackProvider;
+	@MockitoBean
+	UserToolCatalog toolCatalog;
 
 	@Autowired
 	ChatController chatController;
@@ -81,7 +81,7 @@ class StepUpMemoryRollbackTest {
 	void setUp() {
 		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
 				.willReturn(DiscoveryFixtures.discovered());
-		given(this.toolCallbackProvider.getToolCallbacks()).willReturn(new ToolCallback[] { 권한이_모자란_checkout });
+		given(this.toolCatalog.callbacks(any())).willReturn(List.of(권한이_모자란_checkout));
 		given(this.chatModel.getOptions()).willReturn(ToolCallingChatOptions.builder().build());
 		AssistantMessage toolCall = AssistantMessage.builder()
 				.toolCalls(List.of(new AssistantMessage.ToolCall("call-9", "function", "checkout",

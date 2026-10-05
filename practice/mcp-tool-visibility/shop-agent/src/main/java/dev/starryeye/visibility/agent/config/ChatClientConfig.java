@@ -3,8 +3,6 @@ package dev.starryeye.visibility.agent.config;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -24,20 +22,16 @@ public class ChatClientConfig {
             """;
 
     /**
-     * MCP tool은 저절로 모델에 전달되지 않는다.
-     * MCP client 자동 구성이 만들어 주는 것은 {@link ToolCallbackProvider} bean까지다.
-     * {@code defaultTools(...)}로 직접 넣어야 LLM이 tool 정의를 받는다.
-     * 이 줄을 지워도 앱은 뜨고 답변도 온다. 하지만 모델은 tool 없이 기억으로만 답한다.
+     * MCP tool은 앱을 시작할 때 고정하지 않는다.
+     * 서버가 사용자마다 다른 목록을 주므로, {@code ChatController}가 질문마다 그 사용자의 목록을 넣는다.
      */
     @Bean
-    public ChatClient shopChatClient(ChatClient.Builder builder, ChatMemory chatMemory,
-                                     ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
-        ChatClient.Builder configured = builder
+    public ChatClient shopChatClient(ChatClient.Builder builder, ChatMemory chatMemory) {
+        return builder
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory)
                         .order(ChatMemoryConfig.MEMORY_ADVISOR_ORDER)
-                        .build());
-        toolCallbackProvider.ifAvailable(configured::defaultTools);
-        return configured.build();
+                        .build())
+                .build();
     }
 }

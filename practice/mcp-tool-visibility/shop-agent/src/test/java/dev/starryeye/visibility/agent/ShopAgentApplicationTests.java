@@ -3,9 +3,11 @@ package dev.starryeye.visibility.agent;
 import dev.starryeye.visibility.agent.config.McpSecurityConfig;
 import dev.starryeye.visibility.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.visibility.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.visibility.agent.mcp.UserToolCatalog;
 
 import io.modelcontextprotocol.client.McpClient;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,6 +52,17 @@ class ShopAgentApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    /**
+     * 자동 구성의 provider는 목록 하나를 모든 사용자에게 같이 쓰므로 꺼야 한다.
+     * 그래도 MCP client는 남아 있어야, 사용자마다 목록을 받는 보관소가 그것으로 만들어진다.
+     */
+    @Test
+    void 사용자별_tool_보관소가_있고_자동_구성의_tool_provider는_없다() {
+        assertThat(applicationContext.getBeansOfType(UserToolCatalog.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(ToolCallbackProvider.class)).isEmpty();
+        assertThat((java.util.List<?>) applicationContext.getBean("mcpSyncClients")).hasSize(1);
     }
 
     @Test

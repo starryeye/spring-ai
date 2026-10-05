@@ -3,13 +3,12 @@ package dev.starryeye.visibility.agent;
 import dev.starryeye.visibility.agent.config.McpSecurityConfig;
 import dev.starryeye.visibility.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.visibility.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.visibility.agent.mcp.UserToolCatalog;
 import dev.starryeye.visibility.agent.security.StepUpState;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -39,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -73,8 +73,8 @@ class StepUpAuthorizationFilterChainTest {
     @MockitoBean
     ChatModel chatModel;
 
-    @MockitoBean(answers = org.mockito.Answers.RETURNS_MOCKS)
-    ToolCallbackProvider toolCallbackProvider;
+    @MockitoBean
+    UserToolCatalog toolCatalog;
 
     @Autowired
     MockMvc mockMvc;
@@ -89,7 +89,7 @@ class StepUpAuthorizationFilterChainTest {
     void setUp() {
         given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
                 .willReturn(DiscoveryFixtures.discovered());
-        given(this.toolCallbackProvider.getToolCallbacks()).willReturn(new ToolCallback[0]);
+        given(this.toolCatalog.callbacks(any())).willReturn(List.of());
     }
 
     @Test

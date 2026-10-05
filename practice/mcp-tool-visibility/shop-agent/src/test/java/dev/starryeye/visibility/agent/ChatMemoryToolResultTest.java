@@ -3,6 +3,7 @@ package dev.starryeye.visibility.agent;
 import dev.starryeye.visibility.agent.controller.ChatController;
 import dev.starryeye.visibility.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.visibility.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.visibility.agent.mcp.UserToolCatalog;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,6 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,8 +84,8 @@ class ChatMemoryToolResultTest {
 	@MockitoBean
 	ChatModel chatModel;
 
-	@MockitoBean(answers = org.mockito.Answers.RETURNS_MOCKS)
-	ToolCallbackProvider toolCallbackProvider;
+	@MockitoBean
+	UserToolCatalog toolCatalog;
 
 	@Autowired
 	ChatClient chatClient;
@@ -115,7 +115,7 @@ class ChatMemoryToolResultTest {
 	void setUp() {
 		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
 				.willReturn(DiscoveryFixtures.discovered());
-		given(this.toolCallbackProvider.getToolCallbacks()).willReturn(new ToolCallback[0]);
+		given(this.toolCatalog.callbacks(any())).willReturn(List.of());
 		given(this.chatModel.getOptions()).willReturn(ToolCallingChatOptions.builder().build());
 		given(this.chatModel.stream(any(Prompt.class))).willAnswer(invocation -> {
 			Prompt prompt = invocation.getArgument(0);
@@ -193,7 +193,7 @@ class ChatMemoryToolResultTest {
 	void 사용자끼리_대화_기억이_섞이지_않는다() {
 		// ChatController가 authentication.getName()을 conversation ID로 쓴다는 것이 이 test가 보장하려는 것이다.
 		// 그래서 대화 ID를 직접 고르지 않고 실제 controller를 거친다.
-		given(this.toolCallbackProvider.getToolCallbacks()).willReturn(new ToolCallback[] { createBasket, addItem });
+		given(this.toolCatalog.callbacks(any())).willReturn(List.of(createBasket, addItem));
 		Authentication userA = new TestingAuthenticationToken("a", null, "ROLE_USER");
 		Authentication userB = new TestingAuthenticationToken("b", null, "ROLE_USER");
 
