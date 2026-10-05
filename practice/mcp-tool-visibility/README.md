@@ -3,7 +3,7 @@
 이 practice는 [mcp-stateless-handle](../mcp-stateless-handle/README.md)을 바탕으로 MCP Server가 사용자 권한에 따라 다른 tool 목록을 주게 한다.
 사용자가 할 수 없는 일을 하는 tool은 목록에서 숨긴다.
 할 수는 있지만 아직 client에 맡기지 않은 일을 하는 tool은 목록에 보여 주고, 부를 때 step-up한다.
-웹 agent는 이렇게 사용자마다 다른 목록을 access token별로 cache한다.
+web agent는 이렇게 사용자마다 다른 목록을 access token별로 cache한다.
 흐름과 규칙은 [안내서 12장](../mcp-guide/12-tool-visibility.md)이 설명하고, 이 README에서는 stateless와 다른 점만 본다.
 
 ## mcp-stateless-handle과 다른 점
@@ -16,10 +16,10 @@
 | `ToolScopeFilter`의 검사 순서 | 기본 scope, tool의 scope 순이다 | 기본 scope, 보이는 tool인지, tool의 scope 순이다. 숨긴 tool은 scope를 보지 않고 transport로 넘기므로, 손님의 `updateStock`은 `403`이 아니라 "모르는 tool"이 된다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up) |
 | `updateStock`·`checkout`의 tool 설명 | 권한에 관한 문장이 없다 | 설명 끝에 `처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다.`와 `처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.`가 있다. 지금 token에 scope가 없어도 모델이 이 tool을 피하지 않게 하려는 문장이다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up) |
 | `auth-server` | 포트 9040, client `stateless-shop-agent`, cookie `STATELESSAUTHSESSIONID`다 | 포트 9050, client `visibility-shop-agent`, cookie `VISIBILITYAUTHSESSIONID`다. 계정과 scope 등록은 같고, 점원·손님 역할은 모른다 | [12장 권한을 판단하는 곳](../mcp-guide/12-tool-visibility.md#126-권한을-판단하는-곳) |
-| agent의 tool 목록 | `ChatClientConfig`가 자동 구성의 tool provider를 기본 tool로 넣고, 모든 사용자가 그 목록을 같이 쓴다 | `spring.ai.mcp.client.toolcallback.enabled: false`로 그 provider를 끈다. `ChatController`가 질문마다 그 사용자의 목록을 `.tools(...)`로 넣는다 | [12장 웹 agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-웹-agent-사용자별-tool-목록-cache) |
-| agent의 목록 cache | 사용자별 cache가 없다 | `UserToolCatalog`가 access token 값의 SHA-256 hex를 key로 목록을 5분 동안 둔다. step-up이나 refresh로 token이 바뀌면 key가 달라져 목록을 다시 받는다 | [12장 웹 agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-웹-agent-사용자별-tool-목록-cache) |
-| agent가 받은 "모르는 tool" 오류 | `SyncMcpToolCallback`이 던진 오류로 채팅 stream이 끝난다 | `UnknownToolAwareToolCallback`이 그 token의 목록을 버리고, 오류를 `ToolExecutionException`으로 바꾼다. 모델은 `Unknown tool: invalid_tool_name`을 tool 결과로 받고 turn이 이어진다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-웹-agent-목록에-없는-tool을-모델이-부를-때) |
-| 모델이 목록에 없는 tool을 부를 때 | Spring AI가 오류로 stream을 끝내고, 결과 없는 tool 호출이 대화 기억에 남는다 | `ChatEvents`가 그 turn을 대화 기억에서 되돌리고 `tool-unavailable` event를 보낸다. 화면에는 `이 계정에서는 updateStock을(를) 쓸 수 없습니다.`처럼 나온다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-웹-agent-목록에-없는-tool을-모델이-부를-때) |
+| agent의 tool 목록 | `ChatClientConfig`가 자동 구성의 tool provider를 기본 tool로 넣고, 모든 사용자가 그 목록을 같이 쓴다 | `spring.ai.mcp.client.toolcallback.enabled: false`로 그 provider를 끈다. `ChatController`가 질문마다 그 사용자의 목록을 `.tools(...)`로 넣는다 | [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache) |
+| agent의 목록 cache | 사용자별 cache가 없다 | `UserToolCatalog`가 access token 값의 SHA-256 hex를 key로 목록을 5분 동안 둔다. step-up이나 refresh로 token이 바뀌면 key가 달라져 목록을 다시 받는다 | [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache) |
+| agent가 받은 "모르는 tool" 오류 | `SyncMcpToolCallback`이 던진 오류로 채팅 stream이 끝난다 | `UnknownToolAwareToolCallback`이 그 token의 목록을 버리고, 오류를 `ToolExecutionException`으로 바꾼다. 모델은 `Unknown tool: invalid_tool_name`을 tool 결과로 받고 turn이 이어진다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-web-agent-목록에-없는-tool을-모델이-부를-때) |
+| 모델이 목록에 없는 tool을 부를 때 | Spring AI가 오류로 stream을 끝내고, 결과 없는 tool 호출이 대화 기억에 남는다 | `ChatEvents`가 그 turn을 대화 기억에서 되돌리고 `tool-unavailable` event를 보낸다. 화면에는 `이 계정에서는 updateStock을(를) 쓸 수 없습니다.`처럼 나온다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-web-agent-목록에-없는-tool을-모델이-부를-때) |
 | `local-client`의 tool 목록 | `tools/list`의 이름을 `tool:` 줄에 하나씩 찍는다 | 목록을 `tools:` 한 줄로 찍고, 목록에 `updateStock`이 없으면 일부러 불러 JSON-RPC 오류를 찍는다. step-up으로 token이 바뀌면 목록을 다시 받아 한 번 더 찍는다 | [12장 사용자 기기의 앱](../mcp-guide/12-tool-visibility.md#129-사용자-기기의-앱) |
 
 [코드 지도](#코드-지도)에 없는 클래스는 stateless와 같다.
@@ -58,7 +58,7 @@ Authorization Server는 역할을 모른다.
 그래서 client가 `user2`의 authorization request에 `products:write`를 넣어도, Authorization Server는 consent 화면을 보여 주고 그 scope가 든 token을 준다.
 그래도 MCP Server는 역할로 거르므로, 그 token으로 받은 목록도 6개이고 `updateStock`은 "모르는 tool"이며 재고는 그대로다.
 MCP Server는 손님에게 `products:write`를 요구하는 `403`을 보내지 않는다.
-그래서 웹 agent와 `local-client`가 손님의 token에 이 scope를 요청할 일은 없다.
+그래서 web agent와 `local-client`가 손님의 token에 이 scope를 요청할 일은 없다.
 
 ### 사용자별 목록 cache
 
@@ -104,7 +104,7 @@ step-up으로 token이 바뀌면 key가 달라지므로 목록을 다시 받는�
 만료된 항목은 목록을 꺼낼 때 지우고, 만료 전에 미리 다시 받지는 않는다.
 "모르는 tool" 오류가 오면 5분이 지나지 않았어도 그 token의 목록을 버린다.
 access token은 5분 동안 유효하고 agent는 만료 1분 전부터 refresh하므로, 같은 key는 token을 받은 뒤 4분쯤까지만 쓰인다.
-이 규칙들이 2026-07-28 Caching의 어느 규칙에 해당하는지는 [12장 웹 agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-웹-agent-사용자별-tool-목록-cache)에서 본다.
+이 규칙들이 2026-07-28 Caching의 어느 규칙에 해당하는지는 [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)에서 본다.
 
 ## 실행
 
@@ -198,19 +198,19 @@ package는 `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`, `local-cli
 | | `ProductTools`, `BasketTools` | `updateStock`과 `checkout`의 설명 끝에, 처음 부르면 권한을 묻는다는 문장을 둔다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up) |
 | `shop-agent` | `application.yml` | `spring.ai.mcp.client.toolcallback.enabled: false`로 자동 구성의 tool provider를 끈다. MCP client bean(`mcpSyncClients`)은 그대로 남는다 | [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
 | | `ToolCatalogConfig` | `UserToolCatalog` bean을 만든다. cache key의 access token은 MCP 요청에 token을 붙이는 customizer와 같은 `OAuth2AuthorizedClientManager.authorize(...)`로 얻는다 | [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
-| | `UserToolCatalog` | access token 값의 SHA-256 hex를 key로 사용자마다 tool 목록을 5분 동안 둔다. 목록을 꺼낼 때 만료 항목을 지우고, 없으면 그 사용자의 token으로 `tools/list`를 받는다 | [12장 웹 agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-웹-agent-사용자별-tool-목록-cache), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
-| | `UnknownToolAwareToolCallback` | `SyncMcpToolCallback`을 감싼다. "모르는 tool" 오류면 그 token의 목록을 버리고, 오류를 `ToolExecutionException`으로 바꿔 모델에게 문장으로 돌려준다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-웹-agent-목록에-없는-tool을-모델이-부를-때), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
-| | `ChatClientConfig` | 기본 tool을 넣지 않는다. system prompt와 대화 기억 advisor만 기본으로 둔다 | [12장 웹 agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-웹-agent-사용자별-tool-목록-cache) |
-| | `ChatController` | 질문마다 `UserToolCatalog`에서 그 사용자의 목록을 꺼내 `.tools(...)`로 넣는다. 목록은 요청 thread에서 꺼내므로, 새로 받을 때 그 사용자의 token이 붙는다 | [12장 웹 agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-웹-agent-사용자별-tool-목록-cache), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
-| | `ChatEvents` | 모델이 목록에 없는 tool을 불러 Spring AI가 `No ToolCallback found for tool name: …` 오류로 stream을 끝내면, turn을 되돌리고 `tool-unavailable` event를 보낸다. event의 data는 `{"tool":"updateStock"}`처럼 tool 이름이다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-웹-agent-목록에-없는-tool을-모델이-부를-때), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
-| | `index.html` | `tool-unavailable` event를 받으면 `이 계정에서는 updateStock을(를) 쓸 수 없습니다.`처럼 보여 준다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-웹-agent-목록에-없는-tool을-모델이-부를-때) |
+| | `UserToolCatalog` | access token 값의 SHA-256 hex를 key로 사용자마다 tool 목록을 5분 동안 둔다. 목록을 꺼낼 때 만료 항목을 지우고, 없으면 그 사용자의 token으로 `tools/list`를 받는다 | [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
+| | `UnknownToolAwareToolCallback` | `SyncMcpToolCallback`을 감싼다. "모르는 tool" 오류면 그 token의 목록을 버리고, 오류를 `ToolExecutionException`으로 바꿔 모델에게 문장으로 돌려준다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-web-agent-목록에-없는-tool을-모델이-부를-때), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
+| | `ChatClientConfig` | 기본 tool을 넣지 않는다. system prompt와 대화 기억 advisor만 기본으로 둔다 | [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache) |
+| | `ChatController` | 질문마다 `UserToolCatalog`에서 그 사용자의 목록을 꺼내 `.tools(...)`로 넣는다. 목록은 요청 thread에서 꺼내므로, 새로 받을 때 그 사용자의 token이 붙는다 | [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
+| | `ChatEvents` | 모델이 목록에 없는 tool을 불러 Spring AI가 `No ToolCallback found for tool name: …` 오류로 stream을 끝내면, turn을 되돌리고 `tool-unavailable` event를 보낸다. event의 data는 `{"tool":"updateStock"}`처럼 tool 이름이다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-web-agent-목록에-없는-tool을-모델이-부를-때), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
+| | `index.html` | `tool-unavailable` event를 받으면 `이 계정에서는 updateStock을(를) 쓸 수 없습니다.`처럼 보여 준다 | [12장 목록에 없는 tool](../mcp-guide/12-tool-visibility.md#128-web-agent-목록에-없는-tool을-모델이-부를-때) |
 | `local-client` | `McpCalls` | `ToolList`가 목록을 받은 token을 기억하고, token이 바뀌었을 때만 목록을 다시 받아 `tools:` 한 줄로 찍는다. 목록에 `updateStock`이 없으면 한 번 불러 JSON-RPC 오류를 찍는다 | [12장 사용자 기기의 앱](../mcp-guide/12-tool-visibility.md#129-사용자-기기의-앱), [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |
 
 ## 직접 확인할 것
 
 `run.sh`로 띄운 뒤 `practice/mcp-tool-visibility`에서 실행한다.
 `local-client`의 줄은 `practice/mcp-tool-visibility/local-client`에서, 캡처 스크립트의 줄은 저장소 최상위 폴더에서 실행한다.
-웹 agent의 줄은 표의 순서대로 한다.
+web agent의 줄은 표의 순서대로 한다.
 `user2`는 보통 browser 창에서, `user`는 시크릿 창에서 login한다.
 
 | 해 볼 것 | 기대 결과 |

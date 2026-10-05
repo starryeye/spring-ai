@@ -19,8 +19,8 @@ client는 처음에 조회 scope `products:read`만 받는다.
 | MCP Server의 scope 검사 | 없다 | `ToolScopeFilter`가 모든 MCP 요청에 `products:read`를, `tools/call`에는 그 tool의 scope를 요구한다. 모자라면 `403 insufficient_scope`로 답한다 | [10장 `403 insufficient_scope`](../mcp-guide/10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다) |
 | MCP Server의 `401`과 PRM | `401`에는 `resource_metadata`만 있고, PRM에는 `scopes_supported`가 없다 | `401`에 `scope="products:read"`가, PRM에 `"scopes_supported":["products:read"]`가 있다. 쓰기 scope는 미리 알리지 않는다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | agent가 요청하는 scope | 설정에 적은 `openid profile`이다 | discovery가 `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 고른 scope에 `openid`를 더한다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
-| agent의 `403` 처리 | 따로 다루지 않는다 | `StepUpAuthorizationErrorHandler`가 `403 insufficient_scope`를 예외로 바꾼다. `StepUpToolExecutionExceptionProcessor`는 그 예외를 LLM에게 넘기지 않고 채팅 응답까지 그대로 전한다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드) |
-| agent의 채팅 응답 | `text/plain` stream이다 | SSE event(`message`, `step-up`, `step-up-declined`)다. `ChatEvents`가 만들고, `index.html`이 consent 카드를 보여 준다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드) |
+| agent의 `403` 처리 | 따로 다루지 않는다 | `StepUpAuthorizationErrorHandler`가 `403 insufficient_scope`를 예외로 바꾼다. `StepUpToolExecutionExceptionProcessor`는 그 예외를 LLM에게 넘기지 않고 채팅 응답까지 그대로 전한다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
+| agent의 채팅 응답 | `text/plain` stream이다 | SSE event(`message`, `step-up`, `step-up-declined`)다. `ChatEvents`가 만들고, `index.html`이 consent 카드를 보여 준다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | agent의 authorization request | 설정에 적은 scope(`openid profile`) 그대로다 | `StepUpAuthorizationRequestResolver`가 요청 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. 진행 상태와 결과는 `StepUpState`와 `StepUpLoginSuccessHandler`가 기록한다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [거절과 일부 허락](#거절과-일부-허락) |
 | `local-client`가 요청하는 scope | `Main`에 정해 둔 `openid profile`이다 | `ScopeSelection`이 `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 고른다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | `local-client`의 MCP 호출 | `getStock(p1)`까지 부른다 | `updateStock(p1, 10)`도 부른다. `403`이면 `StepUp`이 합친 scope로 authorization을 다시 받고, `McpCalls`가 같은 호출을 새 요청으로 보낸다 | [10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login) |
@@ -38,7 +38,7 @@ tool 목록은 scope와 상관없이 모두에게 같다.
 
 ### step-up 흐름
 
-아래는 웹 agent에서 재고 변경을 처음 시도할 때의 흐름이다.
+아래는 web agent에서 재고 변경을 처음 시도할 때의 흐름이다.
 
 ```mermaid
 sequenceDiagram
@@ -198,12 +198,12 @@ Spring 앱 세 module은 official처럼 역할별 하위 package로 나뉘고, `
 | | `ProductTools`, `ProductRepository` | `updateStock`이 재고를 `quantity`로 바꾸고 바뀐 재고를 문장으로 돌려준다. 조회 tool에는 `@RequiredScope("products:read")`, `updateStock`에는 `@RequiredScope("products:write")`가 붙는다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
 | `shop-agent` | `McpAuthorizationDiscovery`, `DiscoveredAuthorization` | `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 처음 요청할 scope를 고른다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | | `DiscoveredClientRegistrationRepository`, `application.yml` | login에 쓸 scope를 `openid`와 discovery가 고른 scope로 정한다. 설정에는 scope를 적지 않는다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
-| | `StepUpAuthorizationErrorHandler` | MCP 요청이 `403 insufficient_scope`를 받으면 `StepUpRequiredException`을 던진다. 새 token을 받으려면 사용자가 browser에서 consent해야 하므로 SDK에 재시도를 맡기지 않는다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드), [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
+| | `StepUpAuthorizationErrorHandler` | MCP 요청이 `403 insufficient_scope`를 받으면 `StepUpRequiredException`을 던진다. 새 token을 받으려면 사용자가 browser에서 consent해야 하므로 SDK에 재시도를 맡기지 않는다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드), [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | | `StepUpToolExecutionExceptionProcessor` | step-up 예외는 LLM에게 tool 오류 문장으로 넘기지 않고 채팅 응답까지 그대로 전한다. 나머지 예외는 Spring AI 기본 처리와 같다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | | `BearerChallenge`, `StepUpRequiredException` | `WWW-Authenticate`에서 `error`와 `scope`를 읽고, 필요한 scope와 tool 이름을 예외에 담는다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | | `McpSecurityConfig` | `StepUpAuthorizationErrorHandler`를 MCP client transport에, `StepUpToolExecutionExceptionProcessor`를 Spring AI의 tool 실행에 연결한다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
-| | `ChatController`, `ChatEvents` | 채팅 답을 SSE event로 보낸다. stream으로 오는 답은 `message`, consent 카드는 `step-up`, 이미 step-up을 거친 scope의 거절 안내는 `step-up-declined` event다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드) |
-| | `index.html` | 카드를 보여 주고, consent 화면으로 가기 전에 질문을 `sessionStorage`에 넣어 둔다. 채팅 화면으로 돌아오면 그 질문을 한 번 다시 보낸다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드) |
+| | `ChatController`, `ChatEvents` | 채팅 답을 SSE event로 보낸다. stream으로 오는 답은 `message`, consent 카드는 `step-up`, 이미 step-up을 거친 scope의 거절 안내는 `step-up-declined` event다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
+| | `index.html` | 카드를 보여 주고, consent 화면으로 가기 전에 질문을 `sessionStorage`에 넣어 둔다. 채팅 화면으로 돌아오면 그 질문을 한 번 다시 보낸다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | | `StepUpAuthorizationRequestResolver` | authorization request의 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. `step_up`은 MCP Server가 `403`으로 요구한 scope만 받는다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | | `StepUpState` | HTTP session에 step-up 상태를 둔다. consent 결과를 기다리는 scope, 이미 시도한 scope, MCP Server가 요구한 scope다 | [거절과 일부 허락](#거절과-일부-허락) |
 | | `StepUpLoginSuccessHandler`, `LoginFailureHandler` | step-up의 login이 끝나면 step-up으로 요청한 scope를 모두 받았는지 로그로 남긴다. step-up 중에 login이 실패하면 오류 화면 대신 채팅 화면으로 돌려보낸다 | [거절과 일부 허락](#거절과-일부-허락) |
@@ -221,7 +221,7 @@ Spring 앱 세 module은 official처럼 역할별 하위 package로 나뉘고, `
 
 `run.sh`로 띄운 뒤 `practice/mcp-security-authz`에서 실행한다.
 `local-client`의 줄은 `practice/mcp-security-authz/local-client`에서 실행한다.
-웹 agent의 줄은 표의 순서대로 한다.
+web agent의 줄은 표의 순서대로 한다.
 `products:write`를 한 번 허락하면 token과 consent에 그 scope가 남아, 거절하는 경우를 다시 볼 수 없기 때문이다.
 처음부터 다시 보려면 `./stop.sh`와 `./run.sh`로 다시 띄운다.
 

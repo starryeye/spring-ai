@@ -36,7 +36,8 @@ LLM은 tool 결과나 문서에 섞인 글을 사용자의 지시로 여기고 �
 그래서 client는 위험이 낮은 조회 scope만 받아 시작한다.
 권한이 더 필요한 작업을 처음 시도하면 MCP Server가 `403`으로 필요한 scope를 알린다.
 client는 사용자의 consent를 다시 받아 scope를 늘린다.
-이 흐름이 6장에서 개념으로만 본 step-up authorization이고, 5장의 scope 고르기 순서와 함께 이 장에서 실제로 도는 코드가 된다.
+이 흐름이 6장에서 개념으로만 본 step-up authorization이다.
+이 장에서는 5장의 scope 고르기 순서와 함께 실제로 동작하는 코드로 본다.
 
 | scope | 뜻 | 이 scope가 있어야 하는 요청 |
 |---|---|---|
@@ -98,7 +99,8 @@ sequenceDiagram
 
 (5)\~(7)과 (12)\~(14)는 5장의 authorization code 흐름을 줄여 그렸고, callback과 token request는 생략했다.
 (11)과 (12) 사이에 사용자에게 묻는 방법은 client마다 다르다.
-웹 agent는 채팅 화면에 consent 카드를 띄우고(10.6), 사용자 기기의 앱은 그 자리에서 browser를 연다(10.7).
+이 장부터는 2장에서 본 서버에서 도는 agent, 곧 practice의 `shop-agent`를 web agent라고 부른다.
+web agent는 채팅 화면에 consent 카드를 띄우고(10.6), 사용자 기기의 앱은 그 자리에서 browser를 연다(10.7).
 
 아래 예시는 `practice/mcp-security-authz`를 실제로 띄워 받은 값이다.
 Authorization Server는 `http://localhost:9030`, MCP Server는 `http://localhost:8141/mcp`, agent는 `http://localhost:8140`이다.
@@ -293,7 +295,7 @@ agent는 거절 안내와 "다시 요청" 버튼을 보여 주고(10.6), `local-
 계층을 둔 서버라면 넓은 scope만 있는 token도 좁은 scope가 필요한 요청에 통과시켜야 한다.
 refresh token을 달라는 `offline_access`는 요청을 처리하는 데 필요한 권한이 아니므로, MCP Server는 challenge나 `scopes_supported`에 넣지 않는다.
 
-## 10.6 웹 agent: 대화 안 consent 카드
+## 10.6 web agent: 대화 안 consent 카드
 
 scope를 늘리려면 사용자가 Authorization Server의 consent 화면에서 허락해야 한다.
 consent 화면은 사용자의 browser에 뜨는데, `403`을 받는 곳은 agent 서버다.
@@ -530,7 +532,7 @@ public Publisher<Boolean> handle(HttpRequestSnapshot requestSnapshot, HttpRespon
 
 SDK는 `401`·`403`을 받으면 이 handler를 부른다.
 handler가 `false`를 돌려주면 SDK는 원래 오류를 호출한 쪽에 전한다(`true`의 동작은 10.7).
-웹 agent는 이 자리에서 새 token을 받을 수 없으므로, 다시 보내지 않고 필요한 scope를 담은 예외를 던진다.
+web agent는 이 자리에서 새 token을 받을 수 없으므로, 다시 보내지 않고 필요한 scope를 담은 예외를 던진다.
 
 `StepUpToolExecutionExceptionProcessor#process`는 이 예외를 원인 사슬에서 찾는다.
 MCP SDK와 Spring AI가 예외를 한두 겹 감싸기 때문이다.
@@ -598,7 +600,7 @@ agent는 기동한 뒤 처음 login을 시작할 때 한 번 보내고, 그 결�
 
 아래 두 표의 `resource=http://localhost:8141/mcp`는 PRM의 `resource`에서 온 값이다.
 
-**웹 agent**
+**web agent**
 
 | 요청 | 결과 | scope |
 |---|---|---|
@@ -635,7 +637,7 @@ step-up의 consent 화면에서 `products:write`를 체크하지 않거나 Cance
 
 **시점별 access token의 scope**
 
-| 시점 | 웹 agent | `local-client` |
+| 시점 | web agent | `local-client` |
 |---|---|---|
 | 처음 login | `openid products:read` | `products:read` |
 | step-up에서 `products:write`를 빼고 제출 | `openid products:read` 그대로다. 다음 `403`에는 거절 안내가 간다 | 새 token은 `products:read`다. 앱은 `실패: products:write 권한을 받지 못했다`를 찍고 끝난다 |
@@ -651,7 +653,7 @@ scope가 모자라 거절한 요청을 로그에 남길 때 MCP Server는 이 �
 
 - agent 자기 신원: 이 장의 두 client는 늘 사용자를 대신한다. 사용자 없이 agent 자신의 권한으로 부르는 방법은 [MCP Authorization Extensions](https://github.com/modelcontextprotocol/ext-auth)의 client credentials 확장(Draft)이 다룬다.
 - 조직이 대신하는 승인: 조직의 identity provider가 사용자 대신 승인해, 사용자가 consent 화면을 거치지 않게 하는 Enterprise-Managed Authorization도 같은 확장 모음에 있다.
-- 위임 사슬의 token exchange: MCP Server가 뒤쪽 API를 부를 때는 받은 token을 그대로 넘기지 않는다([8장](08-security.md)). 더 좁은 token을 받는 방법으로 RFC 8693 token exchange가 있고, 새 token의 `act` claim에는 사용자를 대신해 부른 쪽이 적힌다. MCP 명세 본문은 token passthrough 금지까지만 정한다.
+- 위임 사슬의 token exchange: MCP Server가 downstream API를 부를 때는 받은 token을 그대로 넘기지 않는다([8장](08-security.md)). 더 좁은 token을 받는 방법으로 RFC 8693 token exchange가 있고, 새 token의 `act` claim에는 사용자를 대신해 부른 쪽이 적힌다. MCP 명세 본문은 token passthrough 금지까지만 정한다.
 - tool 정의의 scope: tool 정의에 필요한 scope를 적는 표준 field는 없다. OpenAI Apps SDK의 `securitySchemes`를 표준에 넣자는 [SEP-1488](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1488)은 Draft다.
 - 사용자별 tool 목록: 지금 token의 scope가 아니라 사용자의 역할로 tool 목록을 거르는 서버는 [12장](12-tool-visibility.md)에서 다룬다.
 
@@ -676,7 +678,7 @@ curl -i -X POST http://localhost:8141/mcp "${H[@]}" -d "$INIT"
 curl http://localhost:8141/.well-known/oauth-protected-resource/mcp
 ```
 
-**웹 agent**: browser로 `http://localhost:8140`을 열고 `user`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
+**web agent**: browser로 `http://localhost:8140`을 열고 `user`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
 `p1 재고 알려 줘`에는 재고를 답하고, `p1 재고를 10개로 바꿔 줘`에는 답 대신 consent 카드가 뜬다.
 "권한 허용" 뒤 consent 화면에서 `products:write`를 체크하면 질문이 다시 가고 재고가 바뀐다.
 체크하지 않으면 거절 안내를 볼 수 있다.
@@ -690,7 +692,7 @@ Spring AI가 tool 예외를 채팅 응답까지 전하면서 남기는 줄이라
 **token이 필요한 요청**: 캡처 스크립트 `docs/superpowers/captures/mcp-authz-walkthrough.sh`로 본다.
 스크립트를 통째로 돌리면 1\~3단계와 일부 허락이 한 번에 기록된다(출력의 JWT는 앞 20자만 남는다).
 저장된 consent가 없어야 consent 화면이 나오므로, 스크립트는 `./stop.sh`와 `./run.sh`로 다시 띄운 직후에 돌린다.
-스크립트가 `products:write`까지 consent한 기록을 남기므로, 웹 agent는 스크립트보다 먼저 해 보거나 다시 띄운 뒤에 해 본다.
+스크립트가 `products:write`까지 consent한 기록을 남기므로, web agent는 스크립트보다 먼저 해 보거나 다시 띄운 뒤에 해 본다.
 아래 명령을 직접 보내려면 `READ_TOKEN`에 `products:read`만 담긴 access token을 넣는다.
 이 token은 스크립트 안의 login부터 token request까지의 curl 명령을 차례로 실행해 받는다.
 token은 5분 뒤 만료된다.
@@ -722,7 +724,7 @@ browser가 두 번 열린다.
 - MCP Server는 `401`의 `scope`와 PRM의 `scopes_supported`에 조회 scope만 알리고, client는 그 값만 요청해 시작한다.
 - 권한이 모자라면 MCP Server는 transport 앞의 filter에서 `403 insufficient_scope`로 알린다. 이 filter는 transport와 같은 규칙으로 본문을 읽고, 다르게 읽힐 수 있는 본문은 `400`으로 거절한다.
 - client는 가진 scope와 challenge의 scope를 합쳐 다시 authorization을 받는다. 사용자는 일부만 허락할 수 있고, client는 거절된 scope로 step-up을 되풀이하지 않는다.
-- 웹 agent는 `403`을 채팅의 consent 카드로 전하고, 사용자 기기의 앱은 그 자리에서 browser를 연다. 어느 쪽이든 새 token은 새로 만든 요청에 붙는다.
+- web agent는 `403`을 채팅의 consent 카드로 전하고, 사용자 기기의 앱은 그 자리에서 browser를 연다. 어느 쪽이든 새 token은 새로 만든 요청에 붙는다.
 
 ## 10.14 명세 근거
 

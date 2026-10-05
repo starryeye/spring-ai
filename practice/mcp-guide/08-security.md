@@ -6,7 +6,7 @@
 이 장은 같은 흐름을 공격자 쪽에서 본다.
 확인 하나가 빠지면 누가 무엇을 얻는지 보면, 그 확인이 왜 있는지 분명해진다.
 
-공격자가 서는 자리는 다섯 가지다.
+공격자가 있을 수 있는 자리는 다섯 가지다.
 악성 MCP Server, 사용자가 여는 악성 링크나 web page, 같은 기기의 다른 프로그램, 네트워크 경로, 그리고 새어 나간 token이나 session ID를 가진 사람이다.
 막는 장치는 모두 앞 장에서 설명했다.
 여기서는 공격 과정에 집중하고, 막는 장치의 자세한 설명은 그 장의 링크로 넘긴다.
@@ -43,7 +43,7 @@ client가 이 issuer의 metadata를 찾으면, 밖에서는 닿지 않는 이 �
 이렇게 서버가 공격자 대신 요청을 보내게 만드는 공격이 SSRF(Server-Side Request Forgery)다.
 SSRF는 서버에서 도는 client의 문제라서, official에서는 `shop-agent`가 이 공격의 대상이다.
 
-`authorization_endpoint`가 `javascript:` 주소이면, 사용자 기기의 client가 그 주소를 여는 순간 공격자의 script가 돈다.
+`authorization_endpoint`가 `javascript:` 주소이면, 사용자 기기의 client가 그 주소를 여는 순간 공격자의 script가 실행된다.
 
 **막는 것**
 
@@ -287,8 +287,8 @@ official이 session을 사용자에 묶지 않는 이유와 묶는 방법은 [6�
 ## 8.11 다루지 않는 것
 
 - Security Best Practices의 Local MCP Server Compromise와 stdio proxy 공격: 사용자 기기에서 client가 명령으로 띄우는 서버의 문제다. 이런 서버는 주로 stdio로 통신하고, stdio에는 OAuth를 쓰지 않는다([1장](01-mcp-basics.md)).
-- Scope Minimization: official은 인증된 요청에 모든 tool을 허용한다. scope를 고르는 순서와 step-up authorization의 개념은 [5장](05-authorization-and-token.md)과 [6장](06-mcp-call-and-validation.md)에 있고, scope 설계는 별도 practice의 주제다.
-  최소 scope로 시작해 필요할 때 늘리는 방법은 [10장](10-scope-and-step-up.md)에서 `mcp-security-authz` practice로 다룬다.
+- Scope Minimization: official은 인증된 요청에 모든 tool을 허용한다. scope를 고르는 순서와 step-up authorization의 개념은 [5장](05-authorization-and-token.md)과 [6장](06-mcp-call-and-validation.md)에 있다.
+  최소 scope로 시작해 필요할 때 늘리는 scope 설계는 [10장](10-scope-and-step-up.md)에서 `mcp-security-authz` practice로 다룬다.
 
 ## 8.12 직접 해 보기
 

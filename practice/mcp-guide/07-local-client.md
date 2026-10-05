@@ -144,7 +144,7 @@ callback server는 처음 온 callback만 결과로 쓰고, browser가 함께 �
 
 주소를 만들기 전에 `Main`은 요청 하나에만 쓸 값 두 개를 만든다.
 `Pkce.generate()`는 `code_verifier`와 `code_challenge`를 만든다(코드는 5장).
-`state`는 16 byte 난수를 base64url로 쓴 값이다.
+`state`는 16 byte 난수를 base64url로 인코딩한 값이다.
 두 값은 `Main`의 지역 변수로만 남고, 파일이나 다른 곳에 저장하지 않는다.
 
 ```java
@@ -185,9 +185,9 @@ MCP Server가 `scope`나 `scopes_supported`를 알려 주면, client는 그 값�
 
 `Browser.open`은 `java.awt.Desktop`의 `browse`로 운영체제의 기본 browser를 연다.
 앱 안에 login 화면을 직접 그리지 않는 데는 이유가 있다.
-앱이 그린 화면이라면 앱은 사용자가 입력하는 password를 볼 수 있다.
+앱이 그린 화면이라면 앱은 사용자가 입력하는 비밀번호를 볼 수 있다.
 사용자도 주소창을 볼 수 없어서, 진짜 Authorization Server의 화면인지 알 수 없다.
-기본 browser로 열면 password는 Authorization Server에만 가고, browser에 남은 login session도 그대로 쓴다.
+기본 browser로 열면 비밀번호는 Authorization Server에만 가고, browser에 남은 login session도 그대로 쓴다.
 
 `local-client`는 browser를 열기 전에 주소를 terminal에도 찍는다.
 browser를 열 수 없는 환경이면, 사용자가 그 주소를 같은 기기의 browser에 붙여 넣는다.
@@ -311,7 +311,7 @@ cd practice/mcp-security-authn-official
 
 `run.sh`는 `shop-agent`가 쓸 ollama와 `qwen3:8b` 모델도 준비한다.
 두 서버만 띄우려면 terminal 두 개에서 `practice/mcp-security-authn-official/auth-server`와 `practice/mcp-security-authn-official/shop-mcp-server`로 가서 각각 `./gradlew bootRun`을 실행한다.
-`run.sh`는 Java 21을 스스로 찾지만, `./gradlew bootRun`과 아래의 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 돈다.
+`run.sh`는 Java 21을 스스로 찾지만, `./gradlew bootRun`과 아래의 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 실행된다.
 
 **`local-client` 실행**
 

@@ -3,7 +3,7 @@
 ## 9.1 버전 차이가 문제가 되는 경우
 
 MCP 명세는 `2025-11-25`처럼 날짜로 버전을 나눈다.
-client와 server는 같은 버전의 규칙을 따라야 서로를 이해한다([1장](01-mcp-basics.md)).
+client와 서버는 같은 버전의 규칙을 따라야 서로를 이해한다([1장](01-mcp-basics.md)).
 버전이 다르면 한쪽이 기대하는 단계를 다른 쪽이 모른다.
 2025-03-26만 아는 client는 PRM을 찾지 않고, MCP Server와 같은 host에서 Authorization Server Metadata를 찾는다.
 2026-07-28만 아는 client는 `initialize` 없이 처음부터 `tools/list`를 보낸다.
@@ -138,14 +138,14 @@ metadata가 `iss`를 넣는다고 알렸는데 `iss`가 없을 때만 응답을 
 
 **바뀐 이유**
 
-`initialize`로 협상한 버전과 capability는 그 연결의 상태로 server에 남는다.
+`initialize`로 협상한 버전과 capability는 그 연결의 상태로 서버에 남는다.
 서버가 여러 대면 다음 요청도 그 상태를 가진 서버로 가야 해서, 요청을 고르게 나눠 주는 보통의 load balancer를 쓰기 어렵다.
 그 서버가 죽으면 client는 다시 `initialize`부터 해야 한다.
 명세 변경 제안(SEP) 가운데 SEP-2575가 `initialize`를 없앤 이유다.
 
 session은 언제 시작해 언제 끝나는지가 client마다 달랐다.
 tool 호출마다 새로 여는 client도, 앱을 켤 때 열어 끌 때까지 쓰는 client도 있었다.
-그래서 session에 둔 장바구니 같은 상태가 어떤 client에서는 다음 호출 때 사라지고, 어떤 client에서는 모든 대화가 그 상태를 함께 쓴다.
+그래서 session에 둔 장바구니 같은 상태가 어떤 client에서는 다음 호출 때 사라졌고, 어떤 client에서는 모든 대화가 그 상태를 함께 썼다.
 SEP-2567이 session을 없앤 이유다.
 
 **바뀐 것**
@@ -170,17 +170,17 @@ sequenceDiagram
 | 항목 | 2025-11-25 | 2026-07-28 |
 |---|---|---|
 | 버전·capability | `initialize`에서 한 번 협상한다 | 요청마다 `_meta`에 넣는다. HTTP에서는 `MCP-Protocol-Version` header와 값이 같아야 한다 |
-| server가 모르는 버전 | `initialize` 응답에 지원하는 다른 버전을 적는다 | `400`과 `UnsupportedProtocolVersionError`(`-32022`)에 지원 버전 목록을 담는다. `server/discover`로 미리 물을 수도 있다 |
+| 서버가 모르는 버전 | `initialize` 응답에 지원하는 다른 버전을 적는다 | `400`과 `UnsupportedProtocolVersionError`(`-32022`)에 지원 버전 목록을 담는다. `server/discover`로 미리 물을 수도 있다 |
 | session | `Mcp-Session-Id`를 쓰고 `DELETE`로 끝낸다 | 없다 |
 | 새 요청 header | — | `Mcp-Method`, `tools/call` 같은 요청에는 `Mcp-Name` |
 
 요청 형식은 9.9의 curl 명령에서 본다.
-`Authorization` header는 전처럼 요청마다 넣고, session이 없으니 server가 사용자를 아는 방법은 token뿐이다.
+`Authorization` header는 전처럼 요청마다 넣고, session이 없으니 서버가 사용자를 아는 방법은 token뿐이다.
 
 **상태는 tool 인자의 handle로**
 
-호출 사이의 상태는 server가 만든 식별자(handle)로 가리킨다.
-server는 handle을 tool 결과로 돌려주고, LLM은 다음 호출의 인자로 넘긴다.
+호출 사이의 상태는 서버가 만든 식별자(handle)로 가리킨다.
+서버는 handle을 tool 결과로 돌려주고, LLM은 다음 호출의 인자로 넘긴다.
 
 ```text
 create_basket()                                → {"basket_id": "bsk_a1b2c3"}
@@ -192,7 +192,7 @@ handle은 protocol의 기능이 아니라 tool을 설계하는 방법이다.
 `basket_id`는 평범한 문자열 인자다.
 session과 달리 LLM은 장바구니를 여럿 만들 수도, 한 `basket_id`를 여러 agent에게 나눠 줄 수도 있다.
 handle은 채팅 기록에 남으므로, 가졌다는 것만으로 권한을 주지 않는다.
-authorization을 쓰는 server는 호출마다 handle과 token의 사용자를 함께 보고, 그 사용자의 장바구니인지 확인한다.
+authorization을 쓰는 서버는 호출마다 handle과 token의 사용자를 함께 보고, 그 사용자의 장바구니인지 확인한다.
 [6장](06-mcp-call-and-validation.md)에서 session을 사용자에 묶던 일이 2026-07-28에서는 이 확인으로 바뀐다.
 official의 tool은 호출 사이에 상태를 두지 않아서 handle이 필요 없다.
 [11장](11-stateless-and-handle.md)에서는 요청 형식은 2025-11-25 그대로 두고, `mcp-stateless-handle` practice로 이 방식을 써 본다.
@@ -201,15 +201,15 @@ official의 tool은 호출 사이에 상태를 두지 않아서 handle이 필요
 
 2026-07-28은 `_meta` 방식만 구현하면 modern, `initialize` 방식만 구현하면 legacy, 둘 다 구현하면 dual-era라고 부른다.
 
-| client | server | 결과 |
+| client | 서버 | 결과 |
 |---|---|---|
 | dual-era | legacy | modern 요청을 먼저 보낸다. `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 |
 | modern | legacy | 실패한다. client는 사용자에게 오류를 보여 준다 |
 | legacy | modern | 필요한 header가 없어 `400`으로 실패한다. legacy client에게는 새 버전으로 넘어갈 방법이 없다 |
-| legacy | dual-era | server가 `initialize`에 답하고 legacy 버전으로 통신한다 |
+| legacy | dual-era | 서버가 `initialize`에 답하고 legacy 버전으로 통신한다 |
 
 modern 오류란 `UnsupportedProtocolVersionError`처럼 2026-07-28이 정한 JSON-RPC 오류다.
-modern만 지원하는 server는 옛 client의 `GET`·`DELETE`에 `405`로 답하고, `Mcp-Session-Id`는 무시한다.
+modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답하고, `Mcp-Session-Id`는 무시한다.
 
 ## 9.8 official이 따르는 기준
 
@@ -231,7 +231,7 @@ public interface ProtocolVersions {             // MCP Java SDK 2.0.0 (mcp-core)
 }
 ```
 
-server는 `initialize`에서 이 가운데 하나로 협상하고, official의 `McpProtocolVersionFilter`도 이 네 값만 받는다([6장](06-mcp-call-and-validation.md)).
+서버는 `initialize`에서 이 가운데 하나로 협상하고, official의 `McpProtocolVersionFilter`도 이 네 값만 받는다([6장](06-mcp-call-and-validation.md)).
 SDK와 Spring AI 2.0.0의 MCP module에는 `_meta`로 버전을 받는 처리도, `server/discover`도 없다.
 `spring.ai.mcp.server.protocol: STATELESS`도 session ID를 주지 않을 뿐, `initialize`를 받는 2025-11-25 방식이다.
 
@@ -271,7 +271,7 @@ Mcp-Session-Id: 8b9aaa29-a37f-4f3c-a2f8-bbd8793198d5
 {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","...":"그 밖의 field는 생략"}}
 ```
 
-server는 모르는 버전을 거절하지 않고, 아는 가장 새 버전 `2025-11-25`로 답한다([1장](01-mcp-basics.md)의 버전 협상).
+서버는 모르는 버전을 거절하지 않고, 아는 가장 새 버전 `2025-11-25`로 답한다([1장](01-mcp-basics.md)의 버전 협상).
 `2025-11-25`를 모르는 client라면 여기서 연결을 끊는다.
 스크립트는 협상 결과와 달리 뒤 요청에도 `2026-07-28`을 보내므로, 8\~10단계(`notifications/initialized`, `tools/list`, `tools/call`)는 모두 `400`이다.
 
@@ -295,7 +295,7 @@ Content-Type: application/json;charset=UTF-8
 
 8단계와 같은 `McpProtocolVersionFilter`의 응답이다.
 `-32600`은 `UnsupportedProtocolVersionError`(`-32022`)가 아니고, 지원 버전 목록도 없다.
-그래서 dual-era client는 official을 legacy server로 보고 `initialize`로 돌아간다.
+그래서 dual-era client는 official을 legacy 서버로 보고 `initialize`로 돌아간다.
 
 ## 9.10 정리
 
@@ -314,9 +314,9 @@ Content-Type: application/json;charset=UTF-8
 | DCR 지원은 2025-06-18까지 권장, 2025-11-25부터 선택이고 CIMD 지원을 권한다. 2026-07-28에서 DCR은 deprecated다 | [MCP 2025-06-18 Authorization — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#dynamic-client-registration), [MCP 2025-11-25 Authorization — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview), [MCP 2026-07-28 Key Changes — Deprecated](https://modelcontextprotocol.io/specification/2026-07-28/changelog#deprecated) | SHOULD, MAY |
 | Authorization Server는 callback에 `iss`를 넣는다. client는 issuer를 기록하고, code를 보내기 전에 `iss`가 있으면 기록한 issuer와 비교한다 | [MCP 2026-07-28 Authorization — Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation) | SHOULD, MUST |
 | credentials는 발급한 issuer에 묶고 다른 서버에 다시 쓰지 않는다. 맞지 않으면 오류를 보여 준다 | [MCP 2026-07-28 Client Registration — Authorization Server Binding](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#authorization-server-binding) | MUST, MUST NOT, SHOULD |
-| 2025-11-25의 server는 요청받은 버전을 모르면 지원하는 다른 버전으로 답한다 | [MCP 2025-11-25 Lifecycle — Version Negotiation](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#version-negotiation) | MUST |
-| 2026-07-28은 `initialize`를 없애고 요청마다 `_meta`와 header(`MCP-Protocol-Version`·`Mcp-Method`·`Mcp-Name`)를 보내며, header의 버전이 `_meta`와 다르면 server는 `400`과 `HeaderMismatch`로 거절한다. 모르는 버전에는 `400`과 `UnsupportedProtocolVersionError`로 답하고, server는 `server/discover`를 구현한다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [SEP-2575](https://modelcontextprotocol.io/seps/2575-stateless-mcp) | MUST, REQUIRED |
-| 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 server는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
+| 2025-11-25의 서버는 요청받은 버전을 모르면 지원하는 다른 버전으로 답한다 | [MCP 2025-11-25 Lifecycle — Version Negotiation](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#version-negotiation) | MUST |
+| 2026-07-28은 `initialize`를 없애고 요청마다 `_meta`와 header(`MCP-Protocol-Version`·`Mcp-Method`·`Mcp-Name`)를 보내며, header의 버전이 `_meta`와 다르면 서버는 `400`과 `HeaderMismatch`로 거절한다. 모르는 버전에는 `400`과 `UnsupportedProtocolVersionError`로 답하고, 서버는 `server/discover`를 구현한다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [SEP-2575](https://modelcontextprotocol.io/seps/2575-stateless-mcp) | MUST, REQUIRED |
+| 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
 | dual-era client는 modern 요청을 먼저 보내고, `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 | [MCP 2026-07-28 Streamable HTTP — Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility) | MAY, SHOULD |
 
 [← 8장](08-security.md) · [목차](README.md) · [10장 →](10-scope-and-step-up.md)

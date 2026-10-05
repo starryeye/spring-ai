@@ -39,3 +39,5 @@ MCP 서버	MCP Server
 인젝션	injection
 게이트웨이	gateway
 클레임	claim
+웹	web
+캐시	cache

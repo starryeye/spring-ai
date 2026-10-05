@@ -46,7 +46,7 @@ client가 사용자 대신 실제로 할 수 있는 일은 권한과 scope가 �
 
 이 장의 practice `mcp-tool-visibility`는 11장의 `mcp-stateless-handle`에 사용자 역할을 더한다.
 `user`는 점원이라 tool 7개를 모두 보고, `user2`는 손님이라 `updateStock`을 뺀 6개를 본다.
-웹 agent는 이렇게 사용자마다 다른 목록을 access token별로 cache한다(12.7).
+web agent는 이렇게 사용자마다 다른 목록을 access token별로 cache한다(12.7).
 
 ## 12.2 시퀀스 다이어그램
 
@@ -83,7 +83,7 @@ sequenceDiagram
 | 3단계 (7)\~(12): 받을 수 있는 tool은 step-up한다 | `403`과 `scope="products:write"`. 그 뒤는 10장과 같다 |
 
 (9)(10)은 10장의 step-up을 줄여 그렸다.
-그림은 사용자마다 client를 나눠 그렸지만, 웹 agent에서는 MCP client 하나를 모든 사용자가 같이 쓰고 요청마다 그 사용자의 token을 붙인다.
+그림은 사용자마다 client를 나눠 그렸지만, web agent에서는 MCP client 하나를 모든 사용자가 같이 쓰고 요청마다 그 사용자의 token을 붙인다.
 
 아래 예시는 `practice/mcp-tool-visibility`를 실제로 띄워 받은 값이다.
 Authorization Server는 `http://localhost:9050`, MCP Server는 `http://localhost:8161/mcp`, agent는 `http://localhost:8160`이다.
@@ -195,7 +195,7 @@ curl로 이렇게 받은 token의 `scope`는 `["openid","products:read","product
 그래도 이 token으로 받은 목록은 6개이고, `updateStock(p1, 10)`은 같은 "모르는 tool" 오류이며, 호출 전후의 `getStock(p1)` 결과는 모두 재고 7개다.
 MCP Server는 token의 scope가 아니라 역할로 숨길지를 정하기 때문이다.
 Security Best Practices도 token에 적힌 scope만 믿고 서버 쪽 권한 판단을 하지 않는 것을 흔한 실수로 꼽는다.
-MCP Server가 손님에게 `products:write`를 요구하는 `403`을 보내지 않으므로, 웹 agent와 `local-client`가 이 scope를 요청할 일은 없다.
+MCP Server가 손님에게 `products:write`를 요구하는 `403`을 보내지 않으므로, web agent와 `local-client`가 이 scope를 요청할 일은 없다.
 
 ## 12.5 3단계: 받을 수 있는 tool은 그대로 step-up
 
@@ -208,7 +208,7 @@ WWW-Authenticate: Bearer error="insufficient_scope", scope="products:write", res
 ```
 
 MCP Server의 로그에는 `scope 부족 — 사용자=user, client_id=visibility-shop-agent, tool=updateStock, 필요한 scope=products:write, 가진 scope=[openid, products:read]`가 남는다.
-그 뒤의 흐름은 [10장 웹 agent의 consent 카드](10-scope-and-step-up.md#106-웹-agent-대화-안-consent-카드)와 같다.
+그 뒤의 흐름은 [10장 web agent의 consent 카드](10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드)와 같다.
 browser에서 점원이 "권한 허용"을 누르면 consent 화면의 새 체크박스는 `products:write` 하나다.
 허락하면 질문이 다시 가고, MCP Server에는 `updateStock 호출 (productId=p1, quantity=10, 사용자=user)`가 찍힌다.
 
@@ -270,7 +270,7 @@ Authorization Server는 client 등록에 없는 scope를 `invalid_scope`로 거�
 그래서 등록 scope가 `products:read`뿐인 읽기 전용 client는 점원이 써도 `products:write`를 받을 수 없고, MCP Server는 token의 `client_id`를 보고 쓰기 tool을 숨길 수 있다.
 이 practice의 두 client는 세 scope가 모두 등록되어 있어서, 이 경우는 코드로 다루지 않는다.
 
-## 12.7 웹 agent: 사용자별 tool 목록 cache
+## 12.7 web agent: 사용자별 tool 목록 cache
 
 **목록 하나를 같이 쓰면 한 사용자의 목록이 다른 사용자에게 간다**
 
@@ -288,7 +288,7 @@ MCP client는 여전히 하나이고, 목록을 받는 `tools/list`에는 질문
 
 | field | 뜻 | client가 할 일 |
 |---|---|---|
-| `ttlMs` | 결과를 새것으로 봐도 되는 시간(ms)이다. HTTP의 `Cache-Control: max-age`와 비슷하다 | 받은 때부터 이 시간 안에는 다시 받지 않는다. 지나면 다음에 필요할 때 다시 받는다 |
+| `ttlMs` | 결과를 새것으로 봐도 되는 시간(ms)이다. HTTP의 `Cache-Control: max-age`와 비슷하다 | 받은 뒤 이 시간 안에는 다시 받지 않는다. 지나면 다음에 필요할 때 다시 받는다 |
 | `cacheScope` | `"public"`은 모든 사용자에게 같은 결과, `"private"`은 사용자마다 다른 결과다 | `"private"` 결과는 같은 authorization context에서만 다시 쓴다. access token이 다르면 cache도 따로 둔다 |
 
 명세는 사용자마다 거른 목록에 `"private"`이 맞다고 하고, 그 밖의 규칙도 정한다.
@@ -331,7 +331,7 @@ key를 token 값 대신 SHA-256 hex로 두는 것은, cache를 로그에 찍거�
 - agent는 SSE stream을 시작하기 전에 요청 thread에서 목록을 꺼낸다. 그래서 목록을 새로 받다가 실패하면 화면에는 `오류: HTTP 500`만 나오고, 원인은 `logs/shop-agent.log`에 있다.
 - 목록이 바뀌었다는 알림은 받지 않는다. stateless MCP Server는 GET stream에 `405`로 답하므로([11장 1단계](11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답)), agent는 TTL이 지났을 때, token이 바뀌었을 때, "모르는 tool" 오류가 왔을 때만 다시 받는다.
 
-## 12.8 웹 agent: 목록에 없는 tool을 모델이 부를 때
+## 12.8 web agent: 목록에 없는 tool을 모델이 부를 때
 
 모델은 그 질문에 넣은 목록의 tool을 부른다.
 그래도 이 사용자에게 지금 보이는 목록에 없는 tool이 불리는 경우가 둘 있다.
@@ -355,7 +355,7 @@ tool loop는 `ToolExecutionException`만 잡으므로, 그대로 두면 채팅 s
 모델은 받은 목록에 없는 이름으로도 tool 호출을 만들 수 있다.
 손님의 목록에는 `updateStock`이 없지만, 손님이 재고를 바꿔 달라고 하면 모델이 이 이름을 지어낼 수 있다.
 이때 Spring AI는 MCP 요청을 보내기 전에 `No ToolCallback found for tool name: updateStock`이라는 `IllegalStateException`으로 stream을 끝내고, MCP Server는 이 호출을 보지 못한다.
-그대로 두면 화면에는 오류만 남고, 대화 기억에는 결과 없는 tool 호출이 남는다([11장 웹 agent의 대화 기억](11-stateless-and-handle.md#117-웹-agent-tool-결과까지-기억하는-대화)).
+그대로 두면 화면에는 오류만 남고, 대화 기억에는 결과 없는 tool 호출이 남는다([11장 web agent의 대화 기억](11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화)).
 그래서 `ChatEvents`는 이 오류를 원인 사슬에서 찾아, step-up 때처럼 그 turn을 대화 기억에서 되돌린다.
 그리고 `tool-unavailable` event(`{"tool":"updateStock"}`)를 보내고, 화면은 `이 계정에서는 updateStock을(를) 쓸 수 없습니다.`를 보여 준다.
 다음 질문은 그 turn이 시작되기 전의 기억에서 이어진다.
@@ -586,7 +586,7 @@ Spring AI 2.0.1에는 이 경우를 위한 예외 타입이 따로 없어서 메
 practice/mcp-tool-visibility/run.sh
 ```
 
-**웹 agent**: 보통 browser 창으로 `http://localhost:8160`을 열고 `user2`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
+**web agent**: 보통 browser 창으로 `http://localhost:8160`을 열고 `user2`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
 점원 `user`는 시크릿 창에서 login한다.
 보통 창들은 cookie를 함께 쓰고 agent 화면에는 logout이 없어서, 서버를 다시 띄우지 않고는 보통 창에서 다른 계정으로 login할 수 없기 때문이다.
 아래 순서대로 보내고, `practice/mcp-tool-visibility/logs/`의 `shop-mcp-server.log`와 `shop-agent.log`를 본다.
@@ -627,7 +627,7 @@ practice/mcp-tool-visibility/run.sh
 docs/superpowers/captures/mcp-visibility-walkthrough.sh > /tmp/visibility-walkthrough.txt
 ```
 
-스크립트는 두 사용자의 consent를 남기므로, 그 뒤에 웹 agent를 처음부터 해 보려면 서버를 다시 띄운다.
+스크립트는 두 사용자의 consent를 남기므로, 그 뒤에 web agent를 처음부터 해 보려면 서버를 다시 띄운다.
 
 **local-client**: `JAVA_HOME`을 Java 21로 맞춘 뒤 `practice/mcp-tool-visibility/local-client`에서 `./gradlew run`을 실행한다([practice README의 실행](../mcp-tool-visibility/README.md#실행)).
 처음 열린 browser에서 `user`나 `user2`로 login하고, step-up의 consent 화면에서는 `products:read`와 `orders:write`를 모두 체크한다.
@@ -645,7 +645,7 @@ docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility
 - 그래서 "이 사용자가 언젠가 받을 수 있는가"로 숨길지를 정하고, "지금 token에 있는가"는 부를 때 `403`으로 묻는다. 권한은 MCP Server가 알고, scope는 token에 있다.
 - 숨긴 tool의 호출에는 정말 없는 tool과 똑같은 JSON-RPC 오류로 답해, 그런 tool이 있다는 사실도 알리지 않는다. 검사는 보이는 tool인지를 tool의 scope보다 먼저 본다.
 - 목록이 사용자마다 다르면 client는 access token별로 cache한다. 2025-11-25 서버는 `ttlMs`를 주지 않으므로 client가 TTL을 정하고, token이 바뀌거나 "모르는 tool" 오류가 오면 다시 받는다.
-- 웹 agent는 낡은 목록의 "모르는 tool" 오류를 모델에게 돌려주고, 목록에 없는 이름의 호출은 turn을 되돌려 안내한다.
+- web agent는 낡은 목록의 "모르는 tool" 오류를 모델에게 돌려주고, 목록에 없는 이름의 호출은 turn을 되돌려 안내한다.
 
 ## 12.15 명세 근거
 
