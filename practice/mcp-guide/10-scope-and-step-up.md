@@ -547,7 +547,7 @@ MCP SDK와 Spring AI가 예외를 한두 겹 감싸기 때문이다.
 `step_up` 값 가운데 MCP Server가 실제로 `403`으로 요구한 scope만 받는 데도 이유가 있다.
 login 시작 주소 `/oauth2/authorization/authserver`는 `GET`이라서, 다른 사이트도 링크나 `<img>`로 사용자의 browser가 이 주소를 부르게 할 수 있다.
 `step_up` 값을 그대로 받아 준다면, 다른 사이트가 고른 권한의 consent 화면이 사용자 앞에 뜬다.
-step-up에서 요구된 scope와 시도한 scope는 `StepUpState`가 기록하는데, 이 객체는 HTTP session에 넣어 둔 채 값만 바뀐다.
+step-up에서 요구된 scope와 시도한 scope는 `StepUpState`가 기록하는데, 이 객체는 browser와 agent 사이의 HTTP session(login session)에 넣어 둔 채 값만 바뀐다.
 그래서 Spring Session(Redis 등)을 쓰면 값을 바꿀 때마다 `setAttribute`를 다시 불러야 한다.
 
 **local-client: `ScopeSelection`, `StepUp`, `McpCalls`**

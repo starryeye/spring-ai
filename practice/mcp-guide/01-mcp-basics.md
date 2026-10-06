@@ -267,6 +267,27 @@ HTTP/1.1 404  {"jsonRpcError":{"code":-32603,"message":"Session not found: d04dc
 두 본문은 Spring AI의 transport가 예외 객체를 그대로 JSON으로 만든 것이라, JSON-RPC 응답 형식이 아니고 stack trace까지 들어 있다. 그러니 client는 본문이 아니라 상태 코드로 판단한다.
 서버가 발급한 적 없는 session ID를 보내도 똑같이 `404`다. MCP Java SDK client는 `404`를 받으면 그 session을 버리고 `initialize`부터 다시 한다.
 
+**MCP session은 사용자의 login session이 아니다**
+
+web 개발에서 session이라고 하면 보통 login한 사용자를 기억하는 HTTP session(Servlet의 `HttpSession`)을 떠올린다.
+MCP session은 그런 사용자 session이 아니라, MCP client 하나와 MCP Server 하나 사이의 protocol 연결 하나를 가리킨다.
+그 안에 두는 것도 협상한 버전과 capability처럼, 두 프로그램이 MCP로 계속 주고받는 데 필요한 값이다.
+그렇다고 TCP 연결과 같은 것도 아니다.
+Streamable HTTP의 요청은 TCP 연결이 바뀌어도, 같은 session ID를 붙이면 같은 MCP session으로 이어진다.
+
+official에는 두 session이 함께 있어서 헷갈리기 쉽다.
+
+| | browser와 agent 사이의 login session | agent와 MCP Server 사이의 MCP session |
+|---|---|---|
+| 만드는 쪽 | agent(Spring Security)가 만들고, login한 사용자를 기억한다 | MCP Server가 `initialize`에 답할 때 만든다 |
+| 가리키는 것 | login한 사용자 한 명 | MCP client 객체 하나와 MCP Server 사이의 연결 하나 |
+| ID가 오가는 곳 | browser의 session cookie | `Mcp-Session-Id` header |
+| 안에 두는 것 | login한 사용자의 인증 정보 | 협상한 버전과 capability, 서버가 먼저 보내는 메시지의 stream |
+| 누구의 요청인지 | 알려 준다 | 알려 주지 않는다. 요청마다 붙는 access token이 알려 준다(6장) |
+
+official의 agent는 MCP client 하나를 모든 사용자가 같이 써서, 사용자가 여럿이어도 MCP session은 하나다(6장).
+browser와 Authorization Server 사이에도 login session이 따로 있고(5·7장), 이것도 MCP session과 상관없다.
+
 **session ID는 인증이 아니다**
 
 session ID는 어느 연결인지를 가리킬 뿐, 누가 보냈는지를 증명하지 않는다.
