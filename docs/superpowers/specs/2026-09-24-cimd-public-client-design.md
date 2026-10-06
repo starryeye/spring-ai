@@ -1,5 +1,7 @@
 # CIMD(Client ID Metadata Document)와 공개 클라이언트 지원 — 설계
 
+> **대체됨(2026-10-07):** 이 설계는 새 practice로 다시 설계한 [mcp-cimd 설계](2026-10-07-mcp-cimd-design.md)로 대체되었다. 아래는 보류 당시의 기록이다.
+
 > **상태: 보류(2026-09-24).** 별도 practice 로 분리해 나중에 진행한다. 이 문서는 그때 쓸 설계다.
 > 보류 시점의 결론: 클라이언트별 CIMD 지원이 갈린다 — Claude(Code·Desktop·Cowork)와 ChatGPT·Codex 는 지원하고,
 > Gemini CLI 는 아직 지원하지 않는다([gemini-cli#25724](https://github.com/google-gemini/gemini-cli/issues/25724)).
