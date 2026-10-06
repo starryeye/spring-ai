@@ -7,17 +7,40 @@
 session ID를 주는 서버는 이 값으로 그 session에 둔 상태를 찾는다.
 장바구니처럼 tool 호출 사이에 남아야 하는 상태도 session에 두기 쉽다.
 
+**MCP client 객체는 session을 들고 있다**
+
+여기서 MCP client는 코드로 보면 MCP Java SDK의 `McpSyncClient` 객체 하나다.
+Spring AI 자동 구성은 설정한 MCP 연결마다 이 객체를 하나씩 만들고, 앱 전체가 그 객체를 같이 쓴다.
+같이 쓰는 객체라고 해서 상태가 없는 것은 아니다.
+이 객체는 `initialize`로 협상한 버전과 서버의 capability, 서버가 준 session ID를 안에 들고 있다.
+그리고 그 뒤의 모든 요청에 같은 session ID를 붙인다.
+그래서 `McpSyncClient`는 요청마다 따로인 HTTP client보다 JDBC `Connection`에 가깝고, 객체 하나가 session 하나다.
+
 **MCP client 하나를 여러 사용자가 같이 쓰면 session의 상태가 섞인다**
 
 official과 authz의 agent는 MCP client 하나를 모든 사용자가 같이 써서, 어느 사용자의 요청이든 같은 session으로 간다([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)).
+서버가 받는 요청에는 사용자와 상관없이 같은 session ID가 붙고, `Authorization`의 token만 사용자마다 다르다.
 그래서 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보인다.
 앱을 끌 때 보내는 `DELETE`에는 붙일 사용자 token도 없다([준수표](reference-compliance.md) 36번).
 
 이 섞임은 여러 사용자가 session 하나를 같이 쓰고, 서버가 사용자 상태를 그 session에 둘 때만 생긴다.
 official과 authz의 tool은 session에 아무것도 두지 않아서, 실제로 섞인 적은 없다.
 MCP Server는 session이 아니라 요청마다 붙는 token으로 사용자를 구별하기 때문이다.
-agent가 사용자마다 MCP client를 따로 열면 session도 사용자마다 따로 생겨서, session에 둔 상태도 사용자끼리 섞이지 않는다.
+서버가 상태를 session ID가 아니라 token의 사용자로 찾으면, session을 같이 써도 상태는 섞이지 않는다.
+11.5의 handle도 같은 방식으로, 장바구니를 token의 사용자와 handle로 찾는다.
+다만 서버가 먼저 보내는 알림은 이렇게 나눌 수 없다.
+`notifications/tools/list_changed` 같은 알림은 session의 GET stream으로 가므로, 공유 session으로는 한 사용자에게만 보낼 수 없다.
+
+**session을 사용자에 묶으려면 client도 사용자마다 둔다**
+
+session을 사용자에 묶어, 다른 사용자가 그 session ID를 쓰지 못하게 할 수도 있다(6장).
+이때 묶는 대상은 token 값이 아니라 token의 사용자(`sub`)다.
+token은 refresh나 step-up 때마다 바뀌어서, token 값에 묶은 session은 그때마다 더 쓸 수 없게 된다.
+그런데 공유 client의 session을 첫 사용자에 묶으면, 같은 session ID를 들고 오는 다른 사용자의 요청은 거절해야 한다.
+그래서 session을 사용자에 묶으려면 agent가 사용자마다 `McpSyncClient`를 따로 만들어 각자 `initialize`한다.
+그러면 session도 사용자마다 따로 생겨서, session에 둔 상태도 사용자끼리 섞이지 않는다.
 앱을 끌 때 보내는 `DELETE`에도 그 사용자의 token을 붙일 수 있다([`mcp-security-authn-chat-memory`](../mcp-security-authn-chat-memory/README.md#사용자별-mcp-client의-필요성)).
+
 ChatGPT와 claude.ai의 connector도 사용자마다 그 사용자가 login해 받은 token으로 MCP Server를 부른다([2장](02-why-oauth.md#23-client의-두-종류-confidential-client와-public-client)).
 게다가 [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp)을 쓸 무렵(2026년 3월)에 ChatGPT는 tool 호출마다 새 session을 열었고, claude.ai도 그 얼마 전까지 그랬다.
 그런 client에서는 session에 둔 상태가 다음 호출까지 남지도 않는다.
