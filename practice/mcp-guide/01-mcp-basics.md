@@ -27,7 +27,7 @@ flowchart LR
 | 역할 | 하는 일 | official practice에서 |
 |---|---|---|
 | host | 사용자가 쓰는 LLM 앱이다. LLM을 호출하고, 붙일 MCP Server마다 MCP client를 만든다 | `shop-agent` |
-| MCP client | host 안에서 MCP Server 하나와 연결을 맺고 메시지를 주고받는다 | `shop-agent` 안의 Spring AI MCP client |
+| MCP client | host 안에서 MCP Server 하나와 연결을 맺고 메시지를 주고받는다 | `shop-agent` 안에서 Spring AI가 만든 `McpSyncClient` 객체 |
 | MCP Server | tool 같은 기능을 제공하는 프로그램이다 | `shop-mcp-server` |
 
 Claude Desktop이나 ChatGPT 같은 앱이 host다. MCP client와 MCP Server는 1:1로 짝을 짓고, MCP Server는 LLM을 직접 부르지 않는다.
@@ -248,6 +248,7 @@ HTTP 요청은 서로 독립적이어서, 서버는 앞 요청을 기억하지 �
 `tools/list`를 받은 서버는 이 요청이 어느 `initialize` 뒤에 온 것인지 알 수 없다.
 그래서 서버는 `initialize` 응답에 session ID를 주고, client는 이후 요청마다 그 값을 돌려보낸다.
 서버는 이 값으로 그 연결에서 협상한 버전과 capability를 찾는다.
+client 쪽에서는 MCP Java SDK의 `McpSyncClient` 객체가 session ID와 협상한 버전을 안에 들고 있다가 요청마다 붙인다.
 
 - 서버는 `initialize` 응답의 `Mcp-Session-Id` header로 session ID를 준다. session을 쓰지 않는 서버는 주지 않는다.
 - 받은 client는 이후 모든 요청(`POST`·`GET`·`DELETE`)에 같은 값을 넣는다.
@@ -371,7 +372,7 @@ spring:
 
 **Agent: tool을 쓰는 쪽**
 
-`shop-agent`가 host다. 이 앱 안의 Spring AI MCP client가 `shop-mcp-server`와 연결을 맺는다.
+`shop-agent`가 host다. 이 앱 안에서 Spring AI가 만든 MCP client(`McpSyncClient` 객체)가 `shop-mcp-server`와 연결을 맺는다.
 
 ```yaml
 spring:
@@ -386,7 +387,7 @@ spring:
               url: "http://localhost:8111"  # endpoint는 기본값 /mcp
 ```
 
-`connections` 아래 항목 하나가 MCP client 하나다. `initialized: false`로 두면 MCP client를 처음 쓸 때까지 `initialize`를 미룬다.
+`connections` 아래 항목 하나가 MCP client(`McpSyncClient` 객체) 하나다. `initialized: false`로 두면 MCP client를 처음 쓸 때까지 `initialize`를 미룬다.
 앱이 뜨는 시점에는 아직 login한 사용자가 없어서 보낼 token도 없다. MCP Server는 token 없는 요청에 `401`을 주므로, 첫 채팅 요청이 올 때 그 사용자의 token으로 초기화한다(6장).
 
 MCP client가 받은 tool은 저절로 LLM에게 가지 않는다. `ChatClientConfig`의 한 줄이 둘을 잇는다.
