@@ -303,6 +303,7 @@ session은 Spring AI의 transport가 본다.
 
 ## 6.7 session과 사용자
 
+이 절의 session은 1장의 MCP session이고, browser와 agent 사이의 login session이 아니다.
 session ID를 알아낸 사람이 그 값을 보내면, 서버는 원래 client와 구별하지 못한다.
 이 공격이 session hijacking이다.
 official의 MCP Server는 두 가지로 이를 막는다.

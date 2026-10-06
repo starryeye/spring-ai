@@ -3,6 +3,7 @@
 ## 11.1 stateless의 필요성
 
 [1장](01-mcp-basics.md)에서 본 session은 서버가 `initialize` 응답의 `Mcp-Session-Id`로 주고, client가 이후 요청마다 돌려보내는 값이다.
+이 session은 사용자의 login session이 아니라, MCP client 하나와 MCP Server 사이의 protocol 연결 하나를 가리킨다.
 2025-11-25에서 session ID를 줄지는 서버가 정한다.
 session ID를 주는 서버는 이 값으로 그 session에 둔 상태를 찾는다.
 장바구니처럼 tool 호출 사이에 남아야 하는 상태도 session에 두기 쉽다.
