@@ -326,7 +326,7 @@ client가 받는 token은 사용자 한 명의 것이므로, client 하나와 �
 여러 사용자가 쓰는 서버에서 도는 agent도 token은 사용자별로 보관하므로, 이 구조를 따르려면 MCP client도 사용자별로 둔다.
 
 official의 agent는 이 구조를 따르지 않는다.
-Spring AI 자동 구성은 설정한 MCP 연결마다 앱 전체가 함께 쓰는 client 하나를 만든다.
+Spring AI 자동 구성은 설정한 MCP 연결마다 앱 전체가 함께 쓰는 client 객체(`McpSyncClient`) 하나를 만든다.
 이 구성은 앱 하나가 자기 신원 하나로 MCP Server를 부를 때 맞는다.
 official은 흐름을 단순하게 보이려고 이 client 하나를 모든 사용자가 같이 쓰게 두었다.
 그리고 요청마다 그 요청을 보낸 사용자의 token만 바꿔 붙인다(6.8).
