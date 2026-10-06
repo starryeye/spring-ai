@@ -177,6 +177,32 @@ sequenceDiagram
 요청 형식은 9.9의 curl 명령에서 본다.
 `Authorization` header는 전처럼 요청마다 넣고, session이 없으니 서버가 사용자를 아는 방법은 token뿐이다.
 
+**session ID가 없어져도 되는 이유**
+
+2025-11-25의 서버는 session ID를 key로 몇 가지를 기억해 두고, 요청이 오면 그 session ID로 찾아 쓴다.
+MCP Java SDK 2.0.1의 서버 쪽 session 객체 `McpStreamableServerSession`이 들고 있는 것은 다음과 같다.
+2026-07-28은 이것들을 하나씩 다른 곳으로 옮기므로, 서버가 session ID로 찾아야 할 것이 남지 않는다.
+
+| 서버가 session에 두던 것 | SDK의 field | 2026-07-28에서 옮겨 간 곳 |
+|---|---|---|
+| client의 capability | `clientCapabilities` | 요청마다 `_meta`의 `io.modelcontextprotocol/clientCapabilities` |
+| client 정보(이름과 버전) | `clientInfo` | 요청마다 `_meta`의 `io.modelcontextprotocol/clientInfo` |
+| log level | `minLoggingLevel` | 요청마다 `_meta`의 `io.modelcontextprotocol/logLevel`. `logging/setLevel`은 없어진다 |
+| 서버가 먼저 보내는 알림의 GET stream | `listeningStreamRef` | `subscriptions/listen`이다. client가 받을 알림 종류를 골라 여는, 오래 열린 POST 응답 stream이다 |
+| 서버가 client에게 보내는 요청(sampling, elicitation, roots) | `requestIdToStream` | 서버는 `input_required` 결과로 필요한 값을 알리고, client는 그 값을 넣어 원래 요청을 다시 보낸다(MRTR) |
+| 앱 상태(장바구니 등) | 없음. 서버 코드가 session에 둘 때 생긴다 | 서버가 만든 handle을 tool 인자로 주고받는다(아래) |
+
+협상한 버전은 2025-11-25에서도 요청마다 `MCP-Protocol-Version` header로 보내고([1장](01-mcp-basics.md)), 2026-07-28은 `_meta`의 `io.modelcontextprotocol/protocolVersion`에도 넣는다.
+client 쪽에서 `initialize` 응답으로 받아 두던 서버 정보는 결과마다 `_meta`의 `io.modelcontextprotocol/serverInfo`로 온다.
+서버의 capability와 지원 버전은 `server/discover`로 미리 물을 수 있다.
+
+`_meta`는 2026-07-28에서 새로 생긴 field가 아니다.
+2025-11-25에서도 진행 알림을 받으려는 요청은 `params._meta`에 `progressToken`을 넣는다.
+2026-07-28에서 새로 생긴 것은 `_meta` 안의 `io.modelcontextprotocol/...` key들이다.
+
+연결마다 한 번 정하던 값은 요청마다 보내고, 서버가 먼저 말을 거는 통로는 따로 만들고, 앱 상태는 handle로 들고 다닌다.
+그래서 서버는 session ID 없이 요청 하나만 보고 처리할 수 있다.
+
 **상태는 tool 인자의 handle로**
 
 호출 사이의 상태는 서버가 만든 식별자(handle)로 가리킨다.
@@ -317,6 +343,8 @@ Content-Type: application/json;charset=UTF-8
 | 2025-11-25의 서버는 요청받은 버전을 모르면 지원하는 다른 버전으로 답한다 | [MCP 2025-11-25 Lifecycle — Version Negotiation](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#version-negotiation) | MUST |
 | 2026-07-28은 `initialize`를 없애고 요청마다 `_meta`와 header(`MCP-Protocol-Version`·`Mcp-Method`·`Mcp-Name`)를 보내며, header의 버전이 `_meta`와 다르면 서버는 `400`과 `HeaderMismatch`로 거절한다. 모르는 버전에는 `400`과 `UnsupportedProtocolVersionError`로 답하고, 서버는 `server/discover`를 구현한다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [SEP-2575](https://modelcontextprotocol.io/seps/2575-stateless-mcp) | MUST, REQUIRED |
 | 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
+| 2026-07-28은 GET stream과 `resources/subscribe`를 `subscriptions/listen`으로, 서버가 client에게 보내는 요청을 MRTR로, `logging/setLevel`을 요청마다의 `_meta` log level로 바꾼다. client는 요청마다 `clientInfo`를, 서버는 결과마다 `serverInfo`를 `_meta`에 넣는다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Multi Round-Trip Requests](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr) | SHOULD, MUST NOT |
+| `progressToken`은 요청의 `params._meta`에 넣는다 | [MCP 2025-11-25 Progress](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress#progress-flow) | MUST |
 | dual-era client는 modern 요청을 먼저 보내고, `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 | [MCP 2026-07-28 Streamable HTTP — Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility) | MAY, SHOULD |
 
 [← 8장](08-security.md) · [목차](README.md) · [10장 →](10-scope-and-step-up.md)
