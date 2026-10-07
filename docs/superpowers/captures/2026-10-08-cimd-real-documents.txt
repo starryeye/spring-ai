@@ -1,0 +1,51 @@
+# 실제 제품의 CIMD 문서 — 2026-10-08 (curl)
+
+===== GET https://chatgpt.com/oauth/client.json =====
+HTTP/2 200 
+content-type: application/json; charset=utf-8
+cache-control: public, max-age=300
+{
+    "client_id": "https://chatgpt.com/oauth/client.json",
+    "client_uri": "https://chatgpt.com/",
+    "redirect_uris": [
+        "https://chatgpt.com/connector_platform_oauth_redirect"
+    ],
+    "token_endpoint_auth_method": "private_key_jwt",
+    "token_endpoint_auth_methods_supported": [
+        "none",
+        "private_key_jwt"
+    ],
+    "grant_types": [
+        "authorization_code",
+        "refresh_token"
+    ],
+    "response_types": [
+        "code"
+    ],
+    "client_name": "ChatGPT",
+    "logo_uri": "https://persistent.oaistatic.com/sonic/misc/openai-logo.png",
+    "token_endpoint_auth_signing_alg": "RS256",
+    "jwks_uri": "https://chatgpt.com/oauth/jwks.json"
+}
+
+===== GET https://claude.ai/oauth/claude-code-client-metadata =====
+HTTP/2 200 
+content-type: application/json
+cache-control: public, max-age=300
+{
+    "client_id": "https://claude.ai/oauth/claude-code-client-metadata",
+    "client_name": "Claude Code",
+    "client_uri": "https://claude.ai",
+    "redirect_uris": [
+        "http://localhost/callback",
+        "http://127.0.0.1/callback"
+    ],
+    "grant_types": [
+        "authorization_code",
+        "refresh_token"
+    ],
+    "response_types": [
+        "code"
+    ],
+    "token_endpoint_auth_method": "none"
+}
