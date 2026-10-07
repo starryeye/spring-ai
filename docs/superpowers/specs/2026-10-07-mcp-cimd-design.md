@@ -68,7 +68,7 @@ ChatGPT는 `private_key_jwt`, Claude 앱은 public client(`none`)다.
 | `http://localhost:9060` | `auth-server` | Authorization Server. 모든 client를 CIMD로 받는다 |
 | `http://localhost:8171/mcp` | `shop-mcp-server` | MCP Server. 12장 그대로 |
 | `http://localhost:8170` | `shop-agent` | 채팅 화면(browser가 여는 곳), redirect URI `http://localhost:8170/login/oauth2/code/authserver` |
-| `https://localhost:8172` | `shop-agent` | agent의 두 번째 connector. client 문서와 JWKS만 준다 |
+| `https://localhost:8172` | `shop-agent` | agent process 안의 별도 HTTPS 서버. client 문서와 JWKS만 준다 |
 
 package는 `dev.starryeye.cimd.*`, MCP Server 이름은 `cimd-shop-mcp-server`, 계정은 `user`(점원)·`user2`(손님) 그대로다.
 
@@ -128,10 +128,11 @@ Claude형 `https://localhost:8172/oauth/public-client.json`: `client_id`가 이 
 |---|---|
 | `ClientIdMetadataDocumentProperties` | `mcp.cimd.*` 정책. `loopback-exception`(`https://localhost:8172`), `max-document-bytes`(5120), `connect-timeout`(2초), `read-timeout`(3초), `default-cache-ttl`(5분, `Cache-Control`이 없을 때), `max-cache-ttl`(1시간), truststore SSL bundle 이름 |
 | `ClientIdUrlValidator` | 문서 주소와 `jwks_uri`의 규칙. `https`, path 있음, `.`·`..` 없음, fragment·사용자 정보 없음, query 없음. host를 DNS로 풀어 loopback·사설·link-local·any-local 주소면 거절하되, scheme·host·port가 `loopback-exception`과 모두 같으면 통과 |
-| `ClientIdMetadataDocumentFetcher` | JDK `HttpClient`(redirect `NEVER`, SSL bundle의 `SSLContext`)로 `GET`한다. `Accept: application/json`. `200`이 아니면, `Content-Type`이 `application/json`이나 `+json`이 아니면, 본문이 `max-document-bytes`를 넘으면 거절한다. `Cache-Control`의 `max-age`·`no-store`를 읽어 함께 돌려준다 |
+| `ClientMetadataHttp` | interface. `FetchedDocument get(URI)` 하나만 가진다. client 문서와 `jwks_uri`를 가져오는 곳은 모두 이것을 쓴다. 테스트는 메모리의 문서를 돌려주는 가짜 `ClientMetadataHttp`를 쓴다 |
+| `HttpsClientMetadataFetcher` | `ClientMetadataHttp`의 구현. JDK `HttpClient`(redirect `NEVER`, SSL bundle의 `SSLContext`)로 `GET`한다. `Accept: application/json`. `200`이 아니면, `Content-Type`이 `application/json`이나 `+json`이 아니면, 본문이 `max-document-bytes`를 넘으면 거절한다. `Cache-Control`의 `max-age`·`no-store`를 읽어 함께 돌려준다 |
 | `ClientMetadataValidator` | JSON object 하나인지, `client_id`가 문서 주소와 글자까지 같은지, `client_name`·`redirect_uris`(비지 않은 절대 URI 목록)가 있는지 본다. `client_secret`·`client_secret_expires_at`이 있으면 거절한다. `token_endpoint_auth_method`는 반드시 있어야 하고 `none`이나 `private_key_jwt`여야 한다. `private_key_jwt`면 `jwks_uri`가 있어야 하고 `ClientIdUrlValidator`를 통과해야 하며, `token_endpoint_auth_signing_alg`는 없거나 `RS256`이어야 한다. `grant_types`는 없거나 `authorization_code`를 포함해야 한다. 모르는 field는 무시한다 |
 | `ClientIdMetadataDocumentRegisteredClientRepository` | `RegisteredClientRepository`. `findByClientId`·`findById`가 같은 주소를 받는다. cache에 살아 있는 항목이 있으면 쓰고, 없으면 검사 → 가져오기 → 검증 → 변환 → cache한다. cache 기간은 `min(max-age, max-cache-ttl)`, `no-store`면 cache하지 않는다. 실패는 cache하지 않고 `null`을 돌려준다. `save`는 지원하지 않는다 |
-| `CimdJwtClientAssertionDecoderFactory` | `JwtDecoderFactory<RegisteredClient>`. `NimbusJwtDecoder.withJwkSetUri(jwkSetUrl)`에 위 truststore와 주소 검사를 쓰는 `RestOperations`를 넣고, 검증 규칙은 Spring의 `JwtClientAssertionDecoderFactory.DEFAULT_JWT_VALIDATOR_FACTORY`를 그대로 쓴다. decoder는 client별로 cache한다 |
+| `CimdJwtClientAssertionDecoderFactory` | `JwtDecoderFactory<RegisteredClient>`. `NimbusJwtDecoder.withJwkSource(...)`에 `ClientMetadataHttp`로 문서의 `jwks_uri`를 읽는 `JWKSource`를 넣고, 검증 규칙은 Spring의 `JwtClientAssertionDecoderFactory.DEFAULT_JWT_VALIDATOR_FACTORY`를 그대로 쓴다. decoder는 client별로 cache하고, key 목록은 assertion을 검증할 때마다 가져온다 |
 | `PublicClientRefreshTokenGenerator` | `OAuth2TokenGenerator<OAuth2RefreshToken>`. client의 grant에 `refresh_token`이 있으면 public client에게도 refresh token을 만든다(Spring의 `OAuth2RefreshTokenGenerator`는 public client면 만들지 않는다) |
 | `PublicClientRefreshTokenAuthenticationConverter`, `PublicClientRefreshTokenAuthenticationProvider` | token endpoint의 `grant_type=refresh_token` 요청에 client 인증이 없고 `client_id`만 있으면, 그 client가 `none`일 때만 public client로 인증한다(Spring의 `PublicClientAuthenticationConverter`는 `code_verifier`가 있는 요청만 받는다) |
 | `ConsentController` | `GET /oauth2/consent`. client 이름, 문서 host, redirect host(`state`로 찾은 authorization request의 `redirect_uri`), 문서의 redirect가 모두 loopback일 때의 경고, scope 체크박스, 이미 허락한 scope를 보여 준다. form은 Spring 기본 consent 화면과 같은 field(`client_id`, `state`, `scope`)로 `POST /oauth2/authorize`에 보낸다. HTML은 `HtmlUtils.htmlEscape`로 값을 감싸 직접 만든다 |
@@ -158,16 +159,18 @@ Claude형 `https://localhost:8172/oauth/public-client.json`: `client_id`가 이 
 
 | 클래스·설정 | 하는 일 |
 |---|---|
-| `ClientMetadataConnectorConfig` | Tomcat에 `8172` HTTPS connector를 더한다. 인증서는 SSL bundle `client-metadata`(`certs/client-metadata-tls.p12`) |
-| `ClientMetadataController` | `GET /oauth/client.json`, `/oauth/public-client.json`, `/oauth/jwks.json`. 요청이 `8172` connector로 온 것일 때만 답하고, 아니면 `404`다 |
+| `ClientMetadataServer` | JDK `HttpsServer`. `127.0.0.1:8172`에서 `/oauth/client.json`, `/oauth/public-client.json`, `/oauth/jwks.json` 세 주소만 `GET`으로 답한다. 인증서는 SSL bundle `client-metadata`(`certs/client-metadata-tls.p12`) |
+| `ClientMetadataDocuments` | 두 client 문서와 JWKS의 JSON을 만든다 |
+| `ClientMetadataConfig` | `ClientSigningKey`, `ClientMetadataDocuments`, `ClientMetadataServer` bean |
 | `ClientSigningKey` | `certs/client-signing.p12`의 RSA key pair를 읽어 `RSAKey`(`kid`는 RFC 7638 thumbprint)로 둔다 |
 | `mcp.authorization.client-type` | `chatgpt`(기본)나 `claude`. `client_id`와 인증 방식을 정한다 |
+
+Boot 4의 Tomcat 내부 API에 기대지 않고 문서 host가 채팅 앱과 다른 web site라는 점을 코드에서도 보이려고, `8172`는 Tomcat connector가 아니라 JDK `HttpsServer`로 연다.
 
 **바뀌는 클래스**
 - `DiscoveredClientRegistrationRepository`: `clientId`는 문서 주소, `clientAuthenticationMethod`는 `PRIVATE_KEY_JWT`나 `NONE`, `clientSecret`은 없다.
 - `McpAuthorizationDiscovery`: `credentials-issuer` 비교를 지우고, CIMD 지원과 인증 방식을 확인한다(결정 J). `resource`·`issuer` 일치, `S256`, endpoint 주소 형식 확인은 그대로다.
 - `McpSecurityConfig`: authorization code·refresh token response client에 `NimbusJwtClientAuthenticationParametersConverter`를 더한다. JWK resolver는 registration의 인증 방식이 `PRIVATE_KEY_JWT`일 때만 `ClientSigningKey`를 돌려준다. assertion은 `iss`·`sub`가 `client_id`, `aud`가 token endpoint다(Spring client 기본값).
-- `SecurityConfig`: `/oauth/**`는 인증 없이 연다.
 - 설정에서 `client-secret`, `credentials-issuer`를 지운다.
 
 ### shop-mcp-server
@@ -194,7 +197,7 @@ module을 지운다.
 |---|---|---|
 | 문서 주소는 `https`, path 있음, `.`·`..`·fragment·사용자 정보 없음 | `ClientIdUrlValidator` | 같은 문서를 여러 주소로 가리키거나, 평문으로 문서를 바꿔치기한다 |
 | loopback·사설 주소는 가져오지 않는다(예외 하나) | `ClientIdUrlValidator` | 공격자가 `client_id`에 내부망 주소를 적어 Authorization Server가 그곳에 요청하게 한다(SSRF) |
-| redirect를 따라가지 않고, 크기와 시간을 제한한다 | `ClientIdMetadataDocumentFetcher` | redirect로 내부망에 닿거나, 큰 문서·느린 응답으로 서버 자원을 묶는다 |
+| redirect를 따라가지 않고, 크기와 시간을 제한한다 | `HttpsClientMetadataFetcher` | redirect로 내부망에 닿거나, 큰 문서·느린 응답으로 서버 자원을 묶는다 |
 | 문서의 `client_id`는 주소와 같아야 한다 | `ClientMetadataValidator` | 남의 문서를 복사해 자기 주소에 올린 client가 그 client 행세를 한다 |
 | `redirect_uri`는 문서의 목록에 있어야 한다 | Spring의 authorization request 검증 | code가 문서에 없는 공격자 주소로 간다 |
 | 인증 방식은 문서의 것 하나만 | 저장소의 변환 규칙 | key 없이 `none`으로 `private_key_jwt` client 행세를 한다 |
@@ -218,7 +221,7 @@ module을 지운다.
 |---|---|
 | `ClientIdUrlValidator` | `http`, path 없음, `..`, fragment, 사용자 정보, query, loopback·사설·link-local IP를 거절한다. 예외 주소는 scheme·host·port가 모두 같을 때만 통과한다(`https://localhost:8173`, `http://localhost:8172`는 거절) |
 | `ClientMetadataValidator` | `client_id` 불일치, `client_name`·`redirect_uris` 누락, `client_secret` 포함, 인증 방식 누락·`client_secret_basic`, `jwks_uri` 없는 `private_key_jwt`, `http` `jwks_uri`, `RS256`이 아닌 서명 알고리즘을 거절한다. 모르는 field(`token_endpoint_auth_methods_supported` 등)는 무시한다 |
-| `ClientIdMetadataDocumentFetcher` | 테스트용 HTTPS 서버로 5KB 초과, `302`, 시간 초과, `404`, JSON이 아닌 `Content-Type`을 거절하고, `max-age`·`no-store`를 읽는다 |
+| `HttpsClientMetadataFetcher` | 테스트용 HTTPS 서버로 5KB 초과, `302`, 시간 초과, `404`, JSON이 아닌 `Content-Type`을 거절하고, `max-age`·`no-store`를 읽는다 |
 | 저장소 | cache 적중과 만료, `no-store`, 오류 미cache, `findById`와 `findByClientId`가 같은 client, 인증 방식 고정 |
 | authorization endpoint | 문서에 없는 `redirect_uri`는 redirect 없이 오류, PKCE 없으면 거절, consent 화면의 두 host와 loopback 경고 |
 | token endpoint | ChatGPT형: 올바른 assertion이면 token(`client_id` claim이 문서 주소), 다른 key의 assertion과 assertion 없는 요청은 `401 invalid_client`. Claude형: refresh token 발급, refresh하면 새 refresh token, 옛것은 `invalid_grant`, 다른 client의 refresh token은 거절 |
