@@ -110,16 +110,28 @@ wait_for auth-server http://localhost:9060/.well-known/openid-configuration
 start shop-mcp-server 8171
 wait_for shop-mcp-server http://localhost:8171/mcp
 
+# 이미 떠 있는 agent는 다시 띄우지 않으므로 이번에 고른 client type이 적용되지 않는다.
+# 끝의 안내가 이 경우를 구분한다.
+AGENT_ALREADY_RUNNING=0
 if lsof -ti tcp:8170 -sTCP:LISTEN > /dev/null 2>&1; then
+  AGENT_ALREADY_RUNNING=1
   echo "  [안내] shop-agent가 이미 떠 있습니다. client type을 바꾸려면 ./stop.sh 뒤에 다시 실행하세요."
 fi
 start shop-agent 8170 --args="--mcp.authorization.client-type=$CLIENT_TYPE"
 wait_for shop-agent http://localhost:8170/
 wait_for shop-agent https://localhost:8172/oauth/client.json --cacert certs/client-metadata.crt
 
-cat <<EOF
+if [ "$AGENT_ALREADY_RUNNING" = "1" ]; then
+  echo
+  echo "준비되었습니다. 다만 shop-agent는 이미 떠 있어서 client type을 바꾸지 않았습니다."
+  echo "  지금 agent의 client type은 이번에 고른 값($CLIENT_TYPE)과 다를 수 있습니다."
+  echo "  바꾸려면 ./stop.sh 뒤에 ./run.sh $CLIENT_TYPE 순서로 실행하세요."
+else
+  echo
+  echo "준비되었습니다. agent의 client type은 $CLIENT_TYPE입니다."
+fi
 
-준비되었습니다. agent의 client type은 $CLIENT_TYPE입니다.
+cat <<EOF
 
   브라우저에서 http://localhost:8170/ 을 엽니다.
   로그인: user / password (점원), user2 / password (손님)
