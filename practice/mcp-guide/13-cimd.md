@@ -12,7 +12,8 @@ ChatGPT나 Claude의 사용자는 아무 MCP Server 주소나 붙이고, 두 제
 세상의 모든 Authorization Server에 미리 등록해 둘 수는 없다.
 
 DCR은 연결할 때마다 `registration_endpoint`에 등록을 요청해 새 `client_id`를 받는다.
-그러면 등록된 client가 Authorization Server에 계속 쌓이고 누가 등록했는지도 알 수 없어서, 2026-07-28 버전은 DCR을 deprecated로 정했다.
+그러면 등록된 client가 Authorization Server에 계속 쌓이고, 누가 등록했는지도 알 수 없다.
+2026-07-28 버전은 DCR을 deprecated로 정하고, 새 구현에는 CIMD를 쓰라고 한다.
 
 CIMD는 등록 요청이 없다.
 client는 자기 정보를 담은 JSON 문서를 자기 `https` 주소에 올리고, 그 주소를 `client_id`로 쓴다.
@@ -135,7 +136,7 @@ agent는 [3장](03-discovery.md)의 discovery로 찾은 Authorization Server의 
 ```
 
 `client_id_metadata_document_supported: true`는 문서 주소를 `client_id`로 받는다는 표시다.
-token endpoint의 인증 방식은 CIMD 문서가 선언할 수 있는 두 방식만, signature 알고리즘은 이 서버가 assertion을 검증하는 `RS256`만 알린다.
+token endpoint의 인증 방식은 이 서버가 문서에서 받는 두 방식만, signature 알고리즘은 이 서버가 assertion을 검증하는 `RS256`만 알린다.
 Spring은 기본으로 인증 방식 여섯 가지와 알고리즘 여러 개를 알리지만, 이 서버는 실제로 받는 것만 알린다.
 revocation·introspection endpoint는 client 인증이 있어야 쓸 수 있으므로, 인증 방식으로 `private_key_jwt`만 알린다.
 
@@ -185,7 +186,8 @@ JWKS(`/oauth/jwks.json`)에는 public key 하나만 있다.
 ```
 
 private key 값 `d`는 없고, `kid`는 public key의 RFC 7638 thumbprint라서 같은 key 파일이면 실행마다 같다.
-세 응답 모두 `Cache-Control: max-age=300`이라 Authorization Server는 5분 동안 cache한다.
+Authorization Server는 두 문서를 `Cache-Control: max-age=300`에 따라 5분 동안 cache한다.
+JWKS 응답에도 같은 header가 있지만, JWKS는 cache하지 않고 assertion을 검증할 때마다 새로 가져온다(13.10).
 agent는 문서의 redirect 주소를 authorization request에도 그대로 쓰므로, browser에서는 `http://localhost:8170`을 연다.
 `http://127.0.0.1:8170`으로 열면 callback이 `localhost`로 돌아와 `127.0.0.1`에서 받은 session cookie가 가지 않고, login이 실패한다.
 
@@ -208,7 +210,7 @@ Spring이 기본으로 구성하는 token generator는 DPoP proof나 client 인�
 
 authorization request는 login보다 먼저 검사된다([5장](05-authorization-and-token.md)).
 그래서 login하지 않은 누구든 `client_id`에 주소 하나를 적어 보내면, Authorization Server가 그 주소로 요청을 보내게 할 수 있다.
-Authorization Server는 처음 보는 주소를 아래 순서로 검사하고, 하나라도 어긋나면 그 client를 모르는 client로 다룬다.
+Authorization Server는 처음 보는 주소를 아래 항목으로 검사하고, 하나라도 어긋나면 그 client를 모르는 client로 다룬다.
 
 | 확인 | 자리 | 어기면 생기는 일 |
 |---|---|---|
@@ -423,7 +425,7 @@ CIMD도 `private_key_jwt`를 선언한 client를 confidential client로 보고, 
 [4장](04-client-registration.md#44-public-client의-규칙)의 official은 public client에게 refresh token을 주지 않았다.
 refresh token은 오래 쓰이는데, public client는 그것을 쓸 때도 자기를 증명하지 못해 새어 나가면 누구든 쓸 수 있기 때문이다.
 그런데 Claude 앱은 CIMD로 붙을 때 public client이고, refresh token이 없으면 access token(5분)이 끝날 때마다 사용자가 다시 login해야 한다.
-OAuth 2.1은 Authorization Server가 refresh token의 재사용을 잡아낼 수 있으면 public client에게도 refresh token을 주게 한다.
+OAuth 2.1은 refresh token을 줄지를 Authorization Server에 맡기고, public client에게 준다면 refresh token의 재사용을 잡아낼 방법을 쓰게 한다.
 방법은 refresh token을 key에 묶는 sender-constrained token과 rotation 두 가지이고, MCP 2026-07-28은 public client에게 rotation을 정했다.
 
 rotation은 refresh할 때마다 새 refresh token을 주고 옛것을 쓸 수 없게 하는 것이다.
@@ -705,7 +707,7 @@ docs/superpowers/captures/mcp-cimd-walkthrough.sh > /tmp/cimd-walkthrough.txt
 | 문서와 문서 안의 주소를 가져올 때 사설·loopback 주소를 피하고, 응답 크기를 제한한다(권장 상한 5KB) | [CIMD draft-00 §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5), [§6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6), [MCP 2026-07-28 Security Considerations — Authorization Server Abuse Protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-server-abuse-protection) | SHOULD |
 | 문서에는 공유 비밀 방식의 인증과 `client_secret`·`client_secret_expires_at`을 쓰지 않는다. client는 문서에 `private_key_jwt`와 `jwks_uri`를 적어 key로 인증할 수 있다 | [MCP 2026-07-28 Client Registration — Implementation Requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#implementation-requirements), [CIMD draft-00 §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1), [§6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) | MUST NOT, MAY |
 | 문서에 `private_key_jwt`를 선언한 client는 confidential client이고, Authorization Server와 주고받는 요청에는 선언한 방식의 client 인증이 있다 | [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) | MUST |
-| client assertion은 `client_assertion`에 JWT 하나로 보낸다. `sub`는 `client_id`, `aud`는 Authorization Server(token endpoint 주소도 된다)이고 `exp`가 있으며, `private_key_jwt`에서는 `iss`도 `client_id`이고 `jti`가 있다 | [RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2), [§3](https://www.rfc-editor.org/rfc/rfc7523#section-3), [OpenID Connect Core 1.0 §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication) | MUST, MAY, REQUIRED |
+| client assertion은 `client_assertion`에 JWT 하나로 보낸다. `sub`는 `client_id`, `aud`는 Authorization Server(token endpoint 주소도 된다)이고 `exp`가 있으며, `private_key_jwt`에서는 `iss`도 `client_id`이고 `jti`가 있다 | [RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2), [§3](https://www.rfc-editor.org/rfc/rfc7523#section-3), [OpenID Connect Core 1.0 §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication) | MUST, MUST NOT, MAY, REQUIRED |
 | token endpoint가 `private_key_jwt`를 받는다고 알리면 `token_endpoint_auth_signing_alg_values_supported`도 알리고, 이 목록에 `none`을 쓰지 않는다. 서버는 `RS256`을 지원한다 | [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) | MUST, MUST NOT, SHOULD |
 | consent 화면에 redirect URI의 host를 분명히 보여 주고, `localhost`로만 돌아가는 요청에는 경고를 더한다. `client_id`의 host도 보여 준다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks), [CIMD draft-00 §6.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.4) | MUST, SHOULD |
 | client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않고, 이전 consent가 있어도 처음처럼 처리한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) | SHOULD NOT, SHOULD |
