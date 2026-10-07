@@ -1,5 +1,8 @@
 package dev.starryeye.cimd.agent.config;
 
+import com.nimbusds.jose.jwk.JWK;
+import dev.starryeye.cimd.agent.cimd.ClientMetadataProperties;
+import dev.starryeye.cimd.agent.cimd.ClientSigningKey;
 import dev.starryeye.cimd.agent.discovery.DiscoveredClientRegistrationRepository;
 import dev.starryeye.cimd.agent.discovery.McpAuthorizationDiscovery;
 import dev.starryeye.cimd.agent.mcp.OAuth2TokenAttachingRequestCustomizer;
@@ -14,7 +17,6 @@ import org.springframework.ai.mcp.customizer.McpClientCustomizer;
 import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
 import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
@@ -23,14 +25,18 @@ import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClient
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthenticationParametersConverter;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.RestClientRefreshTokenTokenResponseClient;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * MCP 호출에 쓸 token을 준비하는 bean을 등록한다.
@@ -38,18 +44,13 @@ import java.util.List;
  * <p>Authorization Server의 endpoint는 설정이 아니라 discovery에서 온다.
  * token request와 refresh 요청에는 RFC 8707 {@code resource}를 넣는다.
  * 그래서 발급되는 token은 이 MCP Server 전용이 된다.
+ * ChatGPT형이면 두 요청 모두에 서명한 client assertion을 붙인다.
  */
 @Configuration
-// OAuth2ClientProperties를 여기서 직접 켠다.
-// Boot의 OAuth2ClientAutoConfiguration은 OAuth2ClientProperties를 ClientRegistrationRepository bean과
-// 같은 조건부 설정 클래스에서 켠다.
-// 그 클래스에는 @ConditionalOnMissingBean(ClientRegistrationRepository.class)가 붙어 있다.
-// 아래에서 DiscoveredClientRegistrationRepository bean을 직접 만들면 그 클래스가 통째로 빠진다.
-// 그러면 OAuth2ClientProperties도 함께 사라져 credentials(client-id/secret)를 읽을 곳이 없다.
-@EnableConfigurationProperties({ McpAuthorizationProperties.class, OAuth2ClientProperties.class })
+@EnableConfigurationProperties(McpAuthorizationProperties.class)
 public class McpSecurityConfig {
 
-    /** application.yml의 registration key와 같아야 한다. */
+    /** login 경로(/oauth2/authorization/authserver)와 callback 경로에 쓰는 registration id다. */
     public static final String REGISTRATION_ID = "authserver";
 
     @Bean
@@ -59,8 +60,8 @@ public class McpSecurityConfig {
 
     @Bean
     public DiscoveredClientRegistrationRepository clientRegistrationRepository(McpAuthorizationDiscovery discovery,
-            McpAuthorizationProperties properties, OAuth2ClientProperties clientProperties) {
-        return new DiscoveredClientRegistrationRepository(discovery, properties, clientProperties);
+            McpAuthorizationProperties properties, ClientMetadataProperties clientMetadata) {
+        return new DiscoveredClientRegistrationRepository(discovery, properties, clientMetadata, REGISTRATION_ID);
     }
 
     /**
@@ -74,24 +75,39 @@ public class McpSecurityConfig {
         return new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
     }
 
-    /** login(code 교환) 때 token request를 보내는 client다. resource를 함께 보낸다. */
+    /** login(code 교환) 때 token request를 보내는 client다. resource와, ChatGPT형이면 assertion을 넣는다. */
     @Bean
     public RestClientAuthorizationCodeTokenResponseClient authorizationCodeTokenResponseClient(
-            DiscoveredClientRegistrationRepository registrations) {
+            DiscoveredClientRegistrationRepository registrations, ClientSigningKey signingKey) {
         var tokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
         tokenResponseClient.addParametersConverter(
                 ResourceIndicators.tokenRequest(() -> registrations.discovered().resource()));
+        tokenResponseClient.addParametersConverter(
+                new NimbusJwtClientAuthenticationParametersConverter<>(clientAssertionKey(signingKey)));
         return tokenResponseClient;
     }
 
-    /** access token이 만료된 뒤 refresh 요청을 보내는 client다. 여기에도 resource가 필요하다. */
+    /** access token이 만료된 뒤 refresh 요청을 보내는 client다. 여기에도 resource와 assertion이 필요하다. */
     @Bean
     public RestClientRefreshTokenTokenResponseClient refreshTokenTokenResponseClient(
-            DiscoveredClientRegistrationRepository registrations) {
+            DiscoveredClientRegistrationRepository registrations, ClientSigningKey signingKey) {
         var tokenResponseClient = new RestClientRefreshTokenTokenResponseClient();
         tokenResponseClient.addParametersConverter(
                 ResourceIndicators.tokenRequest(() -> registrations.discovered().resource()));
+        tokenResponseClient.addParametersConverter(
+                new NimbusJwtClientAuthenticationParametersConverter<>(clientAssertionKey(signingKey)));
         return tokenResponseClient;
+    }
+
+    /**
+     * client assertion을 서명할 key를 고른다(RFC 7523 §2.2).
+     * assertion의 iss·sub는 client_id, aud는 token endpoint다(Spring 기본값).
+     * Authorization Server는 문서의 {@code jwks_uri}에서 같은 key의 public key를 가져와 서명을 확인한다.
+     * Claude형({@code none})이면 converter가 parameter를 더하지 않으므로 key를 주지 않는다.
+     */
+    static Function<ClientRegistration, JWK> clientAssertionKey(ClientSigningKey signingKey) {
+        return registration -> ClientAuthenticationMethod.PRIVATE_KEY_JWT
+                .equals(registration.getClientAuthenticationMethod()) ? signingKey.key() : null;
     }
 
     /**

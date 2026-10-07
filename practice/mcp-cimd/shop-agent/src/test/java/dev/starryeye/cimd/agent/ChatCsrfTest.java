@@ -73,7 +73,7 @@ class ChatCsrfTest {
 
 	@BeforeEach
 	void setUp() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.AUTH_METHOD))
 				.willReturn(DiscoveryFixtures.discovered());
 		given(this.toolCatalog.callbacks(any())).willReturn(List.of());
 		// ChatClient 가 Prompt 를 만들며 chatModel.getOptions() 를 부른다 — 기본 답변은 null 이라 NPE 가 난다.

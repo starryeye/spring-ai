@@ -113,7 +113,7 @@ class ChatMemoryToolResultTest {
 
 	@BeforeEach
 	void setUp() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.AUTH_METHOD))
 				.willReturn(DiscoveryFixtures.discovered());
 		given(this.toolCatalog.callbacks(any())).willReturn(List.of());
 		given(this.chatModel.getOptions()).willReturn(ToolCallingChatOptions.builder().build());

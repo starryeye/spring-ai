@@ -1,12 +1,18 @@
 package dev.starryeye.cimd.agent.config;
 
+import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jwt.SignedJWT;
+import dev.starryeye.cimd.agent.TestForms;
+import dev.starryeye.cimd.agent.cimd.ClientSigningKey;
 import dev.starryeye.cimd.agent.discovery.DiscoveredClientRegistrationRepository;
 import dev.starryeye.cimd.agent.discovery.DiscoveryFixtures;
-
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
@@ -15,79 +21,90 @@ import org.springframework.security.oauth2.client.http.OAuth2ErrorResponseErrorH
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.core.http.converter.OAuth2AccessTokenResponseHttpMessageConverter;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * 만료된 액세스 토큰은 refresh 로 갱신되어야 하고, 갱신 요청에도 resource 가 실려야 한다.
- * resource 가 빠지면 갱신된 토큰의 aud 가 달라져 MCP 서버가 거부한다.
+ * 만료된 access token은 refresh로 갱신된다. 갱신 요청에도 resource를 넣어야 token의 aud가 그대로다.
+ * ChatGPT형은 refresh 요청에도 assertion을 붙이고, Claude형은 client_id만 보낸다.
  */
 class TokenRefreshTest {
 
     static final String ISSUER = "http://localhost:9060";
 
+    static final String TOKEN_ENDPOINT = ISSUER + "/oauth2/token";
+
     static final String RESOURCE = "http://localhost:8171/mcp";
 
-    @Test
-    void 만료된_토큰을_resource_를_실어_갱신한다() {
-        ClientRegistration registration = ClientRegistration.withRegistrationId("authserver")
-                .clientId("cimd-shop-agent")
-                .clientSecret("cimd-shop-agent-secret")
+    static final String CHATGPT = "https://localhost:8172/oauth/client.json";
+
+    static final String CLAUDE = "https://localhost:8172/oauth/public-client.json";
+
+    static ClientSigningKey signingKey;
+
+    @BeforeAll
+    static void 서명_key를_읽는다() throws Exception {
+        signingKey = ClientSigningKey.load(new ClassPathResource("test-certs/client-signing.p12"), "changeit",
+                "client-signing");
+    }
+
+    static ClientRegistration registration(String clientId, ClientAuthenticationMethod method) {
+        return ClientRegistration.withRegistrationId("authserver")
+                .clientId(clientId)
+                .clientAuthenticationMethod(method)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .redirectUri("http://localhost:8170/login/oauth2/code/authserver")
                 .authorizationUri(ISSUER + "/oauth2/authorize")
-                .tokenUri(ISSUER + "/oauth2/token")
+                .tokenUri(TOKEN_ENDPOINT)
                 .build();
+    }
+
+    record Refreshed(OAuth2AuthorizedClient client, MultiValueMap<String, String> form) {
+    }
+
+    /** 만료된 token과 refresh token을 저장해 두고, 운영과 같은 bean 메서드로 만든 manager로 refresh한다. */
+    static Refreshed refresh(ClientRegistration registration, Set<String> scopes) {
         var registrations = new InMemoryClientRegistrationRepository(registration);
         var authorizedClients = new InMemoryOAuth2AuthorizedClientService(registrations);
-
         var principal = new TestingAuthenticationToken("user", null, "ROLE_USER");
         var expired = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "expired-token",
-                Instant.now().minusSeconds(600), Instant.now().minusSeconds(300));
+                Instant.now().minusSeconds(600), Instant.now().minusSeconds(300), scopes);
         authorizedClients.saveAuthorizedClient(new OAuth2AuthorizedClient(registration, "user", expired,
                 new OAuth2RefreshToken("refresh-1", Instant.now().minusSeconds(600))), principal);
 
         RestClient.Builder builder = RestClient.builder()
-                // 기본 컨버터(범용 Jackson 컨버터 포함)를 그대로 두면, 그 컨버터가
-                // OAuth2AccessTokenResponse 도 읽을 수 있다고 주장해 먼저 선택되고,
-                // 리플렉션으로 필드 없는 빈 객체를 만들어 access_token 이 null 인 채로
-                // 반환한다. 기본값을 끄고 폼 인코딩과 토큰 응답 변환만 명시적으로 쓴다.
+                // 기본 converter를 그대로 두면 범용 Jackson converter가 먼저 골라져 access_token이 null인 응답을 만든다.
                 .configureMessageConverters(converters -> converters
                         .disableDefaults()
                         .addCustomConverter(new FormHttpMessageConverter())
                         .addCustomConverter(new OAuth2AccessTokenResponseHttpMessageConverter()))
                 .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler());
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-
-        // 운영과 같은 bean 메서드로 refresh client 를 만든다 — resource 파라미터를 싣는 것도 그 메서드의 일이다.
         DiscoveredClientRegistrationRepository discovered = mock(DiscoveredClientRegistrationRepository.class);
         given(discovered.discovered()).willReturn(DiscoveryFixtures.discovered());
-        var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered);
+        var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered, signingKey);
         refreshTokenClient.setRestClient(builder.build());
 
-        server.expect(requestTo(ISSUER + "/oauth2/token"))
+        AtomicReference<String> body = new AtomicReference<>();
+        server.expect(requestTo(TOKEN_ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(content().formDataContains(Map.of(
-                        "grant_type", "refresh_token",
-                        "refresh_token", "refresh-1",
-                        "resource", RESOURCE)))
+                .andExpect(request -> body.set(((MockClientHttpRequest) request).getBodyAsString()))
                 .andRespond(withSuccess("""
                         {"access_token":"new-token","token_type":"Bearer","expires_in":300}""",
                         MediaType.APPLICATION_JSON));
@@ -95,57 +112,50 @@ class TokenRefreshTest {
         var manager = McpSecurityConfig.authorizedClientManager(registrations, authorizedClients, refreshTokenClient);
         OAuth2AuthorizedClient authorized = manager.authorize(OAuth2AuthorizeRequest
                 .withClientRegistrationId("authserver").principal(principal).build());
-
-        assertThat(authorized.getAccessToken().getTokenValue()).isEqualTo("new-token");
         server.verify();
+        return new Refreshed(authorized, TestForms.parse(body.get()));
+    }
+
+    @Test
+    void 만료된_token을_resource를_넣어_갱신한다() {
+        Refreshed refreshed = refresh(registration(CLAUDE, ClientAuthenticationMethod.NONE), Set.of("products:read"));
+
+        assertThat(refreshed.client().getAccessToken().getTokenValue()).isEqualTo("new-token");
+        assertThat(refreshed.form().toSingleValueMap())
+                .containsEntry("grant_type", "refresh_token")
+                .containsEntry("refresh_token", "refresh-1")
+                .containsEntry("resource", RESOURCE);
+    }
+
+    @Test
+    void ChatGPT형_refresh에도_client_assertion을_붙인다() throws Exception {
+        Refreshed refreshed = refresh(registration(CHATGPT, ClientAuthenticationMethod.PRIVATE_KEY_JWT),
+                Set.of("products:read"));
+
+        SignedJWT assertion = SignedJWT.parse(refreshed.form().getFirst("client_assertion"));
+        assertThat(assertion.verify(new RSASSAVerifier(signingKey.key().toRSAPublicKey()))).isTrue();
+        assertThat(assertion.getJWTClaimsSet().getSubject()).isEqualTo(CHATGPT);
+        assertThat(assertion.getJWTClaimsSet().getAudience()).containsExactly(TOKEN_ENDPOINT);
+    }
+
+    @Test
+    void Claude형_refresh는_client_id만_보낸다() {
+        Refreshed refreshed = refresh(registration(CLAUDE, ClientAuthenticationMethod.NONE), Set.of("products:read"));
+
+        assertThat(refreshed.form().getFirst("client_id")).isEqualTo(CLAUDE);
+        assertThat(refreshed.form()).doesNotContainKeys("client_assertion", "client_secret");
     }
 
     @Test
     void refresh_요청에_scope를_보내지_않아_늘어난_scope가_유지된다() {
-        ClientRegistration registration = ClientRegistration.withRegistrationId("authserver")
-                .clientId("cimd-shop-agent")
-                .clientSecret("cimd-shop-agent-secret")
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
-                .authorizationUri(ISSUER + "/oauth2/authorize")
-                .tokenUri(ISSUER + "/oauth2/token")
-                .build();
-        var registrations = new InMemoryClientRegistrationRepository(registration);
-        var authorizedClients = new InMemoryOAuth2AuthorizedClientService(registrations);
-        var principal = new TestingAuthenticationToken("user", null, "ROLE_USER");
         // step-up으로 늘어난 scope를 가진 token이 만료됐다.
-        var expired = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "expired-token",
-                Instant.now().minusSeconds(600), Instant.now().minusSeconds(300),
+        Refreshed refreshed = refresh(registration(CHATGPT, ClientAuthenticationMethod.PRIVATE_KEY_JWT),
                 Set.of("openid", "products:read", "products:write"));
-        authorizedClients.saveAuthorizedClient(new OAuth2AuthorizedClient(registration, "user", expired,
-                new OAuth2RefreshToken("refresh-1", Instant.now().minusSeconds(600))), principal);
-
-        RestClient.Builder builder = RestClient.builder()
-                .configureMessageConverters(converters -> converters
-                        .disableDefaults()
-                        .addCustomConverter(new FormHttpMessageConverter())
-                        .addCustomConverter(new OAuth2AccessTokenResponseHttpMessageConverter()))
-                .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler());
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        DiscoveredClientRegistrationRepository discovered = mock(DiscoveredClientRegistrationRepository.class);
-        given(discovered.discovered()).willReturn(DiscoveryFixtures.discovered());
-        var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered);
-        refreshTokenClient.setRestClient(builder.build());
 
         // refresh 요청에 scope가 없으면 Authorization Server는 처음 허락한 scope 그대로 발급한다(RFC 6749 §6).
-        server.expect(requestTo(ISSUER + "/oauth2/token"))
-                .andExpect(content().string(not(containsString("scope="))))
-                .andRespond(withSuccess("""
-                        {"access_token":"new-token","token_type":"Bearer","expires_in":300}""",
-                        MediaType.APPLICATION_JSON));
-
-        var manager = McpSecurityConfig.authorizedClientManager(registrations, authorizedClients, refreshTokenClient);
-        OAuth2AuthorizedClient authorized = manager.authorize(OAuth2AuthorizeRequest
-                .withClientRegistrationId("authserver").principal(principal).build());
-
+        assertThat(refreshed.form()).doesNotContainKey("scope");
         // 응답에 scope가 없으면 Spring은 이전 token의 scope를 그대로 둔다.
-        assertThat(authorized.getAccessToken().getScopes())
+        assertThat(refreshed.client().getAccessToken().getScopes())
                 .containsExactlyInAnyOrder("openid", "products:read", "products:write");
-        server.verify();
     }
 }

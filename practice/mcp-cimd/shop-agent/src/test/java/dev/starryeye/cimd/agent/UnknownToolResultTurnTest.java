@@ -74,7 +74,7 @@ class UnknownToolResultTurnTest {
 
 	@BeforeEach
 	void setUp() {
-		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.AUTH_METHOD))
 				.willReturn(DiscoveryFixtures.discovered());
 		McpSchema.Tool updateStock = McpSchema.Tool.builder("updateStock", Map.of("type", "object"))
 				.description("상품 재고를 바꾼다")

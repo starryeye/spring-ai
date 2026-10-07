@@ -1,18 +1,16 @@
 package dev.starryeye.cimd.agent.discovery;
 
+import dev.starryeye.cimd.agent.cimd.ClientMetadataProperties;
+import dev.starryeye.cimd.agent.cimd.ClientType;
 import dev.starryeye.cimd.agent.config.McpAuthorizationProperties;
 
-import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.util.Assert;
 
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -22,10 +20,10 @@ import java.util.Set;
  * 기동할 때 하지 않는 것은 MCP Server가 아직 떠 있지 않아도 agent는 떠야 하기 때문이다.
  * 실패한 discovery는 cache하지 않으므로 다음 요청에서 다시 시도한다.
  *
- * <p>credentials(client_id/secret)는 특정 Authorization Server에 등록된 것이다.
- * discovery가 다른 Authorization Server를 가리키면 그 metadata도 요청하지 않고 멈춘다
- * ({@link McpAuthorizationDiscovery#discover(String, String)}).
- * 가짜 Authorization Server에 비밀을 보내지도, 공격자가 고른 주소로 요청을 보내지도 않기 위해서다.
+ * <p>client_id는 agent가 올린 client 문서의 주소다.
+ * Authorization Server에 미리 등록하지 않으므로 client_secret이 없다.
+ * ChatGPT형은 token request에 서명한 assertion을 붙이고({@code McpSecurityConfig}), Claude형은 client_id만 보낸다.
+ * redirect 주소는 문서에 올린 값 그대로 쓴다. 요청 host로 주소를 만들면 문서의 목록과 달라질 수 있다.
  */
 public class DiscoveredClientRegistrationRepository implements ClientRegistrationRepository {
 
@@ -33,22 +31,18 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 
 	private final McpAuthorizationProperties properties;
 
-	private final String registrationId;
+	private final ClientMetadataProperties clientMetadata;
 
-	private final OAuth2ClientProperties.Registration credentials;
+	private final String registrationId;
 
 	private volatile Discovered discovered;
 
 	public DiscoveredClientRegistrationRepository(McpAuthorizationDiscovery discovery,
-			McpAuthorizationProperties properties, OAuth2ClientProperties clientProperties) {
-		Assert.state(clientProperties.getRegistration().size() == 1,
-				"spring.security.oauth2.client.registration 은 정확히 하나여야 한다");
-		Map.Entry<String, OAuth2ClientProperties.Registration> registration =
-				clientProperties.getRegistration().entrySet().iterator().next();
+			McpAuthorizationProperties properties, ClientMetadataProperties clientMetadata, String registrationId) {
 		this.discovery = discovery;
 		this.properties = properties;
-		this.registrationId = registration.getKey();
-		this.credentials = registration.getValue();
+		this.clientMetadata = clientMetadata;
+		this.registrationId = registrationId;
 	}
 
 	@Override
@@ -72,7 +66,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 		synchronized (this) {
 			if (this.discovered == null) {
 				DiscoveredAuthorization authorization = this.discovery.discover(this.properties.resourceUrl(),
-						this.properties.credentialsIssuer());
+						this.properties.clientType().authenticationMethod());
 				this.discovered = new Discovered(authorization, registration(authorization));
 			}
 			return this.discovered;
@@ -80,12 +74,12 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 	}
 
 	private ClientRegistration registration(DiscoveredAuthorization authorization) {
+		ClientType clientType = this.properties.clientType();
 		return ClientRegistration.withRegistrationId(this.registrationId)
-				.clientId(this.credentials.getClientId())
-				.clientSecret(this.credentials.getClientSecret())
-				.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+				.clientId(clientType.clientId(this.clientMetadata.baseUrl()))
+				.clientAuthenticationMethod(clientType.authenticationMethod())
 				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-				.redirectUri(this.credentials.getRedirectUri())
+				.redirectUri(this.clientMetadata.redirectUri())
 				.scope(requestedScopes(authorization))
 				.authorizationUri(authorization.authorizationEndpoint())
 				.tokenUri(authorization.tokenEndpoint())
@@ -93,7 +87,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 				.issuerUri(authorization.issuer())
 				.providerConfigurationMetadata(authorization.authorizationServerMetadata())
 				.userNameAttributeName(IdTokenClaimNames.SUB)
-				.clientName(this.registrationId)
+				.clientName(clientType.clientName())
 				.build();
 	}
 

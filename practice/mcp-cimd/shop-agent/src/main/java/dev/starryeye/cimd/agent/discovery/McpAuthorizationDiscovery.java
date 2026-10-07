@@ -3,6 +3,7 @@ package dev.starryeye.cimd.agent.discovery;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.web.client.RestClient;
 
 import java.net.URI;
@@ -21,10 +22,11 @@ import java.util.regex.Pattern;
  *   <li>header의 {@code resource_metadata}를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
  *   <li>{@code 401}의 {@code scope}와 PRM의 {@code scopes_supported}로 처음 요청할 scope를 고른다</li>
  *   <li>PRM의 {@code resource}가 부른 URL과 같은지 확인한다(RFC 9728 §3.3)</li>
- *   <li>{@code authorization_servers}의 첫 값이 credentials가 등록된 issuer인지 먼저 확인한다.
- *       아니면 더 요청하지 않는다</li>
+ *   <li>{@code authorization_servers}의 첫 값을 Authorization Server로 쓴다.
+ *       CIMD client_id는 어느 Authorization Server에도 묶이지 않고, 미리 나눈 비밀도 없다</li>
  *   <li>Authorization Server Metadata를 RFC 8414 → OpenID Connect Discovery 순서로 찾는다</li>
  *   <li>metadata의 {@code issuer}가 같은지, PKCE {@code S256}을 지원하는지 확인한다.
+ *       CIMD를 지원하는지, 문서에 선언한 인증 방식을 받는지도 확인한다.
  *       {@code authorization_endpoint}·{@code token_endpoint}가 https이거나 loopback 주소의 http인지도 확인한다</li>
  * </ol>
  *
@@ -38,6 +40,9 @@ public class McpAuthorizationDiscovery {
 	private static final String AUTHORIZATION_SERVER_METADATA = "/.well-known/oauth-authorization-server";
 
 	private static final String OPENID_CONFIGURATION = "/.well-known/openid-configuration";
+
+	/** CIMD 문서 주소를 client_id로 받는다고 알리는 metadata field다. */
+	static final String CLIENT_ID_METADATA_DOCUMENT_SUPPORTED = "client_id_metadata_document_supported";
 
 	private static final Pattern RESOURCE_METADATA = Pattern.compile("resource_metadata=\"([^\"]+)\"");
 
@@ -69,10 +74,9 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * @param trustedIssuer credentials가 등록된 Authorization Server. PRM이 다른 곳을 가리키면 그 metadata도
-	 *                      요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
+	 * @param authenticationMethod 문서에 선언한 token endpoint 인증 방식. Authorization Server가 이 방식을 받아야 진행한다
 	 */
-	public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
+	public DiscoveredAuthorization discover(String resourceUrl, ClientAuthenticationMethod authenticationMethod) {
 		Challenge challenge = challenge(resourceUrl);
 		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl, challenge.resourceMetadata());
 
@@ -80,14 +84,9 @@ public class McpAuthorizationDiscovery {
 			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
 		}
 		String issuer = String.valueOf(servers.get(0));
-		if (!trustedIssuer.equals(issuer)) {
-			throw new McpDiscoveryException(
-					"자격증명은 %s 에 등록된 것인데 PRM 이 가리키는 인가 서버는 %s 다 — 메타데이터를 요청하지 않는다"
-							.formatted(trustedIssuer, issuer));
-		}
 
 		return new DiscoveredAuthorization((String) protectedResource.get("resource"), issuer,
-				authorizationServerMetadata(issuer),
+				authorizationServerMetadata(issuer, authenticationMethod),
 				selectScopes(challenge.scope(), protectedResource.get("scopes_supported")));
 	}
 
@@ -169,7 +168,7 @@ public class McpAuthorizationDiscovery {
 				});
 	}
 
-	private Map<String, Object> authorizationServerMetadata(String issuer) {
+	private Map<String, Object> authorizationServerMetadata(String issuer, ClientAuthenticationMethod authenticationMethod) {
 		for (String url : metadataUrls(issuer)) {
 			Map<String, Object> metadata = json(url);
 			if (metadata == null) {
@@ -183,6 +182,18 @@ public class McpAuthorizationDiscovery {
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
 				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
+			}
+			// MCP 2026-07-28 Client Registration: 문서 주소를 client_id로 쓰려면 Authorization Server가 CIMD를 알려야 한다.
+			// 알리지 않는 서버에 그대로 가면 모르는 client로 거절당한다.
+			if (!Boolean.TRUE.equals(metadata.get(CLIENT_ID_METADATA_DOCUMENT_SUPPORTED))) {
+				throw new McpDiscoveryException(
+						"Authorization Server가 client_id_metadata_document_supported를 알리지 않는다: " + issuer);
+			}
+			// 문서에 선언한 인증 방식을 받지 않는 서버면 token request가 거절된다.
+			if (!(metadata.get("token_endpoint_auth_methods_supported") instanceof List<?> authMethods)
+					|| !authMethods.contains(authenticationMethod.getValue())) {
+				throw new McpDiscoveryException("Authorization Server가 token endpoint 인증 방식 %s를 받지 않는다: %s"
+						.formatted(authenticationMethod.getValue(), issuer));
 			}
 			// MCP Security Best Practices: authorization URL을 열기 전에 scheme을 확인하고,
 			// http라면 loopback 주소인지 확인한다(MUST).

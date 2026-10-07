@@ -50,18 +50,8 @@ spring:
           connections:
             shop:
               url: "http://localhost:8171"
-  security:
-    oauth2:
-      client:
-        registration:
-          # 여기에는 credentials만 둔다. Authorization Server의 endpoint는 설정에 적지 않고
-          # MCP Server에 물어서 알아낸다(McpAuthorizationDiscovery).
-          authserver:
-            client-id: cimd-shop-agent
-            client-secret: cimd-shop-agent-secret
-            authorization-grant-type: authorization_code
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            # scope는 적지 않는다. openid에 discovery가 고른 scope(401의 scope → PRM의 scopes_supported)를 더해 요청한다.
+  # client 등록(spring.security.oauth2.client.registration)은 없다.
+  # client_id는 아래 client-metadata의 문서 주소이고, endpoint는 discovery로 찾는다(DiscoveredClientRegistrationRepository).
   ssl:
     bundle:
       jks:
@@ -77,8 +67,9 @@ mcp:
   authorization:
     # discovery의 출발점이다. 이 URL 하나만 알면 Authorization Server는 discovery로 찾는다.
     resource-url: http://localhost:8171/mcp
-    # 위 credentials가 등록된 Authorization Server다. discovery 결과가 다르면 credentials를 보내지 않는다.
-    credentials-issuer: http://localhost:9060
+    # 어느 제품처럼 붙을지 고른다. chatgpt면 private_key_jwt, claude면 none(public client)이다.
+    # run.sh의 첫 인자로 바꿀 수 있다(./run.sh claude).
+    client-type: chatgpt
   client-metadata:
     # 문서 주소의 앞부분이다. 문서 주소가 곧 client_id다.
     base-url: https://localhost:8172

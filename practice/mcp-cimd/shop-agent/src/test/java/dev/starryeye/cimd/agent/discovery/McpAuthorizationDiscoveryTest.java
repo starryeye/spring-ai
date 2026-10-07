@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -25,6 +26,8 @@ class McpAuthorizationDiscoveryTest {
 
 	static final String ISSUER = "http://localhost:9060";
 
+	static final ClientAuthenticationMethod METHOD = ClientAuthenticationMethod.PRIVATE_KEY_JWT;
+
 	static final String PROTECTED_RESOURCE_METADATA = """
 			{"resource":"http://localhost:8171/mcp","authorization_servers":["http://localhost:9060"],\
 			"bearer_methods_supported":["header"]}""";
@@ -32,7 +35,8 @@ class McpAuthorizationDiscoveryTest {
 	static final String AUTHORIZATION_SERVER_METADATA = """
 			{"issuer":"http://localhost:9060","authorization_endpoint":"http://localhost:9060/oauth2/authorize",\
 			"token_endpoint":"http://localhost:9060/oauth2/token","jwks_uri":"http://localhost:9060/oauth2/jwks",\
-			"code_challenge_methods_supported":["S256"],"authorization_response_iss_parameter_supported":true}""";
+			"code_challenge_methods_supported":["S256"],"authorization_response_iss_parameter_supported":true,\
+			"client_id_metadata_document_supported":true,"token_endpoint_auth_methods_supported":["private_key_jwt","none"]}""";
 
 	static final String PRM_WITH_SCOPES = """
 			{"resource":"http://localhost:8171/mcp","authorization_servers":["http://localhost:9060"],\
@@ -69,7 +73,7 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		DiscoveredAuthorization discovered = this.discovery.discover(RESOURCE, ISSUER);
+		DiscoveredAuthorization discovered = this.discovery.discover(RESOURCE, METHOD);
 
 		assertThat(discovered.resource()).isEqualTo(RESOURCE);
 		assertThat(discovered.issuer()).isEqualTo(ISSUER);
@@ -86,7 +90,7 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).resource()).isEqualTo(RESOURCE);
+		assertThat(this.discovery.discover(RESOURCE, METHOD).resource()).isEqualTo(RESOURCE);
 		this.server.verify();
 	}
 
@@ -99,7 +103,7 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:9060/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
 		// 루트형이면 resource 는 서버 루트다. 클라이언트는 서버가 선언한 값을 그대로 쓴다.
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).resource()).isEqualTo("http://localhost:8171");
+		assertThat(this.discovery.discover(RESOURCE, METHOD).resource()).isEqualTo("http://localhost:8171");
 		this.server.verify();
 	}
 
@@ -110,7 +114,7 @@ class McpAuthorizationDiscoveryTest {
 				{"resource":"http://evil.example/mcp","authorization_servers":["http://localhost:9060"]}""");
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
 				.withMessageContaining("resource");
 	}
 
@@ -121,7 +125,7 @@ class McpAuthorizationDiscoveryTest {
 		없음("http://localhost:9060/.well-known/oauth-authorization-server");
 		응답("http://localhost:9060/.well-known/openid-configuration", AUTHORIZATION_SERVER_METADATA);
 
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).issuer()).isEqualTo(ISSUER);
+		assertThat(this.discovery.discover(RESOURCE, METHOD).issuer()).isEqualTo(ISSUER);
 		this.server.verify();
 	}
 
@@ -134,7 +138,7 @@ class McpAuthorizationDiscoveryTest {
 				"token_endpoint":"http://evil.example/oauth2/token","code_challenge_methods_supported":["S256"]}""");
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
 				.withMessageContaining("issuer");
 	}
 
@@ -147,23 +151,8 @@ class McpAuthorizationDiscoveryTest {
 				"token_endpoint":"http://localhost:9060/oauth2/token"}""");
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
 				.withMessageContaining("S256");
-	}
-
-	@Test
-	void PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다() {
-		// PRM 이 가리키는 주소로 곧장 GET 하면 공격자가 고른 주소로 요청이 나간다(SSRF).
-		// 자격증명이 묶인 issuer 가 아니면 그 metadata 도 요청하지 않는다 — 기대하지 않은 요청이
-		// 나가면 MockRestServiceServer 가 AssertionError 를 던져 이 테스트가 실패한다.
-		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");
-		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", """
-				{"resource":"http://localhost:8171/mcp","authorization_servers":["http://evil.example"]}""");
-
-		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-				.withMessageContaining("http://evil.example");
-		this.server.verify();
 	}
 
 	@Test
@@ -175,7 +164,7 @@ class McpAuthorizationDiscoveryTest {
 				AUTHORIZATION_SERVER_METADATA.replace("http://localhost:9060/oauth2/authorize", "javascript:alert(1)"));
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
 				.withMessageContaining("authorization_endpoint");
 	}
 
@@ -187,7 +176,7 @@ class McpAuthorizationDiscoveryTest {
 				AUTHORIZATION_SERVER_METADATA.replace("http://localhost:9060/oauth2/token", "file:///etc/passwd"));
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
 				.withMessageContaining("token_endpoint");
 	}
 
@@ -200,7 +189,7 @@ class McpAuthorizationDiscoveryTest {
 				AUTHORIZATION_SERVER_METADATA.replace("http://localhost:9060/oauth2/authorize", "http://evil.example/oauth2/authorize"));
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
 				.withMessageContaining("authorization_endpoint");
 	}
 
@@ -211,7 +200,7 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:9060/.well-known/oauth-authorization-server",
 				AUTHORIZATION_SERVER_METADATA.replace("http://localhost:9060/oauth2/authorize", "https://auth.example/oauth2/authorize"));
 
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).authorizationEndpoint())
+		assertThat(this.discovery.discover(RESOURCE, METHOD).authorizationEndpoint())
 				.isEqualTo("https://auth.example/oauth2/authorize");
 		this.server.verify();
 	}
@@ -223,7 +212,7 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PRM_WITH_SCOPES);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).scopes()).containsExactly("products:read");
+		assertThat(this.discovery.discover(RESOURCE, METHOD).scopes()).containsExactly("products:read");
 	}
 
 	@Test
@@ -232,7 +221,7 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PRM_WITH_SCOPES);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).scopes())
+		assertThat(this.discovery.discover(RESOURCE, METHOD).scopes())
 				.containsExactly("products:read", "products:write");
 	}
 
@@ -242,12 +231,48 @@ class McpAuthorizationDiscoveryTest {
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		assertThat(this.discovery.discover(RESOURCE, ISSUER).scopes()).isEmpty();
+		assertThat(this.discovery.discover(RESOURCE, METHOD).scopes()).isEmpty();
 	}
 
 	@Test
 	void 챌린지의_여러_scope는_공백으로_나눈다() {
 		assertThat(McpAuthorizationDiscovery.selectScopes("products:read  products:write", null))
 				.containsExactly("products:read", "products:write");
+	}
+
+	@Test
+	void CIMD를_알리지_않는_서버면_멈춘다() {
+		// 문서 주소를 client_id로 받지 않는 서버다. 그대로 가면 모르는 client로 거절당한다.
+		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9060/.well-known/oauth-authorization-server",
+				AUTHORIZATION_SERVER_METADATA.replace("\"client_id_metadata_document_supported\":true,", ""));
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
+				.withMessageContaining("client_id_metadata_document_supported");
+	}
+
+	@Test
+	void 고른_인증_방식을_받지_않는_서버면_멈춘다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9060/.well-known/oauth-authorization-server",
+				AUTHORIZATION_SERVER_METADATA.replace("[\"private_key_jwt\",\"none\"]", "[\"none\"]"));
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
+				.withMessageContaining("private_key_jwt");
+	}
+
+	@Test
+	void Claude형은_none을_받는_서버면_진행한다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9060/.well-known/oauth-authorization-server",
+				AUTHORIZATION_SERVER_METADATA.replace("[\"private_key_jwt\",\"none\"]", "[\"none\"]"));
+
+		assertThat(this.discovery.discover(RESOURCE, ClientAuthenticationMethod.NONE).issuer()).isEqualTo(ISSUER);
+		this.server.verify();
 	}
 }

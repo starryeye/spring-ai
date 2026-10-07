@@ -92,7 +92,7 @@ class StepUpChatStreamTest {
 
     @BeforeEach
     void setUp() {
-        given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.ISSUER))
+        given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.AUTH_METHOD))
                 .willReturn(DiscoveryFixtures.discovered());
         given(this.toolCatalog.callbacks(any())).willReturn(List.of());
         // ToolCallingAdvisor는 prompt의 option이 ToolCallingChatOptions일 때만 tool을 부른다.
