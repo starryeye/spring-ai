@@ -22,10 +22,26 @@ public record FetchedDocument(byte[] body, Duration maxAge, boolean noStore) {
 			if ("no-store".equals(value)) {
 				noStore = true;
 			}
-			else if (value.startsWith("max-age=") && value.substring("max-age=".length()).matches("\\d+")) {
-				maxAge = Duration.ofSeconds(Long.parseLong(value.substring("max-age=".length())));
+			else if (value.startsWith("max-age=")) {
+				Duration parsed = seconds(value.substring("max-age=".length()));
+				if (parsed != null) {
+					maxAge = parsed;
+				}
 			}
 		}
 		return new FetchedDocument(body, maxAge, noStore);
+	}
+
+	/** header는 문서 host가 정하므로, 숫자가 아니거나 long 범위를 넘는 값은 없는 것으로 본다. */
+	private static Duration seconds(String value) {
+		if (!value.matches("\\d+")) {
+			return null;
+		}
+		try {
+			return Duration.ofSeconds(Long.parseLong(value));
+		}
+		catch (NumberFormatException ex) {
+			return null;
+		}
 	}
 }

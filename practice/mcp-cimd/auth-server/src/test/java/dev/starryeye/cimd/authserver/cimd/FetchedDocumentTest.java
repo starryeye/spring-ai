@@ -21,4 +21,12 @@ class FetchedDocumentTest {
 		assertThat(FetchedDocument.of(new byte[0], "max-age=abc").maxAge()).isNull();
 		assertThat(FetchedDocument.of(new byte[0], null).noStore()).isFalse();
 	}
+
+	@Test
+	void long_범위를_넘는_max_age는_없는_값으로_본다() {
+		FetchedDocument document = FetchedDocument.of(new byte[0], "max-age=99999999999999999999, no-store");
+
+		assertThat(document.maxAge()).isNull();
+		assertThat(document.noStore()).isTrue();
+	}
 }

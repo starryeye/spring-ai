@@ -13,7 +13,7 @@ import java.util.List;
  * @param loopbackException loopback 주소여도 가져오는 주소 하나(scheme·host·port). 학습 환경의 agent 문서 host다
  * @param maxDocumentBytes 문서 크기 상한. CIMD draft는 5KB를 권한다
  * @param connectTimeout 문서 host에 연결하는 시간 제한
- * @param readTimeout 응답 header를 받을 때까지의 시간 제한
+ * @param readTimeout 응답 전체(header와 본문)를 받는 시간 제한. 본문을 조금씩 흘리는 응답도 이 안에 끊는다
  * @param defaultCacheTtl 응답에 {@code Cache-Control}이 없을 때 cache하는 기간
  * @param maxCacheTtl {@code max-age}가 길어도 넘지 않는 cache 기간
  * @param trustBundle 문서 host의 인증서를 믿을 때 쓰는 Spring Boot SSL bundle 이름. 비우면 JVM 기본 truststore를 쓴다
