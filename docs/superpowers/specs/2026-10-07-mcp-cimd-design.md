@@ -187,7 +187,7 @@ module을 지운다.
 ### 실행 스크립트
 
 - `run.sh`: `certs/`가 없으면 `keytool`로 세 파일을 만든다.
-  - `client-metadata-tls.p12`: `CN=localhost`, SAN `DNS:localhost`의 self-signed 인증서
+  - `client-metadata-tls.p12`: `CN=localhost`, SAN `DNS:localhost,IP:127.0.0.1`의 self-signed 인증서
   - `client-metadata-trust.p12`: 위 인증서만 담은 truststore(Authorization Server용)
   - `client-signing.p12`: RSA 2048 서명 key
 - 그다음 `auth-server` → `shop-mcp-server` → `shop-agent` 순서로 띄운다. agent는 `8170`과 `8172`가 모두 열릴 때까지 기다린다.
