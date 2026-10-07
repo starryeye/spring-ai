@@ -50,7 +50,7 @@ class PublicClientConsentServiceTest {
 				.clientId(clientId)
 				.clientAuthenticationMethod(method)
 				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-				.redirectUri("http://127.0.0.1:8123/callback")
+				.redirectUri("http://localhost:8170/login/oauth2/code/authserver")
 				.scope("profile")
 				.build();
 	}

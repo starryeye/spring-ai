@@ -151,6 +151,8 @@ Claude형 `https://localhost:8172/oauth/public-client.json`: `client_id`가 이 
 - client 인증에 public refresh converter·provider를 더하고, `JwtClientAssertionAuthenticationProvider`에 `CimdJwtClientAssertionDecoderFactory`를 넣는다.
 - authorization endpoint의 consent 화면은 `/oauth2/consent`다.
 - metadata(OAuth와 OpenID Connect 두 문서)에 `client_id_metadata_document_supported: true`를 넣고, `token_endpoint_auth_methods_supported`를 `["private_key_jwt", "none"]`으로 둔다. `token_endpoint_auth_signing_alg_values_supported`는 `["RS256"]`이다.
+- token generator를 직접 만들어 Spring 기본 JWT customizer의 DPoP binding이 빠지므로, metadata에서 `dpop_signing_alg_values_supported`를 지운다(DPoP는 아래 "다루지 않는 것"에서 범위 밖으로 두었다).
+- `revocation_endpoint_auth_methods_supported`와 `introspection_endpoint_auth_methods_supported`는 `["private_key_jwt"]`이고, 짝이 되는 signing alg는 `["RS256"]`이다.
 - `PublicClientConsentService`와 `PublicClientScopeValidator`는 그대로 두고, Claude형에도 적용된다. 이름이나 주석의 `local-mcp-client` 전제만 지운다.
 
 ### shop-agent

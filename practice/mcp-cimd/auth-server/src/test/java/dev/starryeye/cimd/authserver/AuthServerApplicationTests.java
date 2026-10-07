@@ -27,28 +27,25 @@ class AuthServerApplicationTests {
 	}
 
 	/**
-	 * oauth2Login 은 openid 스코프로 id_token 을 받는다. 그 흐름이 성립하려면
-	 * OIDC 디스커버리 문서가 있어야 한다 — AuthorizationServerConfig 가 oidc() 를 켠다.
+	 * oauth2Login은 openid scope로 id_token을 받는다. 그 흐름이 성립하려면
+	 * OIDC discovery 문서가 있어야 한다. AuthorizationServerConfig가 oidc()를 켠다.
 	 */
 	@Test
 	void OIDC_메타데이터를_공개한다() throws Exception {
-		mockMvc.perform(get("/.well-known/openid-configuration"))
+		this.mockMvc.perform(get("/.well-known/openid-configuration"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.issuer").value("http://localhost:9060"));
 	}
 
 	@Test
-	void cimd_shop_agent_클라이언트가_등록되어_있다() {
-		var client = registeredClientRepository.findByClientId("cimd-shop-agent");
-
-		assertThat(client).isNotNull();
-		assertThat(client.getRedirectUris())
-				.containsExactly("http://localhost:8170/login/oauth2/code/authserver");
+	void 미리_등록한_client가_없다() {
+		// URL이 아닌 client_id는 문서를 가져오지도 않는다.
+		assertThat(this.registeredClientRepository.findByClientId("cimd-shop-agent")).isNull();
 	}
 
 	@Test
 	void 로그인_화면이_제공된다() throws Exception {
-		mockMvc.perform(get("/login"))
+		this.mockMvc.perform(get("/login"))
 				.andExpect(status().isOk());
 	}
 }

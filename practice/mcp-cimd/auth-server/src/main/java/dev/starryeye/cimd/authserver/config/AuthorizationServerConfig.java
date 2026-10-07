@@ -1,13 +1,26 @@
 package dev.starryeye.cimd.authserver.config;
 
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
+import dev.starryeye.cimd.authserver.cimd.CimdJwtClientAssertionDecoderFactory;
+import dev.starryeye.cimd.authserver.cimd.ClientIdMetadataDocumentProperties;
+import dev.starryeye.cimd.authserver.cimd.ClientIdMetadataDocumentRegisteredClientRepository;
+import dev.starryeye.cimd.authserver.cimd.ClientIdUrlValidator;
+import dev.starryeye.cimd.authserver.cimd.ClientMetadataHttp;
+import dev.starryeye.cimd.authserver.cimd.HostResolver;
+import dev.starryeye.cimd.authserver.cimd.HttpsClientMetadataFetcher;
 import dev.starryeye.cimd.authserver.security.ClientAuthenticationChallengeFailureHandler;
 import dev.starryeye.cimd.authserver.security.IssuerIdentifyingAuthorizationResponseHandler;
 import dev.starryeye.cimd.authserver.security.PublicClientConsentService;
+import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationConverter;
+import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationProvider;
+import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenGenerator;
 import dev.starryeye.cimd.authserver.security.PublicClientScopeValidator;
 import dev.starryeye.cimd.authserver.security.ResourceAudienceTokenCustomizer;
 import dev.starryeye.cimd.authserver.security.ResourceIndicatorValidator;
-
+import dev.starryeye.cimd.authserver.web.ConsentController;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -15,41 +28,52 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.core.OAuth2Token;
 import org.springframework.security.oauth2.jose.jws.JwsAlgorithms;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationServerMetadataClaimNames;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.authentication.JwtClientAssertionAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
-import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
+import javax.net.ssl.SSLContext;
+import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Authorization Server 설정이다. MCP authorization 명세가 요구하는 기능을 켠다.
+ * Authorization Server 설정이다. MCP authorization 명세가 요구하는 기능과 CIMD를 켠다.
  *
- * <p>filter chain을 직접 정의하므로 Boot의 기본 Authorization Server filter chain
+ * <p>미리 등록한 client는 없다. 모든 client는 자기가 올린 문서의 주소를 client_id로 쓴다.
+ * filter chain을 직접 정의하므로 Boot의 기본 Authorization Server filter chain
  * ({@code @ConditionalOnDefaultWebSecurity})은 빠진다.
- * authorization request 검증기와 응답 handler를 바꾸려면 이 방법밖에 없다.
  */
 @Configuration
-@EnableConfigurationProperties(McpResourceProperties.class)
+@EnableConfigurationProperties({ McpResourceProperties.class, ClientIdMetadataDocumentProperties.class })
 public class AuthorizationServerConfig {
 
 	/** authorization response에 iss를 넣는다고 알리는 metadata field다(RFC 9207 §3). */
 	static final String ISS_PARAMETER_SUPPORTED = "authorization_response_iss_parameter_supported";
 
+	/** CIMD 문서 주소를 client_id로 받는다고 알리는 metadata field다(CIMD draft §5). */
+	static final String CLIENT_ID_METADATA_DOCUMENT_SUPPORTED = "client_id_metadata_document_supported";
+
 	/**
 	 * token·revocation·introspection endpoint마다 짝이 되는 claim이다(RFC 8414 §2).
-	 * 그 endpoint의 {@code *_endpoint_auth_methods_supported}에 {@code private_key_jwt}나
-	 * {@code client_secret_jwt}가 있으면, 짝이 되는 claim은 조건부 MUST다.
-	 * 최신 Spring Security(7.2.0-M1 포함)에는 이 claim의 상수도 없다.
+	 * 그 endpoint가 {@code private_key_jwt}를 받는다고 알리면 함께 알린다.
+	 * Spring Security에는 이 claim의 상수가 없다.
 	 */
 	static final String TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED =
 			"token_endpoint_auth_signing_alg_values_supported";
@@ -59,35 +83,25 @@ public class AuthorizationServerConfig {
 			"introspection_endpoint_auth_signing_alg_values_supported";
 
 	/**
-	 * 위 세 claim에 넣을 값이다.
-	 * 임의로 고른 목록이 아니다. Spring Authorization Server의 {@code JwtClientAssertionDecoderFactory}가
-	 * client_secret_jwt·private_key_jwt client 인증에서 실제로 검증기를 만들 수 있는 알고리즘 전부다.
-	 * 대칭 key 방식인 {@code MacAlgorithm}(HS256/HS384/HS512) 3종과
-	 * 비대칭 key 방식인 {@code SignatureAlgorithm}(RS/ES/PS 256/384/512) 9종이다.
-	 * {@code JwsAlgorithms} 상수를 그대로 참조해 값이 어긋나지 않게 한다.
-	 * {@code none}은 RFC 8414 §2가 MUST NOT으로 정해서 넣지 않는다.
+	 * CIMD client가 문서에 선언할 수 있는 인증 방식이다.
+	 * 문서는 누구나 읽으므로 비밀을 나누는 방식(client_secret_*)은 쓸 수 없다.
+	 * 남는 것은 key로 서명하는 {@code private_key_jwt}와 인증하지 않는 {@code none}이다.
+	 * Claude 앱은 이 목록에 {@code none}이 있어야 CIMD를 쓴다.
 	 */
-	static final List<String> CLIENT_ASSERTION_SIGNING_ALGORITHMS = List.of(
-			JwsAlgorithms.HS256, JwsAlgorithms.HS384, JwsAlgorithms.HS512,
-			JwsAlgorithms.RS256, JwsAlgorithms.RS384, JwsAlgorithms.RS512,
-			JwsAlgorithms.ES256, JwsAlgorithms.ES384, JwsAlgorithms.ES512,
-			JwsAlgorithms.PS256, JwsAlgorithms.PS384, JwsAlgorithms.PS512);
+	static final List<String> TOKEN_ENDPOINT_AUTHENTICATION_METHODS = List.of(
+			ClientAuthenticationMethod.PRIVATE_KEY_JWT.getValue(), ClientAuthenticationMethod.NONE.getValue());
 
-	/**
-	 * {@code none}은 client 인증을 하지 않는 public client, 곧 비밀이 없는 client를 뜻한다(RFC 8414 §2).
-	 * {@code OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods()}는 이 값을 넣지 않는다.
-	 * 이 메서드는 client_secret_basic·client_secret_post·client_secret_jwt·private_key_jwt·
-	 * tls_client_auth·self_signed_tls_client_auth 여섯 가지만 고정으로 넣는다.
-	 * 그래서 metadata customizer에서 {@code none}을 더한다.
-	 * filter가 여섯 값을 먼저 담아 builder를 넘기므로, {@code tokenEndpointAuthenticationMethods}(Consumer)는
-	 * 그 목록에 덧붙일 뿐 지우지 않는다.
-	 */
-	static final String PUBLIC_CLIENT_AUTHENTICATION_METHOD = ClientAuthenticationMethod.NONE.getValue();
+	/** revocation·introspection endpoint는 client 인증이 있어야 쓸 수 있다. public client는 쓰지 못한다. */
+	static final List<String> AUTHENTICATED_ENDPOINT_METHODS = List.of(ClientAuthenticationMethod.PRIVATE_KEY_JWT.getValue());
+
+	/** {@code CimdJwtClientAssertionDecoderFactory}가 검증하는 알고리즘이다. 문서의 key는 RSA다. */
+	static final List<String> CLIENT_ASSERTION_SIGNING_ALGORITHMS = List.of(JwsAlgorithms.RS256);
 
 	@Bean
 	@Order(1)
-	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http,
-			McpResourceProperties resources) throws Exception {
+	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, McpResourceProperties resources,
+			RegisteredClientRepository clients, CimdJwtClientAssertionDecoderFactory assertionDecoderFactory)
+			throws Exception {
 		IssuerIdentifyingAuthorizationResponseHandler responseHandler =
 				new IssuerIdentifyingAuthorizationResponseHandler();
 		ResourceIndicatorValidator resourceValidator = new ResourceIndicatorValidator(resources);
@@ -97,6 +111,8 @@ public class AuthorizationServerConfig {
 					http.securityMatcher(authorizationServer.getEndpointsMatcher());
 					authorizationServer
 							.authorizationEndpoint(authorization -> authorization
+									// 문서 host와 redirect host를 보여 주는 consent 화면이다.
+									.consentPage(ConsentController.PATH)
 									// RFC 9207: 성공 응답과 오류 응답 모두에 iss를 넣는다.
 									.authorizationResponseHandler(responseHandler)
 									.errorResponseHandler(responseHandler)
@@ -110,41 +126,25 @@ public class AuthorizationServerConfig {
 															.andThen(publicClientScopeValidator));
 										}
 									})))
-							.authorizationServerMetadataEndpoint(metadata -> metadata
-									.authorizationServerMetadataCustomizer(builder -> builder
-											.claim(ISS_PARAMETER_SUPPORTED, true)
-											.claim(TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											.claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											// public client(local-mcp-client)는 client_secret이 없어 none으로만 인증한다.
-											// token endpoint가 이 방식을 받는다고 알린다.
-											.tokenEndpointAuthenticationMethods(methods ->
-													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD))))
-							// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
-							// WWW-Authenticate를 붙인다. Spring의 기본 handler는 이 부분을 TODO로 남겨 두었다.
 							.clientAuthentication(clientAuthentication -> clientAuthentication
+									// public client의 refresh 요청을 인증한다. Spring 기본은 code_verifier가 있는 요청만 받는다.
+									.authenticationConverter(new PublicClientRefreshTokenAuthenticationConverter())
+									.authenticationProvider(new PublicClientRefreshTokenAuthenticationProvider(clients))
+									// private_key_jwt의 key는 문서의 jwks_uri에서 가져온다.
+									.authenticationProviders(providers -> providers.forEach(provider -> {
+										if (provider instanceof JwtClientAssertionAuthenticationProvider assertionProvider) {
+											assertionProvider.setJwtDecoderFactory(assertionDecoderFactory);
+										}
+									}))
+									// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
+									// WWW-Authenticate를 붙인다.
 									.errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
+							.authorizationServerMetadataEndpoint(metadata -> metadata
+									.authorizationServerMetadataCustomizer(builder -> builder.claims(AuthorizationServerConfig::advertise)))
 							// oauth2Login이 id_token을 받으려면 OIDC가 필요하다.
-							// OidcProviderConfigurationEndpointFilter는 token·revocation·introspection
-							// 세 endpoint 모두에 clientAuthenticationMethods()(private_key_jwt·
-							// client_secret_jwt 포함)를 그대로 알린다. 그래서 Authorization Server
-							// Metadata와 마찬가지로 세 claim 모두 조건부 MUST 대상이다.
+							// OpenID Connect Discovery 문서에도 같은 값을 알린다.
 							.oidc(oidc -> oidc.providerConfigurationEndpoint(configuration -> configuration
-									.providerConfigurationCustomizer(builder -> builder
-											.claim(ISS_PARAMETER_SUPPORTED, true)
-											.claim(TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											.claim(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											.claim(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED,
-													CLIENT_ASSERTION_SIGNING_ALGORITHMS)
-											// OpenID Connect Discovery에도 Authorization Server Metadata와
-											// 같은 이유로 none을 더한다.
-											.tokenEndpointAuthenticationMethods(methods ->
-													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD)))));
+									.providerConfigurationCustomizer(builder -> builder.claims(AuthorizationServerConfig::advertise))));
 				})
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
 				// browser가 login 없이 authorization endpoint에 오면 login 화면으로 보낸다.
@@ -153,6 +153,27 @@ public class AuthorizationServerConfig {
 						new MediaTypeRequestMatcher(MediaType.TEXT_HTML)));
 
 		return http.build();
+	}
+
+	/**
+	 * 두 discovery 문서에 같은 값을 넣는다.
+	 *
+	 * <p>Spring은 여섯 가지 client 인증 방식을 기본으로 알리지만, 이 서버가 받는 것은 문서에 선언할 수 있는 두 방식뿐이다.
+	 * DPoP는 알리지 않는다. 이 서버의 token generator는 token을 DPoP key에 묶지 않는다.
+	 */
+	static void advertise(Map<String, Object> claims) {
+		claims.put(ISS_PARAMETER_SUPPORTED, true);
+		claims.put(CLIENT_ID_METADATA_DOCUMENT_SUPPORTED, true);
+		claims.put(OAuth2AuthorizationServerMetadataClaimNames.TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED,
+				TOKEN_ENDPOINT_AUTHENTICATION_METHODS);
+		claims.put(OAuth2AuthorizationServerMetadataClaimNames.REVOCATION_ENDPOINT_AUTH_METHODS_SUPPORTED,
+				AUTHENTICATED_ENDPOINT_METHODS);
+		claims.put(OAuth2AuthorizationServerMetadataClaimNames.INTROSPECTION_ENDPOINT_AUTH_METHODS_SUPPORTED,
+				AUTHENTICATED_ENDPOINT_METHODS);
+		claims.put(TOKEN_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED, CLIENT_ASSERTION_SIGNING_ALGORITHMS);
+		claims.put(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED, CLIENT_ASSERTION_SIGNING_ALGORITHMS);
+		claims.put(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED, CLIENT_ASSERTION_SIGNING_ALGORITHMS);
+		claims.remove(OAuth2AuthorizationServerMetadataClaimNames.DPOP_SIGNING_ALG_VALUES_SUPPORTED);
 	}
 
 	@Bean
@@ -164,26 +185,32 @@ public class AuthorizationServerConfig {
 				.build();
 	}
 
-	/**
-	 * Spring Authorization Server가 이 타입의 bean을 찾아 JWT를 발급하기 직전에 부른다.
-	 */
 	@Bean
-	public OAuth2TokenCustomizer<JwtEncodingContext> resourceAudienceTokenCustomizer(McpResourceProperties resources) {
-		return new ResourceAudienceTokenCustomizer(resources);
+	public ClientIdUrlValidator clientIdUrlValidator(ClientIdMetadataDocumentProperties properties) {
+		return new ClientIdUrlValidator(properties.loopbackException(), HostResolver.SYSTEM);
 	}
 
 	/**
-	 * {@code OAuth2AuthorizationServerConfigurer}는 이 타입의 bean이 있으면 그것을 쓴다.
-	 * 없으면 {@code InMemoryOAuth2AuthorizationConsentService}를 안에서 직접 만든다
-	 * ({@code OAuth2ConfigurerUtils.getAuthorizationConsentService}).
-	 * public client의 consent를 기록하지 않도록, 기본 저장소를 {@link PublicClientConsentService}로 감싸
-	 * bean으로 등록한다.
+	 * 문서와 JWKS를 가져온다. 문서 host의 인증서는 {@code trust-bundle}의 truststore로만 믿는다.
+	 * bundle을 정하지 않으면 JVM 기본 truststore를 쓴다(공인 인증서를 쓰는 실제 배포).
 	 */
 	@Bean
-	public OAuth2AuthorizationConsentService authorizationConsentService(
-			RegisteredClientRepository registeredClientRepository) {
-		return new PublicClientConsentService(new InMemoryOAuth2AuthorizationConsentService(),
-				registeredClientRepository);
+	public ClientMetadataHttp clientMetadataHttp(ClientIdUrlValidator urlValidator,
+			ClientIdMetadataDocumentProperties properties, SslBundles sslBundles) throws Exception {
+		SSLContext sslContext = (properties.trustBundle() == null) ? SSLContext.getDefault()
+				: sslBundles.getBundle(properties.trustBundle()).createSslContext();
+		return new HttpsClientMetadataFetcher(urlValidator, properties, sslContext);
+	}
+
+	@Bean
+	public RegisteredClientRepository registeredClientRepository(ClientIdUrlValidator urlValidator,
+			ClientMetadataHttp http, ClientIdMetadataDocumentProperties properties) {
+		return new ClientIdMetadataDocumentRegisteredClientRepository(urlValidator, http, properties, Clock.systemUTC());
+	}
+
+	@Bean
+	public CimdJwtClientAssertionDecoderFactory clientAssertionDecoderFactory(ClientMetadataHttp http) {
+		return new CimdJwtClientAssertionDecoderFactory(http);
 	}
 
 	/**
@@ -193,5 +220,30 @@ public class AuthorizationServerConfig {
 	@Bean
 	public OAuth2AuthorizationService authorizationService() {
 		return new InMemoryOAuth2AuthorizationService();
+	}
+
+	/**
+	 * Spring 기본 generator와 같은 순서(JWT, opaque access token, refresh token)로 만들되,
+	 * refresh token은 public client에게도 주는 {@link PublicClientRefreshTokenGenerator}로 바꾼다.
+	 * 이 bean이 있으면 Spring은 {@code OAuth2TokenCustomizer} bean을 찾지 않으므로 customizer를 직접 넣는다.
+	 */
+	@Bean
+	public OAuth2TokenGenerator<OAuth2Token> tokenGenerator(JWKSource<SecurityContext> jwkSource,
+			McpResourceProperties resources) {
+		JwtGenerator jwtGenerator = new JwtGenerator(new NimbusJwtEncoder(jwkSource));
+		jwtGenerator.setJwtCustomizer(new ResourceAudienceTokenCustomizer(resources));
+		return new DelegatingOAuth2TokenGenerator(jwtGenerator, new OAuth2AccessTokenGenerator(),
+				new PublicClientRefreshTokenGenerator());
+	}
+
+	/**
+	 * {@code OAuth2AuthorizationServerConfigurer}는 이 타입의 bean이 있으면 그것을 쓴다.
+	 * public client의 consent를 기록하지 않도록, 기본 저장소를 {@link PublicClientConsentService}로 감싼다.
+	 */
+	@Bean
+	public OAuth2AuthorizationConsentService authorizationConsentService(
+			RegisteredClientRepository registeredClientRepository) {
+		return new PublicClientConsentService(new InMemoryOAuth2AuthorizationConsentService(),
+				registeredClientRepository);
 	}
 }
