@@ -15,6 +15,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * client 문서와 JWKS를 {@code https}로 올리는 작은 서버다.
@@ -36,6 +38,8 @@ public final class ClientMetadataServer implements SmartLifecycle {
 
 	private HttpsServer server;
 
+	private ExecutorService executor;
+
 	public ClientMetadataServer(int port, SSLContext sslContext, ClientMetadataDocuments documents) {
 		this.port = port;
 		this.sslContext = sslContext;
@@ -51,9 +55,15 @@ public final class ClientMetadataServer implements SmartLifecycle {
 			HttpsServer created = HttpsServer.create(
 					new InetSocketAddress(InetAddress.getByName("127.0.0.1"), this.port), 0);
 			created.setHttpsConfigurator(new HttpsConfigurator(this.sslContext));
+			// 기본 executor는 연결을 받는 thread 하나가 TLS 읽기까지 맡는다.
+			// 그러면 handshake만 하고 아무것도 보내지 않는 연결 하나(browser의 preconnect)가 뒤의 요청을 모두 막는다.
+			// Authorization Server는 몇 초 안에 문서를 받지 못하면 client를 거절하므로 요청마다 따로 처리한다.
+			ExecutorService requests = Executors.newVirtualThreadPerTaskExecutor();
+			created.setExecutor(requests);
 			created.createContext("/", this::handle);
 			created.start();
 			this.server = created;
+			this.executor = requests;
 			log.info("client 문서와 JWKS를 올렸다 (https://localhost:{}{}, {}, {})", port(), ClientType.CHATGPT.path(),
 					ClientType.CLAUDE.path(), ClientMetadataDocuments.JWKS_PATH);
 		}
@@ -67,6 +77,8 @@ public final class ClientMetadataServer implements SmartLifecycle {
 		if (this.server != null) {
 			this.server.stop(0);
 			this.server = null;
+			this.executor.shutdown();
+			this.executor = null;
 		}
 	}
 

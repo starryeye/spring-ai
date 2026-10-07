@@ -6,10 +6,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
 
+import javax.net.ssl.SSLSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -91,6 +93,25 @@ class ClientMetadataServerTest {
 						URI.create("https://localhost:" + this.server.port() + "/oauth/client.json"))
 				.POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
 		assertThat(post.statusCode()).isEqualTo(405);
+	}
+
+	@Test
+	void handshake만_하고_아무것도_보내지_않는_연결이_있어도_다른_요청은_바로_받는다() throws Exception {
+		// browser의 preconnect가 이렇다. Authorization Server는 2초 안에 문서를 받지 못하면 client를 거절한다.
+		try (SSLSocket idle = (SSLSocket) TestTls.client().getSocketFactory()
+				.createSocket("localhost", this.server.port())) {
+			idle.startHandshake();
+
+			long started = System.nanoTime();
+			HttpResponse<String> response = this.client.send(
+					HttpRequest.newBuilder(URI.create("https://localhost:" + this.server.port() + "/oauth/client.json"))
+							.timeout(Duration.ofSeconds(3)).GET().build(),
+					HttpResponse.BodyHandlers.ofString());
+			Duration elapsed = Duration.ofNanos(System.nanoTime() - started);
+
+			assertThat(response.statusCode()).isEqualTo(200);
+			assertThat(elapsed).isLessThan(Duration.ofSeconds(1));
+		}
 	}
 
 	@Test
