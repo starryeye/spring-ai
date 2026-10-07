@@ -18,25 +18,23 @@ import org.springframework.util.StringUtils;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@code private_key_jwt} client의 assertion을 문서의 {@code jwks_uri}에 있는 public key로 검증한다.
  *
- * <p>Spring의 {@link JwtClientAssertionDecoderFactory}는 JVM 기본 truststore를 쓰는 내부 client로 JWKS를 받는다.
+ * <p>Spring의 {@link JwtClientAssertionDecoderFactory}는 JVM 기본 truststore를 쓰는 내부 HTTP client로 JWKS를 받는다.
  * 그래서 self-signed 인증서의 문서 host를 읽지 못하고, 주소 검사도 거치지 않는다.
  * 이 factory는 문서를 가져올 때와 같은 {@link ClientMetadataHttp}로 JWKS를 받는다.
  * 검증 규칙(iss·sub가 client_id, aud가 이 서버, 만료)은 Spring의 기본 규칙을 그대로 쓴다.
  *
- * <p>decoder는 client마다 한 번 만든다. key 목록은 assertion을 검증할 때마다 가져온다.
- * assertion은 token·refresh request에만 오므로 횟수가 적고, client가 key를 바꿔도 바로 따라간다.
+ * <p>decoder는 cache하지 않고 검증할 때마다 새로 만든다.
+ * decoder는 key 목록을 들고 있지 않아 만드는 비용이 작다.
+ * 이 factory는 인증이 끝나기 전에 호출되므로, cache하면 호출자가 고른 client_id마다 decoder가 쌓인다.
+ * key 목록도 검증할 때마다 가져오므로, client가 key를 바꾸면 바로 적용된다.
  */
 public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFactory<RegisteredClient> {
 
 	private final ClientMetadataHttp http;
-
-	private final Map<String, JwtDecoder> decoders = new ConcurrentHashMap<>();
 
 	public CimdJwtClientAssertionDecoderFactory(ClientMetadataHttp http) {
 		this.http = http;
@@ -49,7 +47,7 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 			throw new OAuth2AuthenticationException(
 					new OAuth2Error(OAuth2ErrorCodes.INVALID_CLIENT, "client 문서에 jwks_uri가 없다", null));
 		}
-		return this.decoders.computeIfAbsent(client.getId() + " " + jwkSetUrl, key -> build(client, jwkSetUrl));
+		return build(client, jwkSetUrl);
 	}
 
 	private JwtDecoder build(RegisteredClient client, String jwkSetUrl) {

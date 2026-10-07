@@ -93,10 +93,14 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 	}
 
 	static String assertion(RSAKey signer, String audience) throws JOSEException {
+		return assertion(CLIENT_ID, signer, audience);
+	}
+
+	static String assertion(String clientId, RSAKey signer, String audience) throws JOSEException {
 		Instant now = Instant.now();
 		JWTClaimsSet claims = new JWTClaimsSet.Builder()
-				.issuer(CLIENT_ID)
-				.subject(CLIENT_ID)
+				.issuer(clientId)
+				.subject(clientId)
 				.audience(audience)
 				.jwtID(UUID.randomUUID().toString())
 				.issueTime(Date.from(now))
@@ -146,7 +150,11 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 	}
 
 	@Test
-	void decoder는_client마다_한_번_만든다() {
-		assertThat(this.factory.createDecoder(client(JWKS))).isSameAs(this.factory.createDecoder(client(JWKS)));
+	void decoder는_자기_client_id의_assertion만_받는다() throws Exception {
+		// 같은 key로 서명하고 같은 JWKS를 쓰더라도 iss·sub가 다른 client면 거절한다.
+		String otherClient = assertion("https://localhost:8172/oauth/other.json", key, ISSUER + "/oauth2/token");
+
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(otherClient));
 	}
 }
