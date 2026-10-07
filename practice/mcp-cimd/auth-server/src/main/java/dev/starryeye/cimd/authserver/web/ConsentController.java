@@ -18,13 +18,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.HtmlUtils;
 
+import java.net.IDN;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * CIMD client의 consent 화면이다.
@@ -44,6 +48,10 @@ public class ConsentController {
 	public static final String PATH = "/oauth2/consent";
 
 	private static final OAuth2TokenType STATE = new OAuth2TokenType(OAuth2ParameterNames.STATE);
+
+	/** 각 자리가 0~255이고 앞에 0이 붙지 않은 IPv4 주소다. 이런 문자열만 {@link InetAddress}에 넘겨 이름 조회를 막는다. */
+	private static final Pattern IPV4_LITERAL = Pattern
+			.compile("(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)");
 
 	private final RegisteredClientRepository clients;
 
@@ -129,21 +137,74 @@ public class ConsentController {
 		html.append("<input type=\"hidden\" name=\"state\" value=\"").append(escape(state)).append("\">");
 	}
 
+	/**
+	 * 등록한 redirect 주소가 모두 같은 기기로 돌아오는지 본다.
+	 * 이름처럼 보이기만 하는 host(예: {@code 127.evil.example})를 loopback으로 잘못 알리면
+	 * 사용자가 실제로는 다른 곳으로 돌아가는 client를 "이 기기만" 쓴다고 믿게 되므로, 이름은 정확히 가려낸다.
+	 */
 	static boolean onlyLoopback(Collection<String> redirectUris) {
-		return !redirectUris.isEmpty() && redirectUris.stream().map(ConsentController::hostName)
-				.allMatch(host -> "localhost".equals(host) || "::1".equals(host) || "[::1]".equals(host)
-						|| (host != null && host.startsWith("127.")));
+		return !redirectUris.isEmpty() && redirectUris.stream().allMatch(ConsentController::loopback);
 	}
 
-	private static String hostName(String uri) {
+	private static boolean loopback(String uri) {
 		String host = URI.create(uri).getHost();
-		return (host != null) ? host.toLowerCase(Locale.ROOT) : null;
+		if (host == null) {
+			return false;
+		}
+		host = host.toLowerCase(Locale.ROOT);
+		if (host.startsWith("[") && host.endsWith("]")) {
+			return loopbackAddress(host.substring(1, host.length() - 1));
+		}
+		if (IPV4_LITERAL.matcher(host).matches()) {
+			return loopbackAddress(host);
+		}
+		// "localhost."처럼 끝에 점이 붙어도 같은 이름이다.
+		String name = host.endsWith(".") ? host.substring(0, host.length() - 1) : host;
+		return "localhost".equals(name) || name.endsWith(".localhost");
 	}
 
-	/** authority가 없는 주소(예: {@code a:b})는 host를 가려낼 수 없으므로 주소 전체를 보여 준다. */
+	/**
+	 * IP 주소 문자열(IPv4 또는 대괄호를 뗀 IPv6)만 받는다.
+	 * 이런 문자열은 {@link InetAddress#getByName}이 이름 조회(DNS) 없이 바로 해석한다.
+	 * {@code ::1}, {@code 0:0:0:0:0:0:0:1}, {@code ::ffff:127.0.0.1}처럼 표기가 달라도 같은 주소로 본다.
+	 */
+	private static boolean loopbackAddress(String literal) {
+		try {
+			return InetAddress.getByName(literal).isLoopbackAddress();
+		}
+		catch (UnknownHostException ex) {
+			return false;
+		}
+	}
+
+	/**
+	 * 사용자가 믿고 볼 host만 보여 준다.
+	 * {@code user@host} 꼴의 userinfo를 그대로 보여 주면 {@code good.example@evil.example}에서 진짜 host가 가려지므로,
+	 * URI가 가려낸 host와 port만 보여 준다.
+	 * 영문·숫자가 아닌 글자가 섞인 host는 {@code getHost()}가 null이라, userinfo를 떼고 punycode로 바꿔 보여 준다.
+	 * 키릴 문자 а와 라틴 문자 a처럼 눈으로 구별되지 않는 글자가 있어도 {@code xn--} 꼴로는 구별된다.
+	 * authority가 없는 주소(예: {@code a:b})는 host를 가려낼 수 없으므로 주소 전체를 보여 준다.
+	 */
 	private static String host(String uri) {
-		String authority = URI.create(uri).getRawAuthority();
-		return (authority != null) ? authority : uri;
+		URI parsed = URI.create(uri);
+		String host = parsed.getHost();
+		if (host != null) {
+			return (parsed.getPort() != -1) ? host + ":" + parsed.getPort() : host;
+		}
+		String authority = parsed.getRawAuthority();
+		if (authority == null) {
+			return uri;
+		}
+		String hostAndPort = authority.substring(authority.lastIndexOf('@') + 1);
+		if (hostAndPort.chars().allMatch(ch -> ch < 128)) {
+			return hostAndPort;
+		}
+		try {
+			return IDN.toASCII(hostAndPort, IDN.ALLOW_UNASSIGNED);
+		}
+		catch (IllegalArgumentException ex) {
+			return uri;
+		}
 	}
 
 	private static String escape(String value) {

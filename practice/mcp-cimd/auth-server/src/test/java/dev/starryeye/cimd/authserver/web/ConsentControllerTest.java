@@ -16,6 +16,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -123,22 +124,52 @@ class ConsentControllerTest {
 		assertThat(html).contains("이미 허락한 권한").contains("products:read");
 	}
 
-	@Test
-	void authority가_없는_redirect_주소도_주소_전체를_보여_주고_200이다() throws Exception {
-		String opaqueClientId = "https://opaque.example/client.json";
-		RegisteredClient opaque = client(opaqueClientId, "Opaque", "a:b");
-		대기중인_authorization(opaque, "opaque-state", "a:b");
+	/** redirect 주소 하나만 가진 client의 화면이다. 주소의 host 표시와 loopback 경고를 따로 확인할 때 쓴다. */
+	String 화면_redirect(String redirectUri) throws Exception {
+		String clientId = "https://opaque.example/client.json";
+		RegisteredClient opaque = client(clientId, "Opaque", redirectUri);
+		대기중인_authorization(opaque, "opaque-state", redirectUri);
 		MockMvc opaqueMockMvc = MockMvcBuilders.standaloneSetup(new ConsentController(
 				new InMemoryRegisteredClientRepository(opaque), this.consents, this.authorizations)).build();
 
-		String html = opaqueMockMvc.perform(get(ConsentController.PATH)
+		return opaqueMockMvc.perform(get(ConsentController.PATH)
 						.principal(new TestingAuthenticationToken("user", null))
-						.param("client_id", opaqueClientId).param("scope", "openid products:read")
+						.param("client_id", clientId).param("scope", "openid products:read")
 						.param("state", "opaque-state"))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString();
+	}
+
+	@Test
+	void authority가_없는_redirect_주소도_주소_전체를_보여_주고_200이다() throws Exception {
+		String html = 화면_redirect("a:b");
 
 		assertThat(html).contains("<code>a:b</code>").doesNotContain(LOOPBACK_WARNING);
+	}
+
+	@Test
+	void redirect_주소의_userinfo는_host로_보여_주지_않는다() throws Exception {
+		String html = 화면_redirect("https://good.example@evil.example:8443/cb");
+
+		assertThat(html).contains("<code>evil.example:8443</code>");
+		assertThat(html).doesNotContain("good.example");
+	}
+
+	@Test
+	void 유니코드_host는_punycode로_보여_준다() throws Exception {
+		// 앞 글자가 키릴 문자 а(U+0430)라서 라틴 문자 a로 쓴 apple.com과 눈으로는 구별되지 않는다.
+		String html = 화면_redirect("https://\u0430pple.com/cb");
+
+		assertThat(html).contains("<code>xn--pple-43d.com</code>");
+		assertThat(html).doesNotContain("\u0430pple.com");
+	}
+
+	@Test
+	void 유니코드_host에_userinfo가_붙어도_userinfo를_떼고_punycode로_보여_준다() throws Exception {
+		String html = 화면_redirect("https://apple.com@\u0430pple.com:8443/cb");
+
+		assertThat(html).contains("<code>xn--pple-43d.com:8443</code>");
+		assertThat(html).doesNotContain("apple.com@").doesNotContain("\u0430pple.com");
 	}
 
 	@Test
@@ -148,6 +179,31 @@ class ConsentControllerTest {
 
 		assertThat(html).doesNotContain("app.example.com").doesNotContain("허락하면 돌아갈 주소");
 		assertThat(html).contains("localhost:8172");
+	}
+
+	@Test
+	void loopback_주소는_표기가_달라도_loopback이다() {
+		for (String uri : List.of("http://127.0.0.1:8123/cb", "http://127.1.2.3/cb", "http://[::1]/cb",
+				"http://[0:0:0:0:0:0:0:1]/cb", "http://[::ffff:127.0.0.1]/cb", "http://LOCALHOST/cb",
+				"http://localhost./cb", "http://app.localhost/cb")) {
+			assertThat(ConsentController.onlyLoopback(List.of(uri))).as(uri).isTrue();
+		}
+	}
+
+	@Test
+	void loopback처럼_보이는_host_이름은_loopback이_아니다() {
+		for (String uri : List.of("https://127.evil.example/cb", "https://127.0.0.1.evil.example/cb",
+				"https://localhost.evil.example/cb", "https://evil-localhost/cb", "https://192.168.0.10/cb",
+				"https://[2001:db8::1]/cb", "a:b")) {
+			assertThat(ConsentController.onlyLoopback(List.of(uri))).as(uri).isFalse();
+		}
+	}
+
+	@Test
+	void redirect_주소가_하나라도_공개_주소면_loopback뿐이_아니다() {
+		assertThat(ConsentController.onlyLoopback(
+				List.of("http://localhost:8170/cb", "https://app.example.com/cb"))).isFalse();
+		assertThat(ConsentController.onlyLoopback(List.of())).isFalse();
 	}
 
 	@Test
