@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
@@ -127,7 +128,11 @@ class CimdAuthorizationServerTest {
 
 	/** consent 화면이 나오면 approvedScopes를 골라 보낸다. 이미 허락한 scope만 요청했으면 바로 redirect를 받는다. */
 	UriComponents 인가(String clientId, String scope, String... approvedScopes) throws Exception {
-		String location = redirect(authorizationRequest(clientId, scope));
+		return 인가(authorizationRequest(clientId, scope), clientId, approvedScopes);
+	}
+
+	UriComponents 인가(URI uri, String clientId, String... approvedScopes) throws Exception {
+		String location = redirect(uri);
 		if (location.contains(ConsentController.PATH)) {
 			MockHttpServletRequestBuilder consent = post("/oauth2/authorize").session(this.session)
 					.param("client_id", clientId)
@@ -191,6 +196,28 @@ class CimdAuthorizationServerTest {
 		return SignedJWT.parse(jwt).getJWTClaimsSet();
 	}
 
+	static List<String> scopes(String jwt) throws Exception {
+		return claims(jwt).getStringListClaim("scope");
+	}
+
+	/** authorization request를 보내고 오류로 돌아온 redirect를 읽는다. */
+	UriComponents 오류_응답(URI uri) throws Exception {
+		return UriComponentsBuilder.fromUriString(redirect(uri)).build();
+	}
+
+	/**
+	 * ChatGPT형 문서는 {@code private_key_jwt}만 선언한다.
+	 * 그래서 {@code client_secret}을 form으로 보내면 client 인증이 {@code invalid_client}로 실패한다.
+	 * 이 실패는 Authorization header와 상관없이 일어나므로, header의 scheme을 읽는 방식만 따로 확인할 수 있다.
+	 */
+	static MultiValueMap<String, String> 허용되지_않는_인증_방식() {
+		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+		parameters.add("grant_type", "client_credentials");
+		parameters.add("client_id", CHATGPT);
+		parameters.add("client_secret", "not-a-secret");
+		return parameters;
+	}
+
 	@Test
 	void metadata는_CIMD와_두_인증_방식만_알린다() throws Exception {
 		for (String path : List.of("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration")) {
@@ -205,7 +232,8 @@ class CimdAuthorizationServerTest {
 					.andExpect(jsonPath("$.introspection_endpoint_auth_methods_supported", contains("private_key_jwt")))
 					.andExpect(jsonPath("$.introspection_endpoint_auth_signing_alg_values_supported", contains("RS256")))
 					.andExpect(jsonPath("$.authorization_response_iss_parameter_supported").value(true))
-					.andExpect(jsonPath("$.dpop_signing_alg_values_supported").doesNotExist());
+					.andExpect(jsonPath("$.dpop_signing_alg_values_supported").doesNotExist())
+					.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").doesNotExist());
 		}
 		this.mockMvc.perform(get("/.well-known/oauth-authorization-server"))
 				.andExpect(jsonPath("$.code_challenge_methods_supported", hasItem("S256")));
@@ -285,6 +313,48 @@ class CimdAuthorizationServerTest {
 	}
 
 	@Test
+	void 성공한_authorization_response에도_iss와_state가_있다() throws Exception {
+		UriComponents response = 인가(CHATGPT, "openid products:read", "products:read");
+
+		assertThat(응답값(response, "code")).isNotBlank();
+		assertThat(응답값(response, "state")).isEqualTo("state-1");
+		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+	}
+
+	@Test
+	void ChatGPT형도_openid만_요청하면_invalid_scope다() throws Exception {
+		// Spring은 openid 하나면 consent를 건너뛴다.
+		// 누구나 private_key_jwt 문서를 올릴 수 있으므로, 막지 않으면 consent 없이 code와 refresh token을 받는다.
+		UriComponents response = 오류_응답(authorizationRequest(CHATGPT, "openid"));
+
+		assertThat(응답값(response, "error")).isEqualTo("invalid_scope");
+		assertThat(응답값(response, "code")).isNull();
+		assertThat(응답값(response, "state")).isEqualTo("state-1");
+		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+	}
+
+	@Test
+	void Claude형도_openid만_요청하면_invalid_scope다() throws Exception {
+		UriComponents response = 오류_응답(authorizationRequest(CLAUDE, "openid"));
+
+		assertThat(응답값(response, "error")).isEqualTo("invalid_scope");
+		assertThat(응답값(response, "code")).isNull();
+		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+	}
+
+	@Test
+	void scope_없이_요청하면_invalid_scope다() throws Exception {
+		// RFC 6749 §3.3: scope 없는 요청은 기본값으로 처리하거나 거부한다. 이 서버는 거부한다.
+		UriComponents response = 오류_응답(authorizationRequestBuilder(CHATGPT, "openid products:read")
+				.replaceQueryParam("scope")
+				.encode().build().toUri());
+
+		assertThat(응답값(response, "error")).isEqualTo("invalid_scope");
+		assertThat(응답값(response, "code")).isNull();
+		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+	}
+
+	@Test
 	void 가져올_수_없는_문서의_client_id는_400이다() throws Exception {
 		this.mockMvc.perform(get(authorizationRequest("https://localhost:8172/oauth/unknown.json", "openid products:read"))
 						.session(this.session))
@@ -299,6 +369,49 @@ class CimdAuthorizationServerTest {
 
 		UriComponents response = UriComponentsBuilder.fromUriString(redirect(uri)).build();
 		assertThat(응답값(response, "error")).isEqualTo("invalid_target");
+	}
+
+	@Test
+	void token_request의_resource가_authorization_request와_다르면_invalid_target이다() throws Exception {
+		MultiValueMap<String, String> parameters = withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.KEY);
+		parameters.set("resource", OTHER_RESOURCE);
+
+		String body = token(parameters, 400);
+
+		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
+	}
+
+	@Test
+	void authorization_request에_없던_resource를_token_request에서_정하면_invalid_target이다() throws Exception {
+		// resource는 사용자가 consent한 대상이다. authorization request에 없던 대상을 token request에서 새로 정하지 못한다.
+		URI withoutResource = authorizationRequestBuilder(CHATGPT, "openid products:read")
+				.replaceQueryParam("resource")
+				.encode().build().toUri();
+		String code = 응답값(인가(withoutResource, CHATGPT, "products:read"), "code");
+
+		String body = token(withAssertion(codeExchange(CHATGPT, code), TestClientDocuments.KEY), 400);
+
+		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
+	}
+
+	@Test
+	void token_request의_resource가_여러_개면_invalid_target이다() throws Exception {
+		MultiValueMap<String, String> parameters = withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.KEY);
+		parameters.add("resource", OTHER_RESOURCE);
+
+		String body = token(parameters, 400);
+
+		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
+	}
+
+	@Test
+	void token_request에_resource가_없으면_authorization_request의_resource로_발급한다() throws Exception {
+		MultiValueMap<String, String> parameters = withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.KEY);
+		parameters.remove("resource");
+
+		String body = token(parameters, 200);
+
+		assertThat(claims(JsonPath.read(body, "$.access_token")).getAudience()).containsExactly(RESOURCE);
 	}
 
 	@Test
@@ -378,6 +491,28 @@ class CimdAuthorizationServerTest {
 	}
 
 	@Test
+	void step_up에서_새_scope를_허락하면_세_scope가_모두_token에_담긴다() throws Exception {
+		code(CHATGPT);
+
+		UriComponents response = 인가(CHATGPT, "openid products:read products:write", "products:write");
+		String body = token(withAssertion(codeExchange(CHATGPT, 응답값(response, "code")), TestClientDocuments.KEY), 200);
+
+		assertThat(scopes(JsonPath.read(body, "$.access_token")))
+				.containsExactlyInAnyOrder("openid", "products:read", "products:write");
+	}
+
+	@Test
+	void step_up에서_새_scope를_고르지_않으면_전에_허락한_scope만_token에_담긴다() throws Exception {
+		code(CHATGPT);
+
+		UriComponents response = 인가(CHATGPT, "openid products:read products:write");
+		String body = token(withAssertion(codeExchange(CHATGPT, 응답값(response, "code")), TestClientDocuments.KEY), 200);
+
+		assertThat(JsonPath.<String>read(body, "$.scope").split(" ")).containsExactlyInAnyOrder("openid", "products:read");
+		assertThat(scopes(JsonPath.read(body, "$.access_token"))).containsExactlyInAnyOrder("openid", "products:read");
+	}
+
+	@Test
 	void Basic_인증_실패에는_WWW_Authenticate가_붙는다() throws Exception {
 		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
 		parameters.add("grant_type", "client_credentials");
@@ -386,6 +521,37 @@ class CimdAuthorizationServerTest {
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.error").value("invalid_client"))
 				.andExpect(header().string("WWW-Authenticate", "Basic realm=\"" + ISSUER + "\""));
+	}
+
+	@Test
+	void Basic이_아닌_scheme으로_인증에_실패하면_그_scheme을_WWW_Authenticate에_넣는다() throws Exception {
+		// 기본 scheme이 Basic이라, Basic 요청만으로는 header의 scheme을 실제로 읽는지 알 수 없다.
+		this.mockMvc.perform(post("/oauth2/token")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer not-a-real-token")
+						.params(허용되지_않는_인증_방식()))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("invalid_client"))
+				.andExpect(header().string("WWW-Authenticate", "Bearer realm=\"" + ISSUER + "\""));
+	}
+
+	@Test
+	void scheme에_따옴표가_섞이면_Basic으로_바꿔_넣는다() throws Exception {
+		// token 문법에 맞지 않는 scheme을 그대로 옮기면 WWW-Authenticate에 다른 값을 끼워 넣을 수 있다.
+		this.mockMvc.perform(post("/oauth2/token")
+						.header(HttpHeaders.AUTHORIZATION, "Basic\" , evil=\"x not-a-real-credential")
+						.params(허용되지_않는_인증_방식()))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("invalid_client"))
+				.andExpect(header().string("WWW-Authenticate", "Basic realm=\"" + ISSUER + "\""));
+	}
+
+	@Test
+	void Authorization_header_없이_인증에_실패하면_WWW_Authenticate가_없다() throws Exception {
+		// form parameter로만 인증을 시도했으면 scheme을 알 수 없다. RFC 6749 §5.2의 요구도 header로 시도한 경우에만 해당한다.
+		this.mockMvc.perform(post("/oauth2/token").params(허용되지_않는_인증_방식()))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.error").value("invalid_client"))
+				.andExpect(header().doesNotExist("WWW-Authenticate"));
 	}
 
 	@Test

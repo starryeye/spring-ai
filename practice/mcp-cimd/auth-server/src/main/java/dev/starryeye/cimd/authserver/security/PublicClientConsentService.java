@@ -19,7 +19,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
  * public client라면 consent를 저장하지 않고, 조회에도 {@code null}을 돌려준다.
  * consent를 받은 그 요청은 저장 여부와 상관없이 방금 고른 scope로 code를 발급한다.
  * Spring이 저장과 상관없이 consent를 건너뛰는 경우(scope가 {@code openid} 하나)는
- * {@link PublicClientScopeValidator}가 막는다.
+ * {@link ConsentableScopeValidator}가 막는다.
  * confidential client의 consent는 감싼 서비스에 그대로 맡긴다.
  */
 public class PublicClientConsentService implements OAuth2AuthorizationConsentService {

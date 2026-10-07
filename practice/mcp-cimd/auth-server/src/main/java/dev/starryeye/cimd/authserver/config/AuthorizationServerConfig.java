@@ -10,12 +10,12 @@ import dev.starryeye.cimd.authserver.cimd.ClientMetadataHttp;
 import dev.starryeye.cimd.authserver.cimd.HostResolver;
 import dev.starryeye.cimd.authserver.cimd.HttpsClientMetadataFetcher;
 import dev.starryeye.cimd.authserver.security.ClientAuthenticationChallengeFailureHandler;
+import dev.starryeye.cimd.authserver.security.ConsentableScopeValidator;
 import dev.starryeye.cimd.authserver.security.IssuerIdentifyingAuthorizationResponseHandler;
 import dev.starryeye.cimd.authserver.security.PublicClientConsentService;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationConverter;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationProvider;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenGenerator;
-import dev.starryeye.cimd.authserver.security.PublicClientScopeValidator;
 import dev.starryeye.cimd.authserver.security.ResourceAudienceTokenCustomizer;
 import dev.starryeye.cimd.authserver.security.ResourceIndicatorValidator;
 import dev.starryeye.cimd.authserver.web.ConsentController;
@@ -105,7 +105,7 @@ public class AuthorizationServerConfig {
 		IssuerIdentifyingAuthorizationResponseHandler responseHandler =
 				new IssuerIdentifyingAuthorizationResponseHandler();
 		ResourceIndicatorValidator resourceValidator = new ResourceIndicatorValidator(resources);
-		PublicClientScopeValidator publicClientScopeValidator = new PublicClientScopeValidator();
+		ConsentableScopeValidator consentableScopeValidator = new ConsentableScopeValidator();
 
 		http.oauth2AuthorizationServer(authorizationServer -> {
 					http.securityMatcher(authorizationServer.getEndpointsMatcher());
@@ -117,13 +117,13 @@ public class AuthorizationServerConfig {
 									.authorizationResponseHandler(responseHandler)
 									.errorResponseHandler(responseHandler)
 									// 기본 검증(redirect_uri·scope) 뒤에 RFC 8707 resource 검증과
-									// public client의 scope 검증(OAuth 2.1 §7.3.1)을 차례로 잇는다.
+									// consent할 scope가 있는지 보는 검증을 차례로 잇는다.
 									.authenticationProviders(providers -> providers.forEach(provider -> {
 										if (provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider codeProvider) {
 											codeProvider.setAuthenticationValidator(
 													new OAuth2AuthorizationCodeRequestAuthenticationValidator()
 															.andThen(resourceValidator)
-															.andThen(publicClientScopeValidator));
+															.andThen(consentableScopeValidator));
 										}
 									})))
 							.clientAuthentication(clientAuthentication -> clientAuthentication
@@ -158,8 +158,10 @@ public class AuthorizationServerConfig {
 	/**
 	 * 두 discovery 문서에 같은 값을 넣는다.
 	 *
-	 * <p>Spring은 여섯 가지 client 인증 방식을 기본으로 알리지만, 이 서버가 받는 것은 문서에 선언할 수 있는 두 방식뿐이다.
-	 * DPoP는 알리지 않는다. 이 서버의 token generator는 token을 DPoP key에 묶지 않는다.
+	 * <p>이 서버가 받는 client 인증 방식은 문서에 선언할 수 있는 두 방식뿐이다.
+	 * 그래서 Spring이 기본으로 알리는 여섯 방식 대신 이 두 방식만 알린다.
+	 * 이 서버의 token generator는 access token을 DPoP key나 client 인증서(mTLS)에 묶지 않는다.
+	 * 그래서 {@code dpop_signing_alg_values_supported}와 {@code tls_client_certificate_bound_access_tokens}를 지운다.
 	 */
 	static void advertise(Map<String, Object> claims) {
 		claims.put(ISS_PARAMETER_SUPPORTED, true);
@@ -174,6 +176,7 @@ public class AuthorizationServerConfig {
 		claims.put(REVOCATION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED, CLIENT_ASSERTION_SIGNING_ALGORITHMS);
 		claims.put(INTROSPECTION_ENDPOINT_AUTH_SIGNING_ALG_VALUES_SUPPORTED, CLIENT_ASSERTION_SIGNING_ALGORITHMS);
 		claims.remove(OAuth2AuthorizationServerMetadataClaimNames.DPOP_SIGNING_ALG_VALUES_SUPPORTED);
+		claims.remove(OAuth2AuthorizationServerMetadataClaimNames.TLS_CLIENT_CERTIFICATE_BOUND_ACCESS_TOKENS);
 	}
 
 	@Bean
