@@ -38,6 +38,16 @@ public final class ClientIdMetadataDocumentRegisteredClientRepository implements
 	private static final TypeReference<Map<String, Object>> JSON_OBJECT = new TypeReference<>() {
 	};
 
+	/**
+	 * cache에 두는 client 수의 상한이다.
+	 * client_id는 요청하는 쪽이 정하는 주소여서, 문서를 올릴 수 있는 사람은 서로 다른 주소를 얼마든지 만들 수 있다.
+	 * 상한이 없으면 인증 없이 보내는 authorize 요청만으로 memory가 바닥난다.
+	 */
+	private static final int MAX_CACHE_ENTRIES = 1000;
+
+	/** 로그 한 줄에 남기는 외부 값의 최대 길이다. 문서와 요청의 값은 그대로 믿을 수 없다. */
+	private static final int MAX_LOG_VALUE_LENGTH = 200;
+
 	private final ClientIdUrlValidator urlValidator;
 
 	private final ClientMetadataValidator metadataValidator;
@@ -48,12 +58,21 @@ public final class ClientIdMetadataDocumentRegisteredClientRepository implements
 
 	private final Clock clock;
 
+	private final int maxCacheEntries;
+
 	private final JsonMapper json = JsonMapper.builder().build();
 
 	private final Map<String, Entry> cache = new ConcurrentHashMap<>();
 
 	public ClientIdMetadataDocumentRegisteredClientRepository(ClientIdUrlValidator urlValidator, ClientMetadataHttp http,
 			ClientIdMetadataDocumentProperties properties, Clock clock) {
+		this(urlValidator, http, properties, clock, MAX_CACHE_ENTRIES);
+	}
+
+	/** 테스트가 상한을 작게 잡을 수 있도록 열어 둔다. */
+	ClientIdMetadataDocumentRegisteredClientRepository(ClientIdUrlValidator urlValidator, ClientMetadataHttp http,
+			ClientIdMetadataDocumentProperties properties, Clock clock, int maxCacheEntries) {
+		this.maxCacheEntries = maxCacheEntries;
 		this.urlValidator = urlValidator;
 		this.metadataValidator = new ClientMetadataValidator(urlValidator);
 		this.http = http;
@@ -79,7 +98,7 @@ public final class ClientIdMetadataDocumentRegisteredClientRepository implements
 		Instant now = this.clock.instant();
 		Entry cached = this.cache.get(clientId);
 		if (cached != null && now.isBefore(cached.expiresAt())) {
-			log.debug("client 문서를 cache에서 꺼낸다 (client_id={})", clientId);
+			log.debug("client 문서를 cache에서 꺼낸다 (client_id={})", forLog(clientId));
 			return cached.client();
 		}
 		if (cached != null) {
@@ -91,17 +110,59 @@ public final class ClientIdMetadataDocumentRegisteredClientRepository implements
 			ClientMetadata metadata = this.metadataValidator.validate(url, parse(fetched.body()));
 			RegisteredClient client = toRegisteredClient(metadata);
 			Duration ttl = cacheTtl(fetched);
-			if (!ttl.isZero()) {
-				this.cache.put(clientId, new Entry(client, now.plus(ttl)));
-			}
-			log.info("client 문서를 가져왔다 (client_id={}, 인증 방식={}, cache={}초)", clientId,
-					metadata.authenticationMethod().getValue(), ttl.toSeconds());
+			boolean stored = !ttl.isZero() && remember(clientId, new Entry(client, now.plus(ttl)), now);
+			log.info("client 문서를 가져왔다 (client_id={}, 인증 방식={}, cache={}초)", forLog(clientId),
+					metadata.authenticationMethod().getValue(), stored ? ttl.toSeconds() : 0);
 			return client;
 		}
 		catch (InvalidClientMetadataException ex) {
-			log.warn("client 문서를 쓸 수 없다 (client_id={}, 이유={})", clientId, ex.getMessage());
+			log.warn("client 문서를 쓸 수 없다 (client_id={}, 이유={})", forLog(clientId), forLog(ex.getMessage()));
 			return null;
 		}
+	}
+
+	/**
+	 * 만료된 항목을 먼저 치우고, 그래도 가득 차 있으면 새 client는 cache하지 않는다(요청에는 그대로 돌려준다).
+	 * 만료된 항목은 같은 client_id가 다시 오지 않으면 남아 있으므로 새로 넣을 때 함께 치운다.
+	 */
+	private synchronized boolean remember(String clientId, Entry entry, Instant now) {
+		this.cache.values().removeIf((existing) -> !now.isBefore(existing.expiresAt()));
+		if (this.cache.size() >= this.maxCacheEntries && !this.cache.containsKey(clientId)) {
+			log.warn("client 문서 cache가 가득 차서 cache하지 않는다 (상한={})", this.maxCacheEntries);
+			return false;
+		}
+		this.cache.put(clientId, entry);
+		return true;
+	}
+
+	int cacheSize() {
+		return this.cache.size();
+	}
+
+	/**
+	 * 로그에 남길 값에서 줄바꿈 같은 제어 문자를 없애고 길이를 줄인다.
+	 * client_id와 문서의 값은 요청하는 쪽이 정하므로, 그대로 쓰면 로그에 가짜 줄을 끼워 넣을 수 있다.
+	 */
+	static String forLog(String value) {
+		if (value == null) {
+			return "null";
+		}
+		int length = Math.min(value.length(), MAX_LOG_VALUE_LENGTH);
+		if (length < value.length() && Character.isHighSurrogate(value.charAt(length - 1))) {
+			length--;
+		}
+		StringBuilder safe = new StringBuilder(length + 8);
+		for (int i = 0; i < length; i++) {
+			char c = value.charAt(i);
+			int type = Character.getType(c);
+			boolean control = Character.isISOControl(c) || type == Character.LINE_SEPARATOR
+					|| type == Character.PARAGRAPH_SEPARATOR;
+			safe.append(control ? '?' : c);
+		}
+		if (length < value.length()) {
+			safe.append("...(").append(value.length() - length).append("자 생략)");
+		}
+		return safe.toString();
 	}
 
 	private Map<String, Object> parse(byte[] body) {
