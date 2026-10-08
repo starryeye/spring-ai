@@ -17,7 +17,7 @@ DCR은 연결할 때마다 `registration_endpoint`에 등록을 요청해 새 `c
 
 CIMD는 등록 요청이 없다.
 client는 자기 정보를 담은 JSON 문서를 자기 `https` 주소에 올리고, 그 주소를 `client_id`로 쓴다.
-Authorization Server는 처음 보는 주소를 만나면 그 문서를 가져와 등록 정보로 쓰므로, 따로 저장해 둘 것이 없다.
+Authorization Server는 cache에 없는 주소를 만나면 그 문서를 가져와 등록 정보로 쓰므로, 따로 저장해 둘 것이 없다.
 문서의 내용은 그 domain의 주인만 바꿀 수 있다.
 CIMD의 기본 규칙은 [4장 CIMD](04-client-registration.md#45-cimd)에서 보았고, 이 장은 그 규칙을 실제로 돌려 본다.
 
@@ -137,7 +137,8 @@ agent는 [3장](03-discovery.md)의 discovery로 찾은 Authorization Server의 
 
 `client_id_metadata_document_supported: true`는 문서 주소를 `client_id`로 받는다는 표시다.
 token endpoint의 인증 방식은 이 서버가 문서에서 받는 두 방식만, signature 알고리즘은 이 서버가 assertion을 검증하는 `RS256`만 알린다.
-Spring은 기본으로 인증 방식 여섯 가지와 알고리즘 여러 개를 알리지만, 이 서버는 실제로 받는 것만 알린다.
+Spring의 기본 metadata는 인증 방식 여섯 가지를 알리고, signature 알고리즘 목록은 넣지 않는다.
+`private_key_jwt`를 알리는 서버는 받는 알고리즘도 함께 알려야 하므로, 이 서버는 방식을 실제로 받는 둘로 줄이고 `RS256` 목록을 더한다.
 revocation·introspection endpoint는 client 인증이 있어야 쓸 수 있으므로, 인증 방식으로 `private_key_jwt`만 알린다.
 
 agent는 3장의 확인(`resource`·`issuer` 일치, PKCE `S256`, endpoint 주소 형식)에 두 가지를 더한다.
@@ -210,7 +211,7 @@ Spring이 기본으로 구성하는 token generator는 DPoP proof나 client 인�
 
 authorization request는 login보다 먼저 검사된다([5장](05-authorization-and-token.md)).
 그래서 login하지 않은 누구든 `client_id`에 주소 하나를 적어 보내면, Authorization Server가 그 주소로 요청을 보내게 할 수 있다.
-Authorization Server는 처음 보는 주소를 아래 항목으로 검사하고, 하나라도 어긋나면 그 client를 모르는 client로 다룬다.
+Authorization Server는 cache에 없는 주소를 만날 때마다 아래 항목으로 검사하고, 하나라도 어긋나면 그 client를 모르는 client로 다룬다.
 
 | 확인 | 자리 | 어기면 생기는 일 |
 |---|---|---|
@@ -222,6 +223,7 @@ Authorization Server는 처음 보는 주소를 아래 항목으로 검사하고
 | 상태가 `200`이고 `Content-Type`이 `application/json`이나 `+json`이다 | `HttpsClientMetadataFetcher` | HTML 오류 page 같은 응답을 문서로 읽는다 |
 | 문서의 `client_id`가 문서 주소와 글자까지 같다 | `ClientMetadataValidator` | 남의 문서를 복사해 자기 주소에 올린 client가 그 client 행세를 한다 |
 | `client_name`과 `redirect_uris`(fragment 없는 절대 주소)가 있고, `client_secret`·`client_secret_expires_at`은 없다 | `ClientMetadataValidator` | consent 화면에 보일 이름이나 code를 보낼 주소가 없다. 누구나 읽는 문서의 비밀은 비밀이 아니다 |
+| `redirect_uris`는 모두 host가 있는 `https`이거나, host가 loopback(`localhost`, `127.0.0.0/8`, `[::1]`)인 `http`다 | `ClientMetadataValidator` | `http`로 다른 host에 돌아가면 code가 평문으로 network를 지난다. `javascript:` 같은 주소로 browser가 이동한다 |
 | 인증 방식은 `none`이나 `private_key_jwt`다. `private_key_jwt`면 `jwks_uri`가 위의 주소 규칙을 지키고 알고리즘은 `RS256`이다 | `ClientMetadataValidator` | 공유 비밀 방식은 비밀 없이 흉내 낼 수 있다. `jwks_uri`가 내부 주소면 key를 가져올 때 SSRF가 된다 |
 
 ChatGPT 문서의 `token_endpoint_auth_methods_supported` 같은 모르는 field는 무시한다.
@@ -231,7 +233,8 @@ ChatGPT 문서의 `token_endpoint_auth_methods_supported` 같은 모르는 field
 문서에 없는 주소는 믿을 수 없으므로, 오류도 그 주소로 보내지 않는다([4장](04-client-registration.md)).
 
 통과한 문서는 Spring의 client 정보(`RegisteredClient`)로 바뀌고, `id`와 `clientId`는 둘 다 문서 주소다.
-인증 방식은 문서의 것 하나뿐이고(13.7), scope는 문서에 없으므로 서버 정책 `openid products:read products:write orders:write`다.
+인증 방식은 문서의 것 하나뿐이다(13.7).
+CIMD 문서에도 RFC 7591의 `scope`를 적을 수 있지만, 이 서버는 그 값을 읽지 않고 서버 정책 `openid products:read products:write orders:write`를 쓴다.
 처음 보는 client라서 PKCE를 반드시 쓰게 하고 consent도 받으며, refresh token은 refresh할 때마다 새것을 준다(13.8).
 
 **cache 규칙**
@@ -240,10 +243,11 @@ ChatGPT 문서의 `token_endpoint_auth_methods_supported` 같은 모르는 field
 |---|---|
 | `Cache-Control: max-age=N` | N초다. 1시간을 넘으면 1시간이다 |
 | `Cache-Control`이 없다 | 5분이다 |
-| `no-store`이거나 `max-age=0`이다 | cache하지 않는다 |
+| `no-store`나 `no-cache`이거나 `max-age=0`이다 | cache하지 않는다 |
 | 가져오지 못했거나 잘못된 문서다 | cache하지 않는다. 다음 요청에서 다시 가져온다 |
 
 상한을 두는 것은 client가 문서를 바꾸었을 때, 길어도 1시간 안에는 새 문서를 쓰기 위해서다.
+`no-cache`는 다시 쓰기 전에 문서 host에 확인하라는 뜻인데, 이 서버는 확인 요청을 보내지 않으므로 cache하지 않는다.
 실패를 cache하지 않으므로 한 번의 실패가 cache 기간 내내 이어지지 않고, client가 문서를 고치면 다음 요청에서 바로 다시 가져온다.
 
 `client_id`는 요청하는 쪽이 정하는 주소라서, 인증 없는 authorization request만으로 서로 다른 주소를 얼마든지 보낼 수 있다.
@@ -263,11 +267,13 @@ client 문서를 cache에서 꺼낸다 (client_id=https://localhost:8172/oauth/p
 한 흐름 안에서도 authorization request, consent 화면, token request가 저마다 client를 찾기 때문이다.
 문서를 쓸 수 없으면 `client 문서를 쓸 수 없다 (client_id=…, 이유=…)`가 경고로 찍힌다.
 
-**남는 위험: DNS rebinding**
+**남는 위험: DNS rebinding과 DNS 조회 시간**
 
 `ClientIdUrlValidator`는 host를 DNS로 풀어 검사하지만, 실제 연결은 JDK `HttpClient`가 이름을 다시 풀어서 한다.
 공격자의 DNS 서버가 검사할 때는 공개 IP를, 연결할 때는 내부 IP를 돌려주면 요청이 내부망으로 간다.
 이 practice는 검사한 IP로 연결을 고정하지 않아 이 경우를 막지 않으며, 실제 배포라면 검사한 IP로 직접 연결하거나 egress proxy를 둔다.
+연결 2초와 응답 전체 3초 제한은 검사 뒤의 연결과 응답 받기에만 적용된다.
+검사하려고 host 이름을 푸는 DNS 조회(`HostResolver.SYSTEM`)에는 이 서버의 시간 제한이 없어, 응답이 느린 DNS 서버는 OS resolver가 정한 시간만큼 요청을 붙잡는다.
 
 ## 13.6 3단계: consent 화면
 
@@ -684,14 +690,14 @@ docs/superpowers/captures/mcp-cimd-walkthrough.sh > /tmp/cimd-walkthrough.txt
 | `user`/`password`로 login | consent 화면에 `권한 요청: Shop Agent (ChatGPT형)`, `client 문서: localhost:8172`, `허락하면 돌아갈 주소: localhost:8170`, loopback 경고가 나온다 |
 | `products:read`를 체크해 제출하고 `노트북 재고 있어?` 보내기 | 재고를 알려 주는 답이 온다. `auth-server.log`에 `인증 방식=private_key_jwt, cache=300초`인 `client 문서를 가져왔다` 줄이 있다 |
 | `p1 재고를 10개로 바꿔 줘` 뒤 "권한 허용" | consent 화면의 새 체크박스는 `products:write` 하나다. `shop-mcp-server.log`의 `scope 부족` 줄에 `client_id=https://localhost:8172/oauth/client.json`이 있다 |
-| `practice/mcp-cimd/stop.sh` 뒤 `practice/mcp-cimd/run.sh claude`, 같은 순서로 login과 재고 변경 | 제목이 `Shop Agent (Claude형)`이고, step-up의 consent 화면에 `products:read`와 `products:write`가 모두 체크박스로 나온다. 로그의 `client_id`는 `…/public-client.json`이다 |
+| `practice/mcp-cimd/stop.sh` 뒤 `practice/mcp-cimd/run.sh claude`, 같은 순서로 login과 재고 변경(step-up에서는 `products:read`와 `products:write`를 모두 체크해 제출) | 제목이 `Shop Agent (Claude형)`이고, 로그의 `client_id`는 `…/public-client.json`이다. step-up의 consent 화면에는 두 scope가 모두 빈 체크박스로 나오고, 하나라도 빼면 새 token에 scope가 모자라 step-up 카드가 다시 나온다 |
 | Claude형의 재고 변경이 끝나고 6분 뒤 `노트북 재고 있어?` 보내기 | login 화면 없이 답이 온다. `client_id`만 보내는 refresh로 새 token을 받았다 |
 
 해 볼 것과 기대 결과의 전체 목록은 [practice README의 직접 확인할 것](../mcp-cimd/README.md#직접-확인할-것)에 있다.
 
 ## 13.14 정리
 
-- CIMD에서는 client가 자기 `https` 주소에 올린 문서의 주소가 `client_id`다. Authorization Server는 처음 보는 주소를 만나면 문서를 가져오므로, 미리 등록하거나 등록을 저장할 필요가 없다.
+- CIMD에서는 client가 자기 `https` 주소에 올린 문서의 주소가 `client_id`다. Authorization Server는 cache에 없는 주소를 만나면 문서를 가져오므로, 미리 등록하거나 등록을 저장할 필요가 없다.
 - Authorization Server는 모르는 client가 준 주소로 요청을 보내므로, 주소 규칙·내부 주소·redirect·크기·시간을 먼저 막고, 문서의 `client_id` 일치와 필수 field를 본 뒤에 cache한다. 실패는 cache하지 않는다.
 - consent 화면은 client가 마음대로 적는 이름과 함께 문서 host와 redirect host를 보여 주고, `localhost`로만 돌아가는 client에는 경고를 더한다.
 - CIMD는 공유 비밀만 금지하므로 ChatGPT형 `private_key_jwt`와 Claude형 `none`이 모두 가능하다. Authorization Server는 metadata에 두 방식을 알리되, client마다 문서가 정한 방식 하나만 받는다.
@@ -709,7 +715,8 @@ docs/superpowers/captures/mcp-cimd-walkthrough.sh > /tmp/cimd-walkthrough.txt
 | 문서에 `private_key_jwt`를 선언한 client는 confidential client이고, Authorization Server와 주고받는 요청에는 선언한 방식의 client 인증이 있다 | [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) | MUST |
 | client assertion은 `client_assertion`에 JWT 하나로 보낸다. `sub`는 `client_id`, `aud`는 Authorization Server(token endpoint 주소도 된다)이고 `exp`가 있으며, `private_key_jwt`에서는 `iss`도 `client_id`이고 `jti`가 있다 | [RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2), [§3](https://www.rfc-editor.org/rfc/rfc7523#section-3), [OpenID Connect Core 1.0 §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication) | MUST, MUST NOT, MAY, REQUIRED |
 | token endpoint가 `private_key_jwt`를 받는다고 알리면 `token_endpoint_auth_signing_alg_values_supported`도 알리고, 이 목록에 `none`을 쓰지 않는다. 서버는 `RS256`을 지원한다 | [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) | MUST, MUST NOT, SHOULD |
-| consent 화면에 redirect URI의 host를 분명히 보여 주고, `localhost`로만 돌아가는 요청에는 경고를 더한다. `client_id`의 host도 보여 준다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks), [CIMD draft-00 §6.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.4) | MUST, SHOULD |
+| consent 화면에 redirect URI의 host를 분명히 보여 주고, redirect URI가 `localhost`뿐인 client에는 경고를 더한다. `client_id`의 host도 보여 준다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks), [CIMD draft-00 §6.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.4) | MUST, SHOULD |
+| 모든 redirect URI는 `localhost`이거나 `https`를 쓴다 | [MCP 2026-07-28 Security Considerations — Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security), [MCP 2025-11-25 Authorization — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security) | MUST |
 | client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않고, 이전 consent가 있어도 처음처럼 처리한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) | SHOULD NOT, SHOULD |
 | refresh token을 줄지는 Authorization Server가 정한다. public client의 refresh token은 rotation하며, OAuth 2.1은 rotation과 sender-constrained token 가운데 하나를 고르게 하고 MCP 2026-07-28은 rotation으로 정한다 | [MCP 2026-07-28 Security Considerations — Token Theft](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#token-theft), [OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2), [§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) | —(발급), MUST(rotation) |
 | refresh request의 client 인증이나 `client_id`가 그 refresh token을 받은 client와 맞는지 확인한다 | [OAuth 2.1 §4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) | MUST |

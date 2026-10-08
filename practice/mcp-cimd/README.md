@@ -12,8 +12,8 @@ web agent는 ChatGPT형(`private_key_jwt`)과 Claude형(`none`) 두 client type 
 |---|---|---|---|
 | Authorization Server의 client 등록 | `application.yml`에 미리 등록한 client 둘(`visibility-shop-agent`, `local-mcp-client`)이 있다 | 미리 등록한 client가 없다. `ClientIdMetadataDocumentRegisteredClientRepository`가 URL `client_id`의 문서를 가져와 `RegisteredClient`로 바꾸고 cache한다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
 | 문서 주소 검사 | 문서가 없다 | `ClientIdUrlValidator`는 `https`와 path를 요구하고, `.`·`..` 조각, fragment, 사용자 정보, query를 받지 않는다. DNS로 푼 주소가 loopback·사설 주소면 거절하고, 예외는 `https://localhost:8172` 하나다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
-| 문서 가져오기 | 문서가 없다 | `HttpsClientMetadataFetcher`는 redirect를 따라가지 않고, `200`과 JSON `Content-Type`만 받는다. 크기는 5120 byte, 연결은 2초, 응답 전체는 3초까지다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
-| 문서 내용 검사 | 문서가 없다 | `ClientMetadataValidator`는 문서의 `client_id`가 주소와 글자까지 같은지, `client_name`·`redirect_uris`가 있는지 본다. `client_secret`이 있으면 거절하고, 인증 방식은 `none`과 `private_key_jwt`만 받는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
+| 문서 가져오기 | 문서가 없다 | `HttpsClientMetadataFetcher`는 redirect를 따라가지 않고, `200`과 JSON `Content-Type`만 받는다. 크기는 5120 byte, 연결은 2초, 응답 전체는 3초까지이고, 주소를 검사할 때의 DNS 조회에는 시간 제한이 없다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
+| 문서 내용 검사 | 문서가 없다 | `ClientMetadataValidator`는 문서의 `client_id`가 주소와 글자까지 같은지, `client_name`이 있는지, `redirect_uris`가 모두 `https`나 loopback `http`인지 본다. `client_secret`이 있으면 거절하고, 인증 방식은 `none`과 `private_key_jwt`만 받는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
 | consent할 scope가 없는 요청 | `PublicClientScopeValidator`가 public client(`none`)의 요청만 본다. `openid`만 있거나 scope가 없으면 `invalid_scope`다 | `ConsentableScopeValidator`가 모든 client에게 같은 검사를 한다. 누구나 문서를 올려 `private_key_jwt` client가 될 수 있으므로, `openid`만 요청해 consent 화면을 건너뛰는 길을 막는다 | [13장 3단계](../mcp-guide/13-cimd.md#136-3단계-consent-화면) |
 | consent 화면 | Spring 기본 화면이다 | `ConsentController`가 client 이름, 문서 host, 허락한 뒤 돌아갈 redirect host를 보여 준다. 문서의 redirect 주소가 모두 loopback이면 경고 문장을 더한다 | [13장 3단계](../mcp-guide/13-cimd.md#136-3단계-consent-화면) |
 | token endpoint 인증 | agent는 `client_secret_basic`, `local-client`는 `none`이다 | client마다 문서의 `token_endpoint_auth_method` 하나만 받는다. `private_key_jwt`의 assertion은 `CimdJwtClientAssertionDecoderFactory`가 문서의 `jwks_uri`에서 가져온 key로 검증한다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식) |
@@ -29,7 +29,8 @@ web agent는 ChatGPT형(`private_key_jwt`)과 Claude형(`none`) 두 client type 
 
 [코드 지도](#코드-지도)에 없는 클래스는 visibility와 같다.
 그 클래스들은 package 이름(`dev.starryeye.cimd.*`)과 포트·cookie 같은 설정 값만 다르다.
-scope, 역할 표, 역할별 tool 목록, step-up은 [visibility](../mcp-tool-visibility/README.md#숨기기와-step-up)와 같다.
+scope, 역할 표, 역할별 tool 목록, step-up 흐름은 [visibility](../mcp-tool-visibility/README.md#숨기기와-step-up)와 같다.
+다만 Claude형은 consent를 저장하지 않으므로, step-up의 consent 화면에서 이미 허락한 scope까지 모두 다시 고른다.
 
 MCP 요청 형식은 visibility와 같은 2025-11-25이고, 버전도 Spring Boot 4.1.1, Spring AI 2.0.1, MCP Java SDK 2.0.1로 같다.
 CIMD 규칙은 2026-07-28 Client Registration을 따른다.
@@ -46,7 +47,7 @@ CIMD 규칙은 2026-07-28 Client Registration을 따른다.
 
 Authorization Server에는 client type 설정이 없다.
 어떤 인증 방식을 받을지는 그 client가 올린 문서의 `token_endpoint_auth_method`가 정한다.
-agent의 `mcp.authorization.client-type`은 두 문서 가운데 어느 주소를 자기 `client_id`로 쓸지만 고른다.
+agent의 `mcp.authorization.client-type`은 두 문서 가운데 어느 주소를 자기 `client_id`로 쓸지와, token request에 client assertion을 붙일지를 고른다.
 agent는 두 문서를 늘 함께 올리므로, client type을 바꿔도 문서 서버는 같다.
 
 ### localhost 학습 환경의 타협
@@ -171,9 +172,9 @@ package는 `auth-server`가 `authserver`, `shop-agent`가 `agent`다.
 | `auth-server` | `cimd.ClientIdMetadataDocumentProperties` | `mcp.cimd.*` 정책이다. 예외 주소, 문서 크기, 시간 제한, cache 기간, truststore 이름, CIMD client가 요청할 수 있는 scope를 둔다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
 | | `cimd.ClientIdUrlValidator` | 문서 주소와 `jwks_uri`의 형식을 보고, DNS로 푼 주소가 loopback·사설·link-local·multicast면 거절한다. `loopback-exception`과 scheme·host·port가 모두 같은 주소만 예외로 통과한다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
 | | `cimd.HostResolver` | host 이름을 IP 주소로 푼다. 테스트가 DNS 없이 주소를 정할 수 있게 interface로 둔다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
-| | `cimd.HttpsClientMetadataFetcher`, `cimd.ClientMetadataHttp`, `cimd.FetchedDocument` | 문서와 JWKS를 같은 규칙으로 가져온다(redirect 없음, `200`과 JSON만, 5120 byte, 연결 2초, 응답 전체 3초). `FetchedDocument`는 본문과 `Cache-Control`의 `max-age`·`no-store`를 담는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
-| | `cimd.ClientMetadataValidator`, `cimd.ClientMetadata` | 문서의 `client_id` 일치, 필수 field, 비밀 금지, 인증 방식과 `jwks_uri`·`RS256`을 본다. 통과한 값은 `ClientMetadata`에 담는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
-| | `cimd.ClientIdMetadataDocumentRegisteredClientRepository` | `findByClientId`·`findById`가 문서 주소를 받아 cache를 보고, 없으면 주소 검사 → 가져오기 → 내용 검사 → `RegisteredClient` 변환 → cache 순서로 처리한다. cache는 `max-age`(상한 1시간, 없으면 5분)를 따르고, 실패는 cache하지 않으며, 항목은 1000개까지다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
+| | `cimd.HttpsClientMetadataFetcher`, `cimd.ClientMetadataHttp`, `cimd.FetchedDocument` | 문서와 JWKS를 같은 규칙으로 가져온다(redirect 없음, `200`과 JSON만, 5120 byte, 연결 2초, 응답 전체 3초, 주소 검사의 DNS 조회는 제한 없음). `FetchedDocument`는 본문과 `Cache-Control`의 `max-age`, `no-store`·`no-cache` 여부를 담는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
+| | `cimd.ClientMetadataValidator`, `cimd.ClientMetadata` | 문서의 `client_id` 일치, 필수 field, `redirect_uris`의 scheme(`https`나 loopback `http`), 비밀 금지, 인증 방식과 `jwks_uri`·`RS256`을 본다. 통과한 값은 `ClientMetadata`에 담는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
+| | `cimd.ClientIdMetadataDocumentRegisteredClientRepository` | `findByClientId`·`findById`가 문서 주소를 받아 cache를 보고, 없으면 주소 검사 → 가져오기 → 내용 검사 → `RegisteredClient` 변환 → cache 순서로 처리한다. cache는 `max-age`(상한 1시간, 없으면 5분)를 따르고, `no-store`·`no-cache`와 실패는 cache하지 않으며, 항목은 1000개까지다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
 | | `cimd.CimdJwtClientAssertionDecoderFactory` | `private_key_jwt`의 assertion을 문서의 `jwks_uri`에서 가져온 key로 검증한다. decoder와 key 목록은 cache하지 않고, 검증할 때마다 만들고 가져온다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
 | | `security.PublicClientRefreshTokenGenerator` | client의 grant에 `refresh_token`이 있으면 public client에게도 refresh token을 만든다. Spring 기본 generator는 public client에게 만들지 않는다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation) |
 | | `security.PublicClientRefreshTokenAuthenticationConverter` | token endpoint로 온 `grant_type=refresh_token` 요청에 다른 client 인증이 없고 `client_id`가 하나면, public client 인증으로 넘긴다. introspection·revocation 같은 다른 endpoint의 요청은 맡지 않는다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation) |
@@ -214,7 +215,7 @@ browser의 줄은 표의 순서대로 한다.
 | `grep 'scope 부족' logs/shop-mcp-server.log` | `scope 부족 — 사용자=user, client_id=https://localhost:8172/oauth/client.json, tool=updateStock, 필요한 scope=products:write, 가진 scope=[openid, products:read]`다. `client_id`가 문서 주소다 |
 | "권한 허용" 누르기 | consent 화면에서 새로 고를 항목은 `products:write` 하나다. `products:read`는 "이미 허락한 권한" 아래에 나온다 |
 | `products:write`를 체크해 제출 | 질문이 다시 가고, `상품 p1 (게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`처럼 답한다. MCP Server 로그에는 `updateStock 호출 (productId=p1, quantity=10, 사용자=user)`가 찍힌다 |
-| `./stop.sh && ./run.sh claude` 뒤 같은 순서로 login과 재고 변경 | consent 화면의 제목이 `권한 요청: Shop Agent (Claude형)`이고, 두 host와 경고는 같다. step-up의 consent 화면에는 `products:read`와 `products:write`가 모두 체크박스로 나온다 |
+| `./stop.sh && ./run.sh claude` 뒤 같은 순서로 login과 재고 변경. step-up에서는 `products:read`와 `products:write`를 모두 체크해 제출 | consent 화면의 제목이 `권한 요청: Shop Agent (Claude형)`이고, 두 host와 경고는 같다. step-up의 consent 화면에는 두 scope가 모두 빈 체크박스로 나오고, 하나라도 빼면 새 token에 scope가 모자라 step-up 카드가 다시 뜬다 |
 | `grep 'client 문서를 가져왔다' logs/auth-server.log`와 `grep 'scope 부족' logs/shop-mcp-server.log` | `client 문서를 가져왔다 (client_id=https://localhost:8172/oauth/public-client.json, 인증 방식=none, cache=300초)`가 찍힌다. MCP Server 로그의 `client_id=`도 `https://localhost:8172/oauth/public-client.json`이다 |
 | Claude형의 재고 변경이 끝나고 6분 뒤 `노트북 재고 있어?` 보내기 | login 화면 없이 답이 온다. access token(5분)이 끝나, agent가 `client_id`만 보내는 refresh로 새 token을 받았기 때문이다 |
 | `./stop.sh && ./run.sh` 직후 `docs/superpowers/captures/mcp-cimd-walkthrough.sh` 실행 | ChatGPT형 token request는 `→ HTTP 200`이고, access token payload의 `client_id`는 `https://localhost:8172/oauth/client.json`이다. Claude형 token request도 `→ HTTP 200`이고 응답에 `refresh_token`이 있다 |

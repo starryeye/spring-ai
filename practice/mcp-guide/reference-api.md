@@ -1136,7 +1136,7 @@ RFC 7591 §2의 field는 따로 적지 않으면 OPTIONAL이다.
 |---|---|---|
 | `client_id` | MUST — 문서 주소와 simple string comparison으로 같다 MUST ([CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)) | |
 | `client_name` | OPTIONAL (RFC 7591) · MUST (MCP Implementation Requirements) | consent 화면에 보일 이름 |
-| `redirect_uris` | OPTIONAL (RFC 7591, redirect 흐름은 등록 MUST) · MUST (MCP) | Authorization Server는 요청의 redirect URI를 이 목록과 비교한다(MUST, MCP) |
+| `redirect_uris` | OPTIONAL (RFC 7591, redirect 흐름은 등록 MUST) · MUST (MCP) | Authorization Server는 요청의 redirect URI를 이 목록과 비교한다(MUST, MCP). 모든 redirect URI는 `localhost`이거나 `https`다(MUST, [MCP Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security)) |
 | `token_endpoint_auth_method` | OPTIONAL — 공유 비밀 방식(`client_secret_post`·`client_secret_basic`·`client_secret_jwt` 등)은 MUST NOT ([CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)) | `none`이면 public client다. `private_key_jwt`는 MAY (MCP) |
 | `grant_types` | OPTIONAL | |
 | `response_types` | OPTIONAL | |
@@ -1161,7 +1161,7 @@ RFC 7591 §2의 field는 따로 적지 않으면 OPTIONAL이다.
 | 문서의 `client_id`가 주소와 다름, JSON 구조가 잘못됨, 필수 field 없음 | 검증 MUST (MCP Implementation Requirements). MCP 흐름 다이어그램은 실패를 `error=invalid_client`나 `invalid_request`로 보이고, cimd는 `ClientMetadataValidator`에서 거절해 모르는 client로 다룬다 | [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements), [Client ID Metadata Documents Flow](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents-flow) |
 | 요청의 redirect URI가 문서에 없음 | 검증 MUST. cimd는 그 주소로 보내지 않고 `Location` 없이 `400`으로 끝낸다(D8) | MCP Implementation Requirements |
 | 오류 응답이나 잘못된 문서 | cache하지 않는다(MUST NOT). cimd는 다음 요청에서 다시 가져온다(`ClientIdMetadataDocumentRegisteredClientRepositoryTest#실패는_cache하지_않고_다음_요청에_다시_가져온다`) | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4) |
-| 정상 문서의 cache | cache할 수 있고(MAY), 그때는 HTTP cache header를 따른다(SHOULD, CIMD §4.4) · HTTP cache header를 따라 cache SHOULD (MCP). cimd는 `max-age`(상한 1시간)를 따르고, header가 없으면 5분, `no-store`·`max-age=0`이면 cache하지 않는다 | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
+| 정상 문서의 cache | cache할 수 있고(MAY), 그때는 HTTP cache header를 따른다(SHOULD, CIMD §4.4) · HTTP cache header를 따라 cache SHOULD (MCP). cimd는 `max-age`(상한 1시간)를 따르고, header가 없으면 5분, `no-store`·`no-cache`·`max-age=0`이면 cache하지 않는다 | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
 | 사설·loopback 주소 | 가져오지 않는다 SHOULD — SSRF. cimd는 IPv4-mapped IPv6 주소도 풀어서 거절하고, 예외는 `https://localhost:8172` 하나다 | [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5) |
 | 큰 응답 | 크기 제한 SHOULD, 권장 최대 5KB. cimd는 5120 byte까지 받는다 | [CIMD §6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6) |
 
@@ -1198,7 +1198,7 @@ cimd의 agent는 `https://localhost:8172`(self-signed 인증서)에 ChatGPT형�
 | `client_id` | MUST ([CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1) · MCP) | `https://localhost:8172/oauth/client.json` | `https://localhost:8172/oauth/public-client.json` | 문서 주소와 글자까지 같아야 받는다. `RegisteredClient`의 `id`와 `clientId`가 된다 |
 | `client_name` | MUST (MCP) | `Shop Agent (ChatGPT형)` | `Shop Agent (Claude형)` | 없으면 거절한다. consent 화면의 제목이 된다 |
 | `client_uri` | OPTIONAL | `https://localhost:8172/` | 같음 | 읽지 않는다 |
-| `redirect_uris` | MUST (MCP) | `["http://localhost:8170/login/oauth2/code/authserver"]` | 같음 | fragment 없는 절대 주소만 받고, authorization request의 redirect URI를 이 목록과 비교한다 |
+| `redirect_uris` | MUST (MCP) · 모든 값은 `localhost`이거나 `https` MUST ([MCP Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security)) | `["http://localhost:8170/login/oauth2/code/authserver"]` | 같음 | host가 있는 `https`나 loopback(`localhost`, `127.0.0.0/8`, `[::1]`) `http`이고 fragment 없는 절대 주소만 받는다. authorization request의 redirect URI를 이 목록과 비교한다 |
 | `grant_types` | OPTIONAL | `["authorization_code", "refresh_token"]` | 같음 | `authorization_code`가 없으면 거절하고, field가 없으면 `authorization_code` 하나로 본다. `refresh_token`이 있어야 refresh token을 준다 |
 | `response_types` | OPTIONAL | `["code"]` | 같음 | 읽지 않는다 |
 | `token_endpoint_auth_method` | OPTIONAL — 공유 비밀 방식은 MUST NOT ([CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)) | `private_key_jwt` | `none` | `none`과 `private_key_jwt`만 받고, 없으면 거절한다. 그 client는 이 방식 하나로만 인증할 수 있다 |
