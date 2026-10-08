@@ -13,6 +13,7 @@ Spring AI 학습 저장소다. 버전대별로 디렉터리가 나뉘고, practi
 | [`practice/mcp-security-authz/`](practice/mcp-security-authz) | `mcp-security-authn-official`에 tool별 scope와 step-up을 더한 예제다. client는 조회 scope로 시작하고, 재고를 바꾸는 tool을 처음 부를 때 `403 insufficient_scope`를 받으면 사용자의 consent를 다시 받아 scope를 늘린다. 구성: `auth-server` :9030 / `shop-mcp-server` :8141 / `shop-agent` :8140 / `local-client`(명령줄 public client) |
 | [`practice/mcp-stateless-handle/`](practice/mcp-stateless-handle) | `mcp-security-authz`의 MCP Server를 session 없이(stateless) 돌리는 예제다. 장바구니처럼 tool 호출 사이에 남는 상태는 MCP Server가 만든 handle로 주고받고, MCP Server는 그 handle이 요청한 사용자의 것인지 token으로 확인한다. 구성: `auth-server` :9040 / `shop-mcp-server` :8151 / `shop-agent` :8150 / `local-client`(명령줄 public client) |
 | [`practice/mcp-tool-visibility/`](practice/mcp-tool-visibility) | `mcp-stateless-handle`에 사용자 역할을 더해, MCP Server가 사용자마다 다른 tool 목록을 주는 예제다. 사용자의 권한으로는 쓸 수 없는 tool은 목록에서 숨기고, 권한은 있지만 아직 scope를 받지 않은 tool은 보여 준 뒤 부를 때 step-up한다. 구성: `auth-server` :9050 / `shop-mcp-server` :8161 / `shop-agent` :8160 / `local-client`(명령줄 public client) |
+| [`practice/mcp-cimd/`](practice/mcp-cimd) | `mcp-tool-visibility`에 CIMD를 더해, 미리 등록하지 않은 client가 `https` 문서의 주소를 `client_id`로 쓰는 예제다. agent는 ChatGPT형(`private_key_jwt`)이나 Claude형(`none`)으로 붙는다. 구성: `auth-server` :9060 / `shop-mcp-server` :8171 / `shop-agent` :8170(문서 host :8172) |
 | [`legacy-0.8/`](legacy-0.8) | Spring AI 0.8.1 시절의 예제(`introduction`, `prompt`)다. Spring AI 2.0에서는 컴파일되지 않아 참고용으로만 둔다. |
 
 처음 보는 사람은 `practice/agent-mcp/README.md`부터 읽으면 된다.

@@ -2,11 +2,19 @@
 
 ## 11.1 stateless의 필요성
 
+지금까지 shop MCP Server의 tool은 `searchProducts`, `getStock`, `updateStock`처럼 호출 하나로 일이 끝났다.
+이 장에서는 여기에 장바구니를 더한다.
+장바구니는 만들고, 상품을 담고, 주문하는 여러 번의 tool 호출에 걸쳐 내용이 남아 있어야 한다.
+그래서 서버는 호출과 호출 사이에 장바구니를 어딘가에 두어야 한다.
+2025-11-25에서 가장 손쉬운 자리는 session이다.
+이 절은 장바구니를 session에 두면 생기는 문제와, 2026-07-28이 session 대신 handle을 쓰게 한 이유를 본다.
+
+**session은 MCP client와 MCP Server 사이의 연결이다**
+
 [1장](01-mcp-basics.md)에서 본 session은 서버가 `initialize` 응답의 `Mcp-Session-Id`로 주고, client가 이후 요청마다 돌려보내는 값이다.
 이 session은 사용자의 login session이 아니라, MCP client 하나와 MCP Server 사이의 protocol 연결 하나를 가리킨다.
 2025-11-25에서 session ID를 줄지는 서버가 정한다.
 session ID를 주는 서버는 이 값으로 그 session에 둔 상태를 찾는다.
-장바구니처럼 tool 호출 사이에 남아야 하는 상태도 session에 두기 쉽다.
 
 **MCP client 객체는 session을 들고 있다**
 
@@ -28,7 +36,7 @@ official과 authz의 agent는 MCP client 하나를 모든 사용자가 같이 �
 official과 authz의 tool은 session에 아무것도 두지 않아서, 실제로 섞인 적은 없다.
 MCP Server는 session이 아니라 요청마다 붙는 token으로 사용자를 구별하기 때문이다.
 서버가 상태를 session ID가 아니라 token의 사용자로 찾으면, session을 같이 써도 상태는 섞이지 않는다.
-11.5의 handle도 같은 방식으로, 장바구니를 token의 사용자와 handle로 찾는다.
+이 장의 practice도 장바구니를 이렇게 token의 사용자로 찾는다.
 다만 서버가 먼저 보내는 알림은 사용자에 맞춰 보낼 수 없다.
 `notifications/tools/list_changed` 같은 알림은 요청의 응답이 아니라 session의 GET stream으로 가고, 공유 session의 stream은 모든 사용자가 같이 쓰기 때문이다.
 
@@ -53,7 +61,8 @@ session이 언제 시작해 언제 끝나는지는 명세가 정하지 않았고
 tool 호출마다 새로 여는 client도, 앱을 켤 때 열어 끌 때까지 쓰는 client도, page를 열 때마다 여는 client도 있었다.
 그래서 서버는 session에 둔 상태가 언제까지 남는지 알 수 없었다.
 사용자마다 session을 따로 두어도, 앱을 켤 때 하나만 열어 계속 쓰면 같은 사용자의 두 대화가 장바구니 하나를 같이 쓴다.
-session 하나에는 장바구니도 하나만 둘 수 있고, client는 session이 바뀔 때마다 tool 목록을 다시 받아야 했다.
+session 하나에는 장바구니도 하나만 둘 수 있다.
+또 client는 session이 바뀔 때마다 tool 목록을 다시 받아야 했다.
 
 **session이 있으면 서버를 여러 대로 늘리기도 어렵다**
 

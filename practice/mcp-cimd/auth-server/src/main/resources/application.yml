@@ -1,0 +1,65 @@
+server:
+  # 서버가 연결을 받을 네트워크 주소다. 127.0.0.1이면 이 기기 안에서만 접속할 수 있다.
+  # MCP 2025-11-25 Transports는 로컬에서 도는 서버가 localhost(127.0.0.1)에만 bind하기를 권한다(SHOULD).
+  # 실제 배포에서 container나 reverse proxy 뒤에 둔다면 0.0.0.0(모든 interface)이나
+  # 그 네트워크의 interface 주소를 쓴다. 외부에 무엇을 열지는 proxy와 방화벽이 정한다.
+  address: 127.0.0.1
+  port: 9060
+  servlet:
+    session:
+      cookie:
+        # cookie는 host만 보고 포트를 구분하지 않는다.
+        # 다른 practice의 Authorization Server와 함께 띄워도 session이 서로 덮어쓰지 않도록 이름을 따로 둔다.
+        name: CIMDAUTHSESSIONID
+
+spring:
+  application:
+    name: cimd-auth-server
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: http://localhost:9060
+        # 미리 등록한 client가 없다. 모든 client는 CIMD 문서 주소를 client_id로 쓴다.
+        # 문서를 가져와 RegisteredClient로 바꾸는 일은 ClientIdMetadataDocumentRegisteredClientRepository가 한다.
+  ssl:
+    bundle:
+      jks:
+        # agent가 문서를 올리는 https://localhost:8172는 self-signed 인증서를 쓴다.
+        # Authorization Server는 이 truststore에 있는 인증서만 믿고 문서를 가져온다.
+        # 파일은 run.sh가 처음 실행할 때 keytool로 만든다.
+        client-metadata-trust:
+          truststore:
+            location: file:../certs/client-metadata-trust.p12
+            password: changeit
+            type: PKCS12
+
+mcp:
+  authorization:
+    # RFC 8707. 이 Authorization Server가 token을 발급해 줄 수 있는 protected resource 목록이다.
+    # 여기 없는 resource로 요청하면 invalid_target으로 거부한다.
+    resources:
+      - http://localhost:8171/mcp
+  cimd:
+    # loopback 주소여도 문서를 가져오는 주소 하나다. 학습 환경에서 agent가 문서를 올리는 곳이다.
+    # 실제 배포에서는 비워 둔다. 그러면 loopback·사설 주소를 가리키는 문서 주소는 모두 거절한다.
+    loopback-exception: https://localhost:8172
+    # CIMD draft는 문서 크기 상한으로 5KB를 권한다.
+    max-document-bytes: 5120
+    connect-timeout: 2s
+    read-timeout: 3s
+    # 응답에 Cache-Control이 없을 때 cache하는 기간과, max-age가 길어도 넘지 않는 기간이다.
+    default-cache-ttl: 5m
+    max-cache-ttl: 1h
+    trust-bundle: client-metadata-trust
+    # CIMD client가 요청할 수 있는 scope는 서버가 정한다. 문서에 scope가 있어도 읽지 않는다.
+    scopes:
+      - openid
+      - products:read
+      - products:write
+      - orders:write
+
+logging:
+  level:
+    org.springframework.security: INFO
+    # 문서를 가져오고 cache에서 꺼내는 과정을 로그로 본다.
+    dev.starryeye.cimd.authserver.cimd: DEBUG

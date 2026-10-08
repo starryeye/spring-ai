@@ -1,0 +1,144 @@
+package dev.starryeye.cimd.mcpserver.config;
+
+import dev.starryeye.cimd.mcpserver.basket.BasketStore;
+import dev.starryeye.cimd.mcpserver.filter.McpProtocolVersionFilter;
+import dev.starryeye.cimd.mcpserver.filter.McpTransportSecurityFilter;
+import dev.starryeye.cimd.mcpserver.filter.ToolScopeFilter;
+import dev.starryeye.cimd.mcpserver.security.McpCaller;
+import dev.starryeye.cimd.mcpserver.tool.BasketTools;
+import dev.starryeye.cimd.mcpserver.tool.ProductTools;
+import dev.starryeye.cimd.mcpserver.tool.ToolScopeRegistry;
+import dev.starryeye.cimd.mcpserver.tool.ToolVisibility;
+
+import io.modelcontextprotocol.json.McpJsonDefaults;
+import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
+import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
+import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
+import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.time.Clock;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * MCP endpoint에만 적용하는 servlet filter 세 개를 등록한다.
+ *
+ * <ul>
+ *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다. Spring Security보다 먼저 돈다.</li>
+ *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 본다. 인증 뒤, 버전 검사 앞에서 돈다.</li>
+ *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다. scope 검사 뒤에 돈다.</li>
+ * </ul>
+ *
+ * <p>stateless transport bean은 사용자를 읽는 {@code contextExtractor}를 넣으려고 직접 만든다.
+ *
+ * <p>학습용 역할 표({@link ToolVisibility})도 여기서 만든다.
+ * {@code @Primary}인 transport wrapper는 역할에 따라 {@code tools/list}를 거르고, 숨긴 tool의 호출에 "모르는 tool"로 답한다.
+ */
+@Configuration
+public class McpTransportConfig {
+
+	/**
+	 * Spring AI 자동 설정의 stateless transport bean을 대신한다(그 bean은 {@code @ConditionalOnMissingBean}이다).
+	 * 바꾸는 것은 {@code contextExtractor} 하나다.
+	 * 요청마다 token의 사용자를 {@code McpTransportContext}에 넣어, tool이 누가 불렀는지 알게 한다.
+	 */
+	@Bean
+	public WebMvcStatelessServerTransport webMvcStatelessServerTransport(
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
+		return WebMvcStatelessServerTransport.builder()
+				.jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
+				.messageEndpoint(properties.getMcpEndpoint())
+				.contextExtractor(McpCaller::context)
+				.build();
+	}
+
+	@Bean
+	public FilterRegistrationBean<McpTransportSecurityFilter> mcpTransportSecurityFilter(
+			McpServerStreamableHttpProperties properties, @Value("${server.port}") int port) {
+		DefaultServerTransportSecurityValidator validator = DefaultServerTransportSecurityValidator.builder()
+				// browser에서 직접 부를 일이 없으므로 허용 Origin을 두지 않는다.
+				// Origin header가 있으면 403이다.
+				.allowedHosts(List.of("localhost:" + port, "127.0.0.1:" + port))
+				.build();
+		FilterRegistrationBean<McpTransportSecurityFilter> registration =
+				new FilterRegistrationBean<>(new McpTransportSecurityFilter(validator));
+		registration.addUrlPatterns(properties.getMcpEndpoint());
+		// Spring Security filter chain보다 먼저 돌아서, 인증 전에 막는다.
+		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1);
+		return registration;
+	}
+
+	/** 장바구니 저장소다. 만료 계산은 {@link Clock}으로 한다(테스트가 시간을 돌릴 수 있게). */
+	@Bean
+	public BasketStore basketStore() {
+		return new BasketStore(Clock.systemUTC());
+	}
+
+	@Bean
+	public ToolScopeRegistry toolScopeRegistry(ProductTools productTools, BasketTools basketTools) {
+		return ToolScopeRegistry.scan(productTools, basketTools);
+	}
+
+	/**
+	 * {@link ToolScopeFilter}를 MCP endpoint에만 적용한다.
+	 * token 검증(Spring Security) 바로 뒤, 버전 검사 앞에서 돈다.
+	 * 인증된 사용자의 scope를 보고, 모자라면 transport에 닿기 전에 {@code 403}으로 끝낸다.
+	 */
+	@Bean
+	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
+			ToolVisibility visibility, @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
+			McpServerStreamableHttpProperties properties) {
+		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(
+				new ToolScopeFilter(registry, visibility, jsonMapper, ResourceMetadataUrl::of));
+		registration.addUrlPatterns(properties.getMcpEndpoint());
+		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
+		return registration;
+	}
+
+	/**
+	 * {@link McpProtocolVersionFilter}를 MCP endpoint에만 적용한다.
+	 * 포트처럼 practice마다 달라지는 값을 코드에 고정하지 않도록,
+	 * endpoint 경로도 설정값에서 가져온다.
+	 */
+	@Bean
+	public FilterRegistrationBean<McpProtocolVersionFilter> mcpProtocolVersionFilter(
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
+		FilterRegistrationBean<McpProtocolVersionFilter> registration =
+				new FilterRegistrationBean<>(new McpProtocolVersionFilter(jsonMapper));
+		registration.addUrlPatterns(properties.getMcpEndpoint());
+		// scope 검사 뒤에 돈다.
+		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 2);
+		return registration;
+	}
+
+	/**
+	 * 학습용 역할 표다. {@code user}만 점원이고, 표에 없는 사용자({@code user2} 포함)는 손님이다.
+	 * 실제 서비스라면 이 표는 가게의 사용자 저장소에 있다.
+	 */
+	@Bean
+	public ToolVisibility toolVisibility(ToolScopeRegistry registry) {
+		return new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF));
+	}
+
+	/**
+	 * 자동 구성의 server는 transport를 {@code McpStatelessServerTransport} 타입으로 받으므로, {@code @Primary}인 이 bean이 간다.
+	 * router는 {@code WebMvcStatelessServerTransport} 타입으로 받으므로 원래 bean이 그대로 간다.
+	 */
+	@Bean
+	@Primary
+	public ToolVisibilityTransport toolVisibilityTransport(WebMvcStatelessServerTransport transport,
+			ToolVisibility visibility) {
+		// SDK server는 mapper를 따로 받지 않아 McpJsonDefaults의 mapper를 쓴다(Spring AI 자동 구성이 넘기지 않는다).
+		// wrapper가 params를 SDK와 다르게 변환하면 요청 형식에 따라 숨긴 tool만 다르게 답해 존재가 알려지므로, 같은 mapper를 쓴다.
+		// mcpServerJsonMapper는 빈 문자열을 null 객체로 받아들이는 등 더 너그러워서 쓰면 안 된다.
+		return new ToolVisibilityTransport(transport, visibility, McpJsonDefaults.getMapper());
+	}
+}

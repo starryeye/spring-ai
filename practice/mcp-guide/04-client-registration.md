@@ -239,11 +239,13 @@ sequenceDiagram
 CIMD만으로 막지 못하는 경우도 있다.
 진짜 client의 문서에 `localhost` redirect URI가 있으면, 공격자는 그 문서 주소를 `client_id`에 넣어 자기가 연 `localhost` 포트로 code를 받을 수 있다.
 사용자는 consent 화면에서 진짜 client의 이름을 보게 된다.
-그래서 Authorization Server는 consent 화면에 redirect 주소의 host를 보여 주고, `localhost`로만 돌아가는 요청에는 경고를 더한다.
+그래서 Authorization Server는 consent 화면에 redirect 주소의 host를 보여 주고, redirect URI가 `localhost`뿐인 client에는 경고를 더한다.
 
 official은 CIMD를 구현하지 않는다.
 CIMD의 `client_id`는 Authorization Server가 가져올 수 있는 `https` 주소여야 하는데, official은 `localhost`의 `http`로만 돈다.
 metadata에도 `client_id_metadata_document_supported`가 없다.
+
+CIMD를 실제로 구현한 Authorization Server와 client는 [13장](13-cimd.md)에서 `mcp-cimd` practice로 본다.
 
 ## 4.6 DCR
 
@@ -285,6 +287,9 @@ CIMD는 어느 Authorization Server든 `client_id` 주소에서 문서를 직접
 
 official의 agent는 `mcp.authorization.credentials-issuer`에, `local-client`는 `--issuer` 옵션(기본값 `http://localhost:9010`)에 이 issuer를 둔다.
 discovery는 PRM의 `authorization_servers`를 이 값과 먼저 비교하고, 다르면 metadata도 요청하지 않고 멈춘다(3장).
+
+CIMD로 붙는 client는 issuer binding을 하지 않는다.
+그 대신 metadata의 CIMD 표시와 인증 방식을 확인한다([13장](13-cimd.md#134-1단계-metadata와-두-문서)).
 
 ## 4.8 미리 등록한 client의 첫 연결
 
@@ -484,7 +489,7 @@ public client의 규칙을 curl로 한 단계씩 기록하는 스크립트도 �
 | 모든 방식을 지원하는 client는 pre-registration → CIMD → DCR → 사용자 입력 순서로 고르고, CIMD 지원은 metadata의 `client_id_metadata_document_supported`로 확인한다. client는 정적 credentials 옵션(앱에 넣어 둔 값이나 사용자가 입력하는 화면)을 지원한다 | [MCP 2025-11-25 Authorization — Client Registration Approaches](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-registration-approaches), [Client ID Metadata Documents — Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#discovery), [Preregistration](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#preregistration) | SHOULD |
 | client와 Authorization Server는 CIMD를 지원하고, 지원하는 Authorization Server는 metadata에 `client_id_metadata_document_supported`를 넣는다. `client_id`는 path가 있는 `https` 주소이고, 문서에는 `client_id`·`client_name`·`redirect_uris`가 있으며 공유 비밀은 쓰지 않는다 | [MCP 2025-11-25 Authorization — Client ID Metadata Documents](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents), [CIMD draft-00 §3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3), [§4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1), [§5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5) | SHOULD, MUST, MUST NOT |
 | Authorization Server는 가져온 문서의 `client_id`·redirect URI·JSON 구조를 검증하고, HTTP cache header를 따라 cache한다. 오류 응답과 잘못된 문서는 cache하지 않고, 사설·loopback 주소는 가져오지 않으며 응답 크기를 제한한다 | [MCP 2025-11-25 Authorization — Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements), [CIMD draft-00 §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [§6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5), [§6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6) | MUST, SHOULD, MUST NOT |
-| Authorization Server는 redirect URI의 host를 보여 주고, `localhost`로만 돌아가는 요청에는 경고를 더한다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks) | MUST, SHOULD |
+| Authorization Server는 redirect URI의 host를 보여 주고, redirect URI가 `localhost`뿐인 client에는 경고를 더한다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks) | MUST, SHOULD |
 | DCR은 선택이고, 2026-07-28에서 deprecated다. DCR을 쓰는 client는 알맞은 `application_type`을 넣는다 | [MCP 2025-11-25 Authorization — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#dynamic-client-registration), [MCP 2026-07-28 Client Registration — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#dynamic-client-registration) | MAY, MUST |
 | 기기별 비밀이 없는 native 앱은 public client로 등록하고, Authorization Server는 client 종류를 기록한다. `none`은 비밀 없는 public client다 | [OAuth 2.1 §8.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.1), [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2), [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) | MUST |
 | redirect URI는 등록하고 정확히 비교한다. loopback 주소는 요청의 어느 포트든 허용하고, 이름 `localhost`는 권하지 않는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2), [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) | MUST, NOT RECOMMENDED |
