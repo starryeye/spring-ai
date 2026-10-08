@@ -290,4 +290,4 @@ docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility
 - [안내서 11장 stateless와 handle](../mcp-guide/11-stateless-and-handle.md): 이 practice가 그대로 쓰는 session 없는 서버, 장바구니 handle, tool 결과까지 기억하는 대화를 설명한다.
 - [부록: 명세 준수표](../mcp-guide/reference-compliance.md#mcp-tool-visibility에서-달라지는-행): 사용자별 tool 목록과 목록 cache처럼, 이 practice에서 새로 생기거나 stateless와 판정이 달라지는 행을 모았다.
 - [mcp-stateless-handle](../mcp-stateless-handle/README.md): 이 practice의 바탕이 된 practice다.
-- 다음 practice에서는 미리 등록하지 않은 client가 자기 metadata 문서의 주소를 `client_id`로 쓰는 CIMD를 다룬다([4장 CIMD](../mcp-guide/04-client-registration.md#45-cimd)).
+- 다음 practice에서는 미리 등록하지 않은 client가 자기 metadata 문서의 주소를 `client_id`로 쓰는 CIMD를 [mcp-cimd](../mcp-cimd/README.md)에서 다룬다([4장 CIMD](../mcp-guide/04-client-registration.md#45-cimd)).

@@ -662,4 +662,4 @@ docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility
 | scope가 모자란 요청에 서버는 `403`, `error="insufficient_scope"`, 필요한 `scope`, `resource_metadata`로 답한다. 사용자를 대신하는 client는 step-up을 한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) | SHOULD |
 | 최소 scope로 시작해 더 넓은 scope가 필요한 작업을 처음 할 때 늘린다. token에 적힌 scope만 믿고 서버 쪽 권한 판단을 하지 않는 것은 흔한 실수다 | [MCP Security Best Practices — Scope Minimization](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#scope-minimization) | — |
 
-[← 11장](11-stateless-and-handle.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)
+[← 11장](11-stateless-and-handle.md) · [목차](README.md) · [13장 →](13-cimd.md)

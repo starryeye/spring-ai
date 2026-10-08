@@ -245,6 +245,8 @@ official은 CIMD를 구현하지 않는다.
 CIMD의 `client_id`는 Authorization Server가 가져올 수 있는 `https` 주소여야 하는데, official은 `localhost`의 `http`로만 돈다.
 metadata에도 `client_id_metadata_document_supported`가 없다.
 
+CIMD를 실제로 구현한 Authorization Server와 client는 [13장](13-cimd.md)에서 `mcp-cimd` practice로 본다.
+
 ## 4.6 DCR
 
 DCR은 client가 Authorization Server의 `registration_endpoint`에 자기 정보를 `POST`로 보내 새 `client_id`를 받는 방법이다(RFC 7591).
@@ -285,6 +287,9 @@ CIMD는 어느 Authorization Server든 `client_id` 주소에서 문서를 직접
 
 official의 agent는 `mcp.authorization.credentials-issuer`에, `local-client`는 `--issuer` 옵션(기본값 `http://localhost:9010`)에 이 issuer를 둔다.
 discovery는 PRM의 `authorization_servers`를 이 값과 먼저 비교하고, 다르면 metadata도 요청하지 않고 멈춘다(3장).
+
+CIMD로 붙는 client는 issuer binding을 하지 않는다.
+그 대신 metadata의 CIMD 표시와 인증 방식을 확인한다([13장](13-cimd.md#134-1단계-metadata와-두-문서)).
 
 ## 4.8 미리 등록한 client의 첫 연결
 
