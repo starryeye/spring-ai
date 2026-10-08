@@ -397,7 +397,7 @@ Content-Length: 0
 Authorization Server가 자기 endpoint와 지원 기능을 알린다.
 MCP client는 여기서 PKCE 지원(`code_challenge_methods_supported`)과 `iss` 지원을 확인한다.
 agent와 `local-client`는 PRM의 issuer가 credentials를 발급한 issuer일 때만 이 문서를 요청한다([4장](04-client-registration.md)).
-cimd의 agent는 issuer를 비교하지 않고, 이 문서의 CIMD 표시와 고른 인증 방식을 확인한다([13장](13-cimd.md#134-1단계-metadata와-두-문서)).
+cimd의 agent는 PRM의 issuer를 credentials의 issuer와 비교하지 않고, 이 문서의 CIMD 표시와 고른 인증 방식을 확인한다([13장](13-cimd.md#134-1단계-metadata와-두-문서)).
 
 설명: [3장](03-discovery.md) · [4장](04-client-registration.md) · [8장](08-security.md) · [13장](13-cimd.md)
 
@@ -860,7 +860,7 @@ confidential client는 client 인증을, public client는 `client_id`와 PKCE의
 | `redirect_uri` | 본문 | authorization request에 있었으면 REQUIRED, 같은 값 MUST (RFC 6749) · OAuth 2.1은 목록에서 뺐고, 하위 호환은 [§10.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-10.2) | | 씀 — authorization request와 같은 주소 |
 | `client_id` | 본문 | client 인증을 하지 않을 때 REQUIRED ([OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3)) · client assertion과 함께면 OPTIONAL ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) | | `local-client`만 — `local-mcp-client`(P5). agent는 Basic 인증이라 보내지 않는다. cimd는 두 client type 모두 문서 주소를 보낸다(D4·D11) |
 | `client_assertion_type` | 본문 | client assertion으로 인증할 때 REQUIRED ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) | JWT assertion이면 `urn:ietf:params:oauth:client-assertion-type:jwt-bearer`다([RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2)) | 쓰지 않음. cimd의 ChatGPT형(`private_key_jwt`)은 이 값을 보낸다(D4) |
-| `client_assertion` | 본문 | client assertion으로 인증할 때 REQUIRED ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) · JWT는 하나만, 둘 이상은 MUST NOT ([RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2)) | client가 private key로 signature를 만든 JWT다. `iss`·`sub`(`client_id`), `aud`(Authorization Server), `exp`가 있어야 한다(MUST, [RFC 7523 §3](https://www.rfc-editor.org/rfc/rfc7523#section-3), [OIDC Core §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)) | 쓰지 않음. cimd의 ChatGPT형은 `aud`가 token endpoint이고 60초 뒤에 만료되는 `RS256` JWT를 보낸다(D4). Authorization Server는 문서의 `jwks_uri`에서 key를 가져와 검증한다 |
+| `client_assertion` | 본문 | client assertion으로 인증할 때 REQUIRED ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) · JWT는 하나만, 둘 이상은 MUST NOT ([RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2)) | client가 private key로 signature를 만든 JWT다. `iss`·`sub`(`client_id`), `aud`(Authorization Server), `exp`가 있어야 하고(MUST, [RFC 7523 §3](https://www.rfc-editor.org/rfc/rfc7523#section-3)), `private_key_jwt`에서는 한 번만 쓰는 `jti`도 REQUIRED다([OIDC Core §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)) | 쓰지 않음 — cimd의 ChatGPT형은 `aud`가 token endpoint이고, 요청마다 새 `jti`를 넣고, 60초 뒤에 만료되는 `RS256` JWT를 보낸다(D4). Authorization Server는 문서의 `jwks_uri`에서 가져온 key로 검증하지만, `jti`를 기억하지 않아 만료 전에 같은 assertion을 다시 보내도 받는다([13장](13-cimd.md#1312-다루지-않는-것)) |
 | `code_verifier` | 본문 | REQUIRED ([RFC 7636 §4.5](https://www.rfc-editor.org/rfc/rfc7636#section-4.5)) · `code_challenge`가 있었으면 REQUIRED, 없었으면 MUST NOT (OAuth 2.1) | authorization request 전에 만든 무작위 문자열 | 씀 |
 | `resource` | 본문 | 표시 없음 ([RFC 8707 §2.2](https://www.rfc-editor.org/rfc/rfc8707#section-2.2)) · token request에 MUST ([MCP](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation)) | token을 쓸 resource | 씀 — `http://localhost:8111/mcp` |
 
@@ -1125,7 +1125,7 @@ cimd의 Authorization Server가 하는 일은 요청 표의 "cimd" 칸과 오류
 | 이름 | 위치 | 요구 수준 | 설명 | cimd |
 |---|---|---|---|---|
 | `client_id` 주소 | URL | MUST — `https` scheme, path 포함 · dot segment·fragment·username·password는 MUST NOT, query는 SHOULD NOT, port는 MAY ([§3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)) | 짧고 자주 바뀌지 않는 주소를 권한다(RECOMMENDED) | `https://localhost:8172/oauth/client.json`과 `/oauth/public-client.json`이다. `ClientIdUrlValidator`가 이 규칙에 더해 query도 거절하고, DNS로 푼 주소가 내부 주소면 거절한다(예외는 `https://localhost:8172` 하나) |
-| 메서드 `GET` | 요청 줄 | 표시 없음 — Authorization Server는 문서를 가져온다 SHOULD ([§4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4) · MCP) | authorization request에서 주소 형식의 `client_id`를 만났을 때 | 처음 보는 주소면 `Accept: application/json`으로 가져온다. redirect를 따라가지 않고, 연결은 2초·응답 전체는 3초까지 기다린다 |
+| 메서드 `GET` | 요청 줄 | 표시 없음 — Authorization Server는 문서를 가져온다 SHOULD ([§4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4) · MCP) | authorization request에서 주소 형식의 `client_id`를 만났을 때 | cache에 없는 주소면 `Accept: application/json`으로 가져온다. redirect를 따라가지 않고, 연결은 2초·응답 전체는 3초까지 기다린다 |
 
 **응답 — metadata 문서의 field** (CIMD draft-00 §4.1의 3개와 RFC 7591 §2의 15개, 모두 18개)
 
@@ -1206,7 +1206,7 @@ cimd의 agent는 `https://localhost:8172`(self-signed 인증서)에 ChatGPT형�
 | `jwks_uri` | OPTIONAL — `private_key_jwt`의 public key ([CIMD §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2)) | `https://localhost:8172/oauth/jwks.json` | 없음 | `private_key_jwt`면 있어야 하고, 문서 주소와 같은 주소 규칙을 지켜야 한다 |
 
 `token_endpoint_auth_signing_alg`는 RFC 7591이 아니라 OpenID Connect Dynamic Client Registration이 정한 field이고, CIMD 문서는 같은 IANA registry의 이름을 쓴다(§4.1).
-scope는 문서에 없으므로, cimd의 Authorization Server는 정책 값 `openid products:read products:write orders:write`를 쓴다.
+cimd의 Authorization Server는 문서의 `scope`를 읽지 않고, 정책 값 `openid products:read products:write orders:write`를 쓴다.
 
 ## `POST /register` — Dynamic Client Registration
 
