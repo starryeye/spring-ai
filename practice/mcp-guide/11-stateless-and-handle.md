@@ -3,123 +3,66 @@
 ## 11.1 stateless의 필요성
 
 이 장에서는 shop MCP Server에 쇼핑몰의 장바구니 기능을 더한다.
-이 practice에는 쇼핑몰 backend가 따로 없다.
-resource server인 shop MCP Server가 상품과 재고, 장바구니를 모두 자기 메모리에 둔다.
-장바구니가 어떤 데이터인지에 따라, 서버가 장바구니를 찾는 방법이 달라진다.
+이 practice에는 쇼핑몰 backend가 따로 없고, resource server인 shop MCP Server가 상품과 재고, 장바구니를 모두 자기 메모리에 둔다.
 
-**실제 쇼핑몰의 장바구니는 사용자 데이터다**
+**장바구니의 두 종류**
 
-실제 쇼핑몰의 장바구니는 사용자마다 하나이고, 주문하거나 비울 때까지 서버의 저장소에 남는다.
+실제 쇼핑몰의 장바구니는 사용자마다 하나이고, 주문하거나 비울 때까지 서버에 남는다.
 login한 뒤 담은 상품은 다른 기기에서 열어도 그대로 있고, 같은 사용자의 여러 대화도 장바구니 하나를 같이 본다.
-이런 장바구니는 서버가 요청의 token에서 사용자(`sub`)를 알아내 찾으면 된다.
-그래서 tool은 `addToCart(productId, quantity)`처럼 장바구니를 가리키는 인자가 없어도 되고, session도 handle도 필요 없다.
-MCP로 보면 이 설계도 stateless다.
-protocol에는 아무 상태도 없고, 장바구니는 서버가 저장하는 보통의 데이터다.
+이런 장바구니는 서버가 요청의 token에서 사용자(`sub`)를 알아내 찾으면 되므로, session도 handle도 필요 없다.
 
-**이 practice의 장바구니는 대화 하나에서 AI가 채워 가는 임시 데이터다**
-
-같은 사용자라도 작업마다 따로 있어야 하는 상태도 있다.
-한 대화에서 AI가 사용자와 주고받으며 채워 가는 주문서 초안이 그런 예다.
+이 practice의 장바구니는 다르다.
+한 대화에서 AI가 사용자와 주고받으며 채워 가는 주문서 초안처럼, 대화마다 새로 만드는 임시 데이터로 다룬다.
 사용자는 "노트북 담아 줘", "마우스도 담아 줘"처럼 여러 turn에 걸쳐 내용을 정하고, 마지막에 주문한다.
 이런 초안을 사용자마다 하나로 두면, 같은 사용자가 두 대화에서 따로 만들던 초안이 하나로 섞인다.
-그래서 서버는 초안마다 이름(handle)을 붙이고, 사용자와 handle로 초안 하나를 찾는다.
-
-이 practice는 handle을 보여 주려고, 장바구니를 이런 초안처럼 대화마다 새로 만드는 임시 데이터로 다룬다.
-장바구니는 만든 뒤 30분이 지나면 만료되고, 한 사용자는 열린 장바구니를 5개까지 가진다.
-담기와 주문은 따로 부르는 tool이므로, 뒤의 호출은 앞의 호출이 만든 장바구니를 다시 찾아야 한다.
-
-**장바구니는 서버에 있고, client는 handle만 가진다**
-
-장바구니 데이터는 client가 아니라 shop MCP Server에 있다.
-서버는 `createBasket`이 만든 장바구니마다 handle(`basketId`)을 붙여, `<sub>:<handle>` key로 메모리에 둔다.
-client가 들고 있는 것은 장바구니가 아니라 이 handle 하나다.
-web agent에서는 대화 기억에 남은 tool 결과에서 모델이 handle을 꺼내 다음 호출에 넣는다.
-`local-client`에서는 코드가 handle을 변수에 두었다가 넘긴다.
-대화 기억에는 `getBasket` 결과 같은 장바구니 내용도 남지만, 그것은 받은 때의 사본이고 진짜 데이터는 서버에 있다.
-
-그래서 같은 사용자라도 handle을 모르는 대화에서는 장바구니를 찾을 수 없다.
-"새 대화"로 대화 기억을 지우면 모델은 옛 handle을 몰라 새 장바구니를 만들고, 장바구니 목록을 보여 주는 tool도 없다.
-반대로 다른 사용자는 handle을 알아내도 그 장바구니를 쓸 수 없다.
-서버는 요청의 token에서 꺼낸 `sub`로 key를 만들어 찾기 때문이다(11.5).
-장바구니는 서버 메모리에만 있어서, 서버를 다시 띄우면 함께 사라진다.
+그래서 담기와 주문 tool에는 대화마다 다른 장바구니를 가리킬 방법이 필요하다.
 
 | 장바구니를 찾는 key | 장바구니 수 | 사라지는 때 | 어울리는 데이터 |
 |---|---|---|---|
-| session ID | session마다 하나 | session이 끝날 때다. 그때는 client가 정한다 | 상태를 두기에 맞지 않다. 이 절의 나머지에서 본다 |
+| session ID | session마다 하나 | session이 끝날 때다. 그때는 client가 정한다 | 상태를 두기에 맞지 않다. 아래에서 본다 |
 | 사용자(`sub`) | 사용자마다 하나 | 주문하거나 비울 때 | 실제 쇼핑몰의 장바구니 |
 | 사용자(`sub`)와 handle | 사용자마다 여러 개 | 주문하거나 만료될 때 | 대화마다 따로 채워 가는 초안. 이 practice의 장바구니 |
 
+**session에 두면 생기는 문제**
+
 2025-11-25에서 가장 손쉬운 방법은 장바구니를 session에 두는 것이다.
-이 절의 나머지는 session에 두면 생기는 문제와, 2026-07-28이 session 대신 handle을 쓰게 한 이유를 본다.
-
-**session은 MCP client와 MCP Server 사이의 연결이다**
-
 [1장](01-mcp-basics.md)에서 본 session은 서버가 `initialize` 응답의 `Mcp-Session-Id`로 주고, client가 이후 요청마다 돌려보내는 값이다.
 이 session은 사용자의 login session이 아니라, MCP client 하나와 MCP Server 사이의 protocol 연결 하나를 가리킨다.
-2025-11-25에서 session ID를 줄지는 서버가 정한다.
-session ID를 주는 서버는 이 값으로 그 session에 둔 상태를 찾는다.
+여기에 장바구니를 두면 세 가지 문제가 생긴다.
 
-**MCP client 객체는 session을 들고 있다**
-
-session ID를 받아 두었다가 돌려보내는 MCP client는, 코드로 보면 MCP Java SDK의 `McpSyncClient` 객체 하나다(1장).
-Spring AI 자동 구성은 설정한 MCP 연결마다 이 객체를 하나씩 만들고, 앱 전체가 그 객체를 같이 쓴다.
-같이 쓰는 객체라고 해서 상태가 없는 것은 아니다.
-이 객체는 `initialize`로 협상한 버전과 서버의 capability, 서버가 준 session ID를 안에 들고 있다.
-그리고 그 뒤의 모든 요청에 같은 session ID를 붙인다.
-그래서 `McpSyncClient`는 요청마다 독립적인 `RestClient` 같은 HTTP client보다 JDBC `Connection`에 가깝고, 객체 하나가 session 하나다.
-
-**MCP client 하나를 여러 사용자가 같이 쓰면 session에 둔 상태가 섞인다**
-
-official과 authz의 agent는 MCP client 하나를 모든 사용자가 같이 써서, 어느 사용자의 요청이든 같은 session으로 간다([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)).
-서버가 받는 요청에는 사용자와 상관없이 같은 session ID가 붙고, `Authorization`의 token만 사용자마다 다르다.
+첫째, MCP client 하나를 여러 사용자가 같이 쓰면 장바구니가 사용자끼리 섞인다.
+MCP Java SDK의 `McpSyncClient`는 서버가 준 session ID를 들고 모든 요청에 붙이므로, JDBC `Connection`처럼 객체 하나가 session 하나다.
+official과 authz의 agent는 이 객체 하나를 모든 사용자가 같이 쓴다([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)).
 그래서 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보인다.
-앱을 끌 때 보내는 `DELETE`에는 붙일 사용자 token도 없다([준수표](reference-compliance.md) 36번).
+두 practice의 tool은 session에 아무것도 두지 않아서 섞인 적은 없다.
+agent가 사용자마다 client를 따로 두면 이 문제는 풀린다([`mcp-security-authn-chat-memory`](../mcp-security-authn-chat-memory/README.md#사용자별-mcp-client의-필요성)).
+이때 session은 token 값이 아니라 token의 사용자(`sub`)에 묶는다.
+token은 refresh나 step-up 때마다 바뀌기 때문이다.
 
-이 섞임은 여러 사용자가 session 하나를 같이 쓰고, 서버가 사용자 상태를 그 session에 둘 때만 생긴다.
-official과 authz의 tool은 session에 아무것도 두지 않아서, 실제로 섞인 적은 없다.
-MCP Server는 session이 아니라 요청마다 붙는 token으로 사용자를 구별하기 때문이다.
-서버가 상태를 session ID가 아니라 token의 사용자로 찾으면, session을 같이 써도 상태는 섞이지 않는다.
-이 장의 practice도 장바구니를 token의 사용자로 찾고, 그 사용자의 장바구니 가운데 하나를 handle로 고른다.
-다만 서버가 먼저 보내는 알림은 사용자에 맞춰 보낼 수 없다.
-`notifications/tools/list_changed` 같은 알림은 요청의 응답이 아니라 session의 GET stream으로 가고, 공유 session의 stream은 모든 사용자가 같이 쓰기 때문이다.
+둘째, session이 언제 시작해 언제 끝나는지가 client마다 달라서, 서버는 장바구니가 언제까지 남는지 알 수 없다([9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)).
+tool 호출마다 session을 새로 여는 client에서는 장바구니가 다음 호출까지 남지 않는다.
+[SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp)을 쓸 무렵(2026년 3월)의 ChatGPT가 그랬고, claude.ai도 그 얼마 전까지 그랬다.
+반대로 앱을 켤 때 session 하나를 열어 끌 때까지 쓰는 client에서는, 같은 사용자의 두 대화가 장바구니 하나를 같이 쓴다.
+이 문제는 사용자마다 client를 따로 두어도 남는다.
 
-**session을 사용자에 묶으려면 client도 사용자마다 둔다**
+셋째, session의 상태는 그 session을 연 서버의 메모리에 있어서 서버를 여러 대로 늘리기 어렵다.
+같은 session의 요청은 늘 그 서버로 가야 해서, 요청을 고르게 나눠 주는 보통의 load balancer를 그대로 쓰기 어렵다.
 
-명세는 session을 사용자에 묶어, 다른 사용자가 그 session ID를 쓰지 못하게 하라고 권한다(6장).
-이때 묶는 대상은 token 값이 아니라 token의 사용자(`sub`)다.
-token은 refresh나 step-up 때마다 바뀌어서, token 값에 묶은 session은 그때마다 더 쓸 수 없게 된다.
-그런데 공유 client의 session을 첫 사용자에 묶으면, 같은 session ID를 들고 오는 다른 사용자의 요청은 거절해야 한다.
-그래서 session을 사용자에 묶으려면 agent가 사용자마다 `McpSyncClient`를 따로 만들어 각자 `initialize`한다.
-그러면 session도 사용자마다 따로 생겨서, session에 둔 상태도 사용자끼리 섞이지 않는다.
-앱을 끌 때 보내는 `DELETE`에도 그 사용자의 token을 붙일 수 있다([`mcp-security-authn-chat-memory`](../mcp-security-authn-chat-memory/README.md#사용자별-mcp-client의-필요성)).
-
-실제 제품도 사용자를 token으로 구별한다.
-ChatGPT와 claude.ai의 connector는 사용자마다 그 사용자가 login해 받은 token으로 MCP Server를 부른다([2장](02-why-oauth.md#23-client의-두-종류-confidential-client와-public-client)).
-게다가 [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp)을 쓸 무렵(2026년 3월)에 ChatGPT는 tool 호출마다 새 session을 열었고, claude.ai도 그 얼마 전까지 그랬다.
-그런 client에서는 session에 둔 상태가 다음 호출까지 남지도 않는다.
-
-**session을 없앤 이유는 session의 범위가 client마다 달라서다**
-
-session이 언제 시작해 언제 끝나는지는 명세가 정하지 않았고, client마다 달랐다([9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)).
-tool 호출마다 새로 여는 client도, 앱을 켤 때 열어 끌 때까지 쓰는 client도, page를 열 때마다 여는 client도 있었다.
-그래서 서버는 session에 둔 상태가 언제까지 남는지 알 수 없었다.
-사용자마다 session을 따로 두어도, 앱을 켤 때 하나만 열어 계속 쓰면 같은 사용자의 두 대화가 session 하나를 같이 쓴다.
-그러면 대화마다 따로 있어야 할 장바구니가 하나로 섞인다.
-또 client는 session이 바뀔 때마다 tool 목록을 다시 받아야 했다.
-
-**session이 있으면 서버를 여러 대로 늘리기도 어렵다**
-
-session의 상태는 그 session을 연 서버의 메모리에 있어서, 같은 session의 다음 요청도 그 서버로 가야 한다.
-그래서 요청을 고르게 나눠 주는 보통의 load balancer를 그대로 쓰기 어렵고, 그 서버가 내려가면 상태도 함께 사라진다.
-
-**2026-07-28에는 session이 없다**
+**2026-07-28의 답: handle**
 
 MCP 2026-07-28에서는 protocol 수준의 session과 `Mcp-Session-Id`가 없어졌다([9장](09-versions.md)).
-호출 사이의 상태가 필요한 서버는 그 상태를 가리키는 이름(handle)을 만들어 tool 결과로 주고, 다음 호출의 tool 인자로 돌려받는다.
-서버는 요청마다 token으로 사용자를 알아내고, 받은 handle이 그 사용자의 것인지 확인한다.
+호출 사이의 상태가 필요한 서버는 그 상태에 이름(handle)을 붙여 tool 결과로 주고, 다음 호출의 tool 인자로 돌려받는다.
+이 practice에서는 `createBasket`이 장바구니를 만들고 handle(`basketId`)을 돌려준다.
 
-이 장의 practice `mcp-stateless-handle`은 이 방식을 2025-11-25 형식 위에서 보여 준다.
-handle을 다음 호출로 넘기는 것은 web agent에서는 모델이고, 사용자 기기의 앱에서는 코드다.
+장바구니 데이터는 client가 아니라 shop MCP Server에 있고, client가 가진 것은 handle 하나다.
+handle을 다음 호출로 넘기는 것은 web agent에서는 대화 기억을 읽은 모델이고, 사용자 기기의 앱(`local-client`)에서는 코드다.
+서버는 요청마다 token으로 사용자(`sub`)를 알아내고, 장바구니를 `<sub>:<handle>` key로 찾는다.
+그래서 같은 사용자라도 handle을 모르는 대화에서는 그 장바구니를 찾을 수 없고, 다른 사용자는 handle을 알아내도 쓸 수 없다.
+
+**이 장의 practice**
+
+2025-11-25에서도 session ID를 줄지는 서버가 정한다.
+그래서 `mcp-stateless-handle`은 session ID를 주지 않는 서버로, 이 방식을 2025-11-25 형식 위에서 보여 준다.
 MCP Server에는 장바구니 tool 네 개가 더 있다.
 
 | tool | 하는 일 | scope |
