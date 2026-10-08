@@ -24,6 +24,15 @@ class ClientSigningKeyTest {
 	}
 
 	@Test
+	void toString은_kid만_보이고_비밀_key는_보이지_않는다() throws Exception {
+		ClientSigningKey signingKey = ClientSigningKey.load(new ClassPathResource("test-certs/client-signing.p12"),
+				"changeit", "client-signing");
+
+		// RSAKey의 toString은 비밀 key(d, p, q)까지 JSON으로 보인다. 로그에 남으면 key가 샌다.
+		assertThat(signingKey.toString()).contains(signingKey.key().getKeyID()).doesNotContain("\"d\"");
+	}
+
+	@Test
 	void alias가_없으면_이유를_남기고_멈춘다() {
 		assertThatIllegalStateException()
 				.isThrownBy(() -> ClientSigningKey.load(new ClassPathResource("test-certs/client-signing.p12"),

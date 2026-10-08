@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.token.DefaultOAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2RefreshTokenGenerator;
 
@@ -30,7 +31,9 @@ class PublicClientRefreshTokenGeneratorTest {
 				.clientId("https://localhost:8172/oauth/public-client.json")
 				.clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
 				.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-				.redirectUri("http://localhost:8170/login/oauth2/code/authserver");
+				.redirectUri("http://localhost:8170/login/oauth2/code/authserver")
+				// CIMD client는 저장소가 이렇게 만든다(rotation).
+				.tokenSettings(TokenSettings.builder().reuseRefreshTokens(false).build());
 		if (refreshGrant) {
 			builder.authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN);
 		}
@@ -40,8 +43,12 @@ class PublicClientRefreshTokenGeneratorTest {
 	// Spring의 generator는 authorization grant의 client 인증이 none이면 refresh token을 만들지 않는다.
 	// 그래서 context에도 public client가 authorization code로 인증한 grant를 담는다.
 	static DefaultOAuth2TokenContext context(RegisteredClient client, OAuth2TokenType type) {
-		OAuth2ClientAuthenticationToken clientPrincipal = new OAuth2ClientAuthenticationToken(client,
-				ClientAuthenticationMethod.NONE, null);
+		return context(client, type, ClientAuthenticationMethod.NONE);
+	}
+
+	static DefaultOAuth2TokenContext context(RegisteredClient client, OAuth2TokenType type,
+			ClientAuthenticationMethod method) {
+		OAuth2ClientAuthenticationToken clientPrincipal = new OAuth2ClientAuthenticationToken(client, method, null);
 		return DefaultOAuth2TokenContext.builder()
 				.registeredClient(client)
 				.tokenType(type)
@@ -66,6 +73,28 @@ class PublicClientRefreshTokenGeneratorTest {
 		assertThat(token.getIssuedAt()).isEqualTo(NOW);
 		assertThat(token.getExpiresAt()).isEqualTo(NOW.plus(client.getTokenSettings().getRefreshTokenTimeToLive()));
 		assertThat(client.getTokenSettings().getRefreshTokenTimeToLive()).isEqualTo(Duration.ofMinutes(60));
+	}
+
+	@Test
+	void rotation을_하지_않는_public_client에게는_만들지_않는다() {
+		RegisteredClient client = RegisteredClient.from(publicClient(true))
+				.tokenSettings(TokenSettings.builder().reuseRefreshTokens(true).build())
+				.build();
+
+		assertThat(this.generator.generate(context(client, OAuth2TokenType.REFRESH_TOKEN))).isNull();
+	}
+
+	@Test
+	void client를_인증한_client에게는_rotation과_상관없이_만든다() {
+		RegisteredClient client = RegisteredClient.from(publicClient(true))
+				.clientAuthenticationMethods(methods -> methods.clear())
+				.clientAuthenticationMethod(ClientAuthenticationMethod.PRIVATE_KEY_JWT)
+				.tokenSettings(TokenSettings.builder().reuseRefreshTokens(true).build())
+				.build();
+
+		assertThat(this.generator.generate(
+				context(client, OAuth2TokenType.REFRESH_TOKEN, ClientAuthenticationMethod.PRIVATE_KEY_JWT)))
+				.isNotNull();
 	}
 
 	@Test

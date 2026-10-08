@@ -17,7 +17,7 @@ import java.util.List;
  * @param defaultCacheTtl 응답에 {@code Cache-Control}이 없을 때 cache하는 기간
  * @param maxCacheTtl {@code max-age}가 길어도 넘지 않는 cache 기간
  * @param trustBundle 문서 host의 인증서를 믿을 때 쓰는 Spring Boot SSL bundle 이름. 비우면 JVM 기본 truststore를 쓴다
- * @param scopes CIMD client가 요청할 수 있는 scope. 문서에는 scope가 없으므로 서버가 정한다
+ * @param scopes CIMD client가 요청할 수 있는 scope. 문서의 {@code scope}는 읽지 않고 이 서버의 정책으로 정한다
  */
 @ConfigurationProperties("mcp.cimd")
 public record ClientIdMetadataDocumentProperties(String loopbackException, Integer maxDocumentBytes,
@@ -30,6 +30,8 @@ public record ClientIdMetadataDocumentProperties(String loopbackException, Integ
 		readTimeout = (readTimeout == null) ? Duration.ofSeconds(3) : readTimeout;
 		defaultCacheTtl = (defaultCacheTtl == null) ? Duration.ofMinutes(5) : defaultCacheTtl;
 		maxCacheTtl = (maxCacheTtl == null) ? Duration.ofHours(1) : maxCacheTtl;
+		// 설정 파일에 `trust-bundle:`만 쓰면 빈 문자열이 들어온다. 이때도 정하지 않은 것으로 본다.
+		trustBundle = (trustBundle == null || trustBundle.isBlank()) ? null : trustBundle;
 		scopes = (scopes == null || scopes.isEmpty())
 				? List.of("openid", "products:read", "products:write", "orders:write") : List.copyOf(scopes);
 	}

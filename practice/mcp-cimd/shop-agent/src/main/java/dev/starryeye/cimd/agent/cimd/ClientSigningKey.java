@@ -40,4 +40,13 @@ public record ClientSigningKey(RSAKey key) {
 				.build();
 		return new ClientSigningKey(key);
 	}
+
+	/**
+	 * record가 만드는 기본 toString은 {@link RSAKey#toString()}을 써서 비밀 key({@code d}, {@code p}, {@code q})까지 보인다.
+	 * 로그나 오류 메시지에 이 객체가 찍혀도 key가 새지 않도록 kid만 보인다.
+	 */
+	@Override
+	public String toString() {
+		return "ClientSigningKey[kid=" + this.key.getKeyID() + "]";
+	}
 }

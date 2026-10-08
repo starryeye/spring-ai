@@ -3,8 +3,10 @@ package dev.starryeye.cimd.authserver.security;
 import org.springframework.security.crypto.keygen.Base64StringKeyGenerator;
 import org.springframework.security.crypto.keygen.StringKeyGenerator;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenContext;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
@@ -21,6 +23,7 @@ import java.util.Base64;
  * OAuth 2.1은 rotation이나 sender-constrained token을 조건으로 public client에게도 refresh token을 허용한다.
  * 이 서버는 CIMD client의 {@code reuseRefreshTokens(false)}로 rotation을 하므로, 그 client의 grant에
  * {@code refresh_token}이 있으면 만든다. Claude는 public client로 붙으면서 refresh token rotation을 요구한다.
+ * rotation이 조건이므로, {@code reuseRefreshTokens(true)}인 public client에게는 만들지 않는다.
  */
 public final class PublicClientRefreshTokenGenerator implements OAuth2TokenGenerator<OAuth2RefreshToken> {
 
@@ -45,8 +48,18 @@ public final class PublicClientRefreshTokenGenerator implements OAuth2TokenGener
 		if (!client.getAuthorizationGrantTypes().contains(AuthorizationGrantType.REFRESH_TOKEN)) {
 			return null;
 		}
+		if (isPublicClient(context) && client.getTokenSettings().isReuseRefreshTokens()) {
+			return null;
+		}
 		Instant issuedAt = this.clock.instant();
 		return new OAuth2RefreshToken(this.keys.generateKey(), issuedAt,
 				issuedAt.plus(client.getTokenSettings().getRefreshTokenTimeToLive()));
+	}
+
+	/** 이 grant의 client 인증이 {@code none}이면 public client다. Spring 기본 generator와 같은 기준이다. */
+	private static boolean isPublicClient(OAuth2TokenContext context) {
+		return context.getAuthorizationGrant() != null
+				&& context.getAuthorizationGrant().getPrincipal() instanceof OAuth2ClientAuthenticationToken clientPrincipal
+				&& ClientAuthenticationMethod.NONE.equals(clientPrincipal.getClientAuthenticationMethod());
 	}
 }

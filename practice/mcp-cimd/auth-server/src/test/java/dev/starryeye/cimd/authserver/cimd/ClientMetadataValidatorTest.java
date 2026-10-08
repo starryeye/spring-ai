@@ -106,6 +106,29 @@ class ClientMetadataValidatorTest {
 	}
 
 	@Test
+	void redirect_uris는_https이거나_loopback_http면_받는다() {
+		for (String uri : List.of("https://chatgpt.com/connector_platform_oauth_redirect",
+				"http://localhost:8170/login/oauth2/code/authserver", "http://127.0.0.1:33418/callback",
+				"http://[::1]/callback")) {
+			Map<String, Object> document = claude();
+			document.put("redirect_uris", List.of(uri));
+
+			assertThat(this.validator.validate(CLAUDE, document).redirectUris()).containsExactly(uri);
+		}
+	}
+
+	@Test
+	void redirect_uris가_loopback이_아닌_http이거나_다른_scheme이거나_host가_없으면_거절한다() {
+		for (String uri : List.of("http://evil.example/cb", "javascript:alert(1)", "data:text/html,x",
+				"file:///etc/passwd", "https:///cb")) {
+			Map<String, Object> document = claude();
+			document.put("redirect_uris", List.of(REDIRECT_URI, uri));
+
+			거절(CLAUDE, document, "redirect_uris");
+		}
+	}
+
+	@Test
 	void 비밀이_있으면_거절한다() {
 		Map<String, Object> secret = claude();
 		secret.put("client_secret", "s");

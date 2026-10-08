@@ -45,6 +45,18 @@ class PublicClientConsentServiceTest {
 		assertThat(this.service.findById(PUBLIC_CLIENT.getId(), "user")).isNull();
 	}
 
+	@Test
+	void client를_찾지_못하면_public_client처럼_저장하지도_찾지도_않는다() {
+		// CIMD 저장소는 문서를 가져오지 못하면 null을 돌려준다. 이때 confidential client로 보면 consent를 건너뛸 수 있다.
+		RegisteredClient unknown = client("unknown-client", ClientAuthenticationMethod.PRIVATE_KEY_JWT);
+
+		this.service.save(consent(unknown));
+		assertThat(this.delegate.findById(unknown.getId(), "user")).isNull();
+
+		this.delegate.save(consent(unknown));
+		assertThat(this.service.findById(unknown.getId(), "user")).isNull();
+	}
+
 	static RegisteredClient client(String clientId, ClientAuthenticationMethod method) {
 		return RegisteredClient.withId(clientId + "-id")
 				.clientId(clientId)

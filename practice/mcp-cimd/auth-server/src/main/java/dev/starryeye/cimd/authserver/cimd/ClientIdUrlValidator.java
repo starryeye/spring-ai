@@ -79,7 +79,8 @@ public final class ClientIdUrlValidator {
 				}
 				catch (UnknownHostException ex) {
 					// InetAddress.getByAddress는 DNS를 안 하므로 이 예외는 발생하지 않는다.
-					return false;
+					// 그래도 발생하면 확인하지 못한 주소이므로 내부 주소로 본다.
+					return true;
 				}
 			}
 			// IPv6 고유 주소는 isSiteLocalAddress가 잡지 않는다.

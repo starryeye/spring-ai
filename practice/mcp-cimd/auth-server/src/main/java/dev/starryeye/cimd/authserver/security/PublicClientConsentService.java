@@ -55,9 +55,15 @@ public class PublicClientConsentService implements OAuth2AuthorizationConsentSer
 		return this.delegate.findById(registeredClientId, principalName);
 	}
 
+	/**
+	 * client를 찾지 못하면 public client로 본다.
+	 * CIMD 저장소는 문서를 가져오지 못하면 {@code null}을 돌려준다.
+	 * cache하지 않은 문서는 조회할 때마다 다시 가져오므로, consent를 저장하거나 찾는 순간에 실패할 수 있다.
+	 * 그때 confidential client로 보면 신원을 확인하지 못한 client의 consent를 저장하거나 꺼내 쓰게 된다.
+	 */
 	private boolean isPublicClient(String registeredClientId) {
 		RegisteredClient client = this.registeredClientRepository.findById(registeredClientId);
-		return client != null
-				&& client.getClientAuthenticationMethods().contains(ClientAuthenticationMethod.NONE);
+		return client == null
+				|| client.getClientAuthenticationMethods().contains(ClientAuthenticationMethod.NONE);
 	}
 }
