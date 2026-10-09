@@ -17,7 +17,7 @@ web agent는 ChatGPT형(`private_key_jwt`)과 Claude형(`none`) 두 client type 
 | consent할 scope가 없는 요청 | `PublicClientScopeValidator`가 public client(`none`)의 요청만 본다. `openid`만 있거나 scope가 없으면 `invalid_scope`다 | `ConsentableScopeValidator`가 모든 client에게 같은 검사를 한다. 누구나 문서를 올려 `private_key_jwt` client가 될 수 있으므로, `openid`만 요청해 consent 화면을 건너뛰는 길을 막는다 | [13장 3단계](../mcp-guide/13-cimd.md#136-3단계-consent-화면) |
 | consent 화면 | Spring 기본 화면이다 | `ConsentController`가 client 이름, 문서 host, 허락한 뒤 돌아갈 redirect host를 보여 준다. 문서의 redirect 주소가 모두 loopback이면 경고 문장을 더한다 | [13장 3단계](../mcp-guide/13-cimd.md#136-3단계-consent-화면) |
 | token endpoint 인증 | agent는 `client_secret_basic`, `local-client`는 `none`이다 | client마다 문서의 `token_endpoint_auth_method` 하나만 받는다. `private_key_jwt`의 assertion은 `CimdJwtClientAssertionDecoderFactory`가 문서의 `jwks_uri`에서 가져온 key로 검증한다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식) |
-| public client의 refresh token | 주지 않는다 | 주고, refresh할 때마다 새것을 주며 옛것은 쓸 수 없게 한다(rotation). `PublicClientRefreshTokenGenerator`가 만들고, `PublicClientRefreshTokenAuthenticationConverter`·`Provider`가 `client_id`만 온 refresh 요청을 인증한다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation) |
+| public client의 refresh token | 주지 않는다 | 주고, refresh할 때마다 새것을 주며 옛것은 쓸 수 없게 한다(rotation). 버린 refresh token이 다시 오면 grant 전체를 끊는다. `PublicClientRefreshTokenGenerator`가 만들고, `PublicClientRefreshTokenAuthenticationConverter`·`Provider`가 `client_id`만 온 refresh 요청을 인증한다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation) |
 | metadata | 알리는 인증 방식은 Spring 기본 여섯에 `none`을 더한 일곱이고, signature 알고리즘은 12개다. DPoP와 mTLS 인증서 binding도 Spring 기본대로 알린다 | `client_id_metadata_document_supported: true`를 알리고, 인증 방식은 `["private_key_jwt", "none"]`, signature 알고리즘은 `["RS256"]`이다. DPoP와 mTLS 인증서 binding은 알리지 않는다 | [13장 1단계](../mcp-guide/13-cimd.md#134-1단계-metadata와-두-문서) |
 | agent의 client 정보 | 설정에 `client-id`·`client-secret`과 `credentials-issuer`가 있다 | 문서 주소가 `client_id`이고 비밀이 없다. `mcp.authorization.client-type`(`chatgpt`·`claude`)이 문서 주소와 인증 방식을 정한다 | [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
 | agent의 discovery | PRM이 알려 준 Authorization Server를 `credentials-issuer`와 비교한다 | CIMD `client_id`는 어느 Authorization Server에도 묶이지 않으므로 비교하지 않는다. metadata에 CIMD 표시와 고른 인증 방식이 없으면 이유를 남기고 멈춘다 | [13장 1단계](../mcp-guide/13-cimd.md#134-1단계-metadata와-두-문서) |
@@ -175,10 +175,11 @@ package는 `auth-server`가 `authserver`, `shop-agent`가 `agent`다.
 | | `cimd.HttpsClientMetadataFetcher`, `cimd.ClientMetadataHttp`, `cimd.FetchedDocument` | 문서와 JWKS를 같은 규칙으로 가져온다(redirect 없음, `200`과 JSON만, 5120 byte, 연결 2초, 응답 전체 3초, 주소 검사의 DNS 조회는 제한 없음). `FetchedDocument`는 본문과 `Cache-Control`의 `max-age`, `no-store`·`no-cache` 여부를 담는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
 | | `cimd.ClientMetadataValidator`, `cimd.ClientMetadata` | 문서의 `client_id` 일치, 필수 field, `redirect_uris`의 scheme(`https`나 loopback `http`), 비밀 금지, 인증 방식과 `jwks_uri`·`RS256`을 본다. 통과한 값은 `ClientMetadata`에 담는다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지) |
 | | `cimd.ClientIdMetadataDocumentRegisteredClientRepository` | `findByClientId`·`findById`가 문서 주소를 받아 cache를 보고, 없으면 주소 검사 → 가져오기 → 내용 검사 → `RegisteredClient` 변환 → cache 순서로 처리한다. cache는 `max-age`(상한 1시간, 없으면 5분)를 따르고, `no-store`·`no-cache`와 실패는 cache하지 않으며, 항목은 1000개까지다 | [13장 2단계](../mcp-guide/13-cimd.md#135-2단계-문서를-가져와-믿기까지), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
-| | `cimd.CimdJwtClientAssertionDecoderFactory` | `private_key_jwt`의 assertion을 문서의 `jwks_uri`에서 가져온 key로 검증한다. decoder와 key 목록은 cache하지 않고, 검증할 때마다 만들고 가져온다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
+| | `cimd.CimdJwtClientAssertionDecoderFactory` | `private_key_jwt`의 assertion을 문서의 `jwks_uri`에서 가져온 key로 검증한다. `aud`는 이 서버의 issuer 하나만 받는다(RFC 7523bis). decoder와 key 목록은 cache하지 않고, 검증할 때마다 만들고 가져온다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
 | | `security.PublicClientRefreshTokenGenerator` | client의 grant에 `refresh_token`이 있으면 public client에게도 refresh token을 만든다. Spring 기본 generator는 public client에게 만들지 않는다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation) |
 | | `security.PublicClientRefreshTokenAuthenticationConverter` | token endpoint로 온 `grant_type=refresh_token` 요청에 다른 client 인증이 없고 `client_id`가 하나면, public client 인증으로 넘긴다. introspection·revocation 같은 다른 endpoint의 요청은 맡지 않는다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation) |
 | | `security.PublicClientRefreshTokenAuthenticationProvider` | 문서가 `none`을 선언한 client의 refresh 요청만 인증한다. `private_key_jwt` client가 `client_id`만으로 오면 `invalid_client`다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
+| | `security.RefreshTokenReuseDetectingAuthorizationService` | 메모리 authorization 저장소를 감싼다. rotation으로 버린 refresh token의 hash를 만료까지 기억하고, 그 token이 refresh 요청에 다시 오면 grant 전체를 지운다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
 | | `security.ConsentableScopeValidator` | `openid` 말고 scope가 하나도 없는 authorization request를 client와 상관없이 `invalid_scope`로 거절한다. 그래서 모든 요청이 consent 화면을 거치거나, 전에 그 화면에서 허락한 scope 안에 든다 | [13장 3단계](../mcp-guide/13-cimd.md#136-3단계-consent-화면) |
 | | `web.ConsentController` | `GET /oauth2/consent` 화면이다. client 이름, 문서 host, 돌아갈 redirect host, loopback 경고, 새로 허락할 scope 체크박스와 이미 허락한 scope를 보여 준다 | [13장 3단계](../mcp-guide/13-cimd.md#136-3단계-consent-화면) |
 | | `config.AuthorizationServerConfig` | 저장소, decoder factory, refresh converter·provider, consent 화면, token generator를 연결한다. metadata에 CIMD 표시, 두 인증 방식, `RS256`을 알리고 DPoP·mTLS binding 알림은 지운다 | [13장 1단계](../mcp-guide/13-cimd.md#134-1단계-metadata와-두-문서), [13장 서버 코드](../mcp-guide/13-cimd.md#1310-authorization-server-코드에서-보기) |
@@ -191,10 +192,11 @@ package는 `auth-server`가 `authserver`, `shop-agent`가 `agent`다.
 | | `config.McpAuthorizationProperties` | `mcp.authorization.*` 설정이다. `resource-url`과 `client-type`(기본 `chatgpt`)을 두고, `credentials-issuer`는 없다 | [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
 | | `discovery.DiscoveredClientRegistrationRepository` | `clientId`는 고른 client type의 문서 주소이고, 인증 방식도 client type을 따르며, client secret이 없다. redirect 주소는 문서와 같은 `http://localhost:8170/login/oauth2/code/authserver`다 | [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
 | | `discovery.McpAuthorizationDiscovery` | PRM의 Authorization Server를 미리 정한 issuer와 비교하지 않는다. metadata에 `client_id_metadata_document_supported: true`와 고른 인증 방식이 없으면 멈춘다 | [13장 1단계](../mcp-guide/13-cimd.md#134-1단계-metadata와-두-문서), [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
-| | `config.McpSecurityConfig` | authorization code와 refresh의 token response client 둘에 `NimbusJwtClientAuthenticationParametersConverter`를 더한다. ChatGPT형이면 `ClientSigningKey`로 assertion을 만들고, Claude형이면 key를 주지 않아 `client_id`만 간다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식), [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
+| | `config.McpSecurityConfig` | authorization code와 refresh의 token response client 둘에 `NimbusJwtClientAuthenticationParametersConverter`를 더한다. ChatGPT형이면 `ClientSigningKey`로 assertion을 만들고, Claude형이면 key를 주지 않아 `client_id`만 간다. token을 꺼내는 manager는 `SingleFlightAuthorizedClientManager`로 감싼다 | [13장 4단계](../mcp-guide/13-cimd.md#137-4단계-두-인증-방식), [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
+| | `security.SingleFlightAuthorizedClientManager` | 같은 사용자의 token 요청을 한 번에 하나씩 처리한다. 요청 둘이 동시에 만료된 token을 보아도 refresh는 한 번만 나가, 버린 refresh token을 내밀어 grant가 끊기는 일이 없다 | [13장 5단계](../mcp-guide/13-cimd.md#138-5단계-public-client의-refresh와-rotation), [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
 
-ChatGPT형의 assertion은 Spring client의 기본값을 따른다.
-`iss`와 `sub`는 `client_id`, `aud`는 token endpoint이고, 60초 뒤에 만료된다.
+ChatGPT형의 assertion에서 `iss`와 `sub`는 `client_id`이고, 60초 뒤에 만료된다(Spring client의 기본값).
+`aud`는 Spring 기본값인 token endpoint 대신 Authorization Server의 issuer 하나를 넣고, `typ`은 `client-authentication+jwt`다(RFC 7523bis).
 header의 `kid`는 JWKS에 올린 key의 `kid`와 같다.
 
 ## 직접 확인할 것
@@ -219,8 +221,8 @@ browser의 줄은 표의 순서대로 한다.
 | `grep 'client 문서를 가져왔다' logs/auth-server.log`와 `grep 'scope 부족' logs/shop-mcp-server.log` | `client 문서를 가져왔다 (client_id=https://localhost:8172/oauth/public-client.json, 인증 방식=none, cache=300초)`가 찍힌다. MCP Server 로그의 `client_id=`도 `https://localhost:8172/oauth/public-client.json`이다 |
 | Claude형의 재고 변경이 끝나고 6분 뒤 `노트북 재고 있어?` 보내기 | login 화면 없이 답이 온다. access token(5분)이 끝나, agent가 `client_id`만 보내는 refresh로 새 token을 받았기 때문이다 |
 | `./stop.sh && ./run.sh` 직후 `docs/superpowers/captures/mcp-cimd-walkthrough.sh` 실행 | ChatGPT형 token request는 `→ HTTP 200`이고, access token payload의 `client_id`는 `https://localhost:8172/oauth/client.json`이다. Claude형 token request도 `→ HTTP 200`이고 응답에 `refresh_token`이 있다 |
-| 같은 출력의 실패 요청 | `jwks_uri`에 없는 key로 만든 assertion과 assertion 없는 ChatGPT형 요청은 둘 다 `→ HTTP 401`, `{"error":"invalid_client"}`다. 문서에 없는 redirect 주소는 `Location` 없이 `HTTP/1.1 400`이다 |
-| 같은 출력의 refresh 요청 | 두 client type 모두 refresh하면 새 `refresh_token`이 온다. Claude형의 옛 refresh token을 다시 쓰면 `→ HTTP 400`, `{"error":"invalid_grant"}`다 |
+| 같은 출력의 실패 요청 | `jwks_uri`에 없는 key로 만든 assertion, assertion 없는 ChatGPT형 요청, `aud`가 token endpoint인 assertion은 모두 `→ HTTP 401`, `{"error":"invalid_client"}`다. 문서에 없는 redirect 주소는 `Location` 없이 `HTTP/1.1 400`이다 |
+| 같은 출력의 refresh 요청 | 두 client type 모두 refresh하면 새 `refresh_token`이 온다. Claude형의 버린 refresh token을 다시 쓰면 `→ HTTP 400`, `{"error":"invalid_grant"}`이고, 그 뒤에는 지금의 refresh token도 `invalid_grant`다. `logs/auth-server.log`에는 `버린 refresh token이 다시 왔다 — grant를 끊는다`가 남는다 |
 
 loopback 경고의 전체 문장은 `이 client는 이 기기의 주소(localhost)로만 돌아갑니다. 같은 기기의 다른 프로그램도 이 client의 이름을 댈 수 있으니, 직접 시작한 요청인지 확인하세요.`다.
 두 문서의 redirect 주소가 `http://localhost:8170` 하나뿐이라 두 client type 모두 이 경고가 나온다.
@@ -242,7 +244,7 @@ ChatGPT형의 assertion은 `openssl`로 `certs/client-signing.p12`의 key를 써
 docs/superpowers/captures/mcp-cimd-walkthrough.sh > /tmp/cimd-walkthrough.txt
 ```
 
-같은 방법으로 받은 기록이 [cimd 캡처](../../docs/superpowers/captures/2026-10-08-cimd-walkthrough.txt)에 있다.
+같은 방법으로 받은 기록이 [cimd 캡처](../../docs/superpowers/captures/2026-10-09-cimd-walkthrough.txt)에 있다.
 ChatGPT와 Claude Code(CLI)의 실제 문서를 curl로 받은 기록은 [실제 제품 문서 캡처](../../docs/superpowers/captures/2026-10-08-cimd-real-documents.txt)에 있다.
 
 ## 더 읽을 것
