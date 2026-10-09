@@ -85,6 +85,7 @@ MCP Server는 token의 `aud`에 자기가 있는지 확인한다([6장](06-mcp-c
 `resource`를 보내지 않는 client가 official에서 token을 받으면 `aud`가 `client_id`로 남고, MCP Server는 그 token을 `401`로 거절한다.
 `resource`를 모르는 Authorization Server는 이 parameter를 무시하므로, 새 client가 보내도 authorization 흐름은 깨지지 않는다.
 다만 그 Authorization Server는 `aud`에 MCP Server를 넣지 않을 수 있어서, `aud`를 확인하는 MCP Server는 그 token을 거절할 수 있다.
+상용 IdP마다 `resource`를 어떻게 다루는지는 [5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token)에 있다.
 
 ## 9.5 CIMD의 등장과 DCR의 deprecated 지정 (2025-11-25, 2026-07-28)
 
