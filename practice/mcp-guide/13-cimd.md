@@ -456,6 +456,8 @@ refresh token은 받은 client에서만 통하기 때문이다.
 [5장](05-authorization-and-token.md)의 official은 confidential client에게 처음 받은 refresh token을 그대로 돌려주었다.
 Spring은 authorization마다 지금의 refresh token 하나만 기억하므로, 옛 refresh token은 찾을 수 없는 token처럼 `invalid_grant`로 끝난다.
 OAuth 2.1은 이때 지금 쓰는 refresh token까지 끊어 도난을 멈추는 방법을 설명하지만, 이 practice는 옛것만 거절한다.
+그래서 도둑이 먼저 refresh하면 도둑은 계속 rotation하며 새 token을 받고, 늦게 온 진짜 client만 `invalid_grant`로 끊긴다.
+도난을 멈추려면 Authorization Server가 버린 refresh token을 기억해 두었다가, 다시 오면 그 grant 전체를 끊어야 한다.
 
 **Spring이 기본으로 주지 않는 이유와 바꾼 곳**
 
