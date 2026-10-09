@@ -179,7 +179,9 @@ MCP 명세가 이 이름으로 설명하는 공격은 OAuth proxy인 MCP Server�
 
 **공격: OAuth proxy인 MCP Server의 confused deputy**
 
-이 공격은 MCP Server가 제3자 API 앞에 선 OAuth proxy일 때 생긴다.
+OAuth proxy는 MCP Server가 MCP client에게는 Authorization Server처럼 보이면서, 실제 login은 제3자 서비스의 Authorization Server에 맡기는 구성이다.
+MCP Server는 client 쪽에 authorization endpoint와 DCR endpoint를 열고, 뒤에서는 자기가 그 제3자 서비스의 OAuth client가 되어 사용자의 제3자 token을 받는다.
+이 공격은 MCP Server가 이런 OAuth proxy일 때 생긴다.
 proxy는 MCP client마다 DCR로 각자의 `client_id`를 준다.
 그런데 제3자 Authorization Server에는 고정된 `client_id` 하나로만 등록되어 있다.
 그래서 어느 MCP client의 요청이든, 제3자 Authorization Server에는 같은 proxy의 요청으로 보인다.

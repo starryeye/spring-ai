@@ -316,7 +316,9 @@ turn은 사용자 질문 하나와 그 답까지다.
 
 **기본 배치에서는 tool 결과가 기억에 남지 않는다**
 
-Spring AI에서 tool loop는 `ToolCallingAdvisor`가 맡는다.
+Spring AI의 `ChatClient`는 모델을 부르기 전후에 advisor를 차례로 거친다.
+advisor는 요청과 응답을 가로채 일을 더하는 부품으로, Spring MVC의 interceptor나 servlet filter의 사슬과 비슷하다.
+tool loop도 advisor인 `ToolCallingAdvisor`가 맡는다.
 모델이 tool 호출로 답하면 tool을 실행하고, 결과를 붙여 모델을 다시 부르는 일을 답이 나올 때까지 되풀이한다.
 advisor는 order가 작을수록 바깥에 있고, 대화 기억 advisor `MessageChatMemoryAdvisor`는 기본 order에서 `ToolCallingAdvisor`보다 바깥에 있다.
 그래서 대화 기억은 tool loop가 시작하기 전의 질문과 loop가 끝난 뒤의 답만 본다.

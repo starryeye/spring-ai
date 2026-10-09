@@ -211,22 +211,24 @@ token은 유효하므로 `401`이 아니다.
 MCP Server는 이 거절을 `scope 부족 — 사용자=user, client_id=authz-shop-agent, tool=updateStock, 필요한 scope=products:write, 가진 scope=[openid, products:read]`로 로그에 남긴다.
 이 기록이 있으면 누가 어느 client로 어떤 권한을 더 원했는지 나중에 추적할 수 있다.
 
-**challenge에는 이 작업에 필요한 scope만 넣는다**
+**challenge에 적을 scope**
 
+`401`·`403`의 `WWW-Authenticate` header처럼, 무엇이 더 필요한지 client에게 알리는 값을 challenge라고 한다.
+결론부터 말하면, 여러 client와 함께 쓸 서버는 challenge에 이 요청을 처리하는 데 필요한 scope를 모두 적는다.
+이 practice는 2026-07-28의 동작을 보여 주려고, 모자란 `products:write` 하나만 적는다.
+
+필요한 scope만 적는 이유가 있다.
 서버의 scope를 모두 적으면, client는 step-up 한 번으로 이 작업에 필요 없는 권한까지 요청한다.
 요청하는 scope가 지금 하려는 작업에 맞아야, 사용자도 무엇을 허락하는지 안다.
 한 작업에 scope가 여럿 필요하다면, 하나씩 나눠 알리지 않고 한 challenge에 모두 적는다.
 
-6장에서는 `scope`에 이미 받은 scope 가운데 계속 필요한 것도 함께 적는다고 했다.
-2025-11-25는 challenge에 이 요청을 처리하는 데 필요한 scope를 모두 적게 한다.
+이미 받은 scope까지 적는 이유는 버전과 client에 있다.
+2025-11-25는 이미 받은 scope라도 이 요청에 계속 필요하면 함께 적게 한다(6장).
 이 서버는 모든 요청에 `products:read`를 요구하므로, 2025-11-25대로라면 `scope="products:read products:write"`다.
 2026-07-28은 이미 허락된 scope는 적지 않아도 된다고 하고, 이전 scope와 합치는 일을 client에게 맡긴다(10.5).
-이 practice는 2026-07-28을 따라 `products:write`만 적으므로, 2025-11-25의 권고와는 다르다.
-challenge의 scope만 요청하는 client까지 받아야 하는 서버라면 `products:read`도 함께 적는다.
-
-claude.ai는 다시 authorization을 받을 때 `403`의 `scope`와 처음 연결할 때의 scope만 합쳐 요청한다([Claude 문서](https://claude.com/docs/connectors/building/lazy-authentication#ask-for-more-scope-with-403)).
+그러나 claude.ai는 다시 authorization을 받을 때 `403`의 `scope`와 처음 연결할 때의 scope만 합쳐 요청한다([Claude 문서](https://claude.com/docs/connectors/building/lazy-authentication#ask-for-more-scope-with-403)).
 앞선 step-up으로 받은 scope가 다음 step-up에 이어진다는 보장이 없어서, Claude 문서는 아직 필요한 scope를 모두 적으라고 권한다.
-그래서 쓰기 scope를 여러 번 나눠 늘리는 서버가 모자란 scope만 적으면, 앞서 받은 쓰기 scope가 다음 token에서 빠질 수 있다.
+모자란 scope만 적는 서버에서는 앞서 받은 쓰기 scope가 다음 token에서 빠질 수 있다.
 
 **서버가 HTTP 단계에서 검사하는 이유**
 
@@ -495,8 +497,7 @@ filter가 바이트를 JSON parser에 바로 넘긴다면 다음 일이 생긴�
 3. 읽지 못한 본문을 `tools/call`이 아닌 것으로 보는 filter라면, scope 검사를 건너뛰고 요청을 transport로 넘긴다.
 4. transport는 그 바이트를 대체 문자로 바꿔 올바른 JSON으로 읽고, `updateStock`을 실행한다.
 
-`Content-Type: application/json;charset=IBM037`처럼 UTF-8이 아닌 charset을 적은 본문도 같은 틈이 된다.
-IBM037은 EBCDIC 문자 집합이라서, 같은 바이트가 filter에는 JSON이 아닌 바이트로 보이고 transport에는 올바른 JSON 문자열로 읽힌다.
+`charset=IBM037`(EBCDIC)처럼 UTF-8이 아닌 charset을 적은 본문도, 같은 바이트를 filter와 transport가 다르게 읽는 같은 틈이 된다.
 그래서 `parseAsTransportWill`은 transport와 같은 규칙으로 본문을 문자열로 바꾼다.
 `Content-Type`의 charset(없으면 UTF-8)으로 `new String(request.body(), charset)`을 만들고, 그 문자열을 parse한다.
 그 결과가 JSON object 하나가 아니면, filter는 transport에 넘기지 않고 `400`과 JSON-RPC 오류로 답한다.
@@ -584,10 +585,7 @@ official의 `local-client`는 transport의 기본 요청에 `Authorization` head
 
 ## 10.10 요청과 scope 한눈에 보기
 
-10.3\~10.7은 요청을 단계마다 나눠 보았다.
-여기서는 두 client가 주고받는 요청과 응답을 client마다 표 하나로 모은다.
-요청마다 어느 endpoint로 가고 그때 scope가 무엇인지 따라가면, step-up 앞뒤로 무엇이 바뀌는지 보인다.
-`response_type`처럼 늘 같은 parameter와 `state`·`nonce`·`code_challenge`는 표에서 뺐다.
+10.3\~10.7에서 단계마다 본 요청을, 여기서는 access token의 scope가 언제 바뀌는지로 모은다.
 scope의 순서에는 뜻이 없다.
 
 **서버가 token 없이 알려 주는 것**
@@ -601,43 +599,6 @@ agent는 기동한 뒤 처음 login을 시작할 때 한 번 보내고, 그 결�
 | `POST http://localhost:8141/mcp` (token 없음) | `401`의 `resource_metadata`와 `scope="products:read"` |
 | `GET http://localhost:8141/.well-known/oauth-protected-resource/mcp` | `resource: "http://localhost:8141/mcp"`, `authorization_servers: ["http://localhost:9030"]`, `scopes_supported: ["products:read"]` |
 | `GET http://localhost:9030/.well-known/oauth-authorization-server` | `issuer`와 `code_challenge_methods_supported`의 `S256`을 확인한다. `authorization_endpoint`는 `http://localhost:9030/oauth2/authorize`, `token_endpoint`는 `http://localhost:9030/oauth2/token`, `jwks_uri`는 `http://localhost:9030/oauth2/jwks`다 |
-
-아래 두 표의 `resource=http://localhost:8141/mcp`는 PRM의 `resource`에서 온 값이다.
-
-**web agent**
-
-| 요청 | 결과 | scope |
-|---|---|---|
-| browser → `GET http://localhost:8140/` | login 전이라 agent가 `302`로 login 시작 주소 `/oauth2/authorization/authserver`에 보낸다 | |
-| browser → `GET http://localhost:8140/oauth2/authorization/authserver` | 기동 뒤 처음이면 agent가 위의 세 요청을 보낸다. 그 결과로 authorization request 주소를 만들어 browser를 `302`로 Authorization Server에 보낸다 | |
-| browser → `GET http://localhost:9030/oauth2/authorize` (`client_id=authz-shop-agent`, `redirect_uri=http://localhost:8140/login/oauth2/code/authserver`, `resource=http://localhost:8141/mcp`) | Authorization Server의 login 화면(`/login`)을 거쳐 consent 화면이 뜬다. 체크박스는 `products:read` 하나다 | 요청: `openid products:read` |
-| browser → `POST http://localhost:9030/oauth2/authorize` (consent 제출) | `302 http://localhost:8140/login/oauth2/code/authserver?code=…&iss=http%3A%2F%2Flocalhost%3A9030` | |
-| agent → `POST http://localhost:9030/oauth2/token` (`Authorization: Basic`, `code`, `redirect_uri`, `code_verifier`, `resource`) | access token, refresh token, ID token을 받는다. agent는 `GET http://localhost:9030/oauth2/jwks`의 public key로 ID token의 signature를 확인한다 | 받음: `openid products:read` |
-| browser → `POST http://localhost:8140/api/chat` "p1 재고 알려 줘" | agent가 `POST http://localhost:8141/mcp`로 `initialize`, `tools/list`, `tools/call getStock`을 보내고 모두 `200`을 받는다 | token: `openid products:read` |
-| browser → `POST http://localhost:8140/api/chat` "p1 재고를 10개로 바꿔 줘" | agent의 `tools/call updateStock`이 `403`을 받는다. `WWW-Authenticate`는 `error="insufficient_scope", scope="products:write"`다 | 부족: `products:write` |
-| agent → browser, SSE `step-up` event | 채팅에 consent 카드가 뜬다. "권한 허용" 버튼은 event의 `url` `/oauth2/authorization/authserver?step_up=products:write`로 간다 | |
-| browser → `GET http://localhost:8140/oauth2/authorization/authserver?step_up=products:write` | agent가 지금 token의 scope와 `step_up`의 scope를 합쳐 authorization request를 만든다 | |
-| browser → `GET http://localhost:9030/oauth2/authorize` (`client_id`, `redirect_uri`, `resource`는 처음과 같다) | consent 화면의 새 체크박스는 `products:write` 하나다. `openid`와 `products:read`는 이미 허락한 항목으로 나온다 | 요청: `openid products:read products:write` |
-| consent 제출 → callback → agent → `POST http://localhost:9030/oauth2/token` | 새 access token을 받는다 | 받음: `openid products:read products:write` |
-| agent → browser `302 /` | 채팅 화면이 다시 열리고, 화면의 script가 `sessionStorage`에 넣어 둔 질문을 꺼낸다 | |
-| browser → `POST http://localhost:8140/api/chat` (넣어 둔 질문) | agent의 `tools/call updateStock`이 `200`을 받는다 | token: `openid products:read products:write` |
-
-step-up의 consent 화면에서 `products:write`를 체크하지 않거나 Cancel을 누르면, 새 token의 scope는 `openid products:read` 그대로다.
-화면이 넣어 둔 질문을 다시 보내면 또 `403`이 오고, 이번에는 카드 대신 `step-up-declined` event가 간다.
-이 event의 `url`은 `/step-up/retry?scope=products:write`다.
-
-**`local-client`**
-
-| 출력 | 요청과 결과 | scope |
-|---|---|---|
-| `[1]` | `local-client`가 위의 세 요청을 보낸다. PRM의 `authorization_servers`에 `--issuer` 값(기본값 `http://localhost:9030`)이 있는지 확인한다 | `401`의 `products:read`를 고른다 |
-| `[2]` | browser → `GET http://localhost:9030/oauth2/authorize` (`client_id=local-mcp-client`, `redirect_uri=http://127.0.0.1:61906/callback`, `resource=http://localhost:8141/mcp`) | 요청: `products:read` |
-| `[3]` | browser → `GET http://127.0.0.1:61906/callback?code=…&iss=…` | |
-| `[4]` | `local-client` → `POST http://localhost:9030/oauth2/token`. `Authorization` header 없이 본문에 `client_id`, `code`, `redirect_uri`, `code_verifier`, `resource`를 넣는다 | 받음: `products:read`. refresh token은 없다 |
-| `[5]` | `local-client`가 `POST http://localhost:8141/mcp`로 `initialize`, `tools/list`, `tools/call getStock`을 보내 `200`을 받는다. `tools/call updateStock`은 `403`과 `scope="products:write"`를 받는다 | 부족: `products:write` |
-| `[6]` | browser → `GET http://localhost:9030/oauth2/authorize` (`redirect_uri=http://127.0.0.1:61918/callback`). public client의 consent는 저장되지 않아서 두 scope를 모두 다시 묻는다 | 요청: `products:read products:write` |
-| `[3]` `[4]` | callback과 token request를 한 번 더 한다. token request의 `redirect_uri`는 새 포트 `61918`의 주소다 | 받음: `products:read products:write` |
-| `[7]` | `local-client`가 같은 `tools/call updateStock`을 새 요청으로 보내 `200`을 받는다 | token: `products:read products:write` |
 
 **시점별 access token의 scope**
 

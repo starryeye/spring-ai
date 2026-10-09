@@ -11,9 +11,7 @@ MCP Server를 두 제품에 붙이려면 먼저 이 두 client에 맞춰야 하�
 ChatGPT나 Claude의 사용자는 아무 MCP Server 주소나 붙이고, 두 제품은 그 MCP Server의 Authorization Server를 그때 처음 만난다.
 세상의 모든 Authorization Server에 미리 등록해 둘 수는 없다.
 
-DCR은 연결할 때마다 `registration_endpoint`에 등록을 요청해 새 `client_id`를 받는다.
-그러면 등록된 client가 Authorization Server에 계속 쌓이고, 누가 등록했는지도 알 수 없다.
-2026-07-28 버전은 DCR을 deprecated로 정하고, 새 구현에는 CIMD를 쓰라고 한다.
+연결할 때마다 등록을 요청하는 DCR은 등록된 client가 쌓이는 문제로 2026-07-28에서 deprecated다([4장](04-client-registration.md#46-dcr)).
 
 CIMD는 등록 요청이 없다.
 client는 자기 정보를 담은 JSON 문서를 자기 `https` 주소에 올리고, 그 주소를 `client_id`로 쓴다.
@@ -202,6 +200,8 @@ Authorization Server는 `certs/client-metadata-trust.p12`의 그 인증서 하�
 
 **DPoP를 알리지 않는 이유**
 
+DPoP(RFC 9449)는 client가 요청마다 자기 key로 만든 증명(DPoP proof)을 붙여, 새어 나간 token을 key가 없는 사람은 쓰지 못하게 하는 방식이다.
+mTLS binding(RFC 8705)은 같은 일을 client 인증서로 하고, 두 방식 모두 token 안의 `cnf` claim에 key나 인증서의 지문을 넣어 묶는다.
 Spring의 기본 metadata는 `dpop_signing_alg_values_supported`와 `tls_client_certificate_bound_access_tokens`를 알린다.
 Spring이 기본으로 구성하는 token generator는 DPoP proof나 client 인증서가 있으면 access token을 그 key(`cnf.jkt`)나 인증서(`cnf.x5t#S256`)에 묶기 때문이다.
 이 서버는 public client에게도 refresh token을 주려고 token generator를 직접 만들고(13.8), 그 generator는 두 binding을 하지 않는다.

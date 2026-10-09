@@ -32,6 +32,24 @@ flowchart LR
 
 Claude Desktop이나 ChatGPT 같은 앱이 host다. MCP client와 MCP Server는 1:1로 짝을 짓고, MCP Server는 LLM을 직접 부르지 않는다.
 
+이 안내서에서 agent는 서버에서 도는 host를 말한다.
+사용자는 browser로 agent의 채팅 화면을 쓰고, agent가 사용자 대신 LLM과 MCP Server를 부른다.
+official의 `shop-agent`가 agent이고, 10장부터는 사용자 기기의 앱과 구별하려고 web agent라고도 부른다.
+사용자 기기에서 도는 host는 앱이라고 부르며, [7장](07-local-client.md)의 `local-client`가 그 예다.
+
+**tool을 부르는 왕복**
+
+LLM은 tool을 직접 실행하지 않고, host가 LLM과 MCP Server 사이를 오가며 대신 실행한다.
+
+1. 사용자가 host에 질문한다.
+2. host는 질문과 함께, MCP Server에서 받아 둔 tool 정의(이름, 설명, 인자)를 LLM에 보낸다.
+3. LLM은 답 대신 "이 tool을 이 인자로 불러 달라"는 요청을 돌려준다.
+4. host는 MCP client를 거쳐 MCP Server에 그 tool의 실행을 요청한다(`tools/call`).
+5. host가 실행 결과를 다시 LLM에 보내면, LLM이 그 결과로 답을 만든다.
+
+LLM은 필요하면 3\~5를 여러 번 되풀이한다.
+이 장은 4의 `tools/call`을 포함해 MCP client와 MCP Server 사이의 메시지를 보고, 1.12에서 이 왕복을 official 코드로 본다.
+
 서버가 제공하는 기능은 tool, resource(읽을 수 있는 데이터), prompt(미리 만든 메시지 틀) 세 가지다.
 이 practice는 tool만 쓴다. official의 `shop-mcp-server`는 `getStock`과 `searchProducts` 두 tool을 제공한다.
 
@@ -94,7 +112,9 @@ sequenceDiagram
 | 4단계 (7)(8): tool 부르기 | `tools/call` | tool 실행 결과 |
 | 5단계 (9)(10): session 끝내기 | `DELETE` | 서버가 session을 정리한다 |
 
-이 장은 official의 MCP Java SDK가 협상하는 MCP 2025-11-25 버전을 따른다. 2026-07-28 버전에는 `initialize`와 session이 없다(9장).
+이 장은 official의 MCP Java SDK가 협상하는 MCP 2025-11-25 버전을 따른다.
+지금 쓰는 MCP Java SDK가 아직 최신 2026-07-28 버전을 지원하지 않기 때문이다.
+2026-07-28 버전에는 `initialize`와 session이 없고, 무엇이 왜 바뀌었는지는 [9장](09-versions.md)에서 본다.
 
 아래 예시는 official practice를 실제로 띄워 받은 응답이다.
 official의 MCP Server는 token이 없는 요청을 `401`로 거절해서, 모든 요청에 `Authorization` header가 있다.

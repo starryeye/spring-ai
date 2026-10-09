@@ -379,9 +379,8 @@ official의 두 client로 보면, 첫 연결에서 다른 점은 다음과 같�
 | (1) 값을 넣는 사람과 때 | 운영자가 agent를 배포할 때 설정 파일에 한 번 넣는다. 사용자는 login만 한다 | 사용자가 실행할 때 `--resource`와 `--issuer`로 넣는다. 둘 다 기본값이 있다 |
 | (1) 넣는 값 | MCP Server 주소, `client_id`, `client_secret`, credentials를 발급한 issuer | MCP Server 주소와 `local-mcp-client`가 등록된 issuer다. `client_id`는 코드에 있고, 비밀은 없다 |
 | (2)\~(7) discovery를 하는 때 | 첫 사용자가 login할 때 한다. 성공한 결과만 기억해 두고 모든 사용자가 함께 쓴다(3장) | 실행할 때마다 한다 |
-| (8) authorization request | `redirect_uri`는 등록한 `http://localhost:8110/login/oauth2/code/authserver`다. browser가 이미 agent 주소에 와 있으므로, agent가 `302`로 Authorization Server에 보낸다 | `redirect_uri`는 `http://127.0.0.1:<빈 포트>/callback`이다. 앱이 browser를 새로 연다 |
-| (9) consent | Authorization Server가 묻지 않게 등록했다(4.3) | 매번 묻는다(4.4) |
-| (12) token request | `Authorization: Basic` header로 `client_id`와 `client_secret`을 보낸다 | 비밀 없이 본문에 `client_id`만 넣는다 |
+
+authorization request, consent, token request에서 다른 점은 [2장](02-why-oauth.md#25-전체-흐름-시퀀스-다이어그램)의 표에 있다.
 
 두 client 모두 (12)에 `code_verifier`를 넣는다.
 `code_verifier`는 client가 진짜인지가 아니라, code를 token으로 바꾸려는 쪽이 (8)의 요청을 시작한 쪽인지만 증명한다(5장).
