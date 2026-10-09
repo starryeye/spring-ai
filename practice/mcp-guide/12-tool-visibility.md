@@ -175,10 +175,8 @@ Content-Length: 129
 | `error`의 `code`와 `message` | `-32602`, `Unknown tool: invalid_tool_name` | 같다 |
 | `error`의 `data` | `Tool not found: updateStock` | `Tool not found: updateStack` |
 
-`data`에는 요청한 이름이 들어가고, `Content-Length`는 그 이름의 길이에 따라 달라진다.
-그래서 길이가 같은 이름과 비교해야 이름 말고 다른 점이 없는지 볼 수 있다.
-`message`의 `Unknown tool: invalid_tool_name`은 요청한 이름과 상관없는 고정 문자열이다.
-2025-11-25 명세가 없는 tool의 오류 예로 든 문장을 MCP Java SDK가 그대로 쓴다.
+`data`에는 요청한 이름이 들어가서, 길이가 같은 이름과 비교해야 이름 말고 다른 점이 없는지 볼 수 있다.
+`message`는 MCP Java SDK가 2025-11-25 명세의 오류 예시 문장을 그대로 쓰는 고정 문자열이다.
 
 **같아야 하는 이유**
 
@@ -291,11 +289,10 @@ MCP client는 여전히 하나이고, 목록을 받는 `tools/list`에는 질문
 | `ttlMs` | 결과를 새것으로 봐도 되는 시간(ms)이다. HTTP의 `Cache-Control: max-age`와 비슷하다 | 받은 뒤 이 시간 안에는 다시 받지 않는다. 지나면 다음에 필요할 때 다시 받는다 |
 | `cacheScope` | `"public"`은 모든 사용자에게 같은 결과, `"private"`은 사용자마다 다른 결과다 | `"private"` 결과는 같은 authorization context에서만 다시 쓴다. access token이 다르면 cache도 따로 둔다 |
 
-명세는 사용자마다 거른 목록에 `"private"`이 맞다고 하고, 그 밖의 규칙도 정한다.
+명세의 규칙 가운데 이 장과 관계있는 것은 셋이다.
 
-- `ttlMs`가 없는 결과는 바로 낡은 것(0)으로 보고, client가 자기 기준이나 알림으로 다룬다. 명세는 이런 결과가 옛 버전의 서버에서만 온다고 본다.
-- TTL을 polling 주기로 쓰지 않는다. 목록이 필요할 때 아직 새것인지 보고, 낡았으면 그때 다시 받는다.
-- 목록이 바뀌었다는 알림은 TTL과 상관없이 cache를 무효로 만든다.
+- 사용자마다 거른 목록에는 `"private"`이 맞다.
+- `ttlMs`가 없는 결과는 client가 자기 기준이나 목록 변경 알림으로 다룬다.
 - tool 호출에 "없는 method"나 "잘못된 parameter" 같은 뜻밖의 오류가 오면, TTL 전이라도 다시 받아도 된다.
 
 **이 practice가 따르는 것**

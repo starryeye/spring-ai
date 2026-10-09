@@ -183,10 +183,9 @@ client는 다음을 확인하고, 하나라도 어긋나면 더 진행하지 않
 | `authorization_endpoint`·`token_endpoint`가 `https`다(개발용 loopback 주소만 `http` 허용) | `javascript:` 같은 주소를 browser에 열게 되거나, 암호화되지 않은 곳으로 code와 비밀이 간다 |
 | 가진 client credentials가 그 issuer에서 발급받은 것이다(2026-07-28 추가) | 다른 Authorization Server에 `client_secret`을 보내게 된다 |
 
-마지막 항목은 서버에서 도는 client에게 특히 중요하다.
-official의 agent는 한 Authorization Server에 미리 등록된 `client_id`·`client_secret`을 가지고 있다.
-PRM이 모르는 Authorization Server를 가리키면, agent는 그 서버의 metadata도 요청하지 않고 멈춘다.
-공격자가 PRM의 `authorization_servers`를 조작해 agent가 내부망 주소나 공격자 서버로 요청을 보내게 만드는 것(SSRF)은 이 확인이 막는다.
+마지막 항목의 이유와 규칙은 [4장](04-client-registration.md#47-credentials를-issuer에-묶기)에서 본다.
+이 확인은 SSRF도 일부 막는다.
+PRM이 모르는 Authorization Server를 가리키면 agent는 그 서버의 metadata도 요청하지 않으므로, 공격자가 `authorization_servers`에 내부망 주소를 넣어도 요청이 나가지 않는다.
 `401`의 `resource_metadata`는 이 확인보다 먼저 요청하는 주소라서, 이 확인으로는 막지 못한다([8장](08-security.md)).
 
 ## 3.7 official 코드에서 보기

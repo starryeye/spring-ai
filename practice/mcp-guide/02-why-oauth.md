@@ -255,11 +255,12 @@ sequenceDiagram
 
 (9)는 Authorization Server가 browser에 보여 주는 login·consent 화면이다.
 (10)은 사용자가 그 화면에 입력하고 고른 내용을 제출하는 요청이다.
-`local-client`는 scope로 `openid profile`을 요청한다.
-Spring의 consent 화면은 `openid`를 체크박스로 보여 주지 않고, 제출된 scope에 다시 붙인다.
-그래서 `local-client`의 consent 화면에서 고를 체크박스는 `profile` 하나다.
 `shop-agent`에게 consent를 묻지 않는 이유와 `local-client`에게 매번 묻는 이유는 [4장](04-client-registration.md)의 4.3과 4.4에서 본다.
-`local-client`가 `profile`을 요청하는 이유는 [5장](05-authorization-and-token.md)의 5.5에서 본다.
+`local-client`가 `openid profile`을 요청하는 이유와 consent 화면의 체크박스는 [5장](05-authorization-and-token.md)의 5.5에서 본다.
+
+official의 agent에서는 사용자가 agent에 login하는 것이 곧 MCP Server를 쓸 권한을 맡기는 일이다.
+agent는 OpenID Connect login 한 번으로 사용자가 누구인지 알고, 같은 흐름에서 MCP Server용 access token도 받는다.
+ChatGPT나 Claude 같은 실제 제품에서는 서비스에 login하는 것과 connector를 연결하는 것이 따로이고, connector마다 이 흐름을 한 번씩 밟는다.
 
 agent는 discovery 결과를 기억해 두고, 사용자가 login할 때마다 (7)\~(14)로 그 사용자의 token을 받는다.
 그 뒤의 채팅에서는 (15)(16)만 되풀이하고, token이 만료되면 refresh token으로 새 token을 받는다(5장).

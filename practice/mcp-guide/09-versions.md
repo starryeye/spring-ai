@@ -190,7 +190,7 @@ MCP Java SDK 2.0.1의 서버 쪽 session 객체 `McpStreamableServerSession`이 
 | client 정보(이름과 버전) | `clientInfo` | 요청마다 `_meta`의 `io.modelcontextprotocol/clientInfo` |
 | log level | `minLoggingLevel` | 요청마다 `_meta`의 `io.modelcontextprotocol/logLevel`. `logging/setLevel`은 없어진다 |
 | 서버가 먼저 보내는 알림의 GET stream | `listeningStreamRef` | `subscriptions/listen`이다. client가 받을 알림 종류를 골라 여는, 오래 열린 POST 응답 stream이다 |
-| 서버가 client에게 보내는 요청(sampling, elicitation, roots) | `requestIdToStream` | 서버는 `input_required` 결과로 필요한 값을 알리고, client는 그 값을 넣어 원래 요청을 다시 보낸다(MRTR) |
+| 서버가 client에게 보내는 요청: sampling(LLM 호출 부탁), elicitation(사용자 입력 요청), roots(client가 열어 둔 파일 범위 질문) | `requestIdToStream` | 서버는 `input_required` 결과로 필요한 값을 알리고, client는 그 값을 넣어 원래 요청을 다시 보낸다(MRTR, Multi Round-Trip Request) |
 | 앱 상태(장바구니 등) | 없음. 서버 코드가 session에 둘 때 생긴다 | 서버가 만든 handle을 tool 인자로 주고받는다(아래) |
 
 협상한 버전은 2025-11-25에서도 요청마다 `MCP-Protocol-Version` header로 보내고([1장](01-mcp-basics.md)), 2026-07-28은 `_meta`의 `io.modelcontextprotocol/protocolVersion`에도 넣는다.
@@ -273,6 +273,13 @@ official에서 2026-07-28 추가분을 맡는 곳은 다음과 같다.
 - `iss`를 넣는다: `auth-server`의 `IssuerIdentifyingAuthorizationResponseHandler`([5장](05-authorization-and-token.md))
 - `iss`를 확인한다: `shop-agent`의 `AuthorizationResponseIssuerFilter`, `local-client`의 `AuthorizationResponse`([5장](05-authorization-and-token.md), [7장](07-local-client.md))
 - credentials를 issuer에 묶는다: `shop-agent`의 `mcp.authorization.credentials-issuer`, `local-client`의 `--issuer`([4장](04-client-registration.md))
+
+**지금 새로 만든다면**
+
+authorization 규칙은 2026-07-28을 따른다.
+HTTP 단계의 규칙이라 SDK 버전과 상관없이 적용할 수 있고, `iss` 확인, issuer binding, CIMD, 합친 scope 요청이 그 예다.
+transport는 쓰는 SDK가 지원하는 가장 새 버전을 따르되, 서버가 session에 상태를 두지 않게 만든다([11장](11-stateless-and-handle.md)).
+그러면 SDK가 2026-07-28을 지원할 때 옮기기 쉽다.
 
 ## 9.9 직접 해 보기
 
