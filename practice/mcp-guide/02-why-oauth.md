@@ -176,7 +176,7 @@ MCP client는 사용자가 넣은 어느 MCP Server에든 붙는다.
 | Authorization Server를 모른다 | 개발자가 Authorization Server 주소를 설정에 적는다 | client는 MCP Server 주소만 안다. Authorization Server는 discovery로 찾는다 | [3장](03-discovery.md) |
 | 처음 보는 client를 등록해야 한다 | 개발자가 Authorization Server에 앱을 미리 등록해 `client_id`를 받는다 | client와 Authorization Server가 서로 모르는 채 만난다. 미리 등록하는 방법 말고도 CIMD(client가 `https` 주소에 올린 자기 정보 문서의 주소를 `client_id`로 쓰는 방식)나 DCR(등록 endpoint에 `POST`해 `client_id`를 받는 방식)로 `client_id`를 얻는다 | [4장](04-client-registration.md) |
 | token의 대상을 MCP Server로 좁힌다 | token을 쓸 API가 정해져 있어 대상을 밝히지 않는 경우가 많다 | client가 `resource`로 MCP Server를 밝히고, MCP Server는 token의 `aud`에 자기가 있는지 본다 | [5장](05-authorization-and-token.md), [6장](06-mcp-call-and-validation.md) |
-| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많고, claude.ai처럼 서버에서 도는 agent도 CIMD·DCR로 등록하면 비밀 없는 public client다. 한 client가 미리 비밀을 나눠 두지 않은 여러 Authorization Server를 만나므로, PKCE로 authorization code를 지킨다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
+| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많고, claude.ai처럼 서버에서 도는 agent도 CIMD·DCR로 등록하면 비밀 없는 public client다. 비밀이 없어도 PKCE가 authorization request를 시작한 쪽만 code를 token으로 바꾸게 한다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
 | token 말고 전송 단계도 검사한다 | token 검증이 API 보안의 중심이다 | 사용자 기기에서 authorization 없이 도는 MCP Server도 있다. browser를 거친 요청을 막으려고 `Origin`을 검사한다(official은 `Host`도) | [6장](06-mcp-call-and-validation.md) |
 
 세 번째와 다섯 번째 항목은 이유를 조금 더 살펴본다.

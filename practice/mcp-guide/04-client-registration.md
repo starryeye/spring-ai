@@ -110,7 +110,12 @@ spring:
 | refresh token | 받는다 | 받지 않는다 |
 | access token의 `aud` | `http://localhost:8111/mcp` | `http://localhost:8111/mcp` |
 
-`shop-agent`는 비밀로 자기를 증명하므로, official은 이 client의 consent 화면을 생략한다.
+official은 Authorization Server와 `shop-agent`를 같은 운영자가 운영하는 first-party 구성으로 보고, 이 client의 consent 화면을 생략한다.
+code는 등록한 redirect 주소로만 가므로, 사용자가 login한 그 agent만 권한을 받는다.
+client가 비밀로 자기를 증명하는 것은 token endpoint에서 요청한 client가 누구인지를 밝힐 뿐이다.
+사용자가 그 client에게 권한을 넘기기로 했는지는 다른 문제여서, 제3자가 만든 client라면 confidential이어도 consent를 받는다.
+[10장](10-scope-and-step-up.md)의 practice는 step-up을 사용자에게 묻기 위해 agent에도 consent 화면을 켠다.
+
 access token의 `aud`는 client 종류와 상관없이 MCP Server다.
 MCP Server는 token의 `iss`와 `aud`를 볼 뿐, 어느 종류의 client가 받았는지는 보지 않는다(6장).
 
@@ -132,7 +137,7 @@ Authorization Server는 요청을 보낸 것이 진짜 `local-client`인지 확�
 | PKCE를 반드시 쓴다 | `require-proof-key: true` | loopback redirect로 온 code를 같은 기기의 다른 프로그램이 가로채 token으로 바꾼다(5장) |
 | loopback redirect의 포트는 자유다 | Spring이 loopback IP 주소의 포트를 빼고 비교한다 | 포트를 고정하면 그 포트를 다른 프로그램이 쓰고 있을 때 login이 실패한다 |
 | consent를 매번 받는다 | `require-authorization-consent: true`와 consent·scope를 다루는 클래스 두 개(4.9) | 다른 프로그램이 `client_id`에 `local-mcp-client`를 넣어 요청하면 사용자 모르게 code가 발급된다 |
-| refresh token을 주지 않는다 | Spring 기본 동작 | 새어 나간 refresh token 하나로 누구든 오랫동안 새 token을 받는다 |
+| refresh token을 주지 않는다(official의 선택) | Spring 기본 동작 | 그냥 주면 새어 나간 refresh token 하나로 누구든 오랫동안 새 token을 받는다. 주려면 rotation으로 재사용을 잡아낸다([13장](13-cimd.md)) |
 
 **비밀 없음: `none`**
 
@@ -171,6 +176,10 @@ public client는 consent할 scope가 하나는 있어야 하고, 그 이유와 �
 `local-mcp-client`의 등록에는 `refresh_token` grant가 있지만, Spring은 인증 방식이 `none`인 client에게 refresh token을 주지 않는다.
 refresh token은 오래 쓰이는데, public client는 그것을 쓸 때도 자기를 증명하지 못해서 새어 나가면 누구든 쓸 수 있다.
 그래서 `local-client`는 token이 만료되면 authorization 흐름을 처음부터 다시 밟는다.
+
+주지 않는 것은 official의 선택이고, 표준은 public client에게도 refresh token을 줄 수 있게 한다.
+그때는 refresh할 때마다 새 refresh token을 주고 옛것을 버리는 rotation으로, 새어 나간 refresh token의 재사용을 잡아낸다.
+Claude 앱처럼 public client로 붙는 제품도 refresh token과 rotation을 쓰고, 이 방식은 [13장](13-cimd.md#138-5단계-public-client의-refresh와-rotation)에서 본다.
 
 ## 4.5 CIMD
 

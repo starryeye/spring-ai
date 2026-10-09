@@ -15,7 +15,7 @@ discovery로 Authorization Server를 찾고, 사용자의 login과 consent를 �
 | browser | browser의 요청에 `302`로 답해 Authorization Server로 보낸다 | browser가 같은 기기에 있어서, 앱이 운영체제에 browser를 열어 달라고 한다 |
 | callback | agent 서버가 callback 주소를 늘 열어 둔다 | 앱에는 늘 열린 서버가 없다. 실행 중에 `127.0.0.1`에 작은 서버를 잠깐 연다 |
 
-비밀이 없는 자리는 PKCE와 매번 받는 consent가 채운다(4·5장).
+비밀이 없어도 code는 PKCE가 지키고, 다른 프로그램이 이 client 행세를 하면 매번 받는 consent로 사용자가 알아챈다(4·5장).
 
 official의 `local-client`는 이런 앱을 흉내 낸 명령줄 앱이다.
 Spring Boot 없이 Java 21과 MCP Java SDK만 쓴다.

@@ -96,7 +96,7 @@ curl http://localhost:8111/.well-known/oauth-protected-resource/mcp
 
 | field | 뜻 | client가 할 일 |
 |---|---|---|
-| `resource` | 이 MCP Server의 공식 이름. 보통 MCP Server 주소 그대로다 | 방금 호출한 주소와 **정확히 같은지** 확인한다. 다르면 이 문서를 버린다 |
+| `resource` | 이 MCP Server의 공식 이름. 보통 MCP Server 주소 그대로다 | PRM 주소를 `401` header로 받았으면 방금 호출한 주소와, 직접 만들었으면 만들 때 쓴 주소와 **정확히 같은지** 확인한다. 다르면 이 문서를 버린다 |
 | `authorization_servers` | 이 MCP Server용 token을 발급하는 Authorization Server의 이름(issuer) 목록 | 여기서 하나를 골라 3단계로 간다 |
 
 `resource`를 확인하는 이유가 있다.
@@ -124,7 +124,8 @@ Claude도 `resource_metadata`가 없으면 이 순서로 PRM을 찾는다([Claud
 |---|---|---|
 | `http://localhost:8111/mcp` | `http://localhost:8111/.well-known/oauth-protected-resource/mcp` | `http://localhost:8111/.well-known/oauth-protected-resource` |
 
-2순위 주소로 받은 문서의 `resource`는 `http://localhost:8111`처럼 path가 없는 값이어야 한다.
+2순위 주소는 MCP Server 주소에서 path를 뺀 `http://localhost:8111`로 만든 주소다.
+그래서 2순위 주소로 받은 문서의 `resource`도 `http://localhost:8111`처럼 path가 없는 값이어야 한다.
 
 ## 3.5 3단계: Authorization Server Metadata를 읽는다
 
@@ -176,7 +177,7 @@ client는 다음을 확인하고, 하나라도 어긋나면 더 진행하지 않
 
 | 확인 | 어기면 생기는 일 |
 |---|---|
-| PRM의 `resource`가 방금 부른 MCP Server 주소와 같다 | 다른 서버의 설명서를 믿고 엉뚱한 Authorization Server로 간다 |
+| PRM의 `resource`가 PRM을 찾을 때 쓴 주소와 같다. `401` header로 찾았으면 방금 부른 MCP Server 주소다 | 다른 서버의 설명서를 믿고 엉뚱한 Authorization Server로 간다 |
 | metadata의 `issuer`가 PRM이 알려 준 issuer와 같다 | 가짜 metadata가 login·token 주소를 공격자 서버로 바꿔 놓을 수 있다 |
 | `code_challenge_methods_supported`에 `S256`이 있다 | PKCE 없이 진행하게 되어, 가로챈 authorization code가 그대로 쓰인다 |
 | `authorization_endpoint`·`token_endpoint`가 `https`다(개발용 loopback 주소만 `http` 허용) | `javascript:` 같은 주소를 browser에 열게 되거나, 암호화되지 않은 곳으로 code와 비밀이 간다 |
@@ -274,7 +275,7 @@ curl http://localhost:9010/.well-known/oauth-authorization-server
 |---|---|---|
 | MCP Server는 PRM을 제공하고 `authorization_servers`에 하나 이상 넣는다 | [MCP 2025-11-25 Authorization — Authorization Server Location](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-location), [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) | MUST |
 | PRM 위치를 `401` header 또는 well-known URI로 알린다. client는 둘 다 처리한다 | [MCP 2025-11-25 Authorization — Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements), [RFC 9728 §5.1](https://www.rfc-editor.org/rfc/rfc9728#section-5.1) | MUST |
-| PRM의 `resource`가 요청한 주소와 다르면 쓰지 않는다 | [RFC 9728 §3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3) | MUST NOT |
+| PRM의 `resource`가 PRM 주소를 만든 식별자와 다르면 쓰지 않는다. `resource_metadata`로 받았으면 요청한 주소와 같아야 한다 | [RFC 9728 §3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3) | MUST NOT, MUST |
 | `resource`에는 MCP Server의 canonical URI를 쓴다. canonical URI는 scheme·host가 소문자이고 fragment가 없으며, 끝의 `/`는 뜻이 있을 때만 붙인다 | [MCP 2025-11-25 Authorization — Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation), [Canonical Server URI](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#canonical-server-uri), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT, SHOULD |
 | metadata 주소를 RFC 8414 → OpenID Connect 순서로 시도한다 | [MCP 2025-11-25 Authorization — Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-metadata-discovery) | MUST |
 | metadata의 `issuer`가 다르면 쓰지 않는다 | [RFC 8414 §3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3), [MCP 2026-07-28 Authorization Server Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery) | MUST |

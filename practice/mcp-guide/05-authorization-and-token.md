@@ -12,7 +12,7 @@ MCP는 이 흐름에 세 가지를 더한다.
 
 | 더하는 것 | 이유 | 다루는 절 |
 |---|---|---|
-| PKCE를 반드시 쓴다(`S256`) | MCP client는 비밀이 없는 public client가 많다. 새어 나간 authorization code를 남이 token으로 바꾸지 못하게 한다 | 5.4 |
+| PKCE를 반드시 쓴다(`S256`) | authorization request를 시작한 쪽만 code를 token으로 바꾸게 한다. client 종류와 상관없이, 새어 나간 code를 남이 쓰거나 남의 session에 끼워 넣지 못하게 한다 | 5.4 |
 | `resource` parameter | 한 Authorization Server가 여러 MCP Server의 token을 발급할 수 있다. token을 이 MCP Server에서만 쓰게 좁힌다 | 5.3, 5.7, 5.8 |
 | callback의 `iss` 확인 | client는 MCP Server가 알려 준 Authorization Server로 간다. 돌아온 응답이 그 Authorization Server의 것인지 확인한다 | 5.6 |
 
@@ -114,9 +114,12 @@ MCP Server가 `401`과 PRM으로 scope를 알리고 client가 이 순서로 고�
 
 authorization code는 browser의 주소창을 거쳐 client에게 간다.
 사용자 기기에서는 다른 프로그램이 loopback callback을 가로챌 수 있고, redirect 주소는 browser 기록이나 로그에도 남는다.
-confidential client는 token request에 `client_secret`을 넣으므로, code만 가진 사람은 token을 받지 못한다.
-public client에는 그런 비밀이 없다.
-PKCE(Proof Key for Code Exchange)는 요청마다 한 번 쓰는 비밀을 client가 스스로 만들어 이 자리를 채운다.
+public client에는 비밀이 없어서, 새어 나간 code만 있으면 누구든 token endpoint에서 token으로 바꿀 수 있다.
+confidential client도 비밀만으로는 안전하지 않다.
+공격자는 훔친 code를 token endpoint에 직접 보내지 않고, 자기 browser로 정상 client의 callback에 넣을 수 있다.
+그러면 정상 client가 자기 `client_secret`으로 code를 token으로 바꿔 주고, 공격자의 session이 피해자의 권한을 갖게 된다.
+PKCE(Proof Key for Code Exchange)는 요청마다 한 번 쓰는 비밀을 client가 만들어, authorization request를 시작한 쪽과 code를 token으로 바꾸는 쪽을 묶는다.
+그래서 MCP는 client 종류와 상관없이 PKCE를 쓰게 한다.
 
 1. client는 무작위 문자열 `code_verifier`를 만들어 밖으로 보내지 않고 간직한다.
 2. `code_verifier`의 SHA-256 해시를 base64url로 인코딩한 값이 `code_challenge`다. authorization request에는 이 값을 보낸다.
@@ -150,7 +153,8 @@ authorization request의 주소를 본 사람이 `code_verifier`까지 알게 �
 | 막는 공격 | 공격 방법 | PKCE가 막는 이유 |
 |---|---|---|
 | code 가로채기 | 공격자가 새어 나간 code를 token endpoint에 직접 보낸다 | 공격자에게는 `code_verifier`가 없어서 `invalid_grant`로 거절된다 |
-| code 주입 | 공격자가 자기 계정으로 받은 code를 피해자의 callback에 넣는다 | 피해자의 client가 보내는 `code_verifier`는 공격자의 code에 묶인 `code_challenge`와 맞지 않는다 |
+| 피해자 code 주입 | 공격자가 훔친 피해자의 code를 자기 session의 정상 client callback에 넣는다. client는 자기 비밀로 code를 바꿔 준다 | 공격자 session의 `code_verifier`는 피해자의 요청에서 만든 `code_challenge`와 맞지 않는다 |
+| 공격자 code 주입 | 공격자가 자기 계정으로 받은 code를 피해자의 callback에 넣는다 | 피해자의 client가 보내는 `code_verifier`는 공격자의 code에 묶인 `code_challenge`와 맞지 않는다 |
 
 official의 Authorization Server는 두 client 모두 `require-proof-key: true`여서, `code_challenge`가 없는 요청을 `invalid_request`로 거절한다.
 

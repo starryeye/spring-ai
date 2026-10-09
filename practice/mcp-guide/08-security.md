@@ -114,8 +114,10 @@ mix-up이 생기는 이유는 [5장](05-authorization-and-token.md)에서 봤다
 
 사용자가 client에 정상 MCP Server와 공격자의 MCP Server를 함께 넣어 두었다고 해 보자.
 공격자 MCP Server의 PRM은 공격자의 Authorization Server(그림의 E)를, 정상 MCP Server의 PRM은 정상 Authorization Server(그림의 H)를 가리킨다.
-client는 두 Authorization Server에서 같은 `client_id`를 쓰는 public client다.
-CIMD의 `client_id`가 그렇다([4장](04-client-registration.md)).
+client는 두 Authorization Server에 같은 redirect 주소를 쓴다.
+그래서 callback으로 돌아온 응답만 보고는 어느 Authorization Server가 code를 보냈는지 구별하지 못한다.
+`client_id`는 authorization request 주소에 그대로 보이는 공개 값이라, E는 H에서 쓰는 `client_id`로 바꿔 끼울 수 있다.
+그림은 CIMD처럼 `client_id`가 어디서나 같아서 바꿔 끼울 필요도 없는 경우다([4장](04-client-registration.md)).
 
 ```mermaid
 sequenceDiagram
@@ -154,6 +156,10 @@ client가 `code_verifier`를 E에게 직접 보내기 때문이다.
 Authorization Server는 callback에 자기 issuer를 `iss`로 넣는다.
 client는 code를 보내기 전에 `iss`를 요청 기록의 issuer와 비교한다([5장](05-authorization-and-token.md)).
 (6)의 `iss`는 H인데 기록은 E이므로, client는 code를 어느 token endpoint로도 보내지 않는다.
+
+Authorization Server마다 다른 redirect 주소를 쓰는 것도 방법이다.
+code가 돌아온 주소로 어느 Authorization Server의 응답인지 알 수 있기 때문이다.
+ChatGPT는 `iss`를 알리지 않는 Authorization Server에 이 방법을 쓴다([2장](02-why-oauth.md#23-client의-두-종류-confidential-client와-public-client)).
 
 **official에서**
 

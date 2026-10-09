@@ -276,8 +276,9 @@ HTTP/1.1 403 Forbidden
 WWW-Authenticate: Bearer error="insufficient_scope", scope="files:read files:write", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"
 ```
 
-`scope`에는 새로 필요한 scope와 함께, 이미 받은 scope 가운데 계속 필요한 것도 적는다.
+2025-11-25에서는 `scope`에 새로 필요한 scope와 함께, 이미 받은 scope 가운데 계속 필요한 것도 적는다.
 client가 새 token을 받으면서 원래 있던 권한을 잃지 않게 하기 위해서다.
+2026-07-28은 이전 scope와 합치는 일을 client에게 맡기므로, 서버는 새로 필요한 scope만 적어도 된다([10장](10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다)).
 사용자를 대신하는 client는 이 `scope`로 authorization request를 다시 보내 새 token을 받고, 원래 요청을 다시 보낸다.
 이렇게 필요할 때 scope를 넓혀 가는 흐름이 step-up authorization이다.
 같은 요청이 계속 실패하지 않도록, client는 다시 시도하는 횟수를 제한한다.
@@ -341,8 +342,10 @@ official은 흐름을 단순하게 보이려고 이 client 하나를 모든 사�
 client를 닫을 때 보내는 `DELETE`에도 그 client 주인의 token이 붙는다.
 
 MCP 2026-07-28에서는 protocol 수준의 session과 `Mcp-Session-Id`가 없어졌다.
-session이 없으므로, official처럼 client 하나를 두고 요청마다 그 사용자의 token을 붙여도 문제가 없다.
+session이 없으므로, official처럼 client 하나를 두고 요청마다 그 사용자의 token을 붙여도 session이 사용자끼리 섞일 일은 없다.
 chat-memory처럼 session을 사용자에 묶는 일도 필요 없어진다.
+다만 client가 사용자마다 다른 결과를 cache한다면, 그 cache는 사용자마다 따로 둔다.
+서버가 사용자마다 다른 tool 목록을 줄 때 공유 client의 목록 cache가 섞이는 문제는 [12장](12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)에서 본다.
 호출 사이에 상태가 필요한 서버는 스스로 만든 handle을 tool 인자로 주고받고, 그 handle이 요청한 사용자의 것인지 token으로 확인한다.
 자세한 것은 9장에서 본다.
 session 없이 도는 서버와 handle은 [11장](11-stateless-and-handle.md)에서 `mcp-stateless-handle` practice로 본다.
