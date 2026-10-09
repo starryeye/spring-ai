@@ -1,6 +1,7 @@
 package dev.starryeye.cimd.authserver.cimd;
 
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.RSASSASigner;
@@ -26,6 +27,7 @@ import org.springframework.security.oauth2.server.authorization.settings.ClientS
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -97,6 +99,11 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 	}
 
 	static String assertion(String clientId, RSAKey signer, String audience) throws JOSEException {
+		return assertion(clientId, signer, List.of(audience), null);
+	}
+
+	static String assertion(String clientId, RSAKey signer, List<String> audience, JOSEObjectType type)
+			throws JOSEException {
 		Instant now = Instant.now();
 		JWTClaimsSet claims = new JWTClaimsSet.Builder()
 				.issuer(clientId)
@@ -106,21 +113,22 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 				.issueTime(Date.from(now))
 				.expirationTime(Date.from(now.plusSeconds(60)))
 				.build();
-		SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signer.getKeyID()).build(), claims);
+		SignedJWT jwt = new SignedJWT(
+				new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signer.getKeyID()).type(type).build(), claims);
 		jwt.sign(new RSASSASigner(signer));
 		return jwt.serialize();
 	}
 
 	@Test
 	void 문서의_jwks_uri_key로_서명한_assertion을_받는다() throws Exception {
-		var jwt = this.factory.createDecoder(client(JWKS)).decode(assertion(key, ISSUER + "/oauth2/token"));
+		var jwt = this.factory.createDecoder(client(JWKS)).decode(assertion(key, ISSUER));
 
 		assertThat(jwt.getSubject()).isEqualTo(CLIENT_ID);
 	}
 
 	@Test
 	void 다른_key로_서명한_assertion은_거절한다() throws Exception {
-		String forged = assertion(otherKey, ISSUER + "/oauth2/token");
+		String forged = assertion(otherKey, ISSUER);
 
 		assertThatExceptionOfType(JwtException.class)
 				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(forged));
@@ -128,10 +136,34 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 
 	@Test
 	void aud가_이_서버가_아니면_거절한다() throws Exception {
-		String elsewhere = assertion(key, "https://other.example/oauth2/token");
+		String elsewhere = assertion(key, "https://other.example");
 
 		assertThatExceptionOfType(JwtException.class)
 				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(elsewhere));
+	}
+
+	@Test
+	void aud가_token_endpoint면_거절한다() throws Exception {
+		// RFC 7523bis: aud는 issuer 하나여야 한다. endpoint 주소를 aud로 쓰는 옛 방식은 받지 않는다.
+		String tokenEndpoint = assertion(key, ISSUER + "/oauth2/token");
+
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(tokenEndpoint));
+	}
+
+	@Test
+	void aud에_issuer와_다른_값이_함께_있으면_거절한다() throws Exception {
+		String withOther = assertion(CLIENT_ID, key, List.of(ISSUER, "https://other.example"), null);
+
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(withOther));
+	}
+
+	@Test
+	void typ이_client_authentication_jwt인_assertion도_받는다() throws Exception {
+		String typed = assertion(CLIENT_ID, key, List.of(ISSUER), new JOSEObjectType("client-authentication+jwt"));
+
+		assertThat(this.factory.createDecoder(client(JWKS)).decode(typed).getSubject()).isEqualTo(CLIENT_ID);
 	}
 
 	@Test
@@ -143,7 +175,7 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 
 	@Test
 	void JWKS를_가져오지_못하면_assertion을_거절한다() throws Exception {
-		String valid = assertion(key, ISSUER + "/oauth2/token");
+		String valid = assertion(key, ISSUER);
 
 		assertThatExceptionOfType(JwtException.class).isThrownBy(() -> this.factory
 				.createDecoder(client("https://localhost:8172/oauth/missing.json")).decode(valid));
@@ -152,7 +184,7 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 	@Test
 	void decoder는_자기_client_id의_assertion만_받는다() throws Exception {
 		// 같은 key로 서명하고 같은 JWKS를 쓰더라도 iss·sub가 다른 client면 거절한다.
-		String otherClient = assertion("https://localhost:8172/oauth/other.json", key, ISSUER + "/oauth2/token");
+		String otherClient = assertion("https://localhost:8172/oauth/other.json", key, ISSUER);
 
 		assertThatExceptionOfType(JwtException.class)
 				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(otherClient));

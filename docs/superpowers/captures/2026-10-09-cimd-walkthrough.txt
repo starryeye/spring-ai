@@ -45,7 +45,7 @@ Cache-control: max-age=300
 ===== D3. ChatGPT형: user login → authorization request → consent 화면 → 허락 =====
 POST /login → HTTP 302
 HTTP/1.1 302 
-Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/client.json&state=XS5nN8un9Y9tda5qpKkKDS32e0xAE8yYDv9aNitaxG4%3D
+Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/client.json&state=Pv8lGK_Yj-CiWiYoprysoI64A9nfoue2uH6Bg_qW3w0%3D
 consent 화면(GET /oauth2/consent)의 핵심 줄:
 <h1>권한 요청: Shop Agent (ChatGPT형)</h1>
 <p>client 문서: <code>localhost:8172</code>
@@ -54,13 +54,13 @@ consent 화면(GET /oauth2/consent)의 핵심 줄:
 <input type="checkbox" name="scope" value="products:read" id="products:read"> products:read</label>
 체크한 scope: products:read
 HTTP/1.1 302 
-Location: http://localhost:8170/login/oauth2/code/authserver?code=O1mEPsQPC3gw...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
+Location: http://localhost:8170/login/oauth2/code/authserver?code=v6hKktrQ2-w-...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
 
 
 ===== D4. ChatGPT형 token request — private_key_jwt(client assertion) =====
 POST /oauth2/token
   grant_type=authorization_code
-  code=O1mEPsQPC3gw...
+  code=v6hKktrQ2-w-...
   redirect_uri=http://localhost:8170/login/oauth2/code/authserver
   code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
   resource=http://localhost:8171/mcp
@@ -68,24 +68,24 @@ POST /oauth2/token
   client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
   client_assertion=eyJhbGciOiJSUzI1NiIs...
 → HTTP 200
-{"access_token":"eyJraWQiOiI5NjZhZjE3...","refresh_token":"gdYnl0Z52KRj...","scope":"products:read openid","id_token":"eyJraWQiOiI5NjZhZjE3...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiNWJhN2Y5...","refresh_token":"Mj4LtgIzdzTT...","scope":"products:read openid","id_token":"eyJraWQiOiJiNWJhN2Y5...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8171/mcp","nbf":1791388512,"scope":["products:read","openid"],"iss":"http://localhost:9060","exp":1791388812,"iat":1791388512,"jti":"e91e7fc5-a5a9-465e-ad87-6a0b81d20840","client_id":"https://localhost:8172/oauth/client.json"}
+{"sub":"user","aud":"http://localhost:8171/mcp","nbf":1791542762,"scope":["products:read","openid"],"iss":"http://localhost:9060","exp":1791543062,"iat":1791542762,"jti":"56a10387-df67-4892-a8bd-1821315c5c3a","client_id":"https://localhost:8172/oauth/client.json"}
 
 
 ===== D5. ChatGPT형 token으로 MCP tools/list =====
 HTTP/1.1 200 
 tools/list가 200이면 MCP Server가 token의 aud와 서명을 받아들인 것이다.
 MCP Server 로그의 마지막 tools/list 줄:
-2026-10-08T00:55:12.776+09:00  INFO 95247 --- [cimd-shop-mcp-server] [0.1-8171-exec-3] d.s.c.m.config.ToolVisibilityTransport   : tools/list — 사용자=user, 역할=STAFF, 보인 tool=7/7
+2026-10-09T19:46:02.697+09:00  INFO 30078 --- [cimd-shop-mcp-server] [0.1-8171-exec-3] d.s.c.m.config.ToolVisibilityTransport   : tools/list — 사용자=user, 역할=STAFF, 보인 tool=7/7
 
 
 ===== D6. 실패: 문서의 jwks_uri에 없는 key로 서명한 assertion → 401 invalid_client =====
 HTTP/1.1 302 
-Location: http://localhost:8170/login/oauth2/code/authserver?code=N4otBc6KFB-i...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
+Location: http://localhost:8170/login/oauth2/code/authserver?code=-OJuPxOLqtj2...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
 POST /oauth2/token
   grant_type=authorization_code
-  code=N4otBc6KFB-i...
+  code=-OJuPxOLqtj2...
   redirect_uri=http://localhost:8170/login/oauth2/code/authserver
   code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
   resource=http://localhost:8171/mcp
@@ -98,10 +98,10 @@ POST /oauth2/token
 
 ===== D7. 실패: private_key_jwt client가 assertion 없이 client_id와 code_verifier만 보냄 → 401 invalid_client =====
 HTTP/1.1 302 
-Location: http://localhost:8170/login/oauth2/code/authserver?code=dDl5wBKCucd3...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
+Location: http://localhost:8170/login/oauth2/code/authserver?code=s9cT_jPkUJsZ...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
 POST /oauth2/token
   grant_type=authorization_code
-  code=dDl5wBKCucd3...
+  code=s9cT_jPkUJsZ...
   redirect_uri=http://localhost:8170/login/oauth2/code/authserver
   code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
   resource=http://localhost:8171/mcp
@@ -117,18 +117,18 @@ HTTP/1.1 400
 ===== D9. ChatGPT형 refresh — assertion을 붙이고, 새 refresh token을 받는다 =====
 POST /oauth2/token
   grant_type=refresh_token
-  refresh_token=gdYnl0Z52KRj...
+  refresh_token=Mj4LtgIzdzTT...
   resource=http://localhost:8171/mcp
   client_id=https://localhost:8172/oauth/client.json
   client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
   client_assertion=eyJhbGciOiJSUzI1NiIs...
 → HTTP 200
-{"access_token":"eyJraWQiOiI5NjZhZjE3...","refresh_token":"bt-TqHaItAPP...","scope":"products:read openid","id_token":"eyJraWQiOiI5NjZhZjE3...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiNWJhN2Y5...","refresh_token":"HzhwT9hj5ycS...","scope":"products:read openid","id_token":"eyJraWQiOiJiNWJhN2Y5...","token_type":"Bearer","expires_in":299}
 
 
 ===== D10. Claude형: authorization request → consent 화면 → 허락 =====
 HTTP/1.1 302 
-Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/public-client.json&state=aa1x1PthS5-oLcTNKVMUspQCQigmMuo1qnUPeAX6Beg%3D
+Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/public-client.json&state=j9CKFWFxL0uCKoWMYmnFtEN8ng1UVowMeZocrfMlBDE%3D
 consent 화면(GET /oauth2/consent)의 핵심 줄:
 <h1>권한 요청: Shop Agent (Claude형)</h1>
 <p>client 문서: <code>localhost:8172</code>
@@ -137,37 +137,37 @@ consent 화면(GET /oauth2/consent)의 핵심 줄:
 <input type="checkbox" name="scope" value="products:read" id="products:read"> products:read</label>
 체크한 scope: products:read
 HTTP/1.1 302 
-Location: http://localhost:8170/login/oauth2/code/authserver?code=zCnXgvPLuGcg...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
+Location: http://localhost:8170/login/oauth2/code/authserver?code=0q9mc568fqq5...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
 
 
 ===== D11. Claude형 token request — none(client_id와 code_verifier만), refresh token도 온다 =====
 POST /oauth2/token
   grant_type=authorization_code
-  code=zCnXgvPLuGcg...
+  code=0q9mc568fqq5...
   redirect_uri=http://localhost:8170/login/oauth2/code/authserver
   code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
   resource=http://localhost:8171/mcp
   client_id=https://localhost:8172/oauth/public-client.json
 → HTTP 200
-{"access_token":"eyJraWQiOiI5NjZhZjE3...","refresh_token":"Yd5J4GMprZsR...","scope":"products:read openid","id_token":"eyJraWQiOiI5NjZhZjE3...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiNWJhN2Y5...","refresh_token":"bB7-56zk6xVV...","scope":"products:read openid","id_token":"eyJraWQiOiJiNWJhN2Y5...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8171/mcp","nbf":1791388513,"scope":["products:read","openid"],"iss":"http://localhost:9060","exp":1791388813,"iat":1791388513,"jti":"0c0c5216-f25f-4d87-ab51-b9f2d22908a3","client_id":"https://localhost:8172/oauth/public-client.json"}
+{"sub":"user","aud":"http://localhost:8171/mcp","nbf":1791542763,"scope":["products:read","openid"],"iss":"http://localhost:9060","exp":1791543063,"iat":1791542763,"jti":"a0cab0ab-78aa-420f-9625-3c6d95f212ff","client_id":"https://localhost:8172/oauth/public-client.json"}
 
 
 ===== D12. Claude형 refresh — 새 refresh token을 받는다(rotation) =====
 POST /oauth2/token
   grant_type=refresh_token
-  refresh_token=Yd5J4GMprZsR...
+  refresh_token=bB7-56zk6xVV...
   resource=http://localhost:8171/mcp
   client_id=https://localhost:8172/oauth/public-client.json
 → HTTP 200
-{"access_token":"eyJraWQiOiI5NjZhZjE3...","refresh_token":"sI0iCiozPaMi...","scope":"products:read openid","id_token":"eyJraWQiOiI5NjZhZjE3...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiNWJhN2Y5...","refresh_token":"q0gSiPi_MBLB...","scope":"products:read openid","id_token":"eyJraWQiOiJiNWJhN2Y5...","token_type":"Bearer","expires_in":299}
 
 
 ===== D13. Claude형 옛 refresh token을 다시 씀 → 400 invalid_grant =====
 POST /oauth2/token
   grant_type=refresh_token
-  refresh_token=Yd5J4GMprZsR...
+  refresh_token=bB7-56zk6xVV...
   resource=http://localhost:8171/mcp
   client_id=https://localhost:8172/oauth/public-client.json
 → HTTP 400
@@ -176,7 +176,7 @@ POST /oauth2/token
 
 ===== D14. Claude형은 방금 허락했어도 다시 consent 화면 — public client의 consent는 저장하지 않는다 =====
 HTTP/1.1 302 
-Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/public-client.json&state=z7BRo8EhanlDuj-nSvAfaiw5Nv8pnx_nf4Ed29l725M%3D
+Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/public-client.json&state=i8U62aHuKfSNYm0v396jUCwNzeOQK94et_0m1BnRcZA%3D
 consent 화면(GET /oauth2/consent)의 핵심 줄:
 <h1>권한 요청: Shop Agent (Claude형)</h1>
 <p>client 문서: <code>localhost:8172</code>
@@ -190,3 +190,30 @@ consent 화면(GET /oauth2/consent)의 핵심 줄:
 18 client 문서를 cache에서 꺼낸다 (client_id=https://localhost:8172/oauth/client.json)
 1 client 문서를 가져왔다 (client_id=https://localhost:8172/oauth/public-client.json, 인증 방식=none, cache=300초)
 15 client 문서를 cache에서 꺼낸다 (client_id=https://localhost:8172/oauth/public-client.json)
+
+
+===== D16. 실패: aud가 token endpoint인 assertion(RFC 7523bis 전의 방식) → 401 invalid_client =====
+HTTP/1.1 302 
+Location: http://localhost:8170/login/oauth2/code/authserver?code=jVmLmPWLKiJG...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9060
+POST /oauth2/token
+  grant_type=authorization_code
+  code=jVmLmPWLKiJG...
+  redirect_uri=http://localhost:8170/login/oauth2/code/authserver
+  code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+  resource=http://localhost:8171/mcp
+  client_id=https://localhost:8172/oauth/client.json
+  client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+  client_assertion=eyJhbGciOiJSUzI1NiIs...
+→ HTTP 401
+{"error":"invalid_client"}
+
+
+===== D17. Claude형: D13에서 버린 refresh token이 다시 왔으므로, D12에서 받은 지금의 refresh token도 끊겼다 → 400 invalid_grant =====
+POST /oauth2/token
+  grant_type=refresh_token
+  refresh_token=q0gSiPi_MBLB...
+  resource=http://localhost:8171/mcp
+  client_id=https://localhost:8172/oauth/public-client.json
+→ HTTP 400
+{"error":"invalid_grant"}
+버린 refresh token이 다시 왔다 — grant를 끊는다 (client=https://localhost:8172/oauth/public-client.json, 사용자=user)

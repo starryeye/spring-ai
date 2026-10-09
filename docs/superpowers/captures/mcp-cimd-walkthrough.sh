@@ -117,14 +117,15 @@ consent() {
   CODE=$(location_of "$headers" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 }
 
-# $1 서명 key(PEM). ChatGPT형의 client assertion(RFC 7523)을 만든다.
-# iss·sub는 client_id, aud는 token endpoint, kid는 agent가 올린 JWKS의 값이다.
+# $1 서명 key(PEM), $2 aud(없으면 issuer). ChatGPT형의 client assertion(RFC 7523)을 만든다.
+# iss·sub는 client_id, aud는 RFC 7523bis대로 Authorization Server의 issuer 하나, kid는 agent가 올린 JWKS의 값이다.
+# typ은 7523bis가 권하는 client-authentication+jwt다.
 assertion() {
-  local key="$1" now header body signature
+  local key="$1" aud="${2:-$AS}" now header body signature
   now=$(date +%s)
-  header=$(printf '{"alg":"RS256","kid":"%s","typ":"JWT"}' "$KID" | b64url)
+  header=$(printf '{"alg":"RS256","kid":"%s","typ":"client-authentication+jwt"}' "$KID" | b64url)
   body=$(printf '{"iss":"%s","sub":"%s","aud":"%s","jti":"%s","iat":%d,"exp":%d}' \
-    "$CHATGPT" "$CHATGPT" "$AS/oauth2/token" "$(python3 -c 'import uuid; print(uuid.uuid4())')" "$now" "$((now + 60))" | b64url)
+    "$CHATGPT" "$CHATGPT" "$aud" "$(python3 -c 'import uuid; print(uuid.uuid4())')" "$now" "$((now + 60))" | b64url)
   signature=$(printf '%s.%s' "$header" "$body" | openssl dgst -sha256 -sign "$key" -binary | b64url)
   printf '%s.%s.%s' "$header" "$body" "$signature"
 }
@@ -271,4 +272,18 @@ if [ -f "$AS_LOG" ]; then
   grep 'client 문서를' "$AS_LOG" | sed -E 's/^.* : //' | uniq -c | sed -E 's/^ +//'
 else
   echo "(로그 파일이 없다: $AS_LOG)"
+fi
+
+step "D16. 실패: aud가 token endpoint인 assertion(RFC 7523bis 전의 방식) → 401 invalid_client"
+authorize "$CHATGPT" "openid products:read"
+[ -n "$CODE" ] || fail "허락한 scope인데 consent 화면이 다시 나왔다"
+token_request 401 grant_type=authorization_code "code=$CODE" "redirect_uri=$REDIRECT_URI" "code_verifier=$VERIFIER" \
+  "resource=$MCP" "client_id=$CHATGPT" "client_assertion_type=$ASSERTION_TYPE" \
+  "client_assertion=$(assertion "$WORK/agent-key.pem" "$AS/oauth2/token")"
+
+step "D17. Claude형: D13에서 버린 refresh token이 다시 왔으므로, D12에서 받은 지금의 refresh token도 끊겼다 → 400 invalid_grant"
+token_request 400 grant_type=refresh_token "refresh_token=$CLAUDE_REFRESH2" "resource=$MCP" "client_id=$CLAUDE"
+if [ -f "$AS_LOG" ]; then
+  sleep 1
+  grep '버린 refresh token이 다시 왔다' "$AS_LOG" | sed -E 's/^.* : //' | tail -1
 fi

@@ -7,6 +7,7 @@ import dev.starryeye.cimd.agent.config.McpSecurityConfig;
 import dev.starryeye.cimd.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.cimd.agent.discovery.McpAuthorizationDiscovery;
 import dev.starryeye.cimd.agent.mcp.UserToolCatalog;
+import dev.starryeye.cimd.agent.security.SingleFlightAuthorizedClientManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
@@ -15,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
-import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -131,10 +131,13 @@ class ShopAgentApplicationTests {
     /**
      * servlet 요청 없이 Authentication만으로 token을 꺼낼 수 있어야
      * reactor thread에서 token을 붙일 수 있다. manager 타입이 바뀌면 그 성질이 깨진다.
+     * bean은 사용자별로 refresh를 한 번에 하나씩 하는 manager이고, 그 안의 manager는
+     * {@code AuthorizedClientServiceOAuth2AuthorizedClientManager}다.
+     * {@code TokenRefreshTest}가 같은 bean 메서드로 만든 manager를 servlet 요청 없이 불러 refresh까지 확인한다.
      */
     @Test
     void 서블릿_요청이_필요없는_인가_매니저를_쓴다() {
-        assertThat(this.authorizedClientManager).isInstanceOf(AuthorizedClientServiceOAuth2AuthorizedClientManager.class);
+        assertThat(this.authorizedClientManager).isInstanceOf(SingleFlightAuthorizedClientManager.class);
     }
 
     @Test
