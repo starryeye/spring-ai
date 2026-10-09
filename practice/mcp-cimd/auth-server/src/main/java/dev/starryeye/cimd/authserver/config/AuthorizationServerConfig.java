@@ -16,6 +16,7 @@ import dev.starryeye.cimd.authserver.security.PublicClientConsentService;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationConverter;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationProvider;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenGenerator;
+import dev.starryeye.cimd.authserver.security.RefreshTokenReuseDetectingAuthorizationService;
 import dev.starryeye.cimd.authserver.security.ResourceAudienceTokenCustomizer;
 import dev.starryeye.cimd.authserver.security.ResourceIndicatorValidator;
 import dev.starryeye.cimd.authserver.web.ConsentController;
@@ -219,10 +220,12 @@ public class AuthorizationServerConfig {
 	/**
 	 * consent 화면이 대기 중인 authorization request의 {@code redirect_uri}를 읽어야 하므로 bean으로 둔다.
 	 * bean이 없으면 Spring이 안에서 직접 만들어, 화면에서 같은 저장소를 쓸 수 없다.
+	 * 버린 refresh token이 다시 오면 grant 전체를 끊도록 {@link RefreshTokenReuseDetectingAuthorizationService}로 감싼다.
 	 */
 	@Bean
 	public OAuth2AuthorizationService authorizationService() {
-		return new InMemoryOAuth2AuthorizationService();
+		return new RefreshTokenReuseDetectingAuthorizationService(new InMemoryOAuth2AuthorizationService(),
+				Clock.systemUTC());
 	}
 
 	/**

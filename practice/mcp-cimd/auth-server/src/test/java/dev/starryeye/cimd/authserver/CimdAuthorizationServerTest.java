@@ -182,7 +182,7 @@ class CimdAuthorizationServerTest {
 	static MultiValueMap<String, String> withAssertion(MultiValueMap<String, String> parameters, RSAKey key)
 			throws Exception {
 		parameters.add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
-		parameters.add("client_assertion", TestClientDocuments.assertion(key, CHATGPT, TOKEN_ENDPOINT));
+		parameters.add("client_assertion", TestClientDocuments.assertion(key, CHATGPT, ISSUER));
 		return parameters;
 	}
 
@@ -272,6 +272,18 @@ class CimdAuthorizationServerTest {
 	@Test
 	void 다른_key로_서명한_assertion은_401이다() throws Exception {
 		String body = token(withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.OTHER_KEY), 401);
+
+		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_client");
+	}
+
+	@Test
+	void aud가_token_endpoint인_assertion은_401이다() throws Exception {
+		// RFC 7523bis: assertion의 aud는 이 서버의 issuer 하나여야 한다.
+		MultiValueMap<String, String> parameters = codeExchange(CHATGPT, code(CHATGPT));
+		parameters.add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
+		parameters.add("client_assertion", TestClientDocuments.assertion(TestClientDocuments.KEY, CHATGPT, TOKEN_ENDPOINT));
+
+		String body = token(parameters, 401);
 
 		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_client");
 	}
@@ -432,6 +444,20 @@ class CimdAuthorizationServerTest {
 
 		String reused = token(refresh(CLAUDE, first), 400);
 		assertThat((String) JsonPath.read(reused, "$.error")).isEqualTo("invalid_grant");
+	}
+
+	@Test
+	void 버린_refresh_token이_다시_오면_지금의_refresh_token도_끊긴다() throws Exception {
+		String first = JsonPath.read(token(codeExchange(CLAUDE, code(CLAUDE)), 200), "$.refresh_token");
+		String second = JsonPath.read(token(refresh(CLAUDE, first), 200), "$.refresh_token");
+
+		// 도둑이 먼저 refresh해 second를 가졌고, 진짜 client가 버린 first를 내밀었다고 보자.
+		String reused = token(refresh(CLAUDE, first), 400);
+		assertThat((String) JsonPath.read(reused, "$.error")).isEqualTo("invalid_grant");
+
+		// 어느 쪽이 도둑인지 모르므로, 지금의 refresh token도 더는 통하지 않는다.
+		String afterReuse = token(refresh(CLAUDE, second), 400);
+		assertThat((String) JsonPath.read(afterReuse, "$.error")).isEqualTo("invalid_grant");
 	}
 
 	@Test

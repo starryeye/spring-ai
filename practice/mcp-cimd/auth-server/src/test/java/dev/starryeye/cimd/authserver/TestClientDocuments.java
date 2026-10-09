@@ -64,7 +64,7 @@ public final class TestClientDocuments {
 		return new JWKSet(KEY.toPublicJWK()).toString();
 	}
 
-	/** RFC 7523 §3의 client assertion이다. iss와 sub는 client_id, aud는 이 Authorization Server다. */
+	/** RFC 7523 §3의 client assertion이다. iss와 sub는 client_id이고, aud는 RFC 7523bis대로 issuer 하나를 넣는다. */
 	public static String assertion(RSAKey key, String clientId, String audience) throws JOSEException {
 		Instant now = Instant.now();
 		JWTClaimsSet claims = new JWTClaimsSet.Builder()

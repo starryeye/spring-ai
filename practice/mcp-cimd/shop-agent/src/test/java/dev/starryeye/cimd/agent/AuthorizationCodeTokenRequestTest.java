@@ -72,6 +72,7 @@ class AuthorizationCodeTokenRequestTest {
                 .redirectUri(REDIRECT_URI)
                 .authorizationUri(ISSUER + "/oauth2/authorize")
                 .tokenUri(TOKEN_ENDPOINT)
+                .issuerUri(ISSUER)
                 .build();
     }
 
@@ -145,7 +146,9 @@ class AuthorizationCodeTokenRequestTest {
         assertThat(assertion.getHeader().getKeyID()).isEqualTo(signingKey.key().getKeyID());
         assertThat(assertion.getJWTClaimsSet().getIssuer()).isEqualTo(CHATGPT);
         assertThat(assertion.getJWTClaimsSet().getSubject()).isEqualTo(CHATGPT);
-        assertThat(assertion.getJWTClaimsSet().getAudience()).containsExactly(TOKEN_ENDPOINT);
+        // RFC 7523bis: aud는 Authorization Server의 issuer 하나다. typ으로 client assertion임을 밝힌다.
+        assertThat(assertion.getJWTClaimsSet().getAudience()).containsExactly(ISSUER);
+        assertThat(assertion.getHeader().getType()).hasToString("client-authentication+jwt");
         assertThat(form).doesNotContainKey("client_secret");
     }
 

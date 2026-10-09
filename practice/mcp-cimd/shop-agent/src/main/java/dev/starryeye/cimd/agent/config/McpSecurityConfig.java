@@ -10,6 +10,7 @@ import dev.starryeye.cimd.agent.mcp.SecurityMcpTransportContextProvider;
 import dev.starryeye.cimd.agent.mcp.StepUpAuthorizationErrorHandler;
 import dev.starryeye.cimd.agent.mcp.StepUpToolExecutionExceptionProcessor;
 import dev.starryeye.cimd.agent.security.ResourceIndicators;
+import dev.starryeye.cimd.agent.security.SingleFlightAuthorizedClientManager;
 
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
@@ -25,6 +26,7 @@ import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClient
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.endpoint.AbstractOAuth2AuthorizationGrantRequest;
 import org.springframework.security.oauth2.client.endpoint.NimbusJwtClientAuthenticationParametersConverter;
 import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
 import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
@@ -82,8 +84,7 @@ public class McpSecurityConfig {
         var tokenResponseClient = new RestClientAuthorizationCodeTokenResponseClient();
         tokenResponseClient.addParametersConverter(
                 ResourceIndicators.tokenRequest(() -> registrations.discovered().resource()));
-        tokenResponseClient.addParametersConverter(
-                new NimbusJwtClientAuthenticationParametersConverter<>(clientAssertionKey(signingKey)));
+        tokenResponseClient.addParametersConverter(clientAssertion(signingKey));
         return tokenResponseClient;
     }
 
@@ -94,14 +95,39 @@ public class McpSecurityConfig {
         var tokenResponseClient = new RestClientRefreshTokenTokenResponseClient();
         tokenResponseClient.addParametersConverter(
                 ResourceIndicators.tokenRequest(() -> registrations.discovered().resource()));
-        tokenResponseClient.addParametersConverter(
-                new NimbusJwtClientAuthenticationParametersConverter<>(clientAssertionKey(signingKey)));
+        tokenResponseClient.addParametersConverter(clientAssertion(signingKey));
         return tokenResponseClient;
+    }
+
+    /** RFC 7523bis가 권하는 client assertion의 {@code typ}이다. */
+    static final String CLIENT_ASSERTION_TYPE = "client-authentication+jwt";
+
+    /**
+     * token request에 client assertion을 붙이는 converter다.
+     *
+     * <p>assertion의 iss·sub는 client_id이고(Spring 기본값), aud는 Authorization Server의 issuer 하나다.
+     * Spring 기본값은 aud에 token endpoint를 넣지만, RFC 7523bis는 issuer 하나만 쓰게 한다.
+     * 이 agent는 discovery로 처음 보는 Authorization Server에도 같은 key로 assertion을 보낸다.
+     * endpoint 주소는 그 서버의 metadata가 알려 주는 값이라, aud에 쓰면 assertion이 어느 서버를 위한 것인지가 metadata에 달린다.
+     * issuer는 discovery에서 PRM이 가리킨 값과 metadata의 값이 같은지 확인한 값이다.
+     */
+    static <T extends AbstractOAuth2AuthorizationGrantRequest> NimbusJwtClientAuthenticationParametersConverter<T> clientAssertion(
+            ClientSigningKey signingKey) {
+        var converter = new NimbusJwtClientAuthenticationParametersConverter<T>(clientAssertionKey(signingKey));
+        converter.setJwtClientAssertionCustomizer(context -> {
+            String issuer = context.getAuthorizationGrantRequest().getClientRegistration().getProviderDetails()
+                    .getIssuerUri();
+            if (issuer == null) {
+                throw new IllegalStateException("issuer를 모르는 Authorization Server에는 client assertion을 보내지 않는다");
+            }
+            context.getHeaders().type(CLIENT_ASSERTION_TYPE);
+            context.getClaims().audience(List.of(issuer));
+        });
+        return converter;
     }
 
     /**
      * client assertion을 서명할 key를 고른다(RFC 7523 §2.2).
-     * assertion의 iss·sub는 client_id, aud는 token endpoint다(Spring 기본값).
      * Authorization Server는 문서의 {@code jwks_uri}에서 같은 key의 public key를 가져와 서명을 확인한다.
      * Claude형({@code none})이면 converter가 parameter를 더하지 않으므로 key를 주지 않는다.
      */
@@ -113,6 +139,7 @@ public class McpSecurityConfig {
     /**
      * 이 manager의 기본 구성에는 refresh가 없다.
      * refresh provider를 직접 넣어야 만료된 token을 새로 받는다.
+     * 같은 사용자의 refresh가 겹치지 않도록 {@link SingleFlightAuthorizedClientManager}로 감싼다.
      *
      * <p>테스트가 이 메서드를 직접 불러야 해서 static으로 둔다.
      * Spring은 static {@code @Bean} 메서드도 지원한다.
@@ -120,7 +147,7 @@ public class McpSecurityConfig {
      * 이 구체 타입을 인자 타입에 대입할 수 있기 때문이다.
      */
     @Bean
-    static AuthorizedClientServiceOAuth2AuthorizedClientManager authorizedClientManager(
+    static OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizedClientService authorizedClientService,
             OAuth2AccessTokenResponseClient<OAuth2RefreshTokenGrantRequest> refreshTokenTokenResponseClient) {
@@ -129,7 +156,7 @@ public class McpSecurityConfig {
         manager.setAuthorizedClientProvider(OAuth2AuthorizedClientProviderBuilder.builder()
                 .refreshToken(refreshToken -> refreshToken.accessTokenResponseClient(refreshTokenTokenResponseClient))
                 .build());
-        return manager;
+        return new SingleFlightAuthorizedClientManager(manager);
     }
 
     /** 모든 MCP sync client에 인증을 전달하는 transport context provider를 넣는다. */
