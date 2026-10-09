@@ -210,7 +210,7 @@ session을 사용자에 묶지 않는 28번 행은 이유가 official과 같아�
 27번의 URL 검증기는 `shop-agent`의 `McpSecurityConfig`가 정한다.
 이 practice는 모든 앱이 `http://localhost`에서 돌아서, loopback 주소의 `http`도 받는 `DefaultUrlValidator(true)`를 넘긴다.
 module의 기본값 `DefaultUrlValidator()`는 `https`만 받으므로, 운영에서는 기본값을 쓴다.
-official의 agent는 PRM URL을 확인 없이 요청한다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#810-official이-지키지-못한-것)).
+official의 agent는 PRM URL을 확인 없이 요청한다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#812-official이-지키지-못한-것)).
 session 종료 `DELETE`에 token을 붙이는 방법은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md#token을-client-주인에게-묶는-이유)에 있다.
 
 ## 실행

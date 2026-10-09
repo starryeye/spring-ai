@@ -140,7 +140,7 @@ client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 �
 official의 `OAuth2TokenAttachingRequestCustomizer`는 요청마다 transport context에서 사용자를 찾는다([6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법)).
 그 context는 MCP 요청을 일으킨 thread의 `SecurityContext`에서 온다.
 그런데 client를 닫을 때 SDK가 보내는 session 종료 `DELETE`에는 빈 transport context가 넘어온다.
-그래서 official의 agent는 앱이 끝날 때 이 `DELETE`를 token 없이 보낸다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#810-official이-지키지-못한-것)).
+그래서 official의 agent는 앱이 끝날 때 이 `DELETE`를 token 없이 보낸다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#812-official이-지키지-못한-것)).
 
 이 practice의 `OAuth2TokenAttachingRequestCustomizer`는 client를 만들 때 주인의 `Authentication`을 받는다.
 요청마다 transport context를 보지 않고, 그 주인으로 token을 찾는다.
