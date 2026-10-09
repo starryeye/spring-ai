@@ -87,7 +87,10 @@ official의 `auth-server`는 `mcp.authorization.resources` 목록에 없는 값�
 그다음 token의 `aud`에 이 값을 넣어, 그 token이 이 MCP Server에서만 통하게 한다(5.8).
 
 client는 Authorization Server가 `resource`를 지원하는지와 상관없이 항상 보낸다.
-지원하지 않는 Authorization Server는 모르는 parameter를 무시하므로, 보내도 잃을 것이 없다.
+지원하지 않는 Authorization Server는 보통 모르는 parameter를 무시하므로 흐름은 이어진다.
+그러나 그때 token의 `aud`는 MCP Server가 되지 않을 수 있고, `aud`를 확인하는 MCP Server는 그 token을 거절한다.
+`resource`를 받는 Authorization Server라도 미리 등록한 값과 글자까지 같아야 token을 준다.
+상용 IdP마다 다른 이 동작은 5.8의 끝에서 본다.
 
 **scope 고르기**
 
@@ -345,6 +348,29 @@ ID token은 login한 사용자가 누구인지 client 자신에게 알려 주는
 MCP Server는 `aud`에 자기 이름이 있는 token만 받으므로, ID token을 보내면 `401`로 거절한다(6장).
 access token의 수명은 `exp`에서 `iat`를 뺀 300초이고, 응답의 `expires_in`은 `299`다.
 
+**상용 IdP에서 `aud` 맞추기**
+
+official의 Authorization Server는 `resource` 값을 그대로 access token의 `aud`에 넣는다.
+상용 IdP를 Authorization Server로 쓰면 `resource`를 다루는 방식이 제품마다 다르다.
+아래 표는 2026-10-09에 각 제품의 공식 문서로 확인한 내용이다.
+
+| IdP | `resource` 처리 | `aud`를 MCP Server용으로 만드는 법 | 주의할 점 |
+|---|---|---|---|
+| [Microsoft Entra ID](https://learn.microsoft.com/en-us/entra/agent-id/secure-mcp-server-with-entra-id) (v2.0) | 받는다. app registration의 Application ID URI와 글자까지 같아야 하고, 다르면 `AADSTS9010010`이다 | MCP Server 주소를 Application ID URI로 등록한다. v2 token의 `aud`는 늘 그 API의 client ID(GUID)라서, MCP Server는 `aud`를 그 GUID와 비교한다 | `requestedAccessTokenVersion`을 `2`로 바꾼 뒤에야 `https` 주소를 Application ID URI로 등록할 수 있다. 이 URI는 `/`로 끝날 수 없다 |
+| [Auth0](https://auth0.com/ai/docs/mcp/guides/resource-param-compatibility-profile) | 기본으로는 audience에 쓰지 않는다. tenant 설정 Resource Parameter Compatibility Profile을 켜면 `resource`가 audience가 된다 | MCP Server를 API로 등록하고 Identifier를 MCP Server 주소로 둔 뒤, 위 profile을 켠다 | `audience`가 함께 오면 `audience`가 우선한다. Identifier는 끝의 `/`를 구분하고, 나중에 바꿀 수 없다 |
+| [Keycloak](https://www.keycloak.org/securing-apps/mcp-authz-server) 26.8 | experimental 기능 `resource-indicators`를 켜야 받는다. 켜면 `aud`는 `resource` 값 하나이고, 설정에 없는 값은 `invalid_target`이다 | 켠 경우 MCP Server client에 그 주소를 resource로 설정한다. 끈 경우 scope마다 Audience mapper로 MCP Server 주소를 `aud`에 넣는다 | 26.7까지는 `resource`를 지원하지 않았다. 끈 상태에서는 `resource`를 무시하므로, client가 요청한 scope로 `aud`가 정해진다 |
+| [Okta](https://developer.okta.com/docs/concepts/auth-servers/) | custom Authorization Server만 받는다(Early Access). 받은 값이 `aud`가 된다 | custom Authorization Server의 audience를 MCP Server 주소로 둔다 | org Authorization Server는 audience를 바꿀 수 없고, 그 token은 직접 검증하지 않는다. custom Authorization Server에는 API Access Management 구독이 필요하다 |
+
+표에서 보듯 `aud`에 늘 MCP Server 주소가 들어가지는 않는다.
+MCP Server가 확인할 것은 `aud`가 자기 주소인지가 아니라, 그 Authorization Server가 이 MCP Server용으로 발급한 token인지다.
+그래서 Entra라면 MCP Server의 client ID를, 나머지 제품이라면 등록한 주소를 6장의 `audiences`에 넣는다.
+Auth0에서는 `openid`를 함께 요청하면 `aud`가 MCP Server와 `/userinfo` 두 값이 된다.
+Spring의 `audiences`는 `aud`에 그 값이 들어 있는지를 보므로, 값이 여럿이어도 통과한다.
+
+discovery도 제품마다 다르다.
+Entra의 OpenID Connect Discovery 문서에는 `code_challenge_methods_supported`가 없고, RFC 8414 경로는 `404`다(2026-10-09 확인).
+그래서 3장의 확인을 그대로 하는 MCP client는 Entra 앞에서 멈춘다.
+
 ## 5.9 만료와 refresh
 
 access token의 수명이 짧으면, 새어 나갔을 때 쓸 수 있는 시간도 짧다.
@@ -467,6 +493,7 @@ public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures
 |---|---|---|
 | client는 PKCE를 쓰고, 가능하면 `S256`을 쓰며, 진행하기 전에 metadata로 지원을 확인한다. Authorization Server는 PKCE를 강제하고, `code_challenge`가 없으면 `invalid_request`, 맞지 않으면 `invalid_grant`로 답한다 | [MCP 2025-11-25 Authorization — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection), [RFC 7636 §4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.1), [§4.2](https://www.rfc-editor.org/rfc/rfc7636#section-4.2), [§4.4.1](https://www.rfc-editor.org/rfc/rfc7636#section-4.4.1), [§4.6](https://www.rfc-editor.org/rfc/rfc7636#section-4.6), [OAuth 2.1 §4.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.1), [§7.5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.5.2) | MUST, REQUIRED |
 | client는 authorization request와 token request 모두에 MCP Server의 canonical URI를 `resource`로 넣고, Authorization Server가 지원하지 않아도 보낸다. `resource`는 fragment 없는 절대 URI이고, 받아들일 수 없는 값은 `invalid_target`이며, access token은 특정 resource server로 대상을 제한한다 | [MCP 2025-11-25 Authorization — Resource Parameter Implementation](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2), [§2.1](https://www.rfc-editor.org/rfc/rfc8707#section-2.1), [§2.2](https://www.rfc-editor.org/rfc/rfc8707#section-2.2), [OAuth 2.1 §7.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.2) | MUST, MUST NOT, SHOULD |
+| RFC 8707의 audience 묶기는 Authorization Server가 그 기능을 지원할 때 생긴다. MCP Server는 받은 token이 자기용으로 발급됐는지 검증한다 | [MCP 2026-07-28 Security Considerations — Token Audience Binding and Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#token-audience-binding-and-validation) | MUST |
 | MCP Server는 `401`의 `WWW-Authenticate`에 필요한 `scope`를 넣고, client는 최소 권한을 따라 `401`의 `scope` → PRM의 `scopes_supported` 전체 → `scope` 생략 순서로 고른다. client는 `401`의 `scope`를 지금 요청에 필요한 값으로 믿고, `scopes_supported`와의 포함 관계를 가정하지 않는다 | [MCP 2025-11-25 Authorization — Scope Selection Strategy](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-selection-strategy), [Protected Resource Metadata Discovery Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery-requirements) | SHOULD, MUST, MUST NOT |
 | client 신원을 확인할 수 없으면 이전 consent가 있어도 consent 없이 자동 처리하지 않는다. scope를 생략한 요청은 기본값으로 처리하거나 `invalid_scope`로 거절한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1), [RFC 6749 §3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3), [§4.1.2.1](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2.1) | SHOULD NOT, SHOULD, MUST |
 | client는 `state`를 쓰고 확인해, 없거나 다른 결과는 버린다. client는 CSRF를 막는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §2.3.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.3.3) | SHOULD, MUST |

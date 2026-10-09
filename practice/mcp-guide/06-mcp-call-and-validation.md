@@ -234,6 +234,8 @@ spring:
 `issuer-uri`는 두 가지 일을 한다.
 이 주소로 metadata를 찾아 `jwks_uri`를 알아내고, token의 `iss`가 이 값과 같은지 본다.
 `audiences`는 token의 `aud`에 이 값이 있는지 본다.
+상용 IdP에서는 `aud`가 MCP Server 주소가 아닐 수 있다.
+예를 들어 Entra의 v2 token은 `aud`가 API의 client ID다([5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token)).
 Spring은 이 줄이 없으면 `aud`를 검사하지 않고, 같은 Authorization Server가 다른 서비스용으로 발급한 token도 받는다.
 그러면 사용자가 다른 MCP Server에 준 token을 그 서버가 이 MCP Server에 들고 와도 통과한다.
 
