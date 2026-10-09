@@ -32,6 +32,8 @@ LLM은 tool 결과나 문서에 섞인 글을 사용자의 지시로 여기고 �
 쓰기 scope를 처음 필요할 때 받게 하면, 그 순간 사용자 앞에 권한을 더 달라는 화면이 뜬다.
 사용자는 자기가 시키지 않은 일임을 알아채고 거절할 수 있다.
 다만 한 번 허락한 scope는 token에 남으므로, 사용자가 이 화면을 보는 것은 그 권한을 처음 쓸 때 한 번뿐이다.
+게다가 consent는 권한의 범위를 묻는 화면이라, 이번 호출이 어떤 인자로 무엇을 바꾸는지는 보여 주지 않는다.
+호출마다 인자를 보여 주고 확인받는 일은 client가 따로 맡는다([8장](08-security.md#810-prompt-injection)).
 
 그래서 client는 위험이 낮은 조회 scope만 받아 시작한다.
 권한이 더 필요한 작업을 처음 시도하면 MCP Server가 `403`으로 필요한 scope를 알린다.
@@ -350,6 +352,8 @@ data:{"scope":"products:write","tool":"updateStock","url":"/oauth2/authorization
 agent는 MCP 요청마다 그 사용자의 authorized client에서 token을 찾아 붙이므로(6장), 다시 보낸 질문의 `tools/call`에는 새 token이 붙는다.
 LLM의 답은 매번 조금씩 다르지만, 예를 들어 `상품 p1 (게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`가 나온다.
 tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 다녀오는 동안 채팅 응답과 LLM의 답이 이미 끊겼기 때문이다.
+카드에는 tool 이름과 필요한 scope만 나오고, 호출의 인자는 나오지 않는다.
+허락한 뒤에는 다시 보낸 질문을 LLM이 처음부터 다시 처리하므로, 실제로 실행되는 인자가 사용자가 짐작한 것과 다를 수 있다.
 
 사용자가 `products:write`를 체크하지 않거나 Cancel을 누르면, agent는 이전 scope만 담긴 token을 받는다(10.5의 일부 허락).
 돌아와 다시 보낸 질문은 또 `403`을 받고, `ChatEvents`는 이 scope로 이미 step-up을 거친 것을 알아 `step-up-declined` event를 보낸다.
@@ -720,7 +724,7 @@ browser가 두 번 열린다.
 
 ## 10.13 정리
 
-- agent의 권한은 사용자가 그 client에 맡긴 범위이고, token의 `scope`가 상한이다. 쓰기 scope를 처음 쓸 때 묻는 consent는 prompt injection에 속은 호출을 사람이 막을 기회가 된다.
+- agent의 권한은 사용자가 그 client에 맡긴 범위이고, token의 `scope`가 상한이다. 쓰기 scope를 처음 쓸 때 묻는 consent는 prompt injection에 속은 호출을 사람이 막을 첫 기회가 되지만, 그 뒤의 호출과 인자까지 확인하지는 않는다.
 - MCP Server는 `401`의 `scope`와 PRM의 `scopes_supported`에 조회 scope만 알리고, client는 그 값만 요청해 시작한다.
 - 권한이 모자라면 MCP Server는 transport 앞의 filter에서 `403 insufficient_scope`로 알린다. 이 filter는 transport와 같은 규칙으로 본문을 읽고, 다르게 읽힐 수 있는 본문은 `400`으로 거절한다.
 - client는 가진 scope와 challenge의 scope를 합쳐 다시 authorization을 받는다. 사용자는 일부만 허락할 수 있고, client는 거절된 scope로 step-up을 되풀이하지 않는다.

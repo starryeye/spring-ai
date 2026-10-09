@@ -107,6 +107,7 @@ chat-memory의 클래스는 official과 package(`dev.starryeye.memory.*`)만 다
 | 36 | 모든 MCP 요청의 `Authorization` header — session 종료 `DELETE` 포함 | MUST ([MCP — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements)) | **아니오**(agent, 코드로 판정) — 앱 종료 때 공유 client가 보내는 `DELETE`는 transport context가 비어 `OAuth2TokenAttachingRequestCustomizer#customize`가 header를 붙이지 않는다(`CloseableMcpSyncClients#close` → `McpSyncClient#close` → `HttpClientStreamableHttpTransport#createDelete`). `local-client`는 예 — `McpCalls`가 transport 기본 요청에 넣은 header가 `DELETE`에도 복사된다 | 예(코드로 판정) — client마다 주인을 가진 `OAuth2TokenAttachingRequestCustomizer`가 context와 상관없이 token을 붙이고, `UserMcpClients`가 logout·HTTP session 종료·앱 종료 때 `closeGracefully()`로 닫는다. 테스트 `OAuth2TokenAttachingRequestCustomizerTest#transport_context_없이_나가는_session_종료_DELETE_에도_토큰을_붙인다` | **아니오**(코드로 판정) — module `OAuth2AuthorizationCodeSyncHttpRequestCustomizer#customize`도 context에 `Authentication`과 servlet 요청이 없으면 header 없이 돌아간다. 종료 경로는 official과 같다 | [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md) |
 | 37 | client의 scope 선택 — `401`의 `scope` → PRM의 `scopes_supported` → `scope` 생략 | SHOULD ([Scope Selection Strategy](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-selection-strategy)) | **아니오** — `401`과 PRM에 scope가 없어 `scope`를 빼야 하지만, agent는 OIDC login 설정의 `openid profile`을, `local-client`는 `Main.SCOPE`의 `openid profile`을 보낸다. OIDC login에는 `openid`가, public client에는 25번의 `PublicClientScopeValidator`가 요구하는 `openid` 밖의 scope가 필요하다 | **아니오** — agent는 같음 | **아니오** — agent는 같음 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
 | 38 | session 오류 응답 본문의 정보 노출 | 참고 — 전송 명세는 본문 형식을 정하지 않음, `id` 없는 JSON-RPC 오류는 MAY ([JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object)) | 아니오(약점) — session ID 없는 `400`(C14, `-32601`)과 모르는 session의 `404`(S13, `-32603`) 본문에 Java `stackTrace`가 담긴다. `-32601`은 JSON-RPC의 Method not found라 SDK의 선택이다 | 아니오(약점) — 같음(같은 SDK) | 아니오(약점) — 같음(같은 SDK) | [부록 API](reference-api.md#post-mcp--bearer-token) |
+| 39 | client와 서버의 token 보관 | MUST ([MCP — Token Theft](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-theft)) | 예(코드로 판정) — agent는 token을 `InMemoryOAuth2AuthorizedClientService`의 process 메모리에만 두고 로그에 남기지 않는다. `local-client`도 실행하는 동안 메모리에만 두고, MCP Server는 token을 저장하지 않는다. 암호화 저장과 logout 때의 폐기는 없다 | 예 — 같음. logout하면 그 사용자의 MCP client를 닫지만 token은 지우지 않는다 | 예 — 같음(Spring Boot가 만드는 기본 메모리 저장소) | [7장](07-local-client.md), [8장](08-security.md#811-서버에서-도는-agent의-token-보관과-폐기) |
 
 ## 남은 위반
 
@@ -125,7 +126,7 @@ MUST 위반은 네 행이다.
 - SHOULD 수준에서 지키지 않는 것은 21번(discovery 결과 재검증), 28번(official·community의 session 묶기), 35번(`local-client`의 IPv6 시도), 37번(client의 scope 선택)이다. 16번은 scope를 설계하지 않아 다루지 않는다.
 - 17·22·38번과 34번의 `typ`은 MCP가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
 - 18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 practice가 직접 채운 것이다.
-- official이 지키지 못한 것을 공격 쪽에서 본 설명은 [8장](08-security.md#810-official이-지키지-못한-것)에 있다.
+- official이 지키지 못한 것을 공격 쪽에서 본 설명은 [8장](08-security.md#812-official이-지키지-못한-것)에 있다.
 
 ## mcp-security-authz에서 달라지는 행
 
