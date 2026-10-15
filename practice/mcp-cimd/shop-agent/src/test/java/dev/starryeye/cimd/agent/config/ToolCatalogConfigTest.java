@@ -1,5 +1,6 @@
 package dev.starryeye.cimd.agent.config;
 
+import io.modelcontextprotocol.client.McpSyncClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -12,8 +13,10 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -54,6 +57,21 @@ class ToolCatalogConfigTest {
 		verify(this.manager).authorize(request.capture());
 		assertThat(request.getValue().getClientRegistrationId()).isEqualTo(McpSecurityConfig.REGISTRATION_ID);
 		assertThat(request.getValue().getPrincipal()).isSameAs(this.user);
+	}
+
+	@Test
+	void MCP_연결이_하나면_그_client로_목록을_받는다() {
+		McpSyncClient client = mock(McpSyncClient.class);
+
+		assertThat(ToolCatalogConfig.onlyClient(List.of(client))).isSameAs(client);
+	}
+
+	@Test
+	void MCP_연결이_하나가_아니면_첫_것을_고르지_않고_멈춘다() {
+		// 목록을 받는 서버와 tool을 부르는 서버가 달라지지 않게, 연결이 여럿이면 기동을 멈춘다.
+		assertThatIllegalStateException().isThrownBy(() -> ToolCatalogConfig.onlyClient(List.of()));
+		assertThatIllegalStateException().isThrownBy(() -> ToolCatalogConfig.onlyClient(
+				List.of(mock(McpSyncClient.class), mock(McpSyncClient.class))));
 	}
 
 	@Test

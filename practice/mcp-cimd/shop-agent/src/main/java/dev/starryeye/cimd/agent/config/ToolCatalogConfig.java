@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.util.Assert;
 
 import java.time.Clock;
 import java.util.List;
@@ -20,8 +21,19 @@ public class ToolCatalogConfig {
 	@Bean
 	public UserToolCatalog userToolCatalog(List<McpSyncClient> mcpSyncClients,
 			OAuth2AuthorizedClientManager authorizedClientManager) {
-		return new UserToolCatalog(UserToolCatalog.mcp(mcpSyncClients.get(0)),
+		return new UserToolCatalog(UserToolCatalog.mcp(onlyClient(mcpSyncClients)),
 				user -> accessToken(authorizedClientManager, user), Clock.systemUTC());
+	}
+
+	/**
+	 * 이 agent는 MCP Server 하나(application.yml의 connection 하나)에 붙는다.
+	 * 연결이 여럿인데 첫 것만 고르면, 목록을 받는 서버와 tool을 부르는 서버가 달라질 수 있다.
+	 * 그래서 하나가 아니면 기동을 멈춘다.
+	 */
+	static McpSyncClient onlyClient(List<McpSyncClient> mcpSyncClients) {
+		Assert.state(mcpSyncClients.size() == 1,
+				() -> "MCP 연결은 정확히 하나여야 한다(지금 %d개)".formatted(mcpSyncClients.size()));
+		return mcpSyncClients.get(0);
 	}
 
 	/**
