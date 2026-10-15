@@ -1,6 +1,5 @@
 package dev.starryeye.cimd.mcpserver.filter;
 
-import dev.starryeye.cimd.mcpserver.repository.ProductRepository;
 import dev.starryeye.cimd.mcpserver.tool.ProductTools;
 import dev.starryeye.cimd.mcpserver.tool.ToolScopeRegistry;
 import dev.starryeye.cimd.mcpserver.tool.ToolVisibility;
@@ -32,7 +31,7 @@ class ToolScopeFilterTest {
 
 	static final String METADATA = "http://localhost:8171/.well-known/oauth-protected-resource/mcp";
 
-	ToolScopeRegistry registry = ToolScopeRegistry.scan(new ProductTools(new ProductRepository()));
+	ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class);
 
 	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
 	ToolScopeFilter filter = new ToolScopeFilter(registry,

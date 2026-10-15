@@ -3,7 +3,6 @@ package dev.starryeye.authz.mcpserver.config;
 import dev.starryeye.authz.mcpserver.filter.McpProtocolVersionFilter;
 import dev.starryeye.authz.mcpserver.filter.McpTransportSecurityFilter;
 import dev.starryeye.authz.mcpserver.filter.ToolScopeFilter;
-import dev.starryeye.authz.mcpserver.tool.ProductTools;
 import dev.starryeye.authz.mcpserver.tool.ToolScopeRegistry;
 
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
@@ -12,6 +11,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
@@ -48,9 +48,13 @@ public class McpTransportConfig {
 		return registration;
 	}
 
+	/**
+	 * tool별 scope 표다. tool bean을 손으로 넘기지 않고 ApplicationContext의 모든 bean에서 찾는다.
+	 * 새 tool bean을 더하고 여기에 넣는 것을 잊어도 그 tool의 scope가 빠지지 않는다.
+	 */
 	@Bean
-	public ToolScopeRegistry toolScopeRegistry(ProductTools productTools) {
-		return ToolScopeRegistry.scan(productTools);
+	public ToolScopeRegistry toolScopeRegistry(ApplicationContext context) {
+		return ToolScopeRegistry.scan(context);
 	}
 
 	/**

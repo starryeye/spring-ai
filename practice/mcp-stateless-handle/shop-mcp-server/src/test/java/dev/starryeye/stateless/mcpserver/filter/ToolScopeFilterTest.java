@@ -1,6 +1,5 @@
 package dev.starryeye.stateless.mcpserver.filter;
 
-import dev.starryeye.stateless.mcpserver.repository.ProductRepository;
 import dev.starryeye.stateless.mcpserver.tool.ProductTools;
 import dev.starryeye.stateless.mcpserver.tool.ToolScopeRegistry;
 
@@ -30,7 +29,7 @@ class ToolScopeFilterTest {
 
 	static final String METADATA = "http://localhost:8151/.well-known/oauth-protected-resource/mcp";
 
-	ToolScopeFilter filter = new ToolScopeFilter(ToolScopeRegistry.scan(new ProductTools(new ProductRepository())),
+	ToolScopeFilter filter = new ToolScopeFilter(ToolScopeRegistry.of(ProductTools.class),
 			JsonMapper.builder().build(), request -> METADATA);
 
 	@AfterEach

@@ -5,8 +5,6 @@ import dev.starryeye.visibility.mcpserver.filter.McpProtocolVersionFilter;
 import dev.starryeye.visibility.mcpserver.filter.McpTransportSecurityFilter;
 import dev.starryeye.visibility.mcpserver.filter.ToolScopeFilter;
 import dev.starryeye.visibility.mcpserver.security.McpCaller;
-import dev.starryeye.visibility.mcpserver.tool.BasketTools;
-import dev.starryeye.visibility.mcpserver.tool.ProductTools;
 import dev.starryeye.visibility.mcpserver.tool.ToolScopeRegistry;
 import dev.starryeye.visibility.mcpserver.tool.ToolVisibility;
 
@@ -19,6 +17,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -82,9 +81,14 @@ public class McpTransportConfig {
 		return new BasketStore(Clock.systemUTC());
 	}
 
+	/**
+	 * tool별 scope 표다. tool bean을 손으로 넘기지 않고 ApplicationContext의 모든 bean에서 찾는다.
+	 * 새 tool bean을 더하고 여기에 넣는 것을 잊어도 그 tool의 scope가 빠지지 않는다.
+	 * 숨김 판단({@link ToolVisibility})도 이 표를 쓰므로, 표에서 빠진 쓰기 tool은 손님에게도 보이고 조회 token으로도 불린다.
+	 */
 	@Bean
-	public ToolScopeRegistry toolScopeRegistry(ProductTools productTools, BasketTools basketTools) {
-		return ToolScopeRegistry.scan(productTools, basketTools);
+	public ToolScopeRegistry toolScopeRegistry(ApplicationContext context) {
+		return ToolScopeRegistry.scan(context);
 	}
 
 	/**
