@@ -1,7 +1,5 @@
 package dev.starryeye.cimd.mcpserver.tool;
 
-import dev.starryeye.cimd.mcpserver.repository.ProductRepository;
-
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -16,8 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ToolVisibilityTest {
 
-	ToolScopeRegistry registry = ToolScopeRegistry.scan(new ProductTools(new ProductRepository()),
-			new BasketTools(null, null));
+	ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class, BasketTools.class);
 
 	ToolVisibility visibility = new ToolVisibility(this.registry, Map.of("user", ToolVisibility.Role.STAFF));
 

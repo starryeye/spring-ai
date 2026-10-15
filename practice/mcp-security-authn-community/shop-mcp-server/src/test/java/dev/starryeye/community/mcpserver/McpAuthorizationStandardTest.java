@@ -244,6 +244,25 @@ class McpAuthorizationStandardTest {
                 .andExpect(status().is(421));
     }
 
+    /*
+     * 모듈은 PRM 의 resource 와 기대 aud 를 요청 URL 로 계산한다(ResourceIdentifier). official 처럼 설정값으로
+     * 바꾸지 않는 대신, 모듈 OriginValidationFilter 가 security filter chain 의 모든 경로에서 PRM·401 보다 먼저
+     * Host 를 검사한다. 허용 목록 밖의 Host 로는 다른 서버 주소를 광고받을 수 없다.
+     */
+
+    @Test
+    void Host_를_바꾸면_PRM_을_만들기_전에_421이다() throws Exception {
+        this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", "evil.example"))
+                .andExpect(status().is(421));
+    }
+
+    @Test
+    void Host_를_바꾸면_MCP_endpoint_밖의_경로도_401_을_만들기_전에_421이다() throws Exception {
+        this.mockMvc.perform(get("/").header("Host", "evil.example"))
+                .andExpect(status().is(421))
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+    }
+
     @Test
     void 허용되지_않은_Origin_은_403이다() throws Exception {
         // 모듈의 OriginValidationFilter 는 거부 응답을 JSON-RPC 본문으로 돌려준다.

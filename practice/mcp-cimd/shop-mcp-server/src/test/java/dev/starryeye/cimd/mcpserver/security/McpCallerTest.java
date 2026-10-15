@@ -16,6 +16,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class McpCallerTest {
 
+	/** CIMD에서는 client_id가 client 문서의 주소다(안내서 13장). 이 practice의 agent 문서 주소를 쓴다. */
+	static final String CLIENT_ID = "https://localhost:8172/oauth/client.json";
+
 	static ServerRequest 요청(Object principal) {
 		MockHttpServletRequest servlet = new MockHttpServletRequest("POST", "/mcp");
 		if (principal instanceof java.security.Principal p) {
@@ -35,9 +38,9 @@ class McpCallerTest {
 
 	@Test
 	void token의_sub와_client_id를_transport_context에_넣는다() {
-		McpTransportContext context = McpCaller.context(요청(인증("user", "local-mcp-client")));
+		McpTransportContext context = McpCaller.context(요청(인증("user", CLIENT_ID)));
 
-		assertThat(McpCaller.from(context)).isEqualTo(new McpCaller("user", "local-mcp-client"));
+		assertThat(McpCaller.from(context)).isEqualTo(new McpCaller("user", CLIENT_ID));
 	}
 
 	@Test
@@ -49,7 +52,7 @@ class McpCallerTest {
 
 	@Test
 	void sub가_없는_token이어도_context를_만들고_사용자는_없다() {
-		McpTransportContext context = McpCaller.context(요청(인증(null, "local-mcp-client")));
+		McpTransportContext context = McpCaller.context(요청(인증(null, CLIENT_ID)));
 
 		// 예외 없이 만들어져야 ToolVisibility가 사용자를 모르는 요청을 손님으로 다룰 수 있다.
 		assertThat(McpCaller.subject(context)).isEmpty();

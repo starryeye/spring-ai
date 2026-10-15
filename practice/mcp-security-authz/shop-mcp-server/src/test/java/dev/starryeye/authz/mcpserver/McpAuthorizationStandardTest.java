@@ -47,6 +47,7 @@ class McpAuthorizationStandardTest {
 	static final String ISSUER = "http://localhost:9030";
 	static final String RESOURCE = "http://localhost:8141/mcp";
 	static final String HOST = "localhost:8141";
+	static final String RESOURCE_METADATA = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
 	static final String KEY_ID = "test-key";
 
 	static final RSAKey KEY = rsaKey();
@@ -175,6 +176,35 @@ class McpAuthorizationStandardTest {
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
 						"Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\", scope=\"products:read\""));
+	}
+
+	/*
+	 * PRM의 resource와 401의 resource_metadata는 요청의 Host가 아니라 설정한 주소(audiences)로 만든다.
+	 * Host로 만들면 Host를 바꾼 요청에 다른 서버 주소를 광고하게 된다(reverse proxy 뒤에서는 scheme도 틀린다).
+	 */
+
+	@Test
+	void Host를_바꿔_불러도_PRM의_resource는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(RESOURCE));
+	}
+
+	@Test
+	void Host를_바꿔_불러도_401의_resource_metadata는_설정한_주소다() throws Exception {
+		// MCP endpoint 밖의 경로는 Host 검사(McpTransportSecurityFilter)를 거치지 않고 바로 401이 된다.
+		this.mockMvc.perform(get("/").header("Host", "evil.example"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						org.hamcrest.Matchers.containsString("resource_metadata=\"" + RESOURCE_METADATA + "\"")));
+	}
+
+	@Test
+	void 허용한_다른_Host로_불러도_401의_resource_metadata는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(mcp(null, null, HOST.replace("localhost", "127.0.0.1")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						org.hamcrest.Matchers.containsString("resource_metadata=\"" + RESOURCE_METADATA + "\"")));
 	}
 
 	@Test

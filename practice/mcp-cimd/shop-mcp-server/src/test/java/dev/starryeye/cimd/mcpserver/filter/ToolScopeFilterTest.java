@@ -1,6 +1,5 @@
 package dev.starryeye.cimd.mcpserver.filter;
 
-import dev.starryeye.cimd.mcpserver.repository.ProductRepository;
 import dev.starryeye.cimd.mcpserver.tool.ProductTools;
 import dev.starryeye.cimd.mcpserver.tool.ToolScopeRegistry;
 import dev.starryeye.cimd.mcpserver.tool.ToolVisibility;
@@ -22,6 +21,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -32,12 +35,32 @@ class ToolScopeFilterTest {
 
 	static final String METADATA = "http://localhost:8171/.well-known/oauth-protected-resource/mcp";
 
-	ToolScopeRegistry registry = ToolScopeRegistry.scan(new ProductTools(new ProductRepository()));
+	/** 본문 상한을 시험하는 filter의 상한이다. 기본 상한(1 MiB)보다 작게 두어 큰 본문을 만들지 않는다. */
+	static final int SMALL_LIMIT = 128;
+
+	/** 속도 제한의 Retry-After가 실행 속도에 따라 흔들리지 않도록 시간을 멈춘다. */
+	static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC);
+
+	ToolScopeFilter filter = filter(1024 * 1024);
+
+	static ToolScopeFilter filter(int maxBodyBytes) {
+		// 속도 제한은 따로 시험한다. 다른 시험이 걸리지 않도록 넉넉하게 둔다.
+		return filter(maxBodyBytes, 1000);
+	}
 
 	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
-	ToolScopeFilter filter = new ToolScopeFilter(registry,
-			new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)), JsonMapper.builder().build(),
-			request -> METADATA);
+	static ToolScopeFilter filter(int maxBodyBytes, int toolCallsPerMinute) {
+		ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class);
+		return new ToolScopeFilter(registry, new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)),
+				JsonMapper.builder().build(), METADATA, maxBodyBytes,
+				new ToolCallRateLimiter(toolCallsPerMinute, Duration.ofMinutes(1), FIXED_CLOCK));
+	}
+
+	/** {@code length} 바이트짜리 {@code tools/list} 본문이다. 끝의 공백으로 길이를 맞춘다. */
+	static String 길이를_맞춘_본문(int length) {
+		String head = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"";
+		return head + " ".repeat(length - head.length() - 1) + "}";
+	}
 
 	@AfterEach
 	void clear() {
@@ -81,6 +104,93 @@ class ToolScopeFilterTest {
 		public ServletInputStream getInputStream() {
 			throw new AssertionError("이 시점에는 본문을 읽으면 안 된다");
 		}
+	}
+
+	/** chunked 요청처럼 {@code Content-Length}로 길이를 미리 알 수 없는 요청이다. */
+	static final class 길이_모름 extends HttpServletRequestWrapper {
+
+		길이_모름(HttpServletRequest request) {
+			super(request);
+		}
+
+		@Override
+		public int getContentLength() {
+			return -1;
+		}
+
+		@Override
+		public long getContentLengthLong() {
+			return -1;
+		}
+	}
+
+	@Test
+	void Content_Length가_상한을_넘으면_본문을_읽지_않고_413이다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter(SMALL_LIMIT).doFilter(new 본문_읽기_금지(post(길이를_맞춘_본문(SMALL_LIMIT + 1))), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(413);
+		assertThat(response.getContentAsString()).contains("\"code\":-32600");
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void 길이를_모르는_본문도_상한을_넘게_읽히면_413이고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter(SMALL_LIMIT).doFilter(new 길이_모름(post(길이를_맞춘_본문(SMALL_LIMIT + 1))), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(413);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void 상한과_같은_크기의_본문은_그대로_넘긴다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		String body = 길이를_맞춘_본문(SMALL_LIMIT);
+
+		filter(SMALL_LIMIT).doFilter(new 길이_모름(post(body)), new MockHttpServletResponse(), chain);
+
+		assertThat(new String(chain.getRequest().getInputStream().readAllBytes(), StandardCharsets.UTF_8))
+				.isEqualTo(body);
+	}
+
+	@Test
+	void 사용자의_tools_call이_상한을_넘으면_429와_Retry_After로_답하고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+		ToolScopeFilter limited = filter(1024 * 1024, 1);
+		limited.doFilter(post(call("getStock")), new MockHttpServletResponse(), new MockFilterChain());
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		limited.doFilter(post(call("getStock")), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(429);
+		assertThat(response.getHeader("Retry-After")).isEqualTo("60");
+		assertThat(response.getContentAsString()).contains("\"code\":-32000");
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void tools_call이_아닌_요청과_scope가_모자라_거절한_호출은_세지_않는다() throws Exception {
+		로그인("products:read");
+		ToolScopeFilter limited = filter(1024 * 1024, 1);
+		limited.doFilter(post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"),
+				new MockHttpServletResponse(), new MockFilterChain());
+		MockHttpServletResponse denied = new MockHttpServletResponse();
+		limited.doFilter(post(call("updateStock")), denied, new MockFilterChain());
+		assertThat(denied.getStatus()).isEqualTo(403);
+		MockFilterChain chain = new MockFilterChain();
+
+		limited.doFilter(post(call("getStock")), new MockHttpServletResponse(), chain);
+
+		assertThat(chain.getRequest()).isNotNull();
 	}
 
 	@Test
@@ -160,11 +270,11 @@ class ToolScopeFilterTest {
 	/**
 	 * transport({@code StringHttpMessageConverter})는 잘못된 UTF-8 바이트를 예외 없이 대체 문자로 바꿔 읽는다.
 	 * 이 filter도 같은 방식으로 읽어야, 조회 scope만 있는 token이 이 바이트 하나로 재고 변경을 몰래 통과시키지 못한다.
-	 * (구조를 깨지 않는 위치의 대체라 JSON 자체는 여전히 유효하므로, 검사는 그대로 적용돼 403이 된다. 값에 따라
-	 * 대체가 구조를 깨면 400도 있을 수 있어 둘 다 허용한다.)
+	 * 입력 바이트는 고정이고, 대체 문자는 문자열 값 안에 들어가 JSON 구조를 깨지 않는다.
+	 * 그래서 결과는 늘 scope 검사의 {@code 403}이다. {@code 400}이 나오면 decode 규칙이 달라졌다는 뜻이니 실패해야 한다.
 	 */
 	@Test
-	void 유효하지_않은_UTF8_바이트가_섞인_본문도_403_또는_400이고_transport로_넘기지_않는다() throws Exception {
+	void 유효하지_않은_UTF8_바이트가_섞인_본문도_scope_검사를_받아_403이고_transport로_넘기지_않는다() throws Exception {
 		로그인("products:read");
 		MockFilterChain chain = new MockFilterChain();
 		MockHttpServletResponse response = new MockHttpServletResponse();
@@ -176,10 +286,8 @@ class ToolScopeFilterTest {
 
 		this.filter.doFilter(postBytes(bytes, "application/json"), response, chain);
 
-		assertThat(response.getStatus()).isIn(403, 400);
-		if (response.getStatus() == 403) {
-			assertThat(response.getHeader("WWW-Authenticate")).contains("scope=\"products:write\"");
-		}
+		assertThat(response.getStatus()).isEqualTo(403);
+		assertThat(response.getHeader("WWW-Authenticate")).contains("scope=\"products:write\"");
 		assertThat(chain.getRequest()).isNull();
 	}
 

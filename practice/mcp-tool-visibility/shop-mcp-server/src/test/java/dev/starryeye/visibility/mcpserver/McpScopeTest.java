@@ -74,6 +74,32 @@ class McpScopeTest {
 								+ "resource_metadata=\"http://localhost:8161/.well-known/oauth-protected-resource/mcp\""));
 	}
 
+	/** {@code 403}의 {@code resource_metadata}도 요청의 Host가 아니라 설정한 주소로 만든다. */
+	@Test
+	void 허용한_다른_Host로_불러도_403의_resource_metadata는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(post("/mcp")
+						.contentType(MediaType.APPLICATION_JSON)
+						.header("Accept", "application/json, text/event-stream")
+						.header("Host", McpAuthorizationStandardTest.HOST.replace("localhost", "127.0.0.1"))
+						.header("MCP-Protocol-Version", "2025-11-25")
+						.header("Authorization", "Bearer " + 토큰("products:read"))
+						.content(UPDATE_STOCK))
+				.andExpect(status().isForbidden())
+				.andExpect(header().string("WWW-Authenticate", containsString(
+						"resource_metadata=\"" + McpAuthorizationStandardTest.RESOURCE_METADATA + "\"")));
+	}
+
+	/** scope filter는 본문을 메모리에 올려 읽는다. 기본 상한 1 MiB를 넘는 본문은 읽기 전에 {@code 413}으로 끝낸다. */
+	@Test
+	void 본문이_기본_상한_1MiB를_넘으면_413이다() throws Exception {
+		String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"pad\":\""
+				+ "a".repeat(1024 * 1024) + "\"}}";
+
+		this.mockMvc.perform(mcp(토큰("products:read"), body))
+				.andExpect(status().is(413))
+				.andExpect(content().string(containsString("\"code\":-32600")));
+	}
+
 	@Test
 	void scope_없는_token은_initialize도_403이다() throws Exception {
 		this.mockMvc.perform(mcp(토큰(), McpAuthorizationStandardTest.INITIALIZE))

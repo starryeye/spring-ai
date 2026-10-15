@@ -30,6 +30,9 @@ public class McpProtocolVersionFilterConfig {
         FilterRegistrationBean<McpProtocolVersionFilter> registration =
                 new FilterRegistrationBean<>(new McpProtocolVersionFilter(jsonMapper));
         registration.addUrlPatterns(properties.getMcpEndpoint());
+        // 순서는 일부러 정하지 않는다. 기본값(Ordered.LOWEST_PRECEDENCE)이라
+        // Spring Security filter chain(SecurityFilterProperties.DEFAULT_FILTER_ORDER) 뒤에 돈다.
+        // 그래서 token이 없는 요청은 버전을 보기 전에 401을 받는다.
         return registration;
     }
 }
