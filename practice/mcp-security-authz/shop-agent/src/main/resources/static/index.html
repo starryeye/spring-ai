@@ -59,11 +59,31 @@
             ? `${tool}에 필요한 ${info.scope} 권한을 받지 못했습니다. 다시 요청하려면 아래 버튼을 누르세요.`
             : `${tool}을(를) 하려면 ${info.scope} 권한이 더 필요합니다. 허용하면 권한을 받은 뒤 질문을 다시 보냅니다.`;
         cardButton.textContent = declined ? '다시 요청' : '권한 허용';
-        cardButton.onclick = () => {
+        cardButton.onclick = declined ? () => retry(info.url, message) : () => {
             sessionStorage.setItem(PENDING, message);
             location.href = info.url;
         };
         card.hidden = false;
+    }
+
+    // "다시 요청"은 session의 시도 기록을 지우는 요청이라 POST와 CSRF header로 보낸다.
+    // 답으로 받은 authorization request 주소로 이동해 step-up을 처음부터 다시 시작한다.
+    async function retry(url, message) {
+        cardButton.disabled = true;
+        try {
+            const res = await fetch(url, {method: 'POST', headers: csrfHeaders()});
+            if (!res.ok) {
+                out.textContent = '오류: HTTP ' + res.status;
+                return;
+            }
+            const next = await res.json();
+            sessionStorage.setItem(PENDING, message);
+            location.href = next.url;
+        } catch (e) {
+            out.textContent = '오류: ' + e;
+        } finally {
+            cardButton.disabled = false;
+        }
     }
 
     async function ask() {
