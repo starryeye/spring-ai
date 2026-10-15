@@ -5,7 +5,10 @@ import org.junit.jupiter.api.Test;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -111,6 +114,30 @@ class ClientIdUrlValidatorTest {
 		byte[] publicMapped = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 93, (byte) 184, (byte) 216, 34 };
 		Inet6Address publicIPv6Mapped = Inet6Address.getByAddress(null, publicMapped, null);
 		assertThat(ClientIdUrlValidator.isInternal(publicIPv6Mapped)).isFalse();
+	}
+
+	@Test
+	void host_조회가_시간_제한을_넘으면_기다리지_않고_거절한다() {
+		// 문서 주소의 host는 client가 고른다. 응답이 느린 DNS를 가리키면 그동안 요청 thread가 묶인다.
+		CountDownLatch release = new CountDownLatch(1);
+		HostResolver slow = host -> {
+			try {
+				release.await(5, TimeUnit.SECONDS);
+			}
+			catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+			}
+			return new InetAddress[] { InetAddress.getByName("93.184.216.34") };
+		};
+		ClientIdUrlValidator validator = new ClientIdUrlValidator(null, slow, Duration.ofMillis(200));
+		long start = System.nanoTime();
+		try {
+			거절(validator, "https://slow.example/client.json", "시간");
+			assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(2));
+		}
+		finally {
+			release.countDown();
+		}
 	}
 
 	void 거절(String value, String reason) {

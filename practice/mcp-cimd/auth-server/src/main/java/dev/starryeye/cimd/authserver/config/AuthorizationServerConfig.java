@@ -206,7 +206,7 @@ public class AuthorizationServerConfig {
 
 	@Bean
 	public ClientIdUrlValidator clientIdUrlValidator(ClientIdMetadataDocumentProperties properties) {
-		return new ClientIdUrlValidator(properties.loopbackException(), HostResolver.SYSTEM);
+		return new ClientIdUrlValidator(properties.loopbackException(), HostResolver.SYSTEM, properties.connectTimeout());
 	}
 
 	/**

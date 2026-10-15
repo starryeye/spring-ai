@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -37,6 +38,13 @@ class HttpsClientMetadataFetcherTest {
 	AtomicInteger redirectTargetHits = new AtomicInteger();
 
 	CountDownLatch trickleWriteFailed = new CountDownLatch(1);
+
+	/** {@code /gate}는 이 latch가 열릴 때까지 응답하지 않는다. 가져오기가 진행 중인 상태를 만든다. */
+	CountDownLatch gate = new CountDownLatch(1);
+
+	AtomicInteger gateHits = new AtomicInteger();
+
+	ClientIdUrlValidator validator;
 
 	/** 기본 시간 제한으로 가져온다. 정상 응답을 받는 테스트는 느린 환경에서도 흔들리지 않아야 한다. */
 	HttpsClientMetadataFetcher fetcher;
@@ -94,21 +102,33 @@ class HttpsClientMetadataFetcherTest {
 				exchange.close();
 			}
 		});
+		this.server.createContext("/gate", exchange -> {
+			this.gateHits.incrementAndGet();
+			try {
+				this.gate.await(5, TimeUnit.SECONDS);
+			}
+			catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+			}
+			send(exchange, 200, "application/json", null, DOCUMENT);
+		});
 		this.server.start();
 		this.origin = "https://localhost:" + this.server.getAddress().getPort();
 
-		ClientIdUrlValidator validator = new ClientIdUrlValidator(this.origin, HostResolver.SYSTEM);
+		this.validator = new ClientIdUrlValidator(this.origin, HostResolver.SYSTEM);
+		ClientIdUrlValidator validator = this.validator;
 		this.fetcher = new HttpsClientMetadataFetcher(validator,
-				new ClientIdMetadataDocumentProperties(this.origin, 5120, null, null, null, null, null, null),
+				new ClientIdMetadataDocumentProperties(this.origin, 5120, null, null, null, null, null, null, null),
 				TestTls.client());
 		this.shortTimeoutFetcher = new HttpsClientMetadataFetcher(validator,
 				new ClientIdMetadataDocumentProperties(this.origin, 5120, null, Duration.ofMillis(500), null, null, null,
-						null),
+						null, null),
 				TestTls.client());
 	}
 
 	@AfterEach
 	void tearDown() {
+		this.gate.countDown();
 		this.server.stop(0);
 		this.executor.shutdownNow();
 	}
@@ -186,6 +206,72 @@ class HttpsClientMetadataFetcherTest {
 		assertThatExceptionOfType(InvalidClientMetadataException.class)
 				.isThrownBy(() -> this.fetcher.get(URI.create("https://localhost:1/oauth/client.json")))
 				.withMessageContaining("내부 주소");
+	}
+
+	/** 조건이 참이 될 때까지 최대 5초 기다린다. */
+	static void 기다린다(java.util.function.BooleanSupplier condition) throws InterruptedException {
+		long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+		while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+			Thread.sleep(10);
+		}
+	}
+
+	static boolean 기다리는_중이거나_끝났다(Thread thread) {
+		Thread.State state = thread.getState();
+		return state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING || state == Thread.State.TERMINATED;
+	}
+
+	@Test
+	void 같은_주소를_동시에_가져오면_요청은_한_번만_나간다() throws Exception {
+		URI uri = URI.create(this.origin + "/gate");
+		AtomicReference<FetchedDocument> first = new AtomicReference<>();
+		AtomicReference<FetchedDocument> second = new AtomicReference<>();
+		Thread leader = new Thread(() -> first.set(this.fetcher.get(uri)));
+		leader.start();
+		기다린다(() -> this.gateHits.get() == 1);
+
+		// 인증 없는 authorize 요청이 같은 문서 주소로 몰려도 문서 host에는 한 번만 간다.
+		Thread follower = new Thread(() -> second.set(this.fetcher.get(uri)));
+		follower.start();
+		기다린다(() -> 기다리는_중이거나_끝났다(follower));
+		this.gate.countDown();
+		leader.join(5000);
+		follower.join(5000);
+
+		assertThat(first.get()).isNotNull();
+		assertThat(second.get()).isNotNull();
+		assertThat(this.gateHits).hasValue(1);
+	}
+
+	@Test
+	void 함께_기다린_가져오기가_끝나면_다음_요청은_다시_가져온다() throws Exception {
+		// 실패를 cache하지 않는 규칙(CIMD §4.4)처럼, 끝난 결과는 다음 요청에 쓰지 않는다.
+		this.gate.countDown();
+		this.fetcher.get(URI.create(this.origin + "/gate"));
+		this.fetcher.get(URI.create(this.origin + "/gate"));
+
+		assertThat(this.gateHits).hasValue(2);
+	}
+
+	@Test
+	void 동시에_가져오는_수가_상한을_넘으면_기다리지_않고_바로_실패한다() throws Exception {
+		HttpsClientMetadataFetcher single = new HttpsClientMetadataFetcher(this.validator,
+				new ClientIdMetadataDocumentProperties(this.origin, 5120, null, null, null, null, null, null, 1),
+				TestTls.client());
+		Thread busy = new Thread(() -> single.get(URI.create(this.origin + "/gate")));
+		busy.start();
+		기다린다(() -> this.gateHits.get() == 1);
+
+		long start = System.nanoTime();
+		assertThatExceptionOfType(InvalidClientMetadataException.class)
+				.isThrownBy(() -> single.get(URI.create(this.origin + "/ok")))
+				.withMessageContaining("동시");
+		assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(1));
+
+		// 자리가 나면 다시 가져온다.
+		this.gate.countDown();
+		busy.join(5000);
+		assertThat(single.get(URI.create(this.origin + "/ok")).body()).isNotEmpty();
 	}
 
 	void 거절(String path, String reason) {

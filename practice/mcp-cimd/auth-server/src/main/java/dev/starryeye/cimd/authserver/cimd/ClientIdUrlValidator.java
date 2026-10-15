@@ -5,7 +5,16 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * CIMD 문서 주소(client_id)와 {@code jwks_uri}의 규칙을 검사한다.
@@ -18,17 +27,39 @@ import java.util.Arrays;
  * 그래서 주소가 내부망을 가리키면 거절한다(SSRF, CIMD draft §6.5).
  * 학습 환경의 agent 문서 host 하나만 예외로 둔다. 예외는 scheme·host·port가 모두 같을 때만 적용한다.
  * 검사한 뒤 실제로 연결할 때 DNS가 다른 주소를 돌려주는 경우(DNS rebinding)는 막지 않는다.
+ *
+ * <p>host 조회(DNS)에는 시간 제한을 둔다. host는 client가 고르므로, 응답이 느린 DNS 서버를 가리키면 요청 thread가 그동안 묶인다.
+ * JDK의 {@link InetAddress#getAllByName}에는 시간 제한이 없어서, 조회는 별도 thread에서 하고 기다리는 시간만 자른다.
+ * 시간을 넘긴 조회 thread는 OS의 조회가 끝날 때까지 남으므로, 조회 thread 수에도 상한을 두고 자리가 없으면 바로 실패한다.
  */
 public final class ClientIdUrlValidator {
+
+	/** 동시에 진행하는 host 조회 thread 수의 상한이다. 느린 DNS가 thread를 끝없이 늘리지 못하게 한다. */
+	private static final int MAX_RESOLVER_THREADS = 16;
+
+	private static final Duration DEFAULT_RESOLVE_TIMEOUT = Duration.ofSeconds(2);
 
 	private final URI loopbackException;
 
 	private final HostResolver resolver;
 
+	private final Duration resolveTimeout;
+
+	private final ExecutorService resolverThreads = new ThreadPoolExecutor(0, MAX_RESOLVER_THREADS, 30, TimeUnit.SECONDS,
+			new SynchronousQueue<>(), Thread.ofPlatform().name("cimd-dns-", 0).daemon().factory());
+
 	public ClientIdUrlValidator(String loopbackException, HostResolver resolver) {
+		this(loopbackException, resolver, DEFAULT_RESOLVE_TIMEOUT);
+	}
+
+	/**
+	 * @param resolveTimeout host 조회를 기다리는 시간. 설정의 연결 시간 제한({@code mcp.cimd.connect-timeout})과 같은 값을 쓴다
+	 */
+	public ClientIdUrlValidator(String loopbackException, HostResolver resolver, Duration resolveTimeout) {
 		this.loopbackException = (loopbackException == null || loopbackException.isBlank())
 				? null : URI.create(loopbackException);
 		this.resolver = resolver;
+		this.resolveTimeout = resolveTimeout;
 	}
 
 	public URI validate(String value) {
@@ -107,17 +138,35 @@ public final class ClientIdUrlValidator {
 	}
 
 	private void requirePublicAddress(URI uri) {
-		InetAddress[] addresses;
-		try {
-			addresses = this.resolver.resolve(uri.getHost());
-		}
-		catch (UnknownHostException ex) {
-			throw new InvalidClientMetadataException("host를 찾지 못했다: " + uri.getHost(), ex);
-		}
-		for (InetAddress address : addresses) {
+		for (InetAddress address : resolve(uri.getHost())) {
 			if (isInternal(address)) {
 				throw invalid("내부 주소(" + address.getHostAddress() + ")를 가리킨다", uri.toString());
 			}
+		}
+	}
+
+	private InetAddress[] resolve(String host) {
+		Future<InetAddress[]> lookup;
+		try {
+			lookup = this.resolverThreads.submit(() -> this.resolver.resolve(host));
+		}
+		catch (RejectedExecutionException ex) {
+			throw new InvalidClientMetadataException("host 조회가 상한(%d)만큼 밀려 있다: %s".formatted(MAX_RESOLVER_THREADS, host), ex);
+		}
+		try {
+			return lookup.get(this.resolveTimeout.toNanos(), TimeUnit.NANOSECONDS);
+		}
+		catch (TimeoutException ex) {
+			lookup.cancel(true);
+			throw new InvalidClientMetadataException("host 조회가 시간 제한(%s)을 넘었다: %s".formatted(this.resolveTimeout, host), ex);
+		}
+		catch (ExecutionException ex) {
+			throw new InvalidClientMetadataException("host를 찾지 못했다: " + host, ex.getCause());
+		}
+		catch (InterruptedException ex) {
+			lookup.cancel(true);
+			Thread.currentThread().interrupt();
+			throw new InvalidClientMetadataException("host를 찾지 못했다: " + host, ex);
 		}
 	}
 
