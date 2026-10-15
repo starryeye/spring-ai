@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -68,11 +69,14 @@ class ChatControllerTest {
 	@Autowired
 	ChatMemory chatMemory;
 
+	UserMcpClients.Lease lease = mock(UserMcpClients.Lease.class);
+
 	@BeforeEach
 	void setUp() {
 		this.chatMemory.clear("alice:default");
 		ToolCallbackProvider noTools = () -> new ToolCallback[0];
-		given(this.userMcpClients.toolsFor(any())).willReturn(noTools);
+		given(this.lease.tools()).willReturn(noTools);
+		given(this.userMcpClients.acquire(any())).willReturn(this.lease);
 		// ChatClient 가 Prompt 를 만들며 chatModel.getOptions() 를 부른다 — 기본 답변은 null 이라 NPE 가 난다.
 		given(this.chatModel.getOptions()).willReturn(ChatOptions.builder().build());
 		given(this.chatModel.stream(any(Prompt.class))).willReturn(
@@ -120,7 +124,20 @@ class ChatControllerTest {
 	void 요청한_사용자의_MCP_tool_을_넘긴다() throws Exception {
 		채팅("노트북 재고 있어?");
 
-		then(this.userMcpClients).should().toolsFor(argThat(user -> "alice".equals(user.getName())));
+		then(this.userMcpClients).should().acquire(argThat(user -> "alice".equals(user.getName())));
+	}
+
+	/** stream 이 끝나야 client 를 돌려준다. 돌려주지 않으면 logout 해도 그 client 는 닫히지 않는다. */
+	@Test
+	@WithMockUser(username = "alice")
+	void 채팅_stream_이_끝나면_빌린_MCP_client_를_돌려준다() throws Exception {
+		MvcResult started = this.mockMvc.perform(post("/api/chat").param("label", "default").content("노트북 재고 있어?")
+						.with(페이지의_CSRF_토큰()))
+				.andExpect(request().asyncStarted())
+				.andReturn();
+		this.mockMvc.perform(asyncDispatch(started)).andExpect(status().isOk());
+
+		then(this.lease).should().close();
 	}
 
 	@Test
