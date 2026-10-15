@@ -59,6 +59,12 @@ import java.util.stream.Collectors;
  * <p>scope 검사를 통과한 {@code tools/call}은 사용자({@code sub})마다 횟수를 센다({@link ToolCallRateLimiter}).
  * 상한(기본 분당 60회, {@code mcp.limits.tool-calls-per-minute})을 넘으면 {@code 429}와 {@code Retry-After}로 끝낸다.
  *
+ * <p>{@code tools/call}의 params가 SDK의 {@code CallToolRequest}로 바뀔 수 없는 모양이면(params가 object가 아니거나,
+ * {@code name}이 문자열이 아니거나, {@code arguments}·{@code _meta}가 object가 아니면) transport로 넘기지 않고
+ * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다. 넘기면 Spring AI 2.0.1 stateless transport가 {@code 500}과 함께
+ * 예외 객체를 본문에 써서 stack trace가 나간다. {@code name}을 문자열로만 받으면, SDK가 숫자·boolean 이름을 문자열로
+ * 바꾸는 것과 이 filter가 이름을 읽는 방식이 어긋날 일도 없다. 이 거절은 속도 제한에서 세지 않는다.
+ *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
  * transport(Spring AI 2.0.1의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
  * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
@@ -140,6 +146,12 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				return;
 			}
 
+			String malformed = isToolCall(message) ? malformedToolCall(message.get("params")) : null;
+			if (malformed != null) {
+				rejectBody(response, HttpServletResponse.SC_BAD_REQUEST, -32602, malformed);
+				return;
+			}
+
 			String tool = toolName(message);
 			// 숨긴 tool은 scope를 늘려도 쓸 수 없으니 step-up을 시작하면 안 된다.
 			// 그래서 scope를 보지 않고 transport로 넘겨, 정말 없는 tool과 같은 "모르는 tool" 응답을 받게 한다.
@@ -217,6 +229,29 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				.collect(Collectors.toCollection(TreeSet::new));
 	}
 
+	/**
+	 * {@code tools/call}의 params가 SDK의 {@code CallToolRequest}({@code name} 문자열, {@code arguments}·{@code _meta} object)로
+	 * 바뀔 수 있는 모양인지 본다. 바뀔 수 없으면 그 이유를, 바뀔 수 있으면 {@code null}을 돌려준다.
+	 * {@code arguments}·{@code _meta}는 없거나 {@code null}이어도 된다. SDK가 빈 값으로 처리한다.
+	 */
+	private static String malformedToolCall(JsonNode params) {
+		if (params == null || !params.isObject()) {
+			return "tools/call의 params는 object여야 합니다.";
+		}
+		JsonNode name = params.get("name");
+		if (name == null || !name.isString()) {
+			return "tools/call의 name은 문자열이어야 합니다.";
+		}
+		if (!absentOrObject(params.get("arguments")) || !absentOrObject(params.get("_meta"))) {
+			return "tools/call의 arguments와 _meta는 object여야 합니다.";
+		}
+		return null;
+	}
+
+	private static boolean absentOrObject(JsonNode node) {
+		return node == null || node.isNull() || node.isObject();
+	}
+
 	/** JSON-RPC {@code method}가 {@code tools/call}인지 본다. */
 	private static boolean isToolCall(JsonNode message) {
 		JsonNode method = message.get("method");
@@ -259,7 +294,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	/**
 	 * transport로 넘기지 않을 요청을 여기서 끝낸다.
-	 * 읽을 수 없는 본문은 {@code 400}, 상한을 넘는 본문은 {@code 413}, tool 호출 상한을 넘으면 {@code 429}다.
+	 * 읽을 수 없는 본문과 형식이 틀린 {@code tools/call}은 {@code 400}, 상한을 넘는 본문은 {@code 413},
+	 * tool 호출 상한을 넘으면 {@code 429}다.
 	 * 응답 본문은 id 없는 JSON-RPC 오류다.
 	 */
 	private void rejectBody(HttpServletResponse response, int status, int code, String message) throws IOException {

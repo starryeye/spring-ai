@@ -345,13 +345,82 @@ class ToolScopeFilterTest {
 		assertThat(chain.getRequest()).isNull();
 	}
 
+	/**
+	 * {@code tools/call}의 params가 SDK의 {@code CallToolRequest}로 바뀔 수 없는 모양이면 transport로 넘기지 않는다.
+	 * 넘기면 stateless transport가 {@code 500}과 함께 예외 객체(stack trace 포함)를 본문에 쓴다.
+	 */
+	static String 틀린_호출(String params) {
+		return "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":" + params + "}";
+	}
+
+	void 형식_오류로_끝낸다(ToolScopeFilter target, String body) throws Exception {
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		target.doFilter(post(body), response, chain);
+
+		assertThat(response.getStatus()).as(body).isEqualTo(400);
+		assertThat(response.getContentAsString()).as(body).contains("\"code\":-32602");
+		assertThat(chain.getRequest()).as(body).isNull();
+	}
+
 	@Test
-	void 이름_없는_tools_call은_기본_scope만_본다() throws Exception {
+	void 이름_없는_tools_call은_400이고_transport로_넘기지_않는다() throws Exception {
 		로그인("products:read");
+
+		형식_오류로_끝낸다(this.filter, 틀린_호출("{}"));
+	}
+
+	@Test
+	void tools_call의_params가_object가_아니면_400이고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+
+		형식_오류로_끝낸다(this.filter, "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\"}");
+		for (String params : List.of("null", "[]", "\"getStock\"", "1", "true")) {
+			형식_오류로_끝낸다(this.filter, 틀린_호출(params));
+		}
+	}
+
+	@Test
+	void tools_call의_name이_문자열이_아니면_400이고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+
+		for (String name : List.of("null", "[\"getStock\"]", "{\"a\":1}", "123", "true")) {
+			형식_오류로_끝낸다(this.filter, 틀린_호출("{\"name\":" + name + ",\"arguments\":{}}"));
+		}
+	}
+
+	@Test
+	void tools_call의_arguments나_meta가_object가_아니면_400이고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+
+		for (String value : List.of("[]", "\"p1\"", "1", "true")) {
+			형식_오류로_끝낸다(this.filter, 틀린_호출("{\"name\":\"getStock\",\"arguments\":" + value + "}"));
+			형식_오류로_끝낸다(this.filter,
+					틀린_호출("{\"name\":\"getStock\",\"arguments\":{\"productId\":\"p1\"},\"_meta\":" + value + "}"));
+		}
+	}
+
+	@Test
+	void arguments와_meta가_없거나_null이면_transport로_넘긴다() throws Exception {
+		로그인("products:read");
+
+		for (String params : List.of("{\"name\":\"getStock\"}", "{\"name\":\"getStock\",\"arguments\":null,\"_meta\":null}")) {
+			MockFilterChain chain = new MockFilterChain();
+			this.filter.doFilter(post(틀린_호출(params)), new MockHttpServletResponse(), chain);
+			assertThat(chain.getRequest()).as(params).isNotNull();
+		}
+	}
+
+	@Test
+	void 형식이_틀린_tools_call은_속도_제한에서_세지_않는다() throws Exception {
+		로그인("products:read");
+		ToolScopeFilter limited = filter(1024 * 1024, 1);
+		형식_오류로_끝낸다(limited, 틀린_호출("[]"));
+		형식_오류로_끝낸다(limited, 틀린_호출("{\"name\":123}"));
 		MockFilterChain chain = new MockFilterChain();
 
-		this.filter.doFilter(post("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{}}"),
-				new MockHttpServletResponse(), chain);
+		limited.doFilter(post(call("getStock")), new MockHttpServletResponse(), chain);
 
 		assertThat(chain.getRequest()).isNotNull();
 	}
