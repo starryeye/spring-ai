@@ -14,7 +14,7 @@
 
 | 절 | 공격 | 공격자 | 막는 것 |
 |---|---|---|---|
-| 8.2 | discovery SSRF, 위험한 authorization 주소 | 악성 MCP Server | issuer를 먼저 비교, endpoint 주소 확인 |
+| 8.2 | discovery SSRF, 위험한 authorization 주소 | 악성 MCP Server | `resource_metadata`의 origin 확인, issuer를 먼저 비교, endpoint 주소 확인 |
 | 8.3 | redirect URI 바꿔치기, code 가로채기 | 악성 링크, 같은 기기의 프로그램 | redirect URI 정확 비교, PKCE `S256` |
 | 8.4 | public client 사칭 | 같은 기기의 프로그램 | 매번 받는 consent |
 | 8.5 | mix-up | 악성 MCP Server | callback의 `iss` 확인 |
@@ -54,11 +54,14 @@ agent는 PRM이 알려 준 issuer가 credentials를 발급한 issuer와 같은�
 위 PRM의 `http://169.254.169.254`는 credentials를 발급한 issuer가 아니므로, 그 주소로는 요청이 나가지 않는다.
 metadata의 두 endpoint는 `https`이거나 loopback 주소의 `http`여야 해서, `javascript:`·`file:` 같은 주소가 오면 여기서 멈춘다.
 `401`의 `resource_metadata`는 issuer를 비교하기 전에 요청하는 주소다.
-이 주소는 사설 IP 차단과 egress proxy가 막고, official에는 둘 다 없다(8.12).
+그래서 agent는 이 주소가 설정한 MCP Server와 같은 origin(scheme·host·port)일 때만 따라간다.
+discovery의 HTTP 요청은 redirect를 따라가지 않으므로, 정상 주소가 내부망으로 redirect해도 따라가지 않는다.
+설정한 주소 자체가 내부망을 가리키는 경우는 사설 IP 차단과 egress proxy가 막고, official에는 둘 다 없다.
 
 **official에서**
 
-`McpAuthorizationDiscovery#discover`는 issuer를 비교한 뒤에야 metadata를 요청한다.
+`McpAuthorizationDiscovery#discover`는 `resource_metadata`의 origin을 먼저 보고, issuer를 비교한 뒤에야 metadata를 요청한다.
+HTTP 요청은 `McpAuthorizationDiscovery.requestFactory`가 만든 JDK `HttpClient`로 보내고, 이 client는 redirect를 따라가지 않게 정해 두었다.
 endpoint 주소는 `requireHttpUrl`이 확인한다.
 `local-client`의 `Discovery`도 같은 순서로 확인한다([7장](07-local-client.md)).
 
@@ -304,6 +307,7 @@ token은 사용자가 그 client에 맡긴 권한이고, MCP Server는 그 호�
 |---|---|---|
 | 최소 scope와 step-up | token에 쓰기 scope가 없으면 쓰기 호출은 `403`으로 끝나고, 쓰기 권한을 처음 쓸 때 사용자가 consent 화면을 본다([10장](10-scope-and-step-up.md)) | scope마다 한 번만 묻는다. 한 번 허락한 scope는 token에 남아, 그 뒤의 호출은 묻지 않는다 |
 | 역할별 tool 목록 | 사용자가 받을 수 없는 tool은 모델에게 보이지 않는다([12장](12-tool-visibility.md)) | 사용자가 쓸 수 있는 tool은 그대로 보인다 |
+| tool 호출 속도 제한 | MCP Server가 사용자마다 1분 동안 받는 `tools/call` 수를 제한한다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) | 상한 안의 호출은 그대로 실행되므로, 해로운 호출 몇 번은 막지 못한다 |
 | 호출마다 받는 확인 | client가 tool 이름과 인자를 사용자에게 보여 주고, 허락받은 뒤에 부른다 | client가 만들어야 하는 화면이다. 너무 자주 물으면 사용자가 내용을 보지 않고 허락한다 |
 | tool 결과 검사 | client가 tool 결과를 LLM에 넘기기 전에 검사한다 | 자연어에 숨긴 지시를 모두 걸러 낼 방법은 없다 |
 
@@ -315,6 +319,7 @@ tool의 `annotations`에 있는 `destructiveHint`(되돌릴 수 없는 작업인
 
 모든 practice의 agent는 호출마다 확인을 받지 않고, LLM이 고른 tool을 바로 부른다.
 `mcp-security-authz`부터는 쓰기 scope를 처음 쓸 때 consent 카드가 뜬다.
+같은 practice부터 MCP Server는 사용자마다 1분에 60번까지 `tools/call`을 받고, 넘으면 `429`로 답한다.
 그러나 카드는 tool 이름과 scope만 보여 주고 인자는 보여 주지 않는다([10장](10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드)).
 
 ## 8.11 서버에서 도는 agent의 token 보관과 폐기
@@ -355,7 +360,7 @@ MCP Server는 token을 검증만 하고 저장하지 않는다.
 |---|---|---|
 | HTTPS | 세 앱이 모두 `http://localhost`로 돈다 | 학습용으로 요청과 응답을 그대로 보려는 선택이다. 요청은 loopback 주소 안에서만 오간다 |
 | SSE event `id` | 응답 event의 `id`가 모두 session ID라서, 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([1장](01-mcp-basics.md)) | 값은 Spring AI의 `WebMvcStreamableServerTransportProvider`가 정한다. 이 클래스가 `final`이라 fork하지 않고는 바꿀 수 없다 |
-| 서버에서 도는 agent의 SSRF 대응 | `401`의 `resource_metadata` 주소는 확인 없이 요청한다. 사설 IP 차단과 egress proxy는 없고, redirect를 따라가지 않는 것은 classpath에서 고른 HTTP client의 기본값일 뿐이다 | 모든 구성 요소가 한 기기의 `localhost`에서 도는 학습 환경이다 |
+| tool 호출 속도 제한 | MCP Server가 사용자의 tool 호출 횟수를 세지 않는다 | official은 인증 흐름만 다루는 기준 practice다. tool 단위의 제한은 scope와 함께 `mcp-security-authz`부터 더한다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) |
 | agent가 앱 종료 때 보내는 session `DELETE`의 token | 앱이 끝날 때 agent가 보내는 session 종료 `DELETE`에는 token이 붙지 않아, MCP Server에 닿으면 `401`이다. session은 MCP Server가 내려갈 때까지 남는다 | token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`는 요청을 일으킨 사용자를 찾아 그 token을 고르는데, 앱이 끝날 때의 `DELETE`에는 그 사용자가 없다([6장](06-mcp-call-and-validation.md)) |
 
 항목별 전체 판정은 [준수표](reference-compliance.md)에 있다.
@@ -385,7 +390,8 @@ curl -si -b /tmp/agent-cookies.txt \
   "http://localhost:8110/login/oauth2/code/authserver?code=forged-code&state=$STATE&iss=http%3A%2F%2Fevil.example"
 ```
 
-응답 본문은 `로그인 실패: iss mismatch: expected http://localhost:9010 but got http://evil.example`이다.
+응답 본문은 `로그인 실패: invalid_request`이다.
+`logs/shop-agent.log`에는 `로그인 실패: iss mismatch: expected http://localhost:9010 but got http://evil.example`이 남는다.
 
 다른 공격은 앞 장에서 재현한다: `Origin`·`Host`와 ID token의 `aud`는 [6장](06-mcp-call-and-validation.md), 모르는 `resource`는 [5장](05-authorization-and-token.md), 다른 issuer는 [7장](07-local-client.md).
 
@@ -395,7 +401,7 @@ curl -si -b /tmp/agent-cookies.txt \
 - token은 `resource`와 `aud`로 한 MCP Server에 묶이고, MCP Server는 자기용 token만 받아 downstream으로 넘기지 않는다.
 - prompt injection에 속은 호출에도 사용자의 정상 token이 붙는다. OAuth의 장치는 피해 범위를 줄일 뿐이고, 호출마다 인자를 보여 주고 확인받는 일은 client가 맡는다.
 - 서버형 agent는 token을 사용자별로 나눠 암호화해 두고, 연결을 끊으면 폐기한다. official의 agent는 메모리에만 두고 폐기하지 않는다.
-- official은 HTTPS, SSE event `id`, agent의 SSRF 대응 일부, agent가 앱 종료 때 보내는 `DELETE`의 token을 지키지 못한다.
+- official은 HTTPS, SSE event `id`, tool 호출 속도 제한, agent가 앱 종료 때 보내는 `DELETE`의 token을 지키지 못한다.
 
 ## 8.16 명세 근거
 
@@ -415,6 +421,7 @@ curl -si -b /tmp/agent-cookies.txt \
 | SSE event에 `id`를 붙일 수 있고, 붙이면 session 안의 모든 stream에서 유일하다 | [MCP 2025-11-25 Transports — Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) | MAY, MUST |
 | tool 호출을 거부할 수 있는 사람이 늘 있게 한다. client는 민감한 작업 전에 확인받고, tool을 부르기 전에 인자를 보여 준다 | [MCP 2025-11-25 Tools — User Interaction Model](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#user-interaction-model), [Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations) | SHOULD |
 | client는 믿을 수 있는 서버가 준 것이 아니면 tool `annotations`를 믿지 않는다 | [MCP 2025-11-25 Tools — Tool](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#tool) | MUST |
+| 서버는 tool 호출 속도를 제한한다 | [MCP 2025-11-25 Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations) | MUST |
 | client와 서버는 token을 안전하게 보관한다. Authorization Server는 access token을 짧게 발급한다 | [MCP 2025-11-25 Authorization — Token Theft](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-theft), [OAuth 2.1 §7.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.1) | MUST, SHOULD |
 | client는 revocation endpoint로 refresh token이나 access token의 폐기를 요청할 수 있다 | [RFC 7009 §2](https://www.rfc-editor.org/rfc/rfc7009#section-2) | — |
 

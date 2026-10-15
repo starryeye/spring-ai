@@ -154,7 +154,8 @@ ChatGPT형의 assertion은 `aud`에 그 서버의 issuer 하나만 넣으므로,
 **남는 위험: discovery의 SSRF**
 
 issuer 비교는 PRM이 모르는 Authorization Server를 가리킬 때 metadata 요청까지 막아 주었다([8장](08-security.md)).
-이 비교가 없으므로 agent는 PRM의 `authorization_servers` 첫 값에 scheme과 host를 보지 않고 metadata를 요청하고, `401`의 `resource_metadata` 주소도 전처럼 확인 없이 요청한다.
+이 비교가 없으므로 agent는 PRM의 `authorization_servers` 첫 값에 scheme과 host를 보지 않고 metadata를 요청한다.
+`401`의 `resource_metadata`는 visibility처럼 MCP Server와 같은 origin일 때만 따라간다.
 악성 MCP Server는 이 자리에 내부망 주소를 넣어 agent가 그곳에 요청하게 만들 수 있으므로, 실제 배포라면 사설 주소로 가는 요청을 막는 egress proxy를 두거나 쓸 Authorization Server를 정한 목록으로 좁힌다.
 이 위험은 [부록: 명세 준수표](reference-compliance.md)의 SSRF 행에 남는다.
 
@@ -771,13 +772,18 @@ step-up의 token request도 같은 client를 쓰므로 assertion이 붙는다.
 ```java
 public OAuth2AuthorizedClient authorize(OAuth2AuthorizeRequest authorizeRequest) {
     String key = authorizeRequest.getClientRegistrationId() + ":" + authorizeRequest.getPrincipal().getName();
-    ReentrantLock lock = this.locks.computeIfAbsent(key, ignored -> new ReentrantLock());
-    lock.lock();
+    UserLock userLock = this.locks.compute(key, (ignored, existing) -> {   // 쓰는 요청 수를 하나 늘린다
+        UserLock current = (existing != null) ? existing : new UserLock();
+        current.users++;
+        return current;
+    });
+    userLock.lock.lock();
     try {
         return this.delegate.authorize(authorizeRequest);             // 만료됐으면 여기서 refresh한다
     }
     finally {
-        lock.unlock();
+        userLock.lock.unlock();
+        this.locks.computeIfPresent(key, (ignored, current) -> (--current.users == 0) ? null : current);
     }
 }
 ```
@@ -785,6 +791,7 @@ public OAuth2AuthorizedClient authorize(OAuth2AuthorizeRequest authorizeRequest)
 MCP 요청마다 token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`와 사용자별 tool 목록의 `UserToolCatalog`는 이 manager로 token을 꺼낸다.
 먼저 들어간 요청이 refresh해 저장하면, 기다리던 요청은 저장된 새 token을 받으므로 refresh는 한 번만 나간다(13.8).
 사용자가 다르면 서로 기다리지 않는다.
+쓰는 요청이 없어진 사용자의 lock은 map에서 지우므로, login했던 사용자 수만큼 lock이 쌓이지 않는다.
 
 ## 13.12 다루지 않는 것
 
@@ -795,7 +802,7 @@ MCP 요청마다 token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`와 �
 - client host 신뢰 정책: 허용 domain 목록이나 새 domain 경고 없이, 예외 주소 하나만 둔다.
 - `logo_uri`: consent 화면에 보여 주지 않고, 가져오지도 않는다.
 - DNS rebinding: 검사한 IP로 연결을 고정하지 않는다(13.5).
-- discovery의 SSRF: agent는 `resource_metadata`와 PRM이 가리킨 Authorization Server의 metadata를 주소 확인 없이 요청한다(13.4).
+- discovery의 SSRF: agent는 PRM이 가리킨 Authorization Server의 metadata를 주소 확인 없이 요청한다(13.4).
 - 기록의 보관: 버린 refresh token의 hash, 쓴 assertion의 `jti`, grant의 lock은 메모리에만 있어서 Authorization Server를 다시 띄우면 사라지고, 서버 여러 대 사이에서 나눠 쓰지 못한다.
 - 문서 가져오기의 속도 제한: 동시 상한과 같은 주소 합치기만 있고, client나 원격 IP별 속도 제한은 없다(13.5).
 - 공개 HTTPS 배포: 학습용 localhost에 머문다.

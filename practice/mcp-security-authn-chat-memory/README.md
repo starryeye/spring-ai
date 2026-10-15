@@ -159,7 +159,7 @@ official의 `OAuth2TokenAttachingRequestCustomizer`는 요청마다 transport co
 - client 하나에는 한 사용자의 token만 붙는다.
   한 session에 다른 사용자의 token이 섞이지 않는다.
 - reactor thread로 `SecurityContext`를 옮길 필요가 없다.
-  official의 `SecurityMcpTransportContextProvider`와 `Hooks.enableAutomaticContextPropagation()`은 이 practice에 없다.
+  official의 `SecurityMcpTransportContextProvider`와 `spring.reactor.context-propagation: auto` 설정은 이 practice에 없다.
 
 token을 찾는 manager는 official과 같은 `AuthorizedClientServiceOAuth2AuthorizedClientManager`다.
 이 manager는 servlet 요청 없이 `Authentication`만으로 token을 찾는다.

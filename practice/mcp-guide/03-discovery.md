@@ -186,7 +186,8 @@ client는 다음을 확인하고, 하나라도 어긋나면 더 진행하지 않
 마지막 항목의 이유와 규칙은 [4장](04-client-registration.md#47-credentials를-issuer에-묶기)에서 본다.
 이 확인은 SSRF도 일부 막는다.
 PRM이 모르는 Authorization Server를 가리키면 agent는 그 서버의 metadata도 요청하지 않으므로, 공격자가 `authorization_servers`에 내부망 주소를 넣어도 요청이 나가지 않는다.
-`401`의 `resource_metadata`는 이 확인보다 먼저 요청하는 주소라서, 이 확인으로는 막지 못한다([8장](08-security.md)).
+`401`의 `resource_metadata`는 이 확인보다 먼저 요청하는 주소라서, 이 확인으로는 막지 못한다.
+그래서 agent는 이 주소가 설정한 MCP Server와 같은 origin(scheme·host·port)일 때만 따라간다([8장](08-security.md)).
 
 ## 3.7 official 코드에서 보기
 
@@ -223,14 +224,15 @@ mcp:
 
 ```java
 public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
-    // 1~2단계: 401 → PRM. resource가 resourceUrl과 다르면 여기서 예외
+    // 1~2단계: 401 → PRM. resource_metadata가 다른 origin이거나 resource가 resourceUrl과 다르면 여기서 예외
     Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl);
 
-    String issuer = /* authorization_servers의 첫 값 */;
-    if (!trustedIssuer.equals(issuer)) {
-        // credentials를 발급한 곳이 아니면 metadata도 요청하지 않는다
+    List<?> servers = /* authorization_servers */;
+    if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
+        // 목록 어디에도 credentials를 발급한 곳이 없으면 metadata도 요청하지 않는다
         throw new McpDiscoveryException(...);
     }
+    String issuer = trustedIssuer;                // 목록의 순서가 아니라 credentials가 issuer를 정한다
     // 3단계: metadata. issuer 일치, S256, endpoint 주소 형식을 확인한다
     return new DiscoveredAuthorization(..., issuer, authorizationServerMetadata(issuer));
 }
@@ -238,6 +240,12 @@ public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer
 
 discovery는 첫 login 때 한 번 하고, 성공한 결과만 기억해 둔다(`DiscoveredClientRegistrationRepository`).
 agent를 띄울 때 MCP Server가 아직 꺼져 있어도 괜찮은 이유가 이것이다.
+
+login page를 여는 요청도 discovery 결과가 있어야 authorization request를 만들 수 있다.
+그래서 MCP Server가 느려도 요청 thread가 오래 묶이지 않게 한다.
+discovery는 별도 thread에서 한 번만 돌고, 동시에 온 요청은 같은 결과를 기다린다.
+요청은 15초까지만 기다리고, discovery가 실패하면 10초 동안은 다시 시도하지 않고 바로 실패한다.
+discovery의 HTTP 요청은 연결에 2초, 응답에 5초까지 기다리고 redirect는 따라가지 않는다.
 
 ## 3.8 직접 해 보기
 

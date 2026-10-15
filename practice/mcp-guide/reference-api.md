@@ -249,6 +249,8 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | `Origin`이 있음(official은 허용한 `Origin`이 없다) | `403` MUST — `Invalid Origin header`(C13). token과 상관없이 인증 전에 나온다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) |
 | scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음. authz는 이 `403`을 보내고, `scope`에는 모자란 scope만 넣는다(A6 `scope="products:write"`, [준수표](reference-compliance.md#mcp-security-authz에서-달라지는-행)) | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
 | 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| 본문이 상한(`mcp.limits.max-request-body`, 기본 1MB)을 넘음 | authz부터 `413`, `id` 없는 JSON-RPC 오류 `-32600`. `Content-Length`가 넘으면 본문을 읽지 않는다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) | 명세 범위 밖 — 서버의 자원 보호 |
+| 한 사용자의 `tools/call`이 1분에 상한(`mcp.limits.tool-calls-per-minute`, 기본 60)을 넘음 | authz부터 `429`와 `Retry-After`(초), `id` 없는 JSON-RPC 오류 `-32000`. scope 검사에서 `403`으로 끝난 호출은 세지 않는다 | 속도 제한 MUST ([Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations)) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
@@ -822,7 +824,7 @@ client는 `iss`가 기록해 둔 issuer와 다르거나, `authorization_response
 
 | client | 확인 순서 | 거부할 때 |
 |---|---|---|
-| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르면 `401` `로그인 실패: iss mismatch: ...`(S18), 없으면 `401` `로그인 실패: iss is missing ...`(S19)이고, code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
+| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르거나(S18) 없으면(S19) `401`이고, 본문은 `로그인 실패: invalid_request`다. 자세한 이유(`iss mismatch: ...`, `iss is missing ...`)는 agent 로그에만 남고, code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
 | `local-client` | `state` → `iss` → `error` → `code`(`AuthorizationResponse`) | `실패:`로 시작하는 한 줄을 찍고 끝난다([7장](07-local-client.md)) |
 
 관측: S20의 agent 정상 왕복에도 `iss`가 있다.

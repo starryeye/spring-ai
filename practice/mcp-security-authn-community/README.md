@@ -124,7 +124,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 | `McpSecurityConfig` | transport customizer와 context provider는 module이 등록한다 | discovery, client 등록 정보, token request client, `DefaultOAuth2AuthorizedClientManager`만 등록한다. module customizer가 servlet 요청을 함께 넘기므로 요청을 보는 manager를 쓴다 |
 | `OAuth2TokenAttachingRequestCustomizer` | `HttpClientStreamableHttpTransportAutoConfiguration`이 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`를 transport에 넣는다 | 없음 |
 | `SecurityMcpTransportContextProvider` | `McpOAuth2ClientAutoConfiguration`이 `AuthenticationMcpTransportContextProvider`를 MCP client에 넣는다 | 없음 |
-| `ShopAgentApplication`의 `Hooks.enableAutomaticContextPropagation()` | `AuthenticationMcpTransportContextProvider.writeToReactorContext()` | `ChatController`가 `.contextWrite(...)`로 요청 thread의 인증을 reactor context에 넣는다 |
+| `application.yml`의 `spring.reactor.context-propagation: auto` | `AuthenticationMcpTransportContextProvider.writeToReactorContext()` | `ChatController`가 `.contextWrite(...)`로 요청 thread의 인증을 reactor context에 넣는다 |
 | `SecurityConfig`, `ResourceIndicators`, `AuthorizationResponseIssuerFilter`, `LoginFailureHandler` | 이 practice가 쓰는 자동 구성은 login과 authorization request를 다루지 않는다 | 같은 클래스 |
 | `DiscoveredAuthorization`, `McpAuthorizationProperties`, `McpDiscoveryException`, `ChatClientConfig` | 없음 | 같은 클래스 |
 
@@ -204,13 +204,13 @@ session을 사용자에 묶지 않는 28번 행은 이유가 official과 같아�
 |---|---|---|
 | 8 | token audience 검증 | 비교할 `aud`를 요청 URL로 계산한다. 그래서 `Host` 검사가 먼저 온다([Host 검증과 audience 계산](#host-검증과-audience-계산)) |
 | 11 | `Origin`·`Host` 검사 | module의 `OriginValidationFilter`가 filter chain 안, 인증 filter 앞에서 검사한다. 허용 `Origin`은 `http://localhost:8101` 하나다 |
-| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM을 요청하기 전에 그 URL을 URL 검증기로 확인한다. 검증기는 scheme과 경로의 `..`만 보고, 사설 IP는 막지 않는다 |
+| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM을 요청하기 전에 그 URL을 URL 검증기로 확인한다. 검증기는 scheme과 경로의 `..`만 보므로, origin 확인은 module의 두 단계 사이에서 `McpAuthorizationDiscovery`가 한다 |
 | 36 | 모든 MCP 요청의 `Authorization` header | module의 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`는 transport context에 `Authentication`과 servlet 요청이 모두 있어야 token을 붙인다. 앱이 끝날 때 나가는 session 종료 `DELETE`에는 둘 다 없어 token 없이 나간다 |
 
 27번의 URL 검증기는 `shop-agent`의 `McpSecurityConfig`가 정한다.
 이 practice는 모든 앱이 `http://localhost`에서 돌아서, loopback 주소의 `http`도 받는 `DefaultUrlValidator(true)`를 넘긴다.
 module의 기본값 `DefaultUrlValidator()`는 `https`만 받으므로, 운영에서는 기본값을 쓴다.
-official의 agent는 PRM URL을 확인 없이 요청한다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#812-official이-지키지-못한-것)).
+official의 agent는 scheme 검증기 없이, `resource_metadata`가 MCP Server와 같은 origin인지만 본다([8장 discovery SSRF](../mcp-guide/08-security.md#82-discovery-ssrf와-위험한-authorization-주소)).
 session 종료 `DELETE`에 token을 붙이는 방법은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md#token을-client-주인에게-묶는-이유)에 있다.
 
 ## 실행
