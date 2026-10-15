@@ -34,7 +34,11 @@ public class Discovery {
 
 	private static final Pattern SCOPE = Pattern.compile("(?<![A-Za-z_])scope=\"([^\"]*)\"");
 
-	private static final Pattern LOOPBACK_IPV4 = Pattern.compile("127(\\.\\d{1,3}){3}");
+	/** IPv4 literal의 한 자리(0~255)다. */
+	private static final String OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
+
+	/** 127.0.0.0/8. */
+	private static final Pattern LOOPBACK_IPV4 = Pattern.compile("127\\." + OCTET + "\\." + OCTET + "\\." + OCTET);
 
 	private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
 
@@ -182,7 +186,11 @@ public class Discovery {
 		return url;
 	}
 
-	private static boolean isLoopback(String host) {
+	/**
+	 * {@code localhost}, 127.0.0.0/8의 IPv4 literal, {@code ::1}이면 loopback이다.
+	 * agent의 {@code McpAuthorizationDiscovery}와 같은 규칙이다. DNS를 조회하지 않고 host 문자열로만 본다.
+	 */
+	static boolean isLoopback(String host) {
 		String lower = host.toLowerCase(Locale.ROOT);
 		return "localhost".equals(lower) || "[::1]".equals(lower) || "::1".equals(lower)
 				|| LOOPBACK_IPV4.matcher(lower).matches();
