@@ -8,6 +8,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -215,7 +216,20 @@ class McpAuthorizationDiscoveryTest {
         this.server.expect(requestTo(RESOURCE)).andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError());
 
+        // module 이 올린 예외를 원인으로 남겨야 stack trace 에서 어디서 실패했는지 찾을 수 있다.
         assertThatExceptionOfType(McpDiscoveryException.class)
-                .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER));
+                .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+                .withCauseInstanceOf(RestClientException.class);
+    }
+
+    @Test
+    void 인가_서버_메타데이터를_읽지_못하면_원인을_담아_실패한다() {
+        챌린지();
+        응답("http://localhost:8101/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+        응답("http://localhost:9000/.well-known/oauth-authorization-server", "{");
+
+        assertThatExceptionOfType(McpDiscoveryException.class)
+                .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+                .withCauseInstanceOf(RestClientException.class);
     }
 }

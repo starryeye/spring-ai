@@ -59,7 +59,7 @@ public class McpAuthorizationDiscovery {
         catch (IllegalStateException | RestClientException ex) {
             // 모듈은 resource 불일치·metadata 없음을 IllegalStateException 으로, 401 이 아닌 오류 응답을
             // RestClientException 으로 올린다.
-            throw new McpDiscoveryException("보호 리소스 메타데이터를 얻지 못했다: " + ex.getMessage());
+            throw new McpDiscoveryException("보호 리소스 메타데이터를 얻지 못했다: " + ex.getMessage(), ex);
         }
 
         List<String> servers = protectedResource.authorizationServers();
@@ -145,10 +145,15 @@ public class McpAuthorizationDiscovery {
     }
 
     private Map<String, Object> json(String url) {
-        return this.restClient.get()
-                .uri(url)
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange((request, response) -> response.getStatusCode().is2xxSuccessful()
-                        ? response.bodyTo(JSON_OBJECT) : null);
+        try {
+            return this.restClient.get()
+                    .uri(url)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .exchange((request, response) -> response.getStatusCode().is2xxSuccessful()
+                            ? response.bodyTo(JSON_OBJECT) : null);
+        }
+        catch (RestClientException ex) {
+            throw new McpDiscoveryException("%s 를 읽지 못했다: %s".formatted(url, ex.getMessage()), ex);
+        }
     }
 }

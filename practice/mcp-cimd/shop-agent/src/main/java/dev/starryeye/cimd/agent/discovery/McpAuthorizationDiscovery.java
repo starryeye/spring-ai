@@ -5,6 +5,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.net.URI;
 import java.util.List;
@@ -148,24 +149,29 @@ public class McpAuthorizationDiscovery {
 	}
 
 	private Challenge challenge(String resourceUrl) {
-		return this.restClient.post()
-				.uri(resourceUrl)
-				.contentType(MediaType.APPLICATION_JSON)
-				.accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
-				.body(INITIALIZE)
-				.exchange((request, response) -> {
-					if (response.getStatusCode().value() != 401) {
-						throw new McpDiscoveryException("토큰 없는 요청에 401 이 아니라 %s 가 왔다: %s"
-								.formatted(response.getStatusCode(), resourceUrl));
-					}
-					String header = response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE);
-					if (header == null) {
-						return new Challenge(null, null);
-					}
-					Matcher metadata = RESOURCE_METADATA.matcher(header);
-					Matcher scope = SCOPE.matcher(header);
-					return new Challenge(metadata.find() ? metadata.group(1) : null, scope.find() ? scope.group(1) : null);
-				});
+		try {
+			return this.restClient.post()
+					.uri(resourceUrl)
+					.contentType(MediaType.APPLICATION_JSON)
+					.accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
+					.body(INITIALIZE)
+					.exchange((request, response) -> {
+						if (response.getStatusCode().value() != 401) {
+							throw new McpDiscoveryException("토큰 없는 요청에 401 이 아니라 %s 가 왔다: %s"
+									.formatted(response.getStatusCode(), resourceUrl));
+						}
+						String header = response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE);
+						if (header == null) {
+							return new Challenge(null, null);
+						}
+						Matcher metadata = RESOURCE_METADATA.matcher(header);
+						Matcher scope = SCOPE.matcher(header);
+						return new Challenge(metadata.find() ? metadata.group(1) : null, scope.find() ? scope.group(1) : null);
+					});
+		}
+		catch (RestClientException ex) {
+			throw new McpDiscoveryException("%s 에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
+		}
 	}
 
 	private Map<String, Object> authorizationServerMetadata(String issuer, ClientAuthenticationMethod authenticationMethod) {
@@ -251,11 +257,16 @@ public class McpAuthorizationDiscovery {
 	}
 
 	private Map<String, Object> json(String url) {
-		return this.restClient.get()
-				.uri(url)
-				.accept(MediaType.APPLICATION_JSON)
-				.exchange((request, response) -> response.getStatusCode().is2xxSuccessful()
-						? response.bodyTo(JSON_OBJECT) : null);
+		try {
+			return this.restClient.get()
+					.uri(url)
+					.accept(MediaType.APPLICATION_JSON)
+					.exchange((request, response) -> response.getStatusCode().is2xxSuccessful()
+							? response.bodyTo(JSON_OBJECT) : null);
+		}
+		catch (RestClientException ex) {
+			throw new McpDiscoveryException("%s 를 읽지 못했다: %s".formatted(url, ex.getMessage()), ex);
+		}
 	}
 
 	private static String origin(URI uri) {

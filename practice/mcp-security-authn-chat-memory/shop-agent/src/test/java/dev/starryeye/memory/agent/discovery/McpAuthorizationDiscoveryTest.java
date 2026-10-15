@@ -6,6 +6,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -210,5 +211,17 @@ class McpAuthorizationDiscoveryTest {
         assertThat(this.discovery.discover(RESOURCE, ISSUER).authorizationEndpoint())
                 .isEqualTo("https://auth.example/oauth2/authorize");
         this.server.verify();
+    }
+
+    @Test
+    void 응답을_읽지_못하면_원인을_담아_실패한다() {
+        // 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
+        String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
+        챌린지("Bearer resource_metadata=\"" + prm + "\"");
+        응답(prm, "{");
+
+        assertThatExceptionOfType(McpDiscoveryException.class)
+                .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+                .withCauseInstanceOf(RestClientException.class);
     }
 }
