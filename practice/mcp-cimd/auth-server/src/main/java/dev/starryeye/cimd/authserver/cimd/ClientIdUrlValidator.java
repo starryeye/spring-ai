@@ -1,5 +1,6 @@
 package dev.starryeye.cimd.authserver.cimd;
 
+import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URI;
@@ -38,6 +39,18 @@ public final class ClientIdUrlValidator {
 	private static final int MAX_RESOLVER_THREADS = 16;
 
 	private static final Duration DEFAULT_RESOLVE_TIMEOUT = Duration.ofSeconds(2);
+
+	/** {@code 64:ff9b::/96}. 앞 12 byte가 정해져 있고, 마지막 4 byte가 IPv4 주소다. */
+	private static final byte[] NAT64_WELL_KNOWN = { 0, 0x64, (byte) 0xff, (byte) 0x9b, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+	/** {@code 64:ff9b:1::/48}. */
+	private static final byte[] NAT64_LOCAL_USE = { 0, 0x64, (byte) 0xff, (byte) 0x9b, 0, 1 };
+
+	/** {@code 2002::/16}. */
+	private static final byte[] SIX_TO_FOUR = { 0x20, 0x02 };
+
+	/** {@code 2001::/32}. */
+	private static final byte[] TEREDO = { 0x20, 0x01, 0, 0 };
 
 	private final URI loopbackException;
 
@@ -94,14 +107,29 @@ public final class ClientIdUrlValidator {
 		return uri;
 	}
 
-	/** loopback·사설·link-local·any-local·multicast·IPv6 고유 주소(fc00::/7)면 내부 주소다. */
+	/**
+	 * 문서 host로 쓰면 안 되는 주소인지 본다.
+	 *
+	 * <p>loopback·사설(RFC 1918)·link-local·any-local·multicast에 더해 다음 대역을 막는다.
+	 * IPv4: {@code 0.0.0.0/8}(이 네트워크), {@code 100.64.0.0/10}(CGNAT 공유 주소. 일부 cloud의 metadata 주소가 있다),
+	 * {@code 192.0.0.0/24}(IETF 프로토콜 할당), {@code 198.18.0.0/15}(benchmark), {@code 240.0.0.0/4}(예약, broadcast 포함).
+	 * IPv6: {@code fc00::/7}(고유 주소), IPv4-mapped 주소의 IPv4, 그리고 IPv4 주소를 안에 담는 변환 대역
+	 * {@code 64:ff9b::/96}·{@code 64:ff9b:1::/48}(NAT64), {@code 2002::/16}(6to4), {@code 2001::/32}(Teredo).
+	 * 변환 대역은 담긴 IPv4가 내부 주소여도 겉으로는 공개 IPv6처럼 보이므로 대역 전체를 막는다.
+	 *
+	 * <p>이 blocklist는 완전하지 않다. 대역은 계속 생기고, 검사한 뒤 연결할 때 DNS가 다른 주소를 줄 수도 있다(DNS rebinding).
+	 * 운영에서는 내부망으로 나갈 수 없는 egress proxy를 거치게 하거나, 검사한 주소로 연결을 고정하는 방법을 쓴다.
+	 */
 	static boolean isInternal(InetAddress address) {
 		if (address.isLoopbackAddress() || address.isSiteLocalAddress() || address.isLinkLocalAddress()
 				|| address.isAnyLocalAddress() || address.isMulticastAddress()) {
 			return true;
 		}
+		byte[] bytes = address.getAddress();
+		if (address instanceof Inet4Address) {
+			return isReservedIPv4(bytes);
+		}
 		if (address instanceof Inet6Address) {
-			byte[] bytes = address.getAddress();
 			// IPv4-mapped IPv6 주소(::ffff:a.b.c.d)는 내부 IPv4를 가리킬 수 있다.
 			if (isIPv4MappedIPv6(bytes)) {
 				try {
@@ -115,9 +143,26 @@ public final class ClientIdUrlValidator {
 				}
 			}
 			// IPv6 고유 주소는 isSiteLocalAddress가 잡지 않는다.
-			return (bytes[0] & 0xfe) == 0xfc;
+			return (bytes[0] & 0xfe) == 0xfc
+					|| startsWith(bytes, NAT64_WELL_KNOWN) || startsWith(bytes, NAT64_LOCAL_USE)
+					|| startsWith(bytes, SIX_TO_FOUR) || startsWith(bytes, TEREDO);
 		}
 		return false;
+	}
+
+	private static boolean isReservedIPv4(byte[] bytes) {
+		int first = bytes[0] & 0xff;
+		int second = bytes[1] & 0xff;
+		int third = bytes[2] & 0xff;
+		return first == 0
+				|| (first == 100 && (second & 0xc0) == 64)
+				|| (first == 192 && second == 0 && third == 0)
+				|| (first == 198 && (second & 0xfe) == 18)
+				|| (first & 0xf0) == 0xf0;
+	}
+
+	private static boolean startsWith(byte[] bytes, byte[] prefix) {
+		return Arrays.equals(bytes, 0, prefix.length, prefix, 0, prefix.length);
 	}
 
 	/** 첫 10바이트가 0이고 10-11 바이트가 0xff면 IPv4-mapped IPv6 주소다. */
