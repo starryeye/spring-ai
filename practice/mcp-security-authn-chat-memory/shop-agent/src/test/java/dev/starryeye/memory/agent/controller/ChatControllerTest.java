@@ -140,6 +140,16 @@ class ChatControllerTest {
 		then(this.lease).should().close();
 	}
 
+	/** {@code /api/chat} 도 CSRF 예외가 없다. 토큰 없이 보내면 controller 까지 가지 않는다. */
+	@Test
+	@WithMockUser(username = "alice")
+	void CSRF_토큰_없이_채팅하면_403() throws Exception {
+		this.mockMvc.perform(post("/api/chat").param("label", "default").content("안녕"))
+				.andExpect(status().isForbidden());
+
+		then(this.userMcpClients).shouldHaveNoInteractions();
+	}
+
 	@Test
 	@WithMockUser(username = "alice")
 	void 로그아웃하면_그_사용자의_MCP_client_를_닫는다() throws Exception {
