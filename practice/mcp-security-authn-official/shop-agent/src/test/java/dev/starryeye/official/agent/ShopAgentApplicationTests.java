@@ -4,25 +4,39 @@ import dev.starryeye.official.agent.config.McpSecurityConfig;
 import dev.starryeye.official.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.official.agent.discovery.McpAuthorizationDiscovery;
 
-import io.modelcontextprotocol.client.McpClient;
+import com.sun.net.httpserver.HttpServer;
+import io.modelcontextprotocol.client.McpSyncClient;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.ApplicationContext;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrlPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,6 +44,40 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class ShopAgentApplicationTests {
+
+    /** 가짜 MCP Server가 받은 {@code Authorization} header다. */
+    static final List<String> RECEIVED_AUTHORIZATION = new CopyOnWriteArrayList<>();
+
+    /** MCP client가 실제로 보내는 요청을 받아 보는 가짜 MCP Server다. 무엇을 받든 401로 답한다. */
+    static final HttpServer FAKE_MCP_SERVER = startFakeMcpServer();
+
+    static HttpServer startFakeMcpServer() {
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            server.createContext("/mcp", exchange -> {
+                String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+                RECEIVED_AUTHORIZATION.add((authorization != null) ? authorization : "(없음)");
+                exchange.sendResponseHeaders(401, -1);
+                exchange.close();
+            });
+            server.start();
+            return server;
+        }
+        catch (IOException ex) {
+            throw new UncheckedIOException(ex);
+        }
+    }
+
+    @DynamicPropertySource
+    static void 가짜_MCP_Server_로_연결한다(DynamicPropertyRegistry registry) {
+        registry.add("spring.ai.mcp.client.streamable-http.connections.shop.url",
+                () -> "http://127.0.0.1:" + FAKE_MCP_SERVER.getAddress().getPort());
+    }
+
+    @AfterAll
+    static void 가짜_MCP_Server_를_멈춘다() {
+        FAKE_MCP_SERVER.stop(0);
+    }
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     McpAuthorizationDiscovery discovery;
@@ -53,7 +101,10 @@ class ShopAgentApplicationTests {
     OAuth2AuthorizedClientManager authorizedClientManager;
 
     @Autowired
-    ApplicationContext applicationContext;
+    OAuth2AuthorizedClientService authorizedClientService;
+
+    @Autowired
+    List<McpSyncClient> mcpSyncClients;
 
     @Test
     void contextLoads() {
@@ -103,7 +154,7 @@ class ShopAgentApplicationTests {
     @Test
     void reactor_의_다른_thread_에서도_SecurityContext_가_이어진다() {
         SecurityContextHolder.getContext().setAuthentication(
-                UsernamePasswordAuthenticationToken.authenticated("alice", null, java.util.List.of()));
+                UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
         try {
             String user = Mono.just("tool call")
                     .publishOn(Schedulers.boundedElastic())
@@ -123,11 +174,31 @@ class ShopAgentApplicationTests {
         return (authentication != null) ? authentication.getName() : "(없음)";
     }
 
+    /**
+     * customizer bean이 있는지가 아니라, 자동 구성이 만든 {@link McpSyncClient}가 보내는 요청에
+     * 로그인한 사용자의 token이 실제로 실리는지 본다. {@code type: ASYNC}로 바꾸거나 customizer가 빠지면
+     * 오류 없이 token만 빠져 MCP Server가 401을 준다(6장 "조용히 401").
+     */
     @Test
     void MCP_클라이언트에_인증_커스터마이저가_꽂힌다() {
-        assertThat(applicationContext.getBeansOfType(
-                org.springframework.ai.mcp.customizer.McpClientCustomizer.class))
-                .hasSizeGreaterThanOrEqualTo(2);
+        Authentication alice = UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of());
+        Instant now = Instant.now();
+        this.authorizedClientService.saveAuthorizedClient(new OAuth2AuthorizedClient(
+                this.clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID), "alice",
+                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "alice-access-token", now,
+                        now.plusSeconds(300))), alice);
+        assertThat(this.mcpSyncClients).hasSize(1);
+
+        SecurityContextHolder.getContext().setAuthentication(alice);
+        try {
+            // 가짜 MCP Server는 401로 답하므로 initialize는 실패한다. 보낸 요청의 header만 본다.
+            catchThrowable(() -> this.mcpSyncClients.get(0).initialize());
+        }
+        finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        assertThat(RECEIVED_AUTHORIZATION).contains("Bearer alice-access-token");
     }
 
     /**
