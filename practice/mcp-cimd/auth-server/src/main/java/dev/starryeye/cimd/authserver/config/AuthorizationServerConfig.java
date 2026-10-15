@@ -17,12 +17,15 @@ import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthentica
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationProvider;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenGenerator;
 import dev.starryeye.cimd.authserver.security.RedirectUriRequiredValidator;
+import dev.starryeye.cimd.authserver.security.RefreshLockReleasingFilter;
 import dev.starryeye.cimd.authserver.security.RefreshTokenReuseDetectingAuthorizationService;
 import dev.starryeye.cimd.authserver.security.ResourceAudienceTokenCustomizer;
 import dev.starryeye.cimd.authserver.security.ResourceIndicatorValidator;
 import dev.starryeye.cimd.authserver.web.ConsentController;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.ssl.SslBundles;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -37,11 +40,11 @@ import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2Au
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationServerMetadataClaimNames;
-import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.authentication.JwtClientAssertionAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
 import org.springframework.security.oauth2.server.authorization.token.JwtGenerator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2AccessTokenGenerator;
@@ -224,12 +227,27 @@ public class AuthorizationServerConfig {
 	/**
 	 * consent 화면이 대기 중인 authorization request의 {@code redirect_uri}를 읽어야 하므로 bean으로 둔다.
 	 * bean이 없으면 Spring이 안에서 직접 만들어, 화면에서 같은 저장소를 쓸 수 없다.
-	 * 버린 refresh token이 다시 오면 grant 전체를 끊도록 {@link RefreshTokenReuseDetectingAuthorizationService}로 감싼다.
+	 * 버린 refresh token이 다시 오면 grant 전체를 끊고 rotation을 한 번에 하나씩 하도록
+	 * {@link RefreshTokenReuseDetectingAuthorizationService}로 감싼다.
 	 */
 	@Bean
-	public OAuth2AuthorizationService authorizationService() {
+	public RefreshTokenReuseDetectingAuthorizationService authorizationService() {
 		return new RefreshTokenReuseDetectingAuthorizationService(new InMemoryOAuth2AuthorizationService(),
 				Clock.systemUTC());
+	}
+
+	/**
+	 * token endpoint 요청이 끝나면 그 요청이 잡은 refresh lock을 푼다.
+	 * Spring Security filter chain보다 먼저 돌아, client 인증 실패로 끝난 요청도 감싼다.
+	 */
+	@Bean
+	public FilterRegistrationBean<RefreshLockReleasingFilter> refreshLockReleasingFilter(
+			RefreshTokenReuseDetectingAuthorizationService authorizationService, AuthorizationServerSettings settings) {
+		FilterRegistrationBean<RefreshLockReleasingFilter> registration =
+				new FilterRegistrationBean<>(new RefreshLockReleasingFilter(authorizationService));
+		registration.addUrlPatterns(settings.getTokenEndpoint());
+		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER - 1);
+		return registration;
 	}
 
 	/**

@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import dev.starryeye.cimd.authserver.security.RefreshTokenReuseDetectingAuthorizationService;
 import dev.starryeye.cimd.authserver.web.ConsentController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,9 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -26,7 +29,10 @@ import org.springframework.web.util.UriUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -76,6 +82,9 @@ class CimdAuthorizationServerTest {
 
 	@Autowired
 	OAuth2AuthorizationConsentService consents;
+
+	@Autowired
+	RefreshTokenReuseDetectingAuthorizationService authorizations;
 
 	MockHttpSession session;
 
@@ -491,6 +500,86 @@ class CimdAuthorizationServerTest {
 		// 어느 쪽이 도둑인지 모르므로, 지금의 refresh token도 더는 통하지 않는다.
 		String afterReuse = token(refresh(CLAUDE, second), 400);
 		assertThat((String) JsonPath.read(afterReuse, "$.error")).isEqualTo("invalid_grant");
+	}
+
+	@Test
+	void 같은_refresh_token으로_겹쳐_refresh하면_하나만_성공하고_grant가_끊긴다() throws Exception {
+		String first = JsonPath.read(token(codeExchange(CLAUDE, code(CLAUDE)), 200), "$.refresh_token");
+
+		// 다른 요청이 이 grant를 rotation하는 중이라고 보고, 테스트 thread가 그 grant의 lock을 먼저 잡는다.
+		// 그 사이 같은 refresh token으로 두 요청이 들어와 둘 다 lock을 기다린다.
+		assertThat(this.authorizations.findByToken(first, OAuth2TokenType.REFRESH_TOKEN)).isNotNull();
+		List<MvcResult> results = new CopyOnWriteArrayList<>();
+		List<Thread> requests = new ArrayList<>();
+		for (int i = 0; i < 2; i++) {
+			Thread request = new Thread(() -> {
+				try {
+					results.add(this.mockMvc.perform(post("/oauth2/token").params(refresh(CLAUDE, first))).andReturn());
+				}
+				catch (Exception ex) {
+					throw new IllegalStateException(ex);
+				}
+			});
+			request.start();
+			requests.add(request);
+		}
+		for (Thread request : requests) {
+			lock을_기다릴_때까지_기다린다(request);
+		}
+		this.authorizations.releaseHeldLocks();
+		for (Thread request : requests) {
+			request.join(10_000);
+		}
+
+		assertThat(results).extracting(result -> result.getResponse().getStatus()).containsExactlyInAnyOrder(200, 400);
+		MvcResult winner = results.stream().filter(result -> result.getResponse().getStatus() == 200).findFirst().orElseThrow();
+		MvcResult loser = results.stream().filter(result -> result.getResponse().getStatus() == 400).findFirst().orElseThrow();
+		assertThat((String) JsonPath.read(loser.getResponse().getContentAsString(), "$.error")).isEqualTo("invalid_grant");
+
+		// 늦은 쪽은 이미 버린 token을 내민 셈이다. 어느 쪽이 도둑인지 모르므로 이긴 쪽의 새 refresh token도 끊긴다.
+		String winnerRefresh = JsonPath.read(winner.getResponse().getContentAsString(), "$.refresh_token");
+		String afterRace = token(refresh(CLAUDE, winnerRefresh), 400);
+		assertThat((String) JsonPath.read(afterRace, "$.error")).isEqualTo("invalid_grant");
+	}
+
+	@Test
+	void 실패한_refresh_요청이_잡은_lock은_요청이_끝나면_풀린다() throws Exception {
+		String chatgptRefresh = JsonPath.read(
+				token(withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.KEY), 200), "$.refresh_token");
+		// Claude형 client_id로 ChatGPT형의 refresh token을 내민다. grant를 찾은 뒤 client가 달라 저장하지 않고 끝난다.
+		token(refresh(CLAUDE, chatgptRefresh), 400);
+
+		// 다른 thread가 같은 grant를 바로 refresh할 수 있어야 한다. lock이 남아 있으면 기다리다 실패한다.
+		List<Integer> statuses = new CopyOnWriteArrayList<>();
+		Thread other = new Thread(() -> {
+			try {
+				statuses.add(this.mockMvc.perform(post("/oauth2/token")
+						.params(withAssertion(refresh(CHATGPT, chatgptRefresh), TestClientDocuments.KEY)))
+						.andReturn().getResponse().getStatus());
+			}
+			catch (Exception ex) {
+				throw new IllegalStateException(ex);
+			}
+		});
+		long start = System.nanoTime();
+		other.start();
+		other.join(15_000);
+
+		assertThat(statuses).containsExactly(200);
+		assertThat(TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start)).isLessThan(5);
+	}
+
+	/** 다른 thread의 요청이 lock을 기다리는 상태(또는 이미 끝난 상태)가 될 때까지 기다린다. */
+	static void lock을_기다릴_때까지_기다린다(Thread thread) throws InterruptedException {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+		while (System.nanoTime() < deadline) {
+			Thread.State state = thread.getState();
+			if (state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING
+					|| state == Thread.State.TERMINATED) {
+				return;
+			}
+			Thread.sleep(10);
+		}
 	}
 
 	@Test
