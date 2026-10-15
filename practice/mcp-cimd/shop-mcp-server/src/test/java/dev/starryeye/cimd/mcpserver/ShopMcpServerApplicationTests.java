@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,7 +39,6 @@ class ShopMcpServerApplicationTests {
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {
 		mockMvc.perform(post("/mcp")
-						.with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.header("Host", "localhost:8171")
 						.content("""
@@ -52,7 +50,7 @@ class ShopMcpServerApplicationTests {
 
 	@Test
 	void 아무_경로나_토큰_없이는_거부된다() throws Exception {
-		mockMvc.perform(post("/").with(csrf()))
+		mockMvc.perform(post("/"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate", startsWith("Bearer")));
 	}
