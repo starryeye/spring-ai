@@ -2,6 +2,7 @@ package dev.starryeye.community.agent.discovery;
 
 import org.springaicommunity.mcp.security.client.sync.oauth2.metadata.McpMetadataDiscoveryService;
 import org.springaicommunity.mcp.security.client.sync.oauth2.metadata.ProtectedResourceMetadata;
+import org.springaicommunity.mcp.security.client.sync.oauth2.metadata.WwwAuthenticateParameters;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -23,6 +24,8 @@ import java.util.regex.Pattern;
  * <p>보호 리소스 메타데이터까지는 모듈의 {@link McpMetadataDiscoveryService} 가 해 준다 —
  * 401 챌린지를 읽고, {@code resource_metadata} 를 따라가고, 없으면 well-known 경로를
  * 차례로 시도하고, 메타데이터의 {@code resource} 가 우리가 부른 URL 과 같은지 확인한다.
+ * 다만 {@code resource_metadata} 가 설정한 MCP Server 와 같은 origin 인지는 보지 않으므로,
+ * module 의 두 단계(challenge 읽기 → 메타데이터 가져오기) 사이에서 여기서 확인한다.
  *
  * <p>그다음 단계(인가 서버 메타데이터 발견과 검증)는 모듈이 다루지 않으므로 여기서 한다.
  */
@@ -85,7 +88,14 @@ public class McpAuthorizationDiscovery {
     public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
         ProtectedResourceMetadata protectedResource;
         try {
-            protectedResource = this.protectedResourceDiscovery.getMcpMetadata(resourceUrl).protectedResourceMetadata();
+            // module의 getMcpMetadata(resourceUrl)는 challenge를 읽고 곧바로 resource_metadata를 따라간다.
+            // 그 사이에서 origin을 확인하려고 module의 두 단계를 나눠 부른다.
+            WwwAuthenticateParameters challenge = this.protectedResourceDiscovery.getWwwAuthenticateParameters(resourceUrl);
+            if (challenge != null && challenge.getResourceMetadata() != null) {
+                requireSameOrigin(challenge.getResourceMetadata(), resourceUrl);
+            }
+            protectedResource = this.protectedResourceDiscovery.getMcpMetadata(resourceUrl, challenge)
+                    .protectedResourceMetadata();
         }
         catch (IllegalStateException | RestClientException ex) {
             // 모듈은 resource 불일치·metadata 없음을 IllegalStateException 으로, 401 이 아닌 오류 응답을
@@ -107,6 +117,42 @@ public class McpAuthorizationDiscovery {
         String issuer = trustedIssuer;
 
         return new DiscoveredAuthorization(protectedResource.resource(), issuer, authorizationServerMetadata(issuer));
+    }
+
+    /**
+     * challenge의 {@code resource_metadata}는 설정한 MCP Server와 origin(scheme·host·port)이 같을 때만 따라간다.
+     *
+     * <p>RFC 9728은 다른 origin을 금지하지 않는다. 하지만 이 agent는 MCP Server 주소를 설정으로 고정하므로,
+     * 다른 origin을 가리키는 값을 따라갈 이유가 없다. 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다
+     * (Security Best Practices — SSRF). host는 {@link URI#getHost()}로 비교하므로
+     * {@code http://localhost:8111@evil.example/}처럼 userinfo로 꾸민 주소도 다른 origin이다.
+     */
+    private static void requireSameOrigin(String resourceMetadata, String resourceUrl) {
+        URI target;
+        try {
+            target = URI.create(resourceMetadata);
+        }
+        catch (IllegalArgumentException ex) {
+            throw new McpDiscoveryException("챌린지의 resource_metadata 가 URL 이 아니다: " + resourceMetadata, ex);
+        }
+        if (!sameOrigin(target, URI.create(resourceUrl))) {
+            throw new McpDiscoveryException("챌린지의 resource_metadata(%s) 가 MCP Server(%s) 와 다른 origin 이다 — 따라가지 않는다"
+                    .formatted(resourceMetadata, resourceUrl));
+        }
+    }
+
+    private static boolean sameOrigin(URI a, URI b) {
+        return a.getScheme() != null && a.getScheme().equalsIgnoreCase(b.getScheme())
+                && a.getHost() != null && a.getHost().equalsIgnoreCase(b.getHost())
+                && port(a) == port(b);
+    }
+
+    /** port를 적지 않았으면 scheme의 기본 port로 본다. */
+    private static int port(URI uri) {
+        if (uri.getPort() != -1) {
+            return uri.getPort();
+        }
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
     }
 
     private Map<String, Object> authorizationServerMetadata(String issuer) {

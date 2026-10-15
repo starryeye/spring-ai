@@ -2,6 +2,8 @@ package dev.starryeye.community.agent.discovery;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springaicommunity.mcp.security.client.sync.oauth2.metadata.McpMetadataDiscoveryService;
 import org.springaicommunity.mcp.security.common.url.DefaultUrlValidator;
 import org.springframework.http.HttpMethod;
@@ -200,6 +202,23 @@ class McpAuthorizationDiscoveryTest {
 
         assertThat(this.discovery.discover(RESOURCE, ISSUER).authorizationEndpoint())
                 .isEqualTo("https://auth.example/oauth2/authorize");
+        this.server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "http://evil.example/.well-known/oauth-protected-resource/mcp",
+            "http://localhost:9999/.well-known/oauth-protected-resource/mcp",
+            "https://localhost:8101/.well-known/oauth-protected-resource/mcp",
+            "http://localhost:8101@evil.example/.well-known/oauth-protected-resource/mcp" })
+    void 챌린지의_resource_metadata_가_MCP_Server_와_다른_origin_이면_따라가지_않는다(String elsewhere) {
+        // 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다(SSRF).
+        // 기대하지 않은 요청이 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
+        챌린지("Bearer resource_metadata=\"" + elsewhere + "\"");
+
+        assertThatExceptionOfType(McpDiscoveryException.class)
+                .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+                .withMessageContaining("origin");
         this.server.verify();
     }
 

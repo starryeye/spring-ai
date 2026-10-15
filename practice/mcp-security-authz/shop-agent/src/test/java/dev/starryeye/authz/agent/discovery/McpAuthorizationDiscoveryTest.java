@@ -2,6 +2,8 @@ package dev.starryeye.authz.agent.discovery;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -105,6 +107,23 @@ class McpAuthorizationDiscoveryTest {
 
 		// 루트형이면 resource 는 서버 루트다. 클라이언트는 서버가 선언한 값을 그대로 쓴다.
 		assertThat(this.discovery.discover(RESOURCE, ISSUER).resource()).isEqualTo("http://localhost:8141");
+		this.server.verify();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"http://evil.example/.well-known/oauth-protected-resource/mcp",
+			"http://localhost:9999/.well-known/oauth-protected-resource/mcp",
+			"https://localhost:8141/.well-known/oauth-protected-resource/mcp",
+			"http://localhost:8141@evil.example/.well-known/oauth-protected-resource/mcp" })
+	void 챌린지의_resource_metadata_가_MCP_Server_와_다른_origin_이면_따라가지_않는다(String elsewhere) {
+		// 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다(SSRF).
+		// 기대하지 않은 요청이 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
+		챌린지("Bearer resource_metadata=\"" + elsewhere + "\"");
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.withMessageContaining("origin");
 		this.server.verify();
 	}
 

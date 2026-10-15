@@ -23,7 +23,8 @@ import java.util.regex.Pattern;
  * <p>순서는 명세가 정해 두었다.
  * <ol>
  *   <li>token 없이 MCP Server를 불러 401과 {@code WWW-Authenticate}를 받는다</li>
- *   <li>header의 {@code resource_metadata}를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
+ *   <li>header의 {@code resource_metadata}를 따라간다. MCP Server와 origin이 다르면 따라가지 않고 멈춘다.
+ *       없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
  *   <li>PRM의 {@code resource}가 부른 URL과 같은지 확인한다(RFC 9728 §3.3)</li>
  *   <li>{@code authorization_servers}에 credentials가 등록된 issuer가 있는지 먼저 확인한다.
  *       순서와 상관없이 그 issuer를 쓰고, 없으면 더 요청하지 않는다</li>
@@ -119,6 +120,7 @@ public class McpAuthorizationDiscovery {
 	private Map<String, Object> protectedResourceMetadata(String resourceUrl) {
 		String fromChallenge = resourceMetadataUrlFromChallenge(resourceUrl);
 		if (fromChallenge != null) {
+			requireSameOrigin(fromChallenge, resourceUrl);
 			Map<String, Object> metadata = json(fromChallenge);
 			if (metadata == null) {
 				throw new McpDiscoveryException("챌린지가 가리킨 메타데이터를 받지 못했다: " + fromChallenge);
@@ -144,6 +146,42 @@ public class McpAuthorizationDiscovery {
 		}
 
 		throw new McpDiscoveryException("보호 리소스 메타데이터를 찾지 못했다: " + resourceUrl);
+	}
+
+	/**
+	 * challenge의 {@code resource_metadata}는 설정한 MCP Server와 origin(scheme·host·port)이 같을 때만 따라간다.
+	 *
+	 * <p>RFC 9728은 다른 origin을 금지하지 않는다. 하지만 이 agent는 MCP Server 주소를 설정으로 고정하므로,
+	 * 다른 origin을 가리키는 값을 따라갈 이유가 없다. 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다
+	 * (Security Best Practices — SSRF). host는 {@link URI#getHost()}로 비교하므로
+	 * {@code http://localhost:8111@evil.example/}처럼 userinfo로 꾸민 주소도 다른 origin이다.
+	 */
+	private static void requireSameOrigin(String resourceMetadata, String resourceUrl) {
+		URI target;
+		try {
+			target = URI.create(resourceMetadata);
+		}
+		catch (IllegalArgumentException ex) {
+			throw new McpDiscoveryException("챌린지의 resource_metadata 가 URL 이 아니다: " + resourceMetadata, ex);
+		}
+		if (!sameOrigin(target, URI.create(resourceUrl))) {
+			throw new McpDiscoveryException("챌린지의 resource_metadata(%s) 가 MCP Server(%s) 와 다른 origin 이다 — 따라가지 않는다"
+					.formatted(resourceMetadata, resourceUrl));
+		}
+	}
+
+	private static boolean sameOrigin(URI a, URI b) {
+		return a.getScheme() != null && a.getScheme().equalsIgnoreCase(b.getScheme())
+				&& a.getHost() != null && a.getHost().equalsIgnoreCase(b.getHost())
+				&& port(a) == port(b);
+	}
+
+	/** port를 적지 않았으면 scheme의 기본 port로 본다. */
+	private static int port(URI uri) {
+		if (uri.getPort() != -1) {
+			return uri.getPort();
+		}
+		return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
 	}
 
 	/**
