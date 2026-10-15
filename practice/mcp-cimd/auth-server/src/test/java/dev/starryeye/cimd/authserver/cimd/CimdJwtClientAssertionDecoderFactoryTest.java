@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.context.AuthorizationServerContext;
@@ -181,22 +182,76 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 				.isNotNull();
 	}
 
+	static final String CLIENT_A = "https://a.example/client.json";
+
+	static final String CLIENT_B = "https://b.example/client.json";
+
+	static final String CLIENT_C = "https://c.example/client.json";
+
+	/** client별 기록 상한과 전체 기록 상한을 작게 잡은 factory다. 시간은 {@code clock}으로 움직인다. */
+	static CimdJwtClientAssertionDecoderFactory 상한이_작은_factory(MutableClock clock, int perClient, int total) {
+		return new CimdJwtClientAssertionDecoderFactory(uri -> FetchedDocument
+				.of(new JWKSet(key.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8), null), clock, perClient, total);
+	}
+
+	static Jwt 받는다(CimdJwtClientAssertionDecoderFactory factory, String clientId, String assertion) {
+		return factory.createDecoder(client(clientId, JWKS)).decode(assertion);
+	}
+
+	static void 거절한다(CimdJwtClientAssertionDecoderFactory factory, String clientId, String assertion) {
+		assertThatExceptionOfType(JwtException.class).isThrownBy(() -> 받는다(factory, clientId, assertion));
+	}
+
 	@Test
-	void 사용_기록은_exp가_지나면_치우고_상한을_넘으면_새_assertion을_거절한다() throws Exception {
+	void client별_상한에_닿으면_그_client의_새_assertion만_거절하고_만료된_기록은_치운다() throws Exception {
 		MutableClock clock = new MutableClock(Instant.now());
-		CimdJwtClientAssertionDecoderFactory small = new CimdJwtClientAssertionDecoderFactory(uri -> FetchedDocument
-				.of(new JWKSet(key.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8), null), clock, 1);
+		CimdJwtClientAssertionDecoderFactory small = 상한이_작은_factory(clock, 1, 10);
 
-		small.createDecoder(client(JWKS)).decode(assertion(CLIENT_ID, clock.instant(), Duration.ofSeconds(60), "a"));
-		// 기록이 가득 찼다. 기록하지 못한 assertion을 받으면 되풀이를 막지 못하므로 거절한다.
-		String second = assertion(CLIENT_ID, clock.instant(), Duration.ofSeconds(60), "b");
-		assertThatExceptionOfType(JwtException.class)
-				.isThrownBy(() -> small.createDecoder(client(JWKS)).decode(second));
+		받는다(small, CLIENT_A, assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "a1"));
+		// A의 기록이 가득 찼다. 기록하지 못한 assertion을 받으면 되풀이를 막지 못하므로 A의 새 assertion은 거절한다.
+		거절한다(small, CLIENT_A, assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "a2"));
+		// 다른 client는 A가 상한을 채운 것과 상관없이 받는다.
+		assertThat(받는다(small, CLIENT_B, assertion(CLIENT_B, clock.instant(), Duration.ofSeconds(60), "b1")))
+				.isNotNull();
 
-		// 첫 assertion이 만료되고(시간 오차 60초까지 지나) 기록이 치워지면 다시 받는다.
+		// A의 첫 assertion이 만료되고(시간 오차 60초까지 지나) 기록이 치워지면 A도 다시 받는다.
 		clock.advance(Duration.ofMinutes(3));
-		assertThat(small.createDecoder(client(JWKS))
-				.decode(assertion(CLIENT_ID, clock.instant(), Duration.ofSeconds(60), "c"))).isNotNull();
+		assertThat(받는다(small, CLIENT_A, assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "a3")))
+				.isNotNull();
+	}
+
+	@Test
+	void 전체_상한을_넘어도_거절하지_않고_만료가_가장_이른_기록부터_지운다() throws Exception {
+		MutableClock clock = new MutableClock(Instant.now());
+		CimdJwtClientAssertionDecoderFactory small = 상한이_작은_factory(clock, 10, 2);
+		String a = assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "same");
+		String b = assertion(CLIENT_B, clock.instant(), Duration.ofSeconds(120), "same");
+		String c = assertion(CLIENT_C, clock.instant(), Duration.ofSeconds(90), "same");
+
+		받는다(small, CLIENT_A, a);
+		받는다(small, CLIENT_B, b);
+		// 전체 기록이 가득 찼어도 새 assertion은 받는다. 메모리를 지키려고 만료가 가장 이른 A의 기록을 지운다.
+		assertThat(받는다(small, CLIENT_C, c)).isNotNull();
+		assertThat(small.usedAssertionCount()).isEqualTo(2);
+
+		// 남은 기록의 재사용은 그대로 막는다.
+		거절한다(small, CLIENT_B, b);
+		거절한다(small, CLIENT_C, c);
+		// 일찍 지운 A의 기록은 되풀이를 막지 못한다. 다른 client의 인증을 막지 않으려고 받아들인 대가다.
+		assertThat(받는다(small, CLIENT_A, a)).isNotNull();
+		assertThat(small.usedAssertionCount()).isEqualTo(2);
+	}
+
+	@Test
+	void 같은_client의_같은_jti는_상한과_상관없이_거절한다() throws Exception {
+		MutableClock clock = new MutableClock(Instant.now());
+		CimdJwtClientAssertionDecoderFactory small = 상한이_작은_factory(clock, 10, 10);
+		String once = assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "once");
+
+		받는다(small, CLIENT_A, once);
+
+		거절한다(small, CLIENT_A, once);
+		거절한다(small, CLIENT_A, assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(30), "once"));
 	}
 
 	@Test
