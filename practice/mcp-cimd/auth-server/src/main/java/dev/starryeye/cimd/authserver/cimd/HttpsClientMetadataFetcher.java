@@ -7,12 +7,16 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -27,6 +31,16 @@ import java.util.concurrent.TimeoutException;
  * header만 빨리 보내고 본문을 조금씩 흘리는 응답도 막기 위해서다.
  * 제한을 넘기면 요청을 취소해 연결을 닫는다.
  * 본문은 크기 상한보다 1 byte 더 읽으면 멈춘다. 상한을 넘었는지만 알면 되기 때문이다.
+ *
+ * <p>문서는 login 전의 authorization request에서도 가져오고, JWKS는 인증 전의 token 요청마다 가져온다.
+ * 그래서 인증 없는 요청이 이 서버를 시켜 바깥으로 요청을 보내게 할 수 있다(CIMD draft §6.5).
+ * 두 가지로 그 양을 줄인다.
+ * 같은 주소를 가져오는 중에 같은 주소가 또 오면 새로 요청하지 않고 진행 중인 결과를 함께 기다린다(single-flight).
+ * 결과는 그 가져오기가 끝나면 버리므로, 실패한 결과를 cache하지 않는 규칙(CIMD §4.4)과 부딪치지 않는다.
+ * 그리고 동시에 진행하는 가져오기 수에 상한({@code mcp.cimd.max-concurrent-fetches})을 둔다.
+ * 자리가 없으면 기다리지 않고 바로 실패한다. 기다리게 하면 그동안 요청 thread가 묶이기 때문이다.
+ * 이 상한은 서버 전체에 하나라서, 상한을 채우는 쪽이 있으면 다른 client의 문서도 그동안 가져오지 못한다.
+ * client나 원격 주소별 속도 제한은 이 practice에 없다.
  */
 public final class HttpsClientMetadataFetcher implements ClientMetadataHttp {
 
@@ -35,6 +49,11 @@ public final class HttpsClientMetadataFetcher implements ClientMetadataHttp {
 	private final ClientIdMetadataDocumentProperties properties;
 
 	private final HttpClient http;
+
+	private final Semaphore fetchPermits;
+
+	/** 진행 중인 가져오기다. 끝나면 지운다. */
+	private final Map<URI, CompletableFuture<FetchedDocument>> inFlight = new ConcurrentHashMap<>();
 
 	public HttpsClientMetadataFetcher(ClientIdUrlValidator urlValidator,
 			ClientIdMetadataDocumentProperties properties, SSLContext sslContext) {
@@ -45,10 +64,65 @@ public final class HttpsClientMetadataFetcher implements ClientMetadataHttp {
 				.connectTimeout(properties.connectTimeout())
 				.sslContext(sslContext)
 				.build();
+		this.fetchPermits = new Semaphore(properties.maxConcurrentFetches());
 	}
 
 	@Override
 	public FetchedDocument get(URI uri) {
+		CompletableFuture<FetchedDocument> mine = new CompletableFuture<>();
+		CompletableFuture<FetchedDocument> running = this.inFlight.putIfAbsent(uri, mine);
+		if (running != null) {
+			return awaitRunning(running, uri);
+		}
+		try {
+			FetchedDocument document = fetchWithinLimit(uri);
+			mine.complete(document);
+			return document;
+		}
+		catch (RuntimeException | Error ex) {
+			mine.completeExceptionally(ex);
+			throw ex;
+		}
+		finally {
+			this.inFlight.remove(uri, mine);
+		}
+	}
+
+	/**
+	 * 같은 주소의 진행 중인 가져오기를 기다린다. 그 가져오기는 host 조회와 응답 시간 제한 안에 끝나므로,
+	 * 그 두 시간을 합친 만큼만 기다린다.
+	 */
+	private FetchedDocument awaitRunning(CompletableFuture<FetchedDocument> running, URI uri) {
+		Duration wait = this.properties.connectTimeout().plus(this.properties.readTimeout()).plusSeconds(1);
+		try {
+			return running.get(wait.toNanos(), TimeUnit.NANOSECONDS);
+		}
+		catch (ExecutionException ex) {
+			throw new InvalidClientMetadataException(ex.getCause().getMessage(), ex.getCause());
+		}
+		catch (TimeoutException ex) {
+			throw new InvalidClientMetadataException("같은 주소의 가져오기를 %s 기다렸지만 끝나지 않았다: %s".formatted(wait, uri), ex);
+		}
+		catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			throw new InvalidClientMetadataException("문서를 가져오지 못했다: " + uri, ex);
+		}
+	}
+
+	private FetchedDocument fetchWithinLimit(URI uri) {
+		if (!this.fetchPermits.tryAcquire()) {
+			throw new InvalidClientMetadataException(
+					"동시에 가져오는 문서가 상한(%d)에 닿았다: %s".formatted(this.properties.maxConcurrentFetches(), uri));
+		}
+		try {
+			return fetch(uri);
+		}
+		finally {
+			this.fetchPermits.release();
+		}
+	}
+
+	private FetchedDocument fetch(URI uri) {
 		this.urlValidator.validate(uri.toString());
 		HttpRequest request = HttpRequest.newBuilder(uri)
 				.header("Accept", "application/json")

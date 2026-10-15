@@ -13,7 +13,9 @@ import java.util.function.Consumer;
  * authorization request의 {@code resource}를 검사한다(RFC 8707 §2.1).
  *
  * <p>token을 발급할 때가 아니라 <b>authorization request를 받을 때</b> 먼저 막는다.
- * 모르는 resource를 향한 요청이면 code를 아예 발급하지 않고 client에 {@code invalid_target}을 돌려준다.
+ * 모르는 resource를 향한 요청이면 code를 아예 발급하지 않고 {@code invalid_target}으로 끝낸다.
+ * 이 오류는 client의 redirect URI로 보내지 않고 Authorization Server가 400으로 보인다
+ * ({@link IssuerIdentifyingAuthorizationResponseHandler}).
  */
 public class ResourceIndicatorValidator implements Consumer<OAuth2AuthorizationCodeRequestAuthenticationContext> {
 

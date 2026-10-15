@@ -5,7 +5,12 @@ import org.junit.jupiter.api.Test;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -111,6 +116,73 @@ class ClientIdUrlValidatorTest {
 		byte[] publicMapped = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (byte) 0xff, (byte) 0xff, 93, (byte) 184, (byte) 216, 34 };
 		Inet6Address publicIPv6Mapped = Inet6Address.getByAddress(null, publicMapped, null);
 		assertThat(ClientIdUrlValidator.isInternal(publicIPv6Mapped)).isFalse();
+	}
+
+	@Test
+	void 공유_주소와_예약_대역도_내부_주소로_본다() throws UnknownHostException {
+		Map<String, List<String>> ranges = new LinkedHashMap<>();
+		// CGNAT. Alibaba Cloud의 metadata 주소(100.100.100.200)가 여기 있다.
+		ranges.put("100.64.0.0/10", List.of("100.64.0.0", "100.100.100.200", "100.127.255.255"));
+		ranges.put("0.0.0.0/8", List.of("0.0.0.1", "0.255.255.255"));
+		ranges.put("192.0.0.0/24", List.of("192.0.0.1", "192.0.0.255"));
+		ranges.put("198.18.0.0/15", List.of("198.18.0.0", "198.19.255.255"));
+		ranges.put("240.0.0.0/4", List.of("240.0.0.1", "250.1.2.3", "255.255.255.255"));
+		// NAT64는 IPv4 주소를 IPv6 주소 안에 담는다. 10.0.0.1, 127.0.0.1을 담은 주소다.
+		ranges.put("64:ff9b::/96", List.of("64:ff9b::a00:1", "64:ff9b::7f00:1"));
+		ranges.put("64:ff9b:1::/48", List.of("64:ff9b:1::a00:1", "64:ff9b:1:ffff::1"));
+		// 6to4와 Teredo도 IPv4 주소를 담을 수 있다.
+		ranges.put("2002::/16", List.of("2002:a00:1::1", "2002:ffff::1"));
+		ranges.put("2001::/32", List.of("2001:0:4136:e378:8000:63bf:3fff:fdd2", "2001::1"));
+
+		ranges.forEach((range, addresses) -> addresses.forEach(address -> {
+			try {
+				assertThat(ClientIdUrlValidator.isInternal(InetAddress.getByName(address))).as(range + " " + address).isTrue();
+			}
+			catch (UnknownHostException ex) {
+				throw new IllegalStateException(ex);
+			}
+		}));
+	}
+
+	@Test
+	void 예약_대역_바로_바깥의_공개_주소는_통과한다() throws UnknownHostException {
+		for (String address : List.of("100.63.255.255", "100.128.0.1", "1.0.0.1", "192.0.1.1", "198.17.255.255",
+				"198.20.0.1", "223.255.255.254", "64:ff9b:2::1", "2003::1", "2001:1::1", "2001:4860:4860::8888")) {
+			assertThat(ClientIdUrlValidator.isInternal(InetAddress.getByName(address))).as(address).isFalse();
+		}
+	}
+
+	@Test
+	void 예약_대역을_가리키는_문서_주소는_거절한다() {
+		ClientIdUrlValidator validator = new ClientIdUrlValidator(null, 주소표(Map.of(
+				"cgnat.example", "100.100.100.200", "nat64.example", "64:ff9b::a9fe:a9fe")));
+
+		거절(validator, "https://cgnat.example/client.json", "100.100.100.200");
+		거절(validator, "https://nat64.example/client.json", "내부 주소");
+	}
+
+	@Test
+	void host_조회가_시간_제한을_넘으면_기다리지_않고_거절한다() {
+		// 문서 주소의 host는 client가 고른다. 응답이 느린 DNS를 가리키면 그동안 요청 thread가 묶인다.
+		CountDownLatch release = new CountDownLatch(1);
+		HostResolver slow = host -> {
+			try {
+				release.await(5, TimeUnit.SECONDS);
+			}
+			catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+			}
+			return new InetAddress[] { InetAddress.getByName("93.184.216.34") };
+		};
+		ClientIdUrlValidator validator = new ClientIdUrlValidator(null, slow, Duration.ofMillis(200));
+		long start = System.nanoTime();
+		try {
+			거절(validator, "https://slow.example/client.json", "시간");
+			assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(2));
+		}
+		finally {
+			release.countDown();
+		}
 	}
 
 	void 거절(String value, String reason) {

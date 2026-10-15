@@ -66,7 +66,7 @@ class ClientIdMetadataDocumentRegisteredClientRepositoryTest {
 			new ClientIdUrlValidator("https://localhost:8172",
 					host -> new InetAddress[] { InetAddress.getByName("93.184.216.34") }),
 			this.http,
-			new ClientIdMetadataDocumentProperties("https://localhost:8172", null, null, null, null, null, null, null),
+			new ClientIdMetadataDocumentProperties("https://localhost:8172", null, null, null, null, null, null, null, null),
 			this.clock);
 
 	void 문서(String url, String body, String cacheControl) {
@@ -78,7 +78,7 @@ class ClientIdMetadataDocumentRegisteredClientRepositoryTest {
 				new ClientIdUrlValidator("https://localhost:8172",
 						host -> new InetAddress[] { InetAddress.getByName("93.184.216.34") }),
 				this.http,
-				new ClientIdMetadataDocumentProperties("https://localhost:8172", null, null, null, null, null, null, null),
+				new ClientIdMetadataDocumentProperties("https://localhost:8172", null, null, null, null, null, null, null, null),
 				this.clock, maxCacheEntries);
 	}
 

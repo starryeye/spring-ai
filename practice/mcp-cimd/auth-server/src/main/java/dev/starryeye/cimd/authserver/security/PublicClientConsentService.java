@@ -1,10 +1,17 @@
 package dev.starryeye.cimd.authserver.security;
 
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsent;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /**
  * public client의 consent는 기록하지 않는다(OAuth 2.1 §7.3.1).
@@ -20,9 +27,17 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
  * consent를 받은 그 요청은 저장 여부와 상관없이 방금 고른 scope로 code를 발급한다.
  * Spring이 저장과 상관없이 consent를 건너뛰는 경우(scope가 {@code openid} 하나)는
  * {@link ConsentableScopeValidator}가 막는다.
- * confidential client의 consent는 감싼 서비스에 그대로 맡긴다.
+ *
+ * <p>confidential client의 consent는 감싼 서비스에 맡기되, 그때 문서의 {@code redirect_uris}로 만든 hash를 함께 저장한다.
+ * 사용자가 허락한 것은 "그 주소들로 돌아가는 client"다. 문서 host를 손에 넣은 쪽이 redirect 주소를 바꾸면,
+ * 저장된 consent만으로 consent 화면 없이 새 주소로 code가 나간다. 그래서 조회할 때 지금 문서의 hash와 다르면
+ * 저장된 consent가 없는 것처럼 {@code null}을 돌려주어 consent를 다시 묻는다. hash가 없는 consent도 쓰지 않는다.
+ * hash는 {@code SCOPE_}로 시작하지 않는 authority라서, consent 화면과 Spring이 보는 {@code getScopes()}에는 섞이지 않는다.
  */
 public class PublicClientConsentService implements OAuth2AuthorizationConsentService {
+
+	/** consent에 함께 저장하는 문서 redirect 주소 목록 hash의 authority 앞부분이다. 뒤에 SHA-256 hex가 붙는다. */
+	public static final String REDIRECT_URIS_AUTHORITY_PREFIX = "REDIRECT_URIS_SHA256_";
 
 	private final OAuth2AuthorizationConsentService delegate;
 
@@ -36,10 +51,17 @@ public class PublicClientConsentService implements OAuth2AuthorizationConsentSer
 
 	@Override
 	public void save(OAuth2AuthorizationConsent authorizationConsent) {
-		if (isPublicClient(authorizationConsent.getRegisteredClientId())) {
+		RegisteredClient client = this.registeredClientRepository.findById(authorizationConsent.getRegisteredClientId());
+		if (isPublicClient(client)) {
 			return;
 		}
-		this.delegate.save(authorizationConsent);
+		GrantedAuthority redirectUris = redirectUrisAuthority(client);
+		this.delegate.save(OAuth2AuthorizationConsent.from(authorizationConsent)
+				.authorities(authorities -> {
+					authorities.removeIf(PublicClientConsentService::isRedirectUrisAuthority);
+					authorities.add(redirectUris);
+				})
+				.build());
 	}
 
 	@Override
@@ -49,10 +71,15 @@ public class PublicClientConsentService implements OAuth2AuthorizationConsentSer
 
 	@Override
 	public OAuth2AuthorizationConsent findById(String registeredClientId, String principalName) {
-		if (isPublicClient(registeredClientId)) {
+		RegisteredClient client = this.registeredClientRepository.findById(registeredClientId);
+		if (isPublicClient(client)) {
 			return null;
 		}
-		return this.delegate.findById(registeredClientId, principalName);
+		OAuth2AuthorizationConsent consent = this.delegate.findById(registeredClientId, principalName);
+		if (consent == null || !consent.getAuthorities().contains(redirectUrisAuthority(client))) {
+			return null;
+		}
+		return consent;
 	}
 
 	/**
@@ -61,9 +88,23 @@ public class PublicClientConsentService implements OAuth2AuthorizationConsentSer
 	 * cache하지 않은 문서는 조회할 때마다 다시 가져오므로, consent를 저장하거나 찾는 순간에 실패할 수 있다.
 	 * 그때 confidential client로 보면 신원을 확인하지 못한 client의 consent를 저장하거나 꺼내 쓰게 된다.
 	 */
-	private boolean isPublicClient(String registeredClientId) {
-		RegisteredClient client = this.registeredClientRepository.findById(registeredClientId);
-		return client == null
-				|| client.getClientAuthenticationMethods().contains(ClientAuthenticationMethod.NONE);
+	private static boolean isPublicClient(RegisteredClient client) {
+		return client == null || client.getClientAuthenticationMethods().contains(ClientAuthenticationMethod.NONE);
+	}
+
+	private static boolean isRedirectUrisAuthority(GrantedAuthority authority) {
+		return authority.getAuthority() != null && authority.getAuthority().startsWith(REDIRECT_URIS_AUTHORITY_PREFIX);
+	}
+
+	/** 주소 목록을 정렬해 줄바꿈으로 이은 문자열의 SHA-256이다. 순서만 바뀐 문서는 같은 값이 된다. */
+	private static GrantedAuthority redirectUrisAuthority(RegisteredClient client) {
+		String joined = String.join("\n", client.getRedirectUris().stream().sorted().toList());
+		try {
+			byte[] digest = MessageDigest.getInstance("SHA-256").digest(joined.getBytes(StandardCharsets.UTF_8));
+			return new SimpleGrantedAuthority(REDIRECT_URIS_AUTHORITY_PREFIX + HexFormat.of().formatHex(digest));
+		}
+		catch (NoSuchAlgorithmException ex) {
+			throw new IllegalStateException("SHA-256을 쓸 수 없다", ex);
+		}
 	}
 }

@@ -31,6 +31,8 @@ class PublicClientRefreshTokenAuthenticationConverterTest {
 		assertThat(token.getPrincipal()).isEqualTo(CLAUDE);
 		assertThat(token.getClientAuthenticationMethod()).isEqualTo(ClientAuthenticationMethod.NONE);
 		assertThat(token.getAdditionalParameters()).containsEntry("grant_type", "refresh_token");
+		// provider가 이 refresh token의 grant를 받을 때 쓴 인증 방식을 확인한다.
+		assertThat(token.getAdditionalParameters()).containsEntry("refresh_token", "r1");
 	}
 
 	@Test
