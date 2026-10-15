@@ -310,14 +310,14 @@ official은 `auth-server`와 `shop-mcp-server`를 다른 process로 띄운다.
 
 ```java
 static void run(Options options, PrintStream out) {
-    HttpClient http = /* redirect를 따라가지 않는 HttpClient */;
+    HttpClient http = /* redirect를 따라가지 않는 HttpClient. 흐름이 끝나면 닫는다 */;
 
     // (1)~(6) discovery: MCP Server 주소에서 Authorization Server의 endpoint까지
     AuthorizationServer server = new Discovery(http).discover(options.resourceUrl(), options.issuer());
 
     Pkce pkce = Pkce.generate();                                    // code_verifier와 code_challenge
     String state = randomState();
-    try (LoopbackCallbackServer callback = LoopbackCallbackServer.start()) {   // 127.0.0.1의 빈 포트
+    try (LoopbackCallbackServer callback = LoopbackCallbackServer.start(state)) {   // 127.0.0.1의 빈 포트
         // (7)(8) PKCE와 resource를 넣은 authorization request 주소를 browser로 연다
         URI authorization = AuthorizationRequest.uri(server, CLIENT_ID, callback.redirectUri(), SCOPE, state, pkce);
         if (options.openBrowser()) {

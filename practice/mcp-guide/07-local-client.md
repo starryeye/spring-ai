@@ -112,10 +112,10 @@ agent는 자기 서버의 주소로 이 redirect를 받는다.
 RFC 8252가 정한 loopback redirect다.
 
 ```java
-public static LoopbackCallbackServer start() throws IOException {
+public static LoopbackCallbackServer start(String expectedState) throws IOException {
     // 127.0.0.1에만 bind한다. 포트 0은 운영체제가 빈 포트를 골라 달라는 뜻이다
     return new LoopbackCallbackServer(
-            HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0));
+            HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0), expectedState);
 }
 
 public URI redirectUri() {
@@ -125,8 +125,12 @@ public URI redirectUri() {
 
 private void handle(HttpExchange exchange) throws IOException {
     /* path가 정확히 /callback이 아니면 404 */
-    // 처음 온 callback의 query parameter만 결과로 쓴다
-    boolean first = this.callback.complete(Form.decode(exchange.getRequestURI().getRawQuery()));
+    Map<String, String> params = Form.decode(exchange.getRequestURI().getRawQuery());
+    if (!"GET".equals(exchange.getRequestMethod()) || !this.expectedState.equals(params.get("state"))) {
+        reply(exchange, 400, "이 login의 callback이 아닙니다.");   // 계속 기다린다
+        return;
+    }
+    boolean first = this.callback.complete(params);                 // state가 맞는 첫 callback만 결과가 된다
     /* browser에 "login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요."를 보여 준다 */
 }
 ```
@@ -137,7 +141,9 @@ private void handle(HttpExchange exchange) throws IOException {
 
 등록된 redirect URI는 `http://127.0.0.1:8123/callback`이지만, Authorization Server가 loopback IP 주소의 포트를 빼고 비교하므로 빈 포트를 써도 된다([4장](04-client-registration.md)).
 
-callback server는 처음 온 callback만 결과로 쓰고, browser가 함께 보내는 `/favicon.ico` 같은 요청에는 `404`로 답한다.
+callback server는 `GET`이고 `state`가 이번 authorization request의 값과 같은 callback만 결과로 쓴다.
+같은 기기의 다른 프로그램이나 web page가 빈 포트를 찾아 가짜 callback을 먼저 보내도, `400`으로 답하고 진짜 callback을 계속 기다린다.
+browser가 함께 보내는 `/favicon.ico` 같은 요청에는 `404`로 답한다.
 `Main`은 callback을 5분 동안 기다리고, 그 안에 login이 끝나지 않으면 멈춘다.
 
 ## 7.5 3단계: authorization request 주소를 만든다 — `AuthorizationRequest`

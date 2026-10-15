@@ -44,6 +44,8 @@ client가 이 값을 정하게 하면, 다른 사용자의 `conversationId`를 �
 client는 대화를 구분하는 이름인 label만 고른다.
 
 `ConversationId.of(authentication, label)`은 `<사용자 이름>:<label>` 형식의 ID를 만든다.
+사용자 이름의 `%`와 `:`는 `%25`와 `%3A`로 바꿔 넣는다.
+그래서 `alice`의 ID는 `alice:default` 그대로이고, 이름에 `:`가 든 사용자 `alice:x`의 대화가 `alice`의 목록에 섞이지 않는다.
 label에서 영문, 숫자, 한글, `_`, `-`가 아닌 글자는 모두 `_`로 바꾼다.
 구분자 `:`도 바뀌므로, bob이 label에 `alice:default`를 넣어도 ID는 `bob:alice_default`가 된다.
 label이 비어 있으면 `default`를 쓴다.
@@ -55,7 +57,7 @@ MCP가 없는 [chat-memory practice](../chat-memory/README.md)는 client가 `con
 | 요청 | 하는 일 |
 |---|---|
 | `POST /api/chat?label=default` | 본문의 질문을 LLM에 보내고, 답을 `text/plain` stream으로 돌려준다 |
-| `GET /api/conversations` | 내 `conversationId` 목록이다. 저장소 전체의 ID 가운데 `<사용자 이름>:`으로 시작하는 것만 남긴다 |
+| `GET /api/conversations` | 내 `conversationId` 목록이다. 저장소 전체의 ID 가운데 내 접두사(바꿔 넣은 사용자 이름과 `:`)로 시작하는 것만 남긴다 |
 | `GET /api/conversations/{label}` | 내 대화 하나의 메시지 목록이다. 메시지마다 `role`과 `text`가 있다 |
 | `DELETE /api/conversations/{label}` | 내 대화 하나를 비우고 `204`로 답한다 |
 
@@ -85,18 +87,19 @@ sequenceDiagram
     participant C as McpSyncClient (alice)
     participant S as shop-mcp-server
     A->>G: POST /api/chat?label=default
-    G->>U: toolsFor(alice)
+    G->>U: acquire(alice)
     Note over U,C: alice의 client가 없으면 주인을 alice로 정해 만든다
     U->>C: initialize()
     C->>S: POST /mcp initialize + Bearer(alice)
     S-->>C: 200 + Mcp-Session-Id: s1
     Note over S: McpSessionBindingFilter: s1 → alice
-    U-->>G: alice client의 tool
+    U-->>G: alice client를 빌려 준다(Lease)
     Note over G: LLM이 tool을 고른다
     G->>C: getStock(p1)
     C->>S: POST /mcp tools/call + Bearer(alice) + s1
     S-->>C: 200 + tool 결과
     Note over S: bob의 token과 s1을 함께 보내면 403
+    G->>U: 답 stream이 끝나면 Lease를 돌려준다
 ```
 
 [다이어그램 그림으로 보기](diagrams/README-1.png)
@@ -113,7 +116,9 @@ MCP Server가 session을 처음 연 사용자에 묶으면, 다른 사용자의 
 연결 주소는 discovery의 출발점인 `mcp.authorization.resource-url`(`http://localhost:8131/mcp`)이다.
 client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 보낸다.
 같은 사용자의 첫 요청이 동시에 와도 client는 하나만 열린다.
+`initialize`는 map을 고치는 동안이 아니라 그 밖에서 하므로, 한 사용자의 느린 `initialize`가 다른 사용자의 첫 채팅을 막지 않는다.
 `initialize`가 실패하면 그 client를 닫고 오류를 그대로 올리며, 다음 채팅이 다시 연다.
+채팅은 `acquire`로 client를 빌려(`Lease`) 쓰고, 답 stream이 끝나면 돌려준다.
 
 `ChatClientConfig`는 MCP tool을 기본 tool로 두지 않는다.
 `ChatController`가 요청마다 그 사용자 client의 tool만 LLM에 넘긴다.
@@ -129,11 +134,14 @@ client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 �
 |---|---|
 | transport가 `initialize` 응답에 `Mcp-Session-Id` header를 쓸 때 | 그 session ID를 요청한 사용자에 묶는다. 응답 본문이 나가기 전이라, client의 다음 요청 때는 이미 묶여 있다 |
 | 요청의 `Mcp-Session-Id`가 다른 사용자에 묶여 있을 때 | method와 상관없이 `403`으로 거절한다. 다른 사용자는 남의 session을 `DELETE`로 끝낼 수도 없다 |
-| 묶은 사용자의 `DELETE`가 `2xx`로 끝났을 때 | 묶음을 푼다. 그 뒤 이 session ID로 오는 요청은 transport가 모르는 session이라 `404`다 |
-| 요청의 session ID가 누구에게도 묶여 있지 않을 때 | 그대로 통과시키고, 판단은 transport에 맡긴다 |
+| 묶은 사용자의 `DELETE`가 `2xx`로 끝났을 때 | 묶음을 푼다. 그 뒤 이 session ID로 오는 요청은 `404`다 |
+| 요청의 session ID가 누구에게도 묶여 있지 않을 때 | `404`로 답하고 transport에 넘기지 않는다. 처음 보는 ID, 끝낸 session, 만료된 묶음이 여기에 든다 |
+| 묶음을 1시간 쓰지 않았을 때 | 묶음을 지운다. 요청을 처리할 때 1분에 한 번 오래된 묶음을 정리한다 |
 
 한 사용자가 여러 session을 열면 session마다 그 사용자에 묶인다.
-묶음은 서버 메모리의 map에 있고, 성공한 `DELETE`로만 지워진다.
+묶음은 서버 메모리의 map에 있고, 성공한 `DELETE`나 1시간 동안 쓰지 않으면 지워진다.
+묶음이 지워진 session으로 요청하면 `404`이고, SDK client는 다음 요청부터 다시 `initialize`한 새 session을 쓴다.
+묶음만 지우고 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있어서, filter가 직접 `404`로 답한다.
 
 ### token을 client 주인에게 묶는 이유
 
@@ -178,6 +186,7 @@ sequenceDiagram
         Note over U: destroy()가 남은 client를 모두 닫는다
     end
     Note over U: map에서 alice의 client를 먼저 지운다
+    Note over U: 빌려 간 채팅이 있으면 그 채팅이 끝난 뒤 닫는다
     U->>C: closeGracefully()
     Note over C: transport context는 비어 있어도 token은 주인 alice의 것이다
     C->>S: DELETE /mcp + Bearer(alice) + s1
@@ -206,9 +215,10 @@ logout도 HTTP session을 끝내지만, client는 map에서 이미 지워져 있
 이 방식에는 대가가 두 가지 있다.
 
 - client는 사용자 이름마다 하나다.
-  한 browser에서 logout하면, 같은 사용자가 다른 browser에서 쓰던 client도 닫힌다.
-- 묶음은 성공한 `DELETE`로만 지워진다.
-  agent가 `DELETE` 없이 끝나면, 그 session의 묶음은 MCP Server가 내려갈 때까지 남는다.
+  한 browser에서 logout하면, 같은 사용자가 다른 browser에서 진행 중인 채팅은 끝까지 그 client를 쓰고 끝난 뒤 닫힌다.
+  그 browser의 다음 채팅은 새 client를 열고 새 session을 받는다.
+- MCP Server의 묶음은 1시간 쓰지 않으면 지워지지만, SDK transport의 session 자체는 만료되지 않는다(Spring AI 2.0.0).
+  agent가 `DELETE` 없이 끝나면, 그 session은 묶음이 지워진 뒤에도 MCP Server가 내려갈 때까지 SDK 메모리에 남는다.
 
 ## 실행
 
@@ -251,17 +261,17 @@ package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `mcpserver`, `sho
 
 | module | 클래스 | 하는 일 | 설명 |
 |---|---|---|---|
-| `shop-agent` | `ConversationId` | `Authentication`과 label로 `<사용자 이름>:<label>` 형식의 ID를 만든다 | [대화 기억](#대화-기억) |
+| `shop-agent` | `ConversationId` | `Authentication`과 label로 `<사용자 이름>:<label>` 형식의 ID를 만든다. 사용자 이름의 `%`와 `:`는 바꿔 넣는다 | [대화 기억](#대화-기억) |
 | | `ConversationController`, `MessageView` | 대화 목록·조회·비우기 API다. 사용자 이름은 서버가 붙인다 | [대화 기억](#대화-기억) |
 | | `ChatMemoryConfig` | `MessageWindowChatMemory`로 대화마다 최근 메시지를 `chat.memory.max-messages`개(기본 20개)까지 둔다 | [대화 기억](#대화-기억) |
 | | `ChatClientConfig` | `MessageChatMemoryAdvisor`를 기본 advisor로 둔다. MCP tool은 기본 tool로 두지 않는다 | [대화 기억](#대화-기억) |
-| | `ChatController` | 요청마다 `conversationId`를 만들고, 그 사용자 client의 tool을 LLM에 넘긴다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
-| | `UserMcpClients` | 사용자 이름마다 `McpSyncClient`를 하나 만들어 첫 채팅 때 `initialize`한다. logout, HTTP session 종료, 앱 종료 때 닫는다 | [client를 닫는 때](#client를-닫는-때) |
+| | `ChatController` | 요청마다 `conversationId`를 만들고, 그 사용자 client를 빌려 tool을 LLM에 넘긴다. 답 stream이 끝나면 돌려준다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
+| | `UserMcpClients` | 사용자 이름마다 `McpSyncClient`를 하나 만들어 첫 채팅 때 map 밖에서 `initialize`한다. logout, HTTP session 종료, 앱 종료 때 닫되, 빌려 간 채팅이 있으면 끝난 뒤 닫는다 | [client를 닫는 때](#client를-닫는-때) |
 | | `McpSecurityConfig` | `UserMcpClients` bean과 client마다의 transport, `HttpSessionEventPublisher`를 등록한다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
 | | `OAuth2TokenAttachingRequestCustomizer` | client를 만들 때 받은 주인의 token을 모든 MCP 요청에 붙인다 | [token을 client 주인에게 묶는 이유](#token을-client-주인에게-묶는-이유) |
 | | `SecurityConfig` | official의 설정에 그 사용자의 client를 닫는 logout handler를 더한다 | [client를 닫는 때](#client를-닫는-때) |
 | | `application.yml` | `spring.ai.mcp.client.enabled: false`로 MCP client 자동 구성을 끈다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
-| `shop-mcp-server` | `McpSessionBindingFilter` | `Mcp-Session-Id`를 token의 `sub`에 묶고, 다른 사용자의 요청을 `403`으로 거절한다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
+| `shop-mcp-server` | `McpSessionBindingFilter` | `Mcp-Session-Id`를 token의 `sub`에 묶고, 다른 사용자의 요청을 `403`으로 거절한다. 묶음이 없거나 1시간 쓰지 않은 session ID는 `404`다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
 | | `SecurityConfig` | official의 설정에 `McpSessionBindingFilter`를 더한다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
 | `auth-server` | `UserConfig` | login 계정 `alice`/`alice`와 `bob`/`bob`을 둔다 | [구성](#구성) |
 
