@@ -26,8 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>지금 조합(Spring AI 2.0.1, MCP SDK 2.0.1)에서 확인한 동작은 이렇다.
  * 중복 key는 filter와 SDK 모두 뒤의 값을 쓴다.
- * 숫자·boolean 이름은 filter가 "이름 없음"으로 보고 넘기지만, SDK가 문자열로 바꿔 "모르는 tool"로 답한다.
- * 배열 이름은 SDK가 문자열로 바꾸지 못해 transport가 {@code 500}으로 끝낸다.
+ * 문자열이 아닌 이름(숫자·boolean·배열)은 filter가 transport로 넘기지 않고 {@code 400}(JSON-RPC {@code -32602})으로 끝낸다.
+ * filter가 넘기던 때에는 SDK가 숫자·boolean을 문자열로 바꿔 "모르는 tool"로 답했고, 배열은 바꾸지 못해 transport가
+ * stack trace가 든 {@code 500}을 냈다.
  * 그래서 쓰기 tool이 검사를 피해 실행되는 본문은 없다. SDK나 mapper 설정이 바뀌면 이 테스트가 먼저 알려 준다.
  */
 @SpringBootTest
@@ -85,34 +86,35 @@ class ParserDifferentialTest {
 	}
 
 	@Test
-	void name이_숫자면_SDK가_문자열로_바꿔_모르는_tool로_답하고_재고는_그대로다() throws Exception {
+	void name이_숫자면_filter가_400으로_끝내고_재고는_그대로다() throws Exception {
 		int before = 재고();
 
 		보낸다(READ_TOKEN, 호출("{\"name\":123," + WRITE_ARGUMENTS + "}"))
-				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("Tool not found: 123")));
+				.andExpect(status().isBadRequest())
+				.andExpect(content().string(containsString("\"code\":-32602")));
 
 		assertThat(재고()).isEqualTo(before);
 	}
 
 	@Test
-	void name이_boolean이면_SDK가_문자열로_바꿔_모르는_tool로_답하고_재고는_그대로다() throws Exception {
+	void name이_boolean이면_filter가_400으로_끝내고_재고는_그대로다() throws Exception {
 		int before = 재고();
 
 		보낸다(READ_TOKEN, 호출("{\"name\":true," + WRITE_ARGUMENTS + "}"))
-				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("Tool not found: true")));
+				.andExpect(status().isBadRequest())
+				.andExpect(content().string(containsString("\"code\":-32602")));
 
 		assertThat(재고()).isEqualTo(before);
 	}
 
 	@Test
-	void name이_배열이면_SDK가_이름으로_바꾸지_못해_500이고_재고는_그대로다() throws Exception {
+	void name이_배열이면_filter가_400으로_끝내고_재고는_그대로다() throws Exception {
 		int before = 재고();
 
 		보낸다(READ_TOKEN, 호출("{\"name\":[\"updateStock\"]," + WRITE_ARGUMENTS + "}"))
-				.andExpect(status().isInternalServerError())
-				.andExpect(content().string(not(containsString("\"result\""))));
+				.andExpect(status().isBadRequest())
+				.andExpect(content().string(containsString("\"code\":-32602")))
+				.andExpect(content().string(not(containsString("stackTrace"))));
 
 		assertThat(재고()).isEqualTo(before);
 	}

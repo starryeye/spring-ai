@@ -24,6 +24,8 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.web.servlet.function.RouterFunction;
+import org.springframework.web.servlet.function.ServerResponse;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
@@ -62,6 +64,16 @@ public class McpTransportConfig {
 				.messageEndpoint(properties.getMcpEndpoint())
 				.contextExtractor(McpCaller::context)
 				.build();
+	}
+
+	/**
+	 * Spring AI 자동 구성의 router bean을 대신한다(그 bean은 이 이름의 bean이 없을 때만 만들어진다).
+	 * transport의 router는 그대로 쓰고, 오류 응답에서 예외 객체를 빼는 {@link TransportErrorResponseFilter}만 더한다.
+	 */
+	@Bean
+	public RouterFunction<ServerResponse> webMvcStatelessServerRouterFunction(WebMvcStatelessServerTransport transport,
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
+		return transport.getRouterFunction().filter(new TransportErrorResponseFilter(jsonMapper));
 	}
 
 	@Bean

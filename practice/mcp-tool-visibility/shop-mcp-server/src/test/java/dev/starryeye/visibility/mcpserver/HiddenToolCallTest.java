@@ -126,7 +126,8 @@ class HiddenToolCallTest {
 	 * 요청 형식마다 SDK가 어떻게 답하는지는 내부 변환에 달려 있다.
 	 * wrapper가 SDK보다 너그럽게 변환하면, 어떤 형식에서만 숨긴 tool이 다르게 답해 그런 tool이 있다는 것을 알게 된다.
 	 * 그래서 숨긴 tool(updateStock)과 같은 길이의 없는 tool(updateStack)이 같은 응답을 받는지 본다.
-	 * 500 응답의 본문에는 stack trace가 들어 있어서, 본문 전체가 아니라 JSON-RPC 오류의 code와 message를 비교한다.
+	 * "모르는 tool" 오류의 data에는 tool 이름이 들어 있어서, 본문 전체가 아니라 JSON-RPC 오류의 code와 message를 비교한다.
+ * arguments나 _meta가 object가 아닌 호출은 tool을 보기 전에 scope filter가 400으로 끝내므로 둘이 같다.
 	 */
 	private void 같은_응답이다(String restOfParams) throws Exception {
 		String token = 토큰("user2", "products:read");
@@ -141,12 +142,10 @@ class HiddenToolCallTest {
 		assertThat(hiddenError.get("message")).isEqualTo(unknownError.get("message"));
 	}
 
-	/**
-	 * 정상 오류 응답은 {@code error}에, SDK가 처리하지 못해 500으로 끝난 응답은 직렬화된 McpError의 {@code jsonRpcError}에 code와 message가 있다.
-	 */
+	/** 오류 응답은 모두 JSON-RPC 모양이라 {@code error}에 code와 message가 있다. 예외 객체({@code jsonRpcError})가 나오면 안 된다. */
 	private static JsonNode jsonRpc오류(MockHttpServletResponse response) throws Exception {
 		JsonNode body = JSON.readTree(response.getContentAsString(StandardCharsets.UTF_8));
-		JsonNode error = body.has("error") ? body.get("error") : body.get("jsonRpcError");
+		JsonNode error = body.get("error");
 		assertThat(error).as("code와 message가 있는 오류 응답").isNotNull();
 		return error;
 	}
