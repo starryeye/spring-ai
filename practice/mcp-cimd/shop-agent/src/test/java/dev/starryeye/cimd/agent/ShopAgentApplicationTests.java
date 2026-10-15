@@ -16,6 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
@@ -24,12 +27,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.util.UriUtils;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -138,6 +144,35 @@ class ShopAgentApplicationTests {
     @Test
     void 서블릿_요청이_필요없는_인가_매니저를_쓴다() {
         assertThat(this.authorizedClientManager).isInstanceOf(SingleFlightAuthorizedClientManager.class);
+    }
+
+    /**
+     * MCP tool 호출은 reactor의 thread에서 돈다. 거기서도 SecurityContext가 보여야
+     * {@code SecurityMcpTransportContextProvider}가 사용자를 읽고 token이 붙는다(6장 "조용히 401").
+     * 이 전파는 {@code main()}이 아니라 설정({@code spring.reactor.context-propagation: auto})으로 켜므로
+     * 테스트 context에서도 켜져 있어야 한다.
+     */
+    @Test
+    void reactor_의_다른_thread_에서도_SecurityContext_가_이어진다() {
+        SecurityContextHolder.getContext().setAuthentication(
+                UsernamePasswordAuthenticationToken.authenticated("alice", null, java.util.List.of()));
+        try {
+            String user = Mono.just("tool call")
+                    .publishOn(Schedulers.boundedElastic())
+                    .map(ignored -> currentUser())
+                    .contextCapture()
+                    .block(Duration.ofSeconds(5));
+
+            assertThat(user).isEqualTo("alice");
+        }
+        finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private static String currentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return (authentication != null) ? authentication.getName() : "(없음)";
     }
 
     @Test
