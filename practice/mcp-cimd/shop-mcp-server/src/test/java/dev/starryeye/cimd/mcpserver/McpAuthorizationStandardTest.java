@@ -285,7 +285,7 @@ class McpAuthorizationStandardTest {
 
 	/*
 	 * MCP 2025-11-25 전송 명세 "Protocol Version Header" 절.
-	 * SDK(WebMvcStreamableServerTransportProvider)는 이 헤더를 검증하지 않으므로
+	 * transport(WebMvcStatelessServerTransport)와 SDK는 이 헤더를 검증하지 않으므로
 	 * McpProtocolVersionFilter 가 대신 검증한다.
 	 */
 

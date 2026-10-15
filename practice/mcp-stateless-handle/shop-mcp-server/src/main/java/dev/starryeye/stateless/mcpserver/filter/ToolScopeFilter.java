@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * 상한(기본 분당 60회, {@code mcp.limits.tool-calls-per-minute})을 넘으면 {@code 429}와 {@code Retry-After}로 끝낸다.
  *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
- * transport({@code WebMvcStreamableServerTransportProvider})는 본문을 {@code request.body(String.class)}로 읽는다.
+ * transport(Spring AI 2.0.1의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
  * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
  * 잘못된 바이트를 만나도 예외를 던지지 않고 대체 문자({@code U+FFFD})로 조용히 바꿔 넣는다.
  * 이 필터가 그 대신 {@code jsonMapper.readTree(byte[])}로 바이트를 직접 읽으면, Jackson은 잘못된 UTF-8 바이트에서
@@ -158,8 +158,9 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	 * charset이 없으면 UTF-8, 읽을 수 없으면 거절한다.
 	 * decode한 text가 JSON object가 아니면(구문 오류, 배열) {@link BodyRejected}로 거절한다.
 	 */
-	// 이 decode 규칙은 SDK transport(request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다.
-	// SDK를 올릴 때 다시 확인한다.
+	// 이 decode 규칙은 Spring AI 2.0.1 WebMvcStatelessServerTransport의 읽기
+	// (request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다(mcp-spring-webmvc 2.0.1 bytecode로 확인).
+	// Spring AI를 올리거나 transport를 바꿀 때 다시 확인한다.
 	private JsonNode parseAsTransportWill(CachedBodyHttpServletRequest request) {
 		Charset charset = charset(request);
 		String text = new String(request.body(), charset);

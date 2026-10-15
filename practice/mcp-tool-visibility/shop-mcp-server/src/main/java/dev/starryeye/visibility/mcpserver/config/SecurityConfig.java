@@ -14,7 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * MCP Server는 OAuth 2.1 resource server다(MCP 2025-11-25 Authorization — Roles, 안내서 2장).
  *
- * <p>여기서 켜는 것은 세 가지다.
+ * <p>여기서 켜는 것은 네 가지다.
  * <ul>
  *   <li>RFC 9728 Protected Resource Metadata(PRM) — client가 Authorization Server를 찾는 출발점이다</li>
  *   <li>401 challenge의 {@code resource_metadata} — PRM의 위치를 알려 준다</li>
