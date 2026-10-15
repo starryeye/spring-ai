@@ -15,6 +15,7 @@ import dev.starryeye.cimd.agent.security.SingleFlightAuthorizedClientManager;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
+import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
 import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
 import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -184,11 +185,16 @@ public class McpSecurityConfig {
     /**
      * step-up 예외는 채팅까지 올리고, 나머지는 Spring AI 기본 처리와 같게 둔다.
      * 기본 처리는 Spring Security의 {@code ClientAuthorizationException}을 다시 던지고, 그 밖의 예외는 LLM에게 줄 문장으로 바꾼다.
-     * 이 bean이 있으면 Spring AI 자동 구성의 같은 bean은 만들어지지 않는다.
+     * {@code spring.ai.tools.throw-exception-on-error}를 켜면 그 밖의 예외도 다시 던진다.
+     *
+     * <p>이 bean이 있으면 Spring AI 자동 구성의 같은 bean은 만들어지지 않는다.
+     * 그래서 자동 구성이 하던 대로 {@link ToolCallingProperties}의 설정을 여기서도 넘긴다.
+     * 넘기지 않으면 그 설정이 조용히 무시된다.
      */
     @Bean
-    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor() {
+    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(ToolCallingProperties toolCallingProperties) {
         return new StepUpToolExecutionExceptionProcessor(DefaultToolExecutionExceptionProcessor.builder()
+                .alwaysThrow(toolCallingProperties.isThrowExceptionOnError())
                 .rethrowExceptions(List.of(ClientAuthorizationException.class))
                 .build());
     }
