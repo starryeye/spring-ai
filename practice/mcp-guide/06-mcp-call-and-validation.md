@@ -453,12 +453,14 @@ SDK는 이 기본 요청을 복사해 `initialize`부터 session을 끝내는 `D
 ```java
 @Bean
 public SecurityFilterChain securityFilterChain(HttpSecurity http,
-        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) throws Exception {
+        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
+        OAuth2ResourceServerProperties properties) throws Exception {
+    String resourceMetadataUrl = /* audiences 설정의 MCP Server 주소로 만든 PRM 주소 (3장) */;
     return http
             .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())   // session ID가 있어도 token을 본다
             .oauth2ResourceServer(resourceServer -> resourceServer
                     .jwt(Customizer.withDefaults())                             // signature, iss, aud, exp
-                    .authenticationEntryPoint(resourceMetadataEntryPoint())     // 401에 resource_metadata (3장)
+                    .authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))   // 401에 resource_metadata (3장)
                     .protectedResourceMetadata(/* ... PRM (3장) */))
             .csrf(csrf -> csrf.disable())                                       // cookie가 아니라 token으로만 인증한다
             .build();

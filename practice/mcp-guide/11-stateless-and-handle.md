@@ -485,6 +485,12 @@ public WebMvcStatelessServerTransport webMvcStatelessServerTransport(
 
 이 transport의 경로는 POST와 GET뿐이고, GET에는 `405`로 답한다.
 
+transport는 읽을 수 없는 본문을 받으면 SDK의 `McpError` 객체를 그대로 JSON으로 만들어 답하고, 그 안에는 Java stack trace가 들어 있다.
+token이 있는 사용자라면 누구나 서버 안의 class 이름과 줄 번호를 볼 수 있는 셈이다.
+그래서 `McpTransportConfig`는 transport의 router(`webMvcStatelessServerRouterFunction`)도 직접 등록하고, `TransportErrorResponseFilter`를 끼운다.
+이 filter는 `McpError` 응답을 같은 상태 코드의 JSON-RPC 오류로 바꾸고, `code`와 `message`만 남긴다.
+형식이 틀린 `tools/call`(`params`가 object가 아니거나 `name`이 문자열이 아닌 것)은 그보다 앞의 `ToolScopeFilter`가 `400`과 `-32602`로 끝낸다.
+
 tool이 사용자를 `McpTransportContext` 인자로 받으면 사용자를 쓴다는 것이 메서드 선언에 보이고, 테스트도 security context 없이 이 인자만 넘겨 tool을 부를 수 있다.
 또 thread에 묶인 값에 기대지 않아도 된다.
 지금의 stateless WebMVC sync 서버는 요청 thread에서 tool을 부르므로 `SecurityContextHolder`도 쓸 수 있고, authz에서 온 `ProductTools`는 로그에 남길 사용자만 거기서 읽는다.

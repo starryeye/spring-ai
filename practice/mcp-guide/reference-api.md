@@ -152,7 +152,7 @@ client는 여기서 `authorization_servers`를 읽고 Authorization Server Metad
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
-| `resource` | REQUIRED | resource 식별자. metadata 주소를 만든 식별자와 같아야 하고, `resource_metadata`로 받았으면 client가 요청한 주소와 같아야 한다(MUST, [§3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3)) | 경로형 `http://localhost:8111/mcp`(C2) · 루트형 `http://localhost:8111`(S2) |
+| `resource` | REQUIRED | resource 식별자. metadata 주소를 만든 식별자와 같아야 하고, `resource_metadata`로 받았으면 client가 요청한 주소와 같아야 한다(MUST, [§3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3)) | 경로형 `http://localhost:8111/mcp`(C2) · 루트형 `http://localhost:8111`(S2). 경로는 요청한 PRM 주소에서, scheme·host·port는 `audiences` 설정에서 가져오므로 `Host` header를 바꿔도 같다 |
 | `authorization_servers` | OPTIONAL (RFC 9728) · MUST, 하나 이상 ([MCP Authorization Server Location](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-location)) | Authorization Server issuer 식별자의 배열 | `["http://localhost:9010"]` |
 | `jwks_uri` | OPTIONAL | protected resource 자신의 JWK Set(응답 signature 등). https MUST | 없음 |
 | `scopes_supported` | RECOMMENDED | 이 resource에 쓰는 scope의 배열 | 없음 — 그래서 `local-client`는 scope를 스스로 정한다([7장](07-local-client.md)). authz는 `["products:read"]`만 넣고, 쓰기 scope `products:write`는 넣지 않는다(A2, [10장](10-scope-and-step-up.md)) |
@@ -251,6 +251,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 본문이 상한(`mcp.limits.max-request-body`, 기본 1MB)을 넘음 | authz부터 `413`, `id` 없는 JSON-RPC 오류 `-32600`. `Content-Length`가 넘으면 본문을 읽지 않는다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) | 명세 범위 밖 — 서버의 자원 보호 |
 | 한 사용자의 `tools/call`이 1분에 상한(`mcp.limits.tool-calls-per-minute`, 기본 60)을 넘음 | authz부터 `429`와 `Retry-After`(초), `id` 없는 JSON-RPC 오류 `-32000`. scope 검사에서 `403`으로 끝난 호출은 세지 않는다 | 속도 제한 MUST ([Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations)) |
+| 형식이 틀린 `tools/call` — `params`가 object가 아니거나, `name`이 문자열이 아니거나 없거나, `arguments`·`_meta`가 object가 아님 | stateless부터 `400`과 `id` 없는 JSON-RPC 오류 `-32602`(Invalid params). transport가 끝내는 그 밖의 오류도 `code`·`message`만 남긴 JSON-RPC 오류로 바꾼다(`TransportErrorResponseFilter`) | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 

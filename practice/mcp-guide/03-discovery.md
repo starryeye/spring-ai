@@ -197,16 +197,28 @@ Spring Security 7.1에서는 PRM을 `protectedResourceMetadata(...)` 설정으�
 `shop-mcp-server`의 `SecurityConfig`는 여기에 Authorization Server 주소를 적는다.
 
 ```java
+String resource = resource(properties);                            // audiences 설정의 값 하나
+String resourceMetadataUrl = resourceMetadataUrl(resource);        // 경로형 PRM 주소
+...
 .oauth2ResourceServer(resourceServer -> resourceServer
         .jwt(Customizer.withDefaults())
-        .authenticationEntryPoint(resourceMetadataEntryPoint())   // 401에 resource_metadata를 넣는다
+        .authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))   // 401에 resource_metadata
         .protectedResourceMetadata(metadata -> metadata
                 .protectedResourceMetadataCustomizer(builder -> builder
+                        .claims(claims -> claims.put("resource",     // 경로는 두고 origin만 설정값으로
+                                withConfiguredOrigin((String) claims.get("resource"), resource)))
                         .authorizationServer(issuer)                     // PRM의 authorization_servers
                         .tlsClientCertificateBoundAccessTokens(false))))
 ```
 
-`resourceMetadataEntryPoint()`는 `/mcp` 요청이 거절될 때 `/.well-known/oauth-protected-resource/mcp` 주소를 `401`에 넣는다.
+`resource`는 `application.yml`의 `spring.security.oauth2.resourceserver.jwt.audiences`에 둔 MCP Server 주소 하나다.
+token의 `aud`를 검증할 때 쓰는 값과 같아서, PRM이 알리는 이름과 MCP Server가 받는 이름이 어긋나지 않는다.
+`resourceMetadataEntryPoint`는 어느 요청이 거절되든 `401`에 `http://localhost:8111/.well-known/oauth-protected-resource/mcp`를 넣는다.
+
+Spring은 PRM의 `resource`를 요청 주소로 만든다.
+그대로 두면 `Host` header를 바꾼 요청에 그 host가 든 `resource`가 나간다.
+그래서 `withConfiguredOrigin`은 요청한 PRM 주소의 경로만 두고 scheme·host·port를 설정값으로 바꾼다.
+경로형 PRM은 `http://localhost:8111/mcp`, 루트형 PRM은 `http://localhost:8111`로 답하므로 3.4의 주소 규칙과 맞는다.
 `issuer` 값은 `application.yml`의 `spring.security.oauth2.resourceserver.jwt.issuer-uri`에서 온다.
 
 **Agent: discovery를 하는 쪽**
