@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.function.Supplier;
 
 /**
  * 사용자 기기에서 도는 MCP client(Claude Desktop·Cursor 같은 public client)의 흐름을 한 번 밟는다(안내서 7장).
@@ -65,18 +66,34 @@ public final class Main {
 	}
 
 	static void run(Options options, PrintStream out) {
-		HttpClient http = HttpClient.newBuilder()
+		run(options, out, Main::newHttpClient);
+	}
+
+	static HttpClient newHttpClient() {
+		return HttpClient.newBuilder()
 				.followRedirects(HttpClient.Redirect.NEVER)
 				.connectTimeout(CONNECT_TIMEOUT)
 				.build();
+	}
 
+	/**
+	 * Java 21부터 {@link HttpClient}는 {@link AutoCloseable}이다. 흐름이 끝나면 성공·실패와 상관없이 닫아
+	 * selector thread와 연결을 정리한다. 테스트가 만든 client를 확인할 수 있게 만드는 쪽을 인자로 받는다.
+	 */
+	static void run(Options options, PrintStream out, Supplier<HttpClient> httpClients) {
+		try (HttpClient http = httpClients.get()) {
+			runFlow(options, out, http);
+		}
+	}
+
+	private static void runFlow(Options options, PrintStream out, HttpClient http) {
 		out.println("[1] discovery: " + options.resourceUrl());
 		AuthorizationServer server = new Discovery(http).discover(options.resourceUrl(), options.issuer());
 		out.println("    Authorization Server: " + server.issuer());
 
 		Pkce pkce = Pkce.generate();
 		String state = randomState();
-		try (LoopbackCallbackServer callback = LoopbackCallbackServer.start()) {
+		try (LoopbackCallbackServer callback = LoopbackCallbackServer.start(state)) {
 			URI authorization = AuthorizationRequest.uri(server, CLIENT_ID, callback.redirectUri(), SCOPE, state, pkce);
 			out.println("[2] browser에서 login과 consent를 한다");
 			out.println("    " + authorization);

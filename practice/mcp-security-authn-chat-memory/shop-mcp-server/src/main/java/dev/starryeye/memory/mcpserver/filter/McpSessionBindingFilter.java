@@ -10,8 +10,12 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * MCP session 을 그 session 을 연 사용자에 묶는다(MCP Security Best Practices — Session Hijacking, SHOULD).
@@ -22,12 +26,40 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>묶는 시점은 transport 가 응답에 {@code Mcp-Session-Id} 헤더를 쓰는 순간이다(응답 wrapper). 본문이
  * 나가기 전에 묶이므로 client 가 다음 요청을 보낼 때는 이미 묶여 있다. {@code DELETE} 로 session 이
  * 끝나면 묶음을 지운다.
+ *
+ * <p>{@code DELETE} 없이 사라진 client 의 묶음이 쌓이지 않도록, 묶음마다 마지막으로 쓴 시각을 두고
+ * {@link #DEFAULT_IDLE_TIMEOUT} 동안 쓰지 않은 묶음을 지운다. 요청을 처리할 때 {@link #SWEEP_INTERVAL} 에
+ * 한 번 map 전체를 훑는다. 묶음이 없는 session ID 로 온 요청은 끝난 session 으로 보고 {@code 404} 로
+ * 답한다(MCP: 끝낸 session ID 에는 404). transport 에 넘기면, 묶음만 지워지고 transport 에 남은 session 을
+ * 다른 사용자가 이어 쓸 수 있기 때문이다. client 는 {@code 404} 를 받으면 새 {@code initialize} 로 다시 연다.
  */
 public class McpSessionBindingFilter extends OncePerRequestFilter {
 
 	static final String SESSION_ID_HEADER = "Mcp-Session-Id";
 
-	private final Map<String, String> owners = new ConcurrentHashMap<>();
+	/** 이 시간 동안 쓰지 않은 묶음은 지운다. */
+	static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofHours(1);
+
+	/** map 전체 정리는 이 간격보다 자주 하지 않는다. */
+	static final Duration SWEEP_INTERVAL = Duration.ofMinutes(1);
+
+	private final Map<String, Binding> bindings = new ConcurrentHashMap<>();
+
+	private final Clock clock;
+
+	private final Duration idleTimeout;
+
+	private final AtomicReference<Instant> nextSweep;
+
+	public McpSessionBindingFilter() {
+		this(Clock.systemUTC(), DEFAULT_IDLE_TIMEOUT);
+	}
+
+	McpSessionBindingFilter(Clock clock, Duration idleTimeout) {
+		this.clock = clock;
+		this.idleTimeout = idleTimeout;
+		this.nextSweep = new AtomicReference<>(clock.instant().plus(SWEEP_INTERVAL));
+	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -37,20 +69,68 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 			chain.doFilter(request, response);
 			return;
 		}
+		Instant now = this.clock.instant();
+		sweepIfDue(now);
 		String user = authentication.getName();
 		String sessionId = request.getHeader(SESSION_ID_HEADER);
 		if (sessionId != null) {
-			String owner = this.owners.get(sessionId);
-			if (owner != null && !owner.equals(user)) {
+			Binding binding = this.bindings.get(sessionId);
+			if (binding == null || binding.idleSince(now, this.idleTimeout)) {
+				if (binding != null) {
+					this.bindings.remove(sessionId, binding);
+				}
+				response.sendError(HttpServletResponse.SC_NOT_FOUND, "MCP session not found");
+				return;
+			}
+			if (!binding.owner().equals(user)) {
 				response.sendError(HttpServletResponse.SC_FORBIDDEN, "MCP session belongs to another user");
 				return;
 			}
+			binding.touch(now);
 		}
 
-		chain.doFilter(request, new BindingResponse(response, user));
+		chain.doFilter(request, new BindingResponse(response, user, now));
 
 		if ("DELETE".equals(request.getMethod()) && sessionId != null && response.getStatus() < 300) {
-			this.owners.remove(sessionId, user);
+			this.bindings.remove(sessionId);
+		}
+	}
+
+	/** 지금 남아 있는 묶음 수. 테스트가 정리를 확인할 때 쓴다. */
+	int bindingCount() {
+		return this.bindings.size();
+	}
+
+	private void sweepIfDue(Instant now) {
+		Instant due = this.nextSweep.get();
+		if (now.isBefore(due) || !this.nextSweep.compareAndSet(due, now.plus(SWEEP_INTERVAL))) {
+			return;
+		}
+		this.bindings.values().removeIf(binding -> binding.idleSince(now, this.idleTimeout));
+	}
+
+	/** session 을 연 사용자와 그 session 으로 마지막 요청이 온 시각. */
+	private static final class Binding {
+
+		private final String owner;
+
+		private volatile Instant lastAccess;
+
+		Binding(String owner, Instant lastAccess) {
+			this.owner = owner;
+			this.lastAccess = lastAccess;
+		}
+
+		String owner() {
+			return this.owner;
+		}
+
+		void touch(Instant now) {
+			this.lastAccess = now;
+		}
+
+		boolean idleSince(Instant now, Duration idleTimeout) {
+			return this.lastAccess.plus(idleTimeout).isBefore(now);
 		}
 	}
 
@@ -59,9 +139,12 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 
 		private final String user;
 
-		BindingResponse(HttpServletResponse response, String user) {
+		private final Instant now;
+
+		BindingResponse(HttpServletResponse response, String user, Instant now) {
 			super(response);
 			this.user = user;
+			this.now = now;
 		}
 
 		@Override
@@ -78,7 +161,7 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 
 		private void bind(String name, String value) {
 			if (SESSION_ID_HEADER.equalsIgnoreCase(name) && value != null) {
-				owners.putIfAbsent(value, this.user);
+				bindings.putIfAbsent(value, new Binding(this.user, this.now));
 			}
 		}
 	}

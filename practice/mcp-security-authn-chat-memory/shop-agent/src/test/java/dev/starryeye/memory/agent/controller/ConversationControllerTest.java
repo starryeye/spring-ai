@@ -1,6 +1,7 @@
 package dev.starryeye.memory.agent.controller;
 
 import dev.starryeye.memory.agent.config.SecurityConfig;
+import dev.starryeye.memory.agent.domain.ConversationId;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,10 +16,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.List;
 
@@ -30,10 +32,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +68,23 @@ class ConversationControllerTest {
 		MockMvcBuilderCustomizer securityMockMvcBuilderCustomizer() {
 			return builder -> builder.apply(SecurityMockMvcConfigurers.springSecurity());
 		}
+	}
+
+	/**
+	 * index.html 의 흐름: 페이지가 준 {@code XSRF-TOKEN} 쿠키를 되돌려 보내고 그 값을 {@code X-XSRF-TOKEN}
+	 * 헤더에 싣는다. spring-security-test 의 {@code csrf()} 는 context 의 {@code CsrfFilter} 저장소를 바꿔
+	 * 같은 context 를 쓰는 다른 테스트에 번지므로 쓰지 않는다({@code ChatControllerTest} 와 같은 방식).
+	 */
+	RequestPostProcessor 페이지의_CSRF_토큰() throws Exception {
+		Cookie token = mockMvc.perform(get("/index.html"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getCookie("XSRF-TOKEN");
+		org.assertj.core.api.Assertions.assertThat(token).isNotNull();
+		return request -> {
+			request.setCookies(token);
+			request.addHeader("X-XSRF-TOKEN", token.getValue());
+			return request;
+		};
 	}
 
 	@BeforeEach
@@ -137,6 +154,23 @@ class ConversationControllerTest {
 				.andExpect(jsonPath("$", hasItem("alice:default")));
 	}
 
+	/** 사용자 이름에 구분자({@code :})가 든 다른 사용자의 대화가 접두사 거르기를 통과하지 않는다. */
+	@Test
+	@WithMockUser(username = "alice")
+	void 사용자_이름에_구분자가_든_다른_사용자의_대화는_목록에_보이지_않는다() throws Exception {
+		String other = ConversationId.of(new UsernamePasswordAuthenticationToken("alice:x", "n/a", List.of()), "default");
+		chatMemory.add(other, List.of(new UserMessage("나는 alice:x 야")));
+		try {
+			mockMvc.perform(get("/api/conversations"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$", hasItem("alice:default")))
+					.andExpect(jsonPath("$", not(hasItem(other))));
+		}
+		finally {
+			chatMemory.clear(other);
+		}
+	}
+
 	/**
 	 * {@link SecurityConfig} 는 이 practice 전체에서 CSRF 예외를 단 하나도 두지 않는다
 	 * (official·community practice 도 같다). 그 결정을 코드 리뷰만으로
@@ -150,21 +184,11 @@ class ConversationControllerTest {
 				.andExpect(status().isForbidden());
 	}
 
-	/**
-	 * 위 테스트의 대조군 — 토큰을 실어 보내면 같은 요청이 정상적으로 통과한다.
-	 *
-	 * <p>{@code .with(csrf())} 는 리플렉션으로 {@link SecurityConfig} 의 {@code CsrfFilter}
-	 * (context 전체에서 하나뿐인 singleton) 가 쓰는 {@code CsrfTokenRepository} 를 세션 기반
-	 * {@code TestCsrfTokenRepository} 로 바꿔 버린다. {@code @SpringBootTest} 는 context 를 클래스
-	 * 전체에서 캐싱하므로, 이 교체를 그대로 두면 이후에 도는 다른 테스트(예: 쿠키를 직접 읽는
-	 * 테스트)가 더 이상 {@code XSRF-TOKEN} 쿠키를 받지 못한다. {@code @DirtiesContext} 로 이 테스트
-	 * 뒤에 context 를 새로 만들어 그 오염이 퍼지지 않게 막는다.
-	 */
+	/** 위 테스트의 대조군 — 페이지가 준 토큰을 실어 보내면 같은 요청이 정상적으로 통과한다. */
 	@Test
 	@WithMockUser(username = "alice")
-	@DirtiesContext
 	void CSRF_토큰과_함께_지우면_204() throws Exception {
-		mockMvc.perform(delete("/api/conversations/default").with(csrf()))
+		mockMvc.perform(delete("/api/conversations/default").with(페이지의_CSRF_토큰()))
 				.andExpect(status().isNoContent());
 	}
 
@@ -177,33 +201,12 @@ class ConversationControllerTest {
 	 */
 	@Test
 	@WithMockUser(username = "bob")
-	@DirtiesContext
 	void bob_이_alice_ID_로_지워도_alice_대화는_그대로_남는다() throws Exception {
-		mockMvc.perform(delete("/api/conversations/alice:default").with(csrf()))
+		mockMvc.perform(delete("/api/conversations/alice:default").with(페이지의_CSRF_토큰()))
 				.andExpect(status().isNoContent());
 
 		List<Message> aliceMessages = chatMemory.get("alice:default");
 		assertThat(aliceMessages, hasSize(2));
 		assertThat(aliceMessages.get(0).getText(), is("내 이름은 앨리스야"));
-	}
-
-	@Test
-	@WithMockUser(username = "alice")
-	void CSRF_토큰_없이_채팅하면_403() throws Exception {
-		mockMvc.perform(post("/api/chat").param("label", "default").content("안녕"))
-				.andExpect(status().isForbidden());
-	}
-
-	/** index.html 의 흐름: 페이지가 준 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로 보낸다. */
-	@Test
-	@WithMockUser(username = "alice")
-	void 페이지가_준_XSRF_TOKEN_을_헤더로_보내면_지울_수_있다() throws Exception {
-		Cookie token = mockMvc.perform(get("/index.html"))
-				.andExpect(status().isOk())
-				.andReturn().getResponse().getCookie("XSRF-TOKEN");
-		org.assertj.core.api.Assertions.assertThat(token).isNotNull();
-
-		mockMvc.perform(delete("/api/conversations/default").cookie(token).header("X-XSRF-TOKEN", token.getValue()))
-				.andExpect(status().isNoContent());
 	}
 }

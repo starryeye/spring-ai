@@ -53,6 +53,26 @@ class ConversationIdTest {
         assertThat(ConversationId.prefixOf(user("alice"))).isEqualTo("alice:");
     }
 
+    /**
+     * 외부 IdP 의 {@code sub} 는 문자 집합을 보장하지 않는다. {@code alice:x} 의 대화 ID 가
+     * {@code alice:} 로 시작하면 alice 의 목록({@code startsWith(prefix)})에 섞인다.
+     */
+    @Test
+    void 사용자_이름에_구분자가_있어도_다른_사용자의_접두사에_걸리지_않는다() {
+        String other = ConversationId.of(user("alice:x"), "default");
+
+        assertThat(other).doesNotStartWith(ConversationId.prefixOf(user("alice")));
+        assertThat(ConversationId.prefixOf(user("alice:x"))).isNotEqualTo(ConversationId.prefixOf(user("alice")));
+    }
+
+    @Test
+    void 사용자_이름을_바꿔_쓴_결과도_사용자마다_다르다() {
+        assertThat(ConversationId.of(user("alice:x"), "default"))
+                .isNotEqualTo(ConversationId.of(user("alice%3Ax"), "default"));
+        assertThat(ConversationId.of(user("a%b"), "default"))
+                .isNotEqualTo(ConversationId.of(user("a%25b"), "default"));
+    }
+
     @Test
     void 서로_다른_사용자는_서로_다른_ID_를_얻는다() {
         assertThat(ConversationId.of(user("alice"), "default"))

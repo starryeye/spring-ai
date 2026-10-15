@@ -41,8 +41,8 @@ import java.util.List;
  * <p>메타데이터·OIDC 디스커버리 커스터마이저는 이 클래스 안에서 한 번에 구성해야 한다.
  * {@code OAuth2AuthorizationServerMetadataEndpointConfigurer#authorizationServerMetadataCustomizer}
  * 와 {@code OidcProviderConfigurationEndpointConfigurer#providerConfigurationCustomizer} 는
- * 둘 다 커스터마이저를 리스트가 아니라 필드 하나에 담아 마지막 호출로 덮어쓴다(module 소스
- * 확인: spring-security-config 7.1.0 소스의 두 클래스 모두 {@code this.xxxCustomizer = xxx;}).
+ * 둘 다 커스터마이저를 리스트가 아니라 필드 하나에 담아 마지막 호출로 덮어쓴다(community 모듈이
+ * 아니라 spring-security-config 7.1.0 의 두 클래스를 확인했다: 모두 {@code this.xxxCustomizer = xxx;}).
  * 그래서 다른 {@code Customizer<McpAuthorizationServerConfigurer>} 빈을 하나 더 만들어 같은
  * 메서드를 다시 호출하면, 먼저 등록된 {@link #ISS_PARAMETER_SUPPORTED} claim 이 사라진다.
  * {@code OidcDiscoveryConfig} 는 {@code oidc(Customizer.withDefaults())} 로 OidcConfigurer 를
@@ -52,9 +52,10 @@ import java.util.List;
  * 위험을 줄인다.
  *
  * <p>같은 이유로 이 클래스의 {@code authorizationServerMetadataCustomizer} 호출은 모듈
- * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)} 와도 부딪힌다(module 소스
- * 확인: {@code cimd(true)} 면 init() 이 그 메서드로 {@code client_id_metadata_document_supported}
- * claim 을 먼저 심고, 그 뒤 {@code this.authServerCustomizer.forEach(...)} 로 이 클래스가 등록한
+ * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)} 와도 부딪힌다(community 모듈
+ * {@code mcp-authorization-server} 0.1.14 확인: {@code cimd(true)} 면 init() 이 그 메서드로
+ * {@code client_id_metadata_document_supported} claim 을 먼저 심고, 그 뒤
+ * {@code this.authServerCustomizer.forEach(...)} 로 이 클래스가 등록한
  * 커스터마이저가 실행되어 같은 필드를 덮어쓴다). 이 프로젝트는 CIMD 를 켜지 않으므로(properties
  * 로 켜는 경로도 없다) 지금은 무해하지만, {@code McpAuthorizationServerConfigurer#cimd(true)} 를
  * 호출하는 커스터마이저 빈이 추가되는 순간 그 claim 은 조용히 사라진다.
@@ -142,8 +143,8 @@ public class McpAuthorizationStandardConfig {
                         .clientAuthentication(clientAuthentication -> clientAuthentication
                                 .errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
                         // OidcDiscoveryConfig 가 oidc() 를 켜 둔다. providerConfigurationCustomizer 는
-                        // OidcProviderConfigurationEndpointConfigurer 필드 하나에 담기므로(module 소스
-                        // 확인) token/revocation/introspection 세 claim 모두 이 한 호출에 모아야 한다 —
+                        // OidcProviderConfigurationEndpointConfigurer 필드 하나에 담기므로(spring-security-config
+                        // 7.1.0 확인) token/revocation/introspection 세 claim 모두 이 한 호출에 모아야 한다 —
                         // OidcProviderConfigurationEndpointFilter 도 AS 메타데이터와 동일하게 세
                         // 엔드포인트 모두에 clientAuthenticationMethods()(private_key_jwt·
                         // client_secret_jwt 포함)를 그대로 광고하기 때문에 세 claim 모두가 대상이다.

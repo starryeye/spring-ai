@@ -21,7 +21,11 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>`127.0.0.1`의 비어 있는 포트를 운영체제에서 받는다. Authorization Server는 loopback redirect URI의
  * 포트를 비교하지 않으므로, 등록된 `http://127.0.0.1:8123/callback`과 포트가 달라도 된다(RFC 8252 7.3절).
- * 처음 받은 callback만 결과로 쓰고, `/callback`이 아닌 경로(`/favicon.ico` 등)는 404다.
+ *
+ * <p>`GET /callback`이고 `state`가 이번 authorization request의 값과 같은 요청만 결과로 쓴다.
+ * 같은 기기의 다른 process나 browser의 다른 페이지도 이 포트에 요청을 보낼 수 있으므로, 처음 온 요청을
+ * 결과로 확정하면 그런 요청 하나로 정상 login을 끝내 버릴 수 있다. 그래서 method가 다르거나 `state`가
+ * 없거나 다른 요청은 `400`으로 답하고 계속 기다린다. `/callback`이 아닌 경로(`/favicon.ico` 등)는 404다.
  */
 public final class LoopbackCallbackServer implements AutoCloseable {
 
@@ -29,24 +33,30 @@ public final class LoopbackCallbackServer implements AutoCloseable {
 
 	private final HttpServer server;
 
+	private final String expectedState;
+
 	private final CompletableFuture<Map<String, String>> callback = new CompletableFuture<>();
 
-	private LoopbackCallbackServer(HttpServer server) {
+	private LoopbackCallbackServer(HttpServer server, String expectedState) {
 		this.server = server;
+		this.expectedState = expectedState;
 		this.server.createContext(PATH, this::handle);
 		this.server.start();
 	}
 
-	public static LoopbackCallbackServer start() throws IOException {
+	/**
+	 * @param expectedState authorization request에 실어 보낸 `state`. 이 값이 같은 callback만 결과로 쓴다
+	 */
+	public static LoopbackCallbackServer start(String expectedState) throws IOException {
 		return new LoopbackCallbackServer(
-				HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0));
+				HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0), expectedState);
 	}
 
 	public URI redirectUri() {
 		return URI.create("http://127.0.0.1:" + this.server.getAddress().getPort() + PATH);
 	}
 
-	/** callback의 query parameter를 기다린다. */
+	/** `state`가 맞는 callback의 query parameter를 기다린다. */
 	public Map<String, String> await(Duration timeout) {
 		try {
 			return this.callback.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -69,11 +79,20 @@ public final class LoopbackCallbackServer implements AutoCloseable {
 			exchange.close();
 			return;
 		}
-		boolean first = this.callback.complete(Form.decode(exchange.getRequestURI().getRawQuery()));
-		byte[] body = (first ? "login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요." : "이미 처리한 callback입니다.")
-				.getBytes(StandardCharsets.UTF_8);
+		Map<String, String> params = Form.decode(exchange.getRequestURI().getRawQuery());
+		if (!"GET".equals(exchange.getRequestMethod()) || !this.expectedState.equals(params.get("state"))) {
+			// 요청에 담긴 값은 응답에 쓰지 않는다.
+			reply(exchange, 400, "이 login의 callback이 아닙니다.");
+			return;
+		}
+		boolean first = this.callback.complete(params);
+		reply(exchange, 200, first ? "login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요." : "이미 처리한 callback입니다.");
+	}
+
+	private static void reply(HttpExchange exchange, int status, String message) throws IOException {
+		byte[] body = message.getBytes(StandardCharsets.UTF_8);
 		exchange.getResponseHeaders().set("Content-Type", "text/plain; charset=utf-8");
-		exchange.sendResponseHeaders(200, body.length);
+		exchange.sendResponseHeaders(status, body.length);
 		try (OutputStream out = exchange.getResponseBody()) {
 			out.write(body);
 		}
