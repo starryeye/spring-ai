@@ -25,7 +25,8 @@ import java.util.regex.Pattern;
  *   <li>토큰 없이 MCP 서버를 호출해 401 과 {@code WWW-Authenticate} 를 받는다</li>
  *   <li>헤더의 {@code resource_metadata} 를 따라간다. 없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
  *   <li>메타데이터의 {@code resource} 가 우리가 부른 URL 과 같은지 확인한다(RFC 9728 §3.3)</li>
- *   <li>{@code authorization_servers} 가 자격증명이 등록된 issuer 인지 먼저 확인한다(아니면 더 요청하지 않는다)</li>
+ *   <li>{@code authorization_servers}에 credentials가 등록된 issuer가 있는지 먼저 확인한다.
+ *       순서와 상관없이 그 issuer를 쓰고, 없으면 더 요청하지 않는다</li>
  *   <li>인가 서버 메타데이터를 RFC 8414 → OIDC 순서로 찾는다</li>
  *   <li>메타데이터의 {@code issuer} 가 같은지, PKCE {@code S256} 을 지원하는지,
  *       {@code authorization_endpoint}·{@code token_endpoint} 가 https 이거나 loopback 주소의 http 인지 확인한다</li>
@@ -102,12 +103,14 @@ public class McpAuthorizationDiscovery {
         if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
             throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
         }
-        String issuer = String.valueOf(servers.get(0));
-        if (!trustedIssuer.equals(issuer)) {
+        // 목록의 순서는 신뢰의 근거가 아니다. credentials가 등록된 issuer가 어디에 있든 그것을 쓴다.
+        // 없으면 목록의 어떤 Authorization Server에도 요청하지 않는다(local-client의 Discovery와 같은 규칙).
+        if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
             throw new McpDiscoveryException(
                     "자격증명은 %s 에 등록된 것인데 PRM 이 가리키는 인가 서버는 %s 다 — 메타데이터를 요청하지 않는다"
-                            .formatted(trustedIssuer, issuer));
+                            .formatted(trustedIssuer, servers));
         }
+        String issuer = trustedIssuer;
 
         return new DiscoveredAuthorization((String) protectedResource.get("resource"), issuer,
                 authorizationServerMetadata(issuer));

@@ -161,6 +161,19 @@ class McpAuthorizationDiscoveryTest {
 	}
 
 	@Test
+	void authorization_servers_가_여럿이면_첫_값을_쓴다() {
+		// CIMD client는 credentials가 묶인 issuer가 없어 목록에서 고를 기준이 없다. 첫 값만 쓰고 나머지에는 요청하지 않는다.
+		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
+		챌린지("Bearer resource_metadata=\"" + prm + "\"");
+		응답(prm, """
+				{"resource":"%s","authorization_servers":["%s","https://other.example"]}""".formatted(RESOURCE, ISSUER));
+		응답(ISSUER + "/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		assertThat(this.discovery.discover(RESOURCE, METHOD).issuer()).isEqualTo(ISSUER);
+		this.server.verify();
+	}
+
+	@Test
 	void authorization_endpoint_가_http_URL_이_아니면_진행하지_않는다() {
 		// MCP Security Best Practices — client 는 authorization URL 을 열기 전에 스킴을 확인한다(MUST).
 		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");

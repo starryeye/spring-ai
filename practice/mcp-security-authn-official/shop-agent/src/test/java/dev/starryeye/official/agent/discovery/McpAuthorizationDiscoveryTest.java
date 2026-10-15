@@ -168,6 +168,20 @@ class McpAuthorizationDiscoveryTest {
 	}
 
 	@Test
+	void authorization_servers_의_어디에_있든_자격증명의_issuer_를_고른다() {
+		// 순서는 신뢰의 근거가 아니다. 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고,
+		// 목록의 다른 Authorization Server에는 요청하지 않는다.
+		챌린지("Bearer resource_metadata=\"http://localhost:8111/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8111/.well-known/oauth-protected-resource/mcp", """
+				{"resource":"http://localhost:8111/mcp",\
+				"authorization_servers":["https://other.example","http://localhost:9010"]}""");
+		응답("http://localhost:9010/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		assertThat(this.discovery.discover(RESOURCE, ISSUER).issuer()).isEqualTo(ISSUER);
+		this.server.verify();
+	}
+
+	@Test
 	void authorization_endpoint_가_http_URL_이_아니면_진행하지_않는다() {
 		// MCP Security Best Practices — client 는 authorization URL 을 열기 전에 스킴을 확인한다(MUST).
 		챌린지("Bearer resource_metadata=\"http://localhost:8111/.well-known/oauth-protected-resource/mcp\"");

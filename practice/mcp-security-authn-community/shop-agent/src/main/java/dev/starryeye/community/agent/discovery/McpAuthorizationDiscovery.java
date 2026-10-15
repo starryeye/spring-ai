@@ -97,12 +97,14 @@ public class McpAuthorizationDiscovery {
         if (servers == null || servers.isEmpty()) {
             throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
         }
-        String issuer = servers.get(0);
-        if (!trustedIssuer.equals(issuer)) {
+        // 목록의 순서는 신뢰의 근거가 아니다. credentials가 등록된 issuer가 어디에 있든 그것을 쓴다.
+        // 없으면 목록의 어떤 Authorization Server에도 요청하지 않는다(local-client의 Discovery와 같은 규칙).
+        if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
             throw new McpDiscoveryException(
                     "자격증명은 %s 에 등록된 것인데 PRM 이 가리키는 인가 서버는 %s 다 — 메타데이터를 요청하지 않는다"
-                            .formatted(trustedIssuer, issuer));
+                            .formatted(trustedIssuer, servers));
         }
+        String issuer = trustedIssuer;
 
         return new DiscoveredAuthorization(protectedResource.resource(), issuer, authorizationServerMetadata(issuer));
     }

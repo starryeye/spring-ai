@@ -28,7 +28,8 @@ import java.util.regex.Pattern;
  *   <li>{@code 401}의 {@code scope}와 PRM의 {@code scopes_supported}로 처음 요청할 scope를 고른다</li>
  *   <li>PRM의 {@code resource}가 부른 URL과 같은지 확인한다(RFC 9728 §3.3)</li>
  *   <li>{@code authorization_servers}의 첫 값을 Authorization Server로 쓴다.
- *       CIMD client_id는 어느 Authorization Server에도 묶이지 않고, 미리 나눈 비밀도 없다</li>
+ *       CIMD client_id는 어느 Authorization Server에도 묶이지 않고, 미리 나눈 비밀도 없다.
+ *       그래서 다른 practice처럼 "credentials가 등록된 issuer"를 목록에서 찾을 기준이 없다</li>
  *   <li>Authorization Server Metadata를 RFC 8414 → OpenID Connect Discovery 순서로 찾는다</li>
  *   <li>metadata의 {@code issuer}가 같은지, PKCE {@code S256}을 지원하는지 확인한다.
  *       CIMD를 지원하는지, 문서에 선언한 인증 방식을 받는지도 확인한다.
@@ -115,6 +116,10 @@ public class McpAuthorizationDiscovery {
 		if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
 			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
 		}
+		// 고를 기준(credentials가 묶인 issuer)이 없으니 MCP Server가 맨 앞에 둔 값을 쓴다.
+		// 한계가 둘 있다. 첫 값이 CIMD나 문서의 인증 방식을 받지 않아도 다음 값을 시도하지 않고 멈춘다.
+		// 또 MCP Server가 고른 Authorization Server를 확인 없이 믿는다. 설정한 MCP Server가 PRM에
+		// 다른 Authorization Server를 적으면 사용자는 그 login 화면으로 간다(issuer binding이 없는 CIMD의 성질).
 		String issuer = String.valueOf(servers.get(0));
 
 		return new DiscoveredAuthorization((String) protectedResource.get("resource"), issuer,
