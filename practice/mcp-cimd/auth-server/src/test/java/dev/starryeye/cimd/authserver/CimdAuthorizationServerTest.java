@@ -38,6 +38,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -200,9 +201,21 @@ class CimdAuthorizationServerTest {
 		return claims(jwt).getStringListClaim("scope");
 	}
 
-	/** authorization request를 보내고 오류로 돌아온 redirect를 읽는다. */
-	UriComponents 오류_응답(URI uri) throws Exception {
-		return UriComponentsBuilder.fromUriString(redirect(uri)).build();
+	/**
+	 * authorization request의 오류 응답 본문을 읽는다.
+	 * consent 화면에서 거절한 경우 말고는 문서의 redirect_uri로 보내지 않고, Authorization Server가 400으로 끝낸다.
+	 */
+	String 오류_화면(MockHttpServletRequestBuilder request) throws Exception {
+		return this.mockMvc.perform(request)
+				.andExpect(status().isBadRequest())
+				.andExpect(header().doesNotExist(HttpHeaders.LOCATION))
+				.andExpect(content().contentType("text/plain;charset=UTF-8"))
+				.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+	}
+
+	/** 로그인한 session으로 authorization request를 보내고 오류 응답 본문을 읽는다. */
+	String 오류_화면(URI uri) throws Exception {
+		return 오류_화면(get(uri).session(this.session));
 	}
 
 	/**
@@ -306,21 +319,37 @@ class CimdAuthorizationServerTest {
 				.replaceQueryParam("redirect_uri", "http://localhost:8170/elsewhere")
 				.encode().build().toUri();
 
-		String error = this.mockMvc.perform(get(uri).session(this.session))
-				.andExpect(status().isBadRequest())
-				.andReturn().getResponse().getErrorMessage();
-		assertThat(error).contains("invalid_request");
+		assertThat(오류_화면(uri)).contains("invalid_request");
 	}
 
 	@Test
-	void PKCE가_없으면_invalid_request다() throws Exception {
+	void PKCE가_없으면_redirect_없이_invalid_request다() throws Exception {
 		URI uri = authorizationRequestBuilder(CLAUDE, "openid products:read")
 				.replaceQueryParam("code_challenge")
 				.replaceQueryParam("code_challenge_method")
 				.encode().build().toUri();
 
-		UriComponents response = UriComponentsBuilder.fromUriString(redirect(uri)).build();
-		assertThat(응답값(response, "error")).isEqualTo("invalid_request");
+		assertThat(오류_화면(uri)).contains("invalid_request");
+	}
+
+	@Test
+	void 로그인하지_않은_browser의_오류도_문서의_redirect_uri로_보내지_않는다() throws Exception {
+		// Spring은 authorization request를 login보다 먼저 검사한다. CIMD client의 redirect_uri는 누구나 문서에 적는 값이라,
+		// 그 주소로 오류를 redirect하면 Authorization Server가 open redirector가 된다(RFC 9700 §4.11.2).
+		String body = 오류_화면(get(authorizationRequest(CLAUDE, "openid")).accept(MediaType.TEXT_HTML));
+
+		assertThat(body).contains("invalid_scope").doesNotContain(REDIRECT_URI);
+	}
+
+	@Test
+	void consent_화면에서_거절하면_access_denied와_iss를_redirect로_돌려준다() throws Exception {
+		// 로그인한 사용자가 consent 화면에서 고른 결정만 client에게 redirect로 알린다.
+		UriComponents response = 인가(CLAUDE, "openid products:read");
+
+		assertThat(response.toUriString()).startsWith(REDIRECT_URI);
+		assertThat(응답값(response, "error")).isEqualTo("access_denied");
+		assertThat(응답값(response, "code")).isNull();
+		assertThat(응답값(response, "state")).isEqualTo("state-1");
 		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
 	}
 
@@ -337,33 +366,25 @@ class CimdAuthorizationServerTest {
 	void ChatGPT형도_openid만_요청하면_invalid_scope다() throws Exception {
 		// Spring은 openid 하나면 consent를 건너뛴다.
 		// 누구나 private_key_jwt 문서를 올릴 수 있으므로, 막지 않으면 consent 없이 code와 refresh token을 받는다.
-		UriComponents response = 오류_응답(authorizationRequest(CHATGPT, "openid"));
+		// 로그인한 뒤의 오류도 consent 화면에서 거절한 것이 아니므로 redirect하지 않는다.
+		String body = 오류_화면(authorizationRequest(CHATGPT, "openid"));
 
-		assertThat(응답값(response, "error")).isEqualTo("invalid_scope");
-		assertThat(응답값(response, "code")).isNull();
-		assertThat(응답값(response, "state")).isEqualTo("state-1");
-		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+		assertThat(body).contains("invalid_scope").doesNotContain("code=");
 	}
 
 	@Test
 	void Claude형도_openid만_요청하면_invalid_scope다() throws Exception {
-		UriComponents response = 오류_응답(authorizationRequest(CLAUDE, "openid"));
-
-		assertThat(응답값(response, "error")).isEqualTo("invalid_scope");
-		assertThat(응답값(response, "code")).isNull();
-		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+		assertThat(오류_화면(authorizationRequest(CLAUDE, "openid"))).contains("invalid_scope");
 	}
 
 	@Test
 	void scope_없이_요청하면_invalid_scope다() throws Exception {
 		// RFC 6749 §3.3: scope 없는 요청은 기본값으로 처리하거나 거부한다. 이 서버는 거부한다.
-		UriComponents response = 오류_응답(authorizationRequestBuilder(CHATGPT, "openid products:read")
+		String body = 오류_화면(authorizationRequestBuilder(CHATGPT, "openid products:read")
 				.replaceQueryParam("scope")
 				.encode().build().toUri());
 
-		assertThat(응답값(response, "error")).isEqualTo("invalid_scope");
-		assertThat(응답값(response, "code")).isNull();
-		assertThat(응답값(response, "iss")).isEqualTo(ISSUER);
+		assertThat(body).contains("invalid_scope");
 	}
 
 	@Test
@@ -379,8 +400,7 @@ class CimdAuthorizationServerTest {
 				.replaceQueryParam("resource", OTHER_RESOURCE)
 				.encode().build().toUri();
 
-		UriComponents response = UriComponentsBuilder.fromUriString(redirect(uri)).build();
-		assertThat(응답값(response, "error")).isEqualTo("invalid_target");
+		assertThat(오류_화면(uri)).contains("invalid_target");
 	}
 
 	@Test

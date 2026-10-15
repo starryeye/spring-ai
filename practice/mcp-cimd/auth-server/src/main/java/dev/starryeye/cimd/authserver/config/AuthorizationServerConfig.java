@@ -114,7 +114,8 @@ public class AuthorizationServerConfig {
 							.authorizationEndpoint(authorization -> authorization
 									// 문서 host와 redirect host를 보여 주는 consent 화면이다.
 									.consentPage(ConsentController.PATH)
-									// RFC 9207: 성공 응답과 오류 응답 모두에 iss를 넣는다.
+									// RFC 9207: redirect로 돌려주는 응답(성공, consent 화면의 거절)에 iss를 넣는다.
+									// 그 밖의 오류는 문서의 redirect URI로 보내지 않고 400으로 끝낸다(open redirector 방지).
 									.authorizationResponseHandler(responseHandler)
 									.errorResponseHandler(responseHandler)
 									// 기본 검증(redirect_uri·scope) 뒤에 RFC 8707 resource 검증과
