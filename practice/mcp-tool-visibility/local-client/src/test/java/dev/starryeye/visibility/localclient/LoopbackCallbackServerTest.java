@@ -85,6 +85,9 @@ class LoopbackCallbackServerTest {
 			int status = this.http.send(HttpRequest.newBuilder(callback).POST(HttpRequest.BodyPublishers.noBody())
 					.build(), HttpResponse.BodyHandlers.discarding()).statusCode();
 			assertThat(status).isEqualTo(400);
+			int head = this.http.send(HttpRequest.newBuilder(callback).HEAD().build(),
+					HttpResponse.BodyHandlers.discarding()).statusCode();
+			assertThat(head).isEqualTo(400);
 
 			get(URI.create(server.redirectUri() + "?code=abc&state=xyz"));
 
