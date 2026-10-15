@@ -165,6 +165,43 @@ class RefreshTokenReuseDetectingAuthorizationServiceTest {
 	}
 
 	@Test
+	void rotation_중에_버린_token이_오면_저장이_끝난_뒤에_끊어_grant가_되살아나지_않는다() throws Exception {
+		OAuth2Authorization first = authorization("first");
+		this.service.save(first);
+		rotate(first, "second");
+
+		// 지금의 token(second)으로 refresh하는 요청이 grant를 찾았고, 아직 저장하지 않았다.
+		CountDownLatch rotatorFound = new CountDownLatch(1);
+		CountDownLatch rotatorMaySave = new CountDownLatch(1);
+		Thread rotator = new Thread(() -> {
+			OAuth2Authorization found = this.service.findByToken("second", OAuth2TokenType.REFRESH_TOKEN);
+			rotatorFound.countDown();
+			try {
+				rotatorMaySave.await(5, TimeUnit.SECONDS);
+			}
+			catch (InterruptedException ex) {
+				Thread.currentThread().interrupt();
+			}
+			this.service.save(OAuth2Authorization.from(found).refreshToken(refreshToken("third")).build());
+		});
+		rotator.start();
+		assertThat(rotatorFound.await(5, TimeUnit.SECONDS)).isTrue();
+
+		// 그 사이 버린 token(first)이 온다. 바로 지우면, 이어지는 저장이 grant를 다시 살린다.
+		Thread reuse = new Thread(() -> this.service.findByToken("first", OAuth2TokenType.REFRESH_TOKEN));
+		reuse.start();
+		lock을_기다리거나_끝날_때까지_기다린다(reuse);
+
+		rotatorMaySave.countDown();
+		rotator.join(5000);
+		reuse.join(5000);
+
+		assertThat(this.service.findById("authorization-1")).isNull();
+		assertThat(this.service.findByToken("third", OAuth2TokenType.REFRESH_TOKEN)).isNull();
+		assertThat(this.service.lockCount()).isZero();
+	}
+
+	@Test
 	void save가_끝나면_lock을_풀어_다음_refresh가_기다리지_않는다() throws Exception {
 		OAuth2Authorization first = authorization("first");
 		this.service.save(first);

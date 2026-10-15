@@ -42,6 +42,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * 그러면 one-time-use가 깨지고, 도난 탐지는 진 쪽이 다음에 refresh할 때로 밀린다.
  * 그래서 refresh token으로 grant를 찾으면 그 grant의 lock을 잡고 한 번 더 찾는다.
  * 기다리는 사이 다른 요청이 rotation했다면 두 번째 조회에서 없으므로, 버린 token을 다시 쓴 것으로 보고 grant를 끊는다.
+ * 기록해 둔 버린 token이 와서 grant를 끊을 때도 같은 lock 안에서 끊는다. 그래야 rotation 중이던 요청의 저장이 끊은 grant를 되살리지 않는다.
  * lock은 그 grant를 저장할 때 푼다. 저장하지 않고 끝난 요청(검증 실패 등)은 token endpoint의
  * {@link RefreshLockReleasingFilter}가 요청 끝에 푼다. lock을 잡은 요청을 thread로 구별하므로, 한 요청이 한 thread에서 돈다고 본다.
  * 이 lock은 이 process 안에서만 통한다. 서버를 여러 대 두면 저장소의 version 비교 같은 방법이 따로 필요하다.
@@ -128,7 +129,7 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 		if (found == null) {
 			Retired reused = this.retired.remove(hash(token));
 			if (reused != null && reused.expiresAt().isAfter(this.clock.instant())) {
-				revoke(reused.authorizationId());
+				revokeUnderLock(reused.authorizationId());
 			}
 			return null;
 		}
@@ -202,6 +203,24 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 	/** lock을 쓰는 thread 수를 줄이고, 아무도 쓰지 않으면 항목을 지운다. */
 	private void leave(String authorizationId) {
 		this.locks.computeIfPresent(authorizationId, (id, entry) -> (--entry.users == 0) ? null : entry);
+	}
+
+	/**
+	 * 그 grant의 lock 안에서 끊는다. 지금의 token으로 rotation 중인 요청이 있으면 그 저장이 끝난 뒤에 지운다.
+	 * lock 없이 먼저 지우면, 이어지는 저장이 끊은 grant를 다시 살린다.
+	 * lock을 시간 안에 잡지 못해도 끊는 것은 미루지 않는다.
+	 */
+	private void revokeUnderLock(String authorizationId) {
+		boolean alreadyHeld = this.held.get().contains(authorizationId);
+		boolean locked = !alreadyHeld && lock(authorizationId);
+		try {
+			revoke(authorizationId);
+		}
+		finally {
+			if (locked) {
+				unlock(authorizationId);
+			}
+		}
 	}
 
 	private void revoke(String authorizationId) {
