@@ -23,6 +23,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +38,9 @@ class ToolScopeFilterTest {
 	/** 본문 상한을 시험하는 filter의 상한이다. 기본 상한(1 MiB)보다 작게 두어 큰 본문을 만들지 않는다. */
 	static final int SMALL_LIMIT = 128;
 
+	/** 속도 제한의 Retry-After가 실행 속도에 따라 흔들리지 않도록 시간을 멈춘다. */
+	static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC);
+
 	ToolScopeFilter filter = filter(1024 * 1024);
 
 	static ToolScopeFilter filter(int maxBodyBytes) {
@@ -48,7 +53,7 @@ class ToolScopeFilterTest {
 		ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class);
 		return new ToolScopeFilter(registry, new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)),
 				JsonMapper.builder().build(), METADATA, maxBodyBytes,
-				new ToolCallRateLimiter(toolCallsPerMinute, Duration.ofMinutes(1), Clock.systemUTC()));
+				new ToolCallRateLimiter(toolCallsPerMinute, Duration.ofMinutes(1), FIXED_CLOCK));
 	}
 
 	/** {@code length} 바이트짜리 {@code tools/list} 본문이다. 끝의 공백으로 길이를 맞춘다. */
