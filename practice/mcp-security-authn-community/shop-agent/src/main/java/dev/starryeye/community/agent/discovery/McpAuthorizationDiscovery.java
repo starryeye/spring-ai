@@ -19,19 +19,19 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 인가 서버를 발견한다(MCP 2025-11-25 인가 §2.3).
+ * Authorization Server를 찾는다(MCP 2025-11-25 Authorization — Authorization Server Discovery, 안내서 3장).
  *
- * <p>보호 리소스 메타데이터까지는 모듈의 {@link McpMetadataDiscoveryService} 가 해 준다 —
- * 401 챌린지를 읽고, {@code resource_metadata} 를 따라가고, 없으면 well-known 경로를
- * 차례로 시도하고, 메타데이터의 {@code resource} 가 우리가 부른 URL 과 같은지 확인한다.
- * 다만 {@code resource_metadata} 가 설정한 MCP Server 와 같은 origin 인지는 보지 않으므로,
- * module 의 두 단계(challenge 읽기 → 메타데이터 가져오기) 사이에서 여기서 확인한다.
+ * <p>Protected Resource Metadata까지는 module의 {@link McpMetadataDiscoveryService}가 해 준다.
+ * 401 challenge를 읽고, {@code resource_metadata}를 따라가고, 없으면 well-known 경로를
+ * 차례로 시도하고, PRM의 {@code resource}가 부른 URL과 같은지 확인한다.
+ * 다만 {@code resource_metadata}가 설정한 MCP Server와 같은 origin인지는 보지 않는다.
+ * 그래서 module의 두 단계(challenge 읽기 → PRM 가져오기) 사이에서 여기서 확인한다.
  *
- * <p>그다음 단계(인가 서버 메타데이터 발견과 검증)는 모듈이 다루지 않으므로 여기서 한다.
+ * <p>그다음 단계(Authorization Server Metadata discovery와 검증)는 module이 다루지 않으므로 여기서 한다.
  */
 public class McpAuthorizationDiscovery {
 
-    /** IPv4 literal 의 한 자리(0~255). */
+    /** IPv4 literal의 한 자리(0~255)다. */
     private static final String OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
 
     /** 127.0.0.0/8. */
@@ -82,7 +82,7 @@ public class McpAuthorizationDiscovery {
     }
 
     /**
-     * @param trustedIssuer 자격증명이 등록된 Authorization Server. PRM 이 다른 곳을 가리키면 그 metadata 도
+     * @param trustedIssuer credentials가 등록된 Authorization Server. PRM이 다른 곳을 가리키면 그 metadata도
      *                      요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
      */
     public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
@@ -98,8 +98,8 @@ public class McpAuthorizationDiscovery {
                     .protectedResourceMetadata();
         }
         catch (IllegalStateException | RestClientException ex) {
-            // 모듈은 resource 불일치·metadata 없음을 IllegalStateException 으로, 401 이 아닌 오류 응답을
-            // RestClientException 으로 올린다.
+            // module은 resource 불일치와 metadata 없음을 IllegalStateException으로, 401이 아닌 오류 응답을
+            // RestClientException으로 올린다.
             throw new McpDiscoveryException("보호 리소스 메타데이터를 얻지 못했다: " + ex.getMessage(), ex);
         }
 
@@ -169,7 +169,8 @@ public class McpAuthorizationDiscovery {
                     || !methods.contains("S256")) {
                 throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
             }
-            // MCP Security Best Practices: authorization URL 을 열기 전에 스킴과, http 면 loopback 주소인지 확인한다(MUST).
+            // MCP Security Best Practices: authorization URL을 열기 전에 scheme을 확인하고,
+            // http라면 loopback 주소인지 확인한다(MUST).
             requireHttpUrl(metadata, "authorization_endpoint");
             requireHttpUrl(metadata, "token_endpoint");
             return metadata;
@@ -178,9 +179,9 @@ public class McpAuthorizationDiscovery {
     }
 
     /**
-     * MCP Security Best Practices — OAuth Authorization URL Validation: authorization URL 은 {@code https}, 또는
-     * loopback 주소({@code localhost}·127.0.0.0/8·{@code ::1})의 {@code http} 만 허용한다(MUST).
-     * DNS 를 조회하지 않고 URI 의 host 문자열로만 판단한다.
+     * MCP Security Best Practices — OAuth Authorization URL Validation: authorization URL은 {@code https}이거나
+     * loopback 주소({@code localhost}·127.0.0.0/8·{@code ::1})의 {@code http}만 허용한다(MUST).
+     * DNS를 조회하지 않고 URI의 host 문자열로만 판단한다.
      */
     private static void requireHttpUrl(Map<String, Object> metadata, String name) {
         Object value = metadata.get(name);
@@ -203,14 +204,14 @@ public class McpAuthorizationDiscovery {
         }
     }
 
-    /** {@code localhost}, 127.0.0.0/8 의 IPv4 literal, {@code ::1} 이면 loopback 이다. */
+    /** {@code localhost}, 127.0.0.0/8의 IPv4 literal, {@code ::1}이면 loopback이다. */
     private static boolean isLoopback(String host) {
         String lower = host.toLowerCase(Locale.ROOT);
         return "localhost".equals(lower) || "[::1]".equals(lower) || "::1".equals(lower)
                 || LOOPBACK_IPV4.matcher(lower).matches();
     }
 
-    /** RFC 8414 §3.1 과 OIDC 디스커버리의 경로 규칙. MCP 는 RFC 8414 를 먼저 시도하라고 한다. */
+    /** RFC 8414 §3.1과 OpenID Connect Discovery의 경로 규칙이다. MCP는 RFC 8414를 먼저 시도하라고 한다. */
     private static List<String> metadataUrls(String issuer) {
         URI uri = URI.create(issuer);
         String origin = uri.getScheme() + "://" + uri.getRawAuthority();
