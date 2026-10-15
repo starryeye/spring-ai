@@ -76,7 +76,7 @@ public final class Main {
 
 		Pkce pkce = Pkce.generate();
 		String state = randomState();
-		try (LoopbackCallbackServer callback = LoopbackCallbackServer.start()) {
+		try (LoopbackCallbackServer callback = LoopbackCallbackServer.start(state)) {
 			URI authorization = AuthorizationRequest.uri(server, CLIENT_ID, callback.redirectUri(), SCOPE, state, pkce);
 			out.println("[2] browser에서 login과 consent를 한다");
 			out.println("    " + authorization);
