@@ -74,6 +74,21 @@ class McpScopeTest {
 								+ "resource_metadata=\"http://localhost:8151/.well-known/oauth-protected-resource/mcp\""));
 	}
 
+	/** {@code 403}의 {@code resource_metadata}도 요청의 Host가 아니라 설정한 주소로 만든다. */
+	@Test
+	void 허용한_다른_Host로_불러도_403의_resource_metadata는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(post("/mcp")
+						.contentType(MediaType.APPLICATION_JSON)
+						.header("Accept", "application/json, text/event-stream")
+						.header("Host", McpAuthorizationStandardTest.HOST.replace("localhost", "127.0.0.1"))
+						.header("MCP-Protocol-Version", "2025-11-25")
+						.header("Authorization", "Bearer " + 토큰("products:read"))
+						.content(UPDATE_STOCK))
+				.andExpect(status().isForbidden())
+				.andExpect(header().string("WWW-Authenticate", containsString(
+						"resource_metadata=\"" + McpAuthorizationStandardTest.RESOURCE_METADATA + "\"")));
+	}
+
 	@Test
 	void scope_없는_token은_initialize도_403이다() throws Exception {
 		this.mockMvc.perform(mcp(토큰(), McpAuthorizationStandardTest.INITIALIZE))

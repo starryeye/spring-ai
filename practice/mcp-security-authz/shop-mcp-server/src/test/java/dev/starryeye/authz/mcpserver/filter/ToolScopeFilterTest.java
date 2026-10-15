@@ -30,7 +30,7 @@ class ToolScopeFilterTest {
 	static final String METADATA = "http://localhost:8141/.well-known/oauth-protected-resource/mcp";
 
 	ToolScopeFilter filter = new ToolScopeFilter(ToolScopeRegistry.of(ProductTools.class),
-			JsonMapper.builder().build(), request -> METADATA);
+			JsonMapper.builder().build(), METADATA);
 
 	@AfterEach
 	void clear() {

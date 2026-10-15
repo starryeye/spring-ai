@@ -1,15 +1,18 @@
 package dev.starryeye.official.mcpserver.config;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.UrlUtils;
+import org.springframework.util.Assert;
+import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
 
 /**
  * MCP Server는 OAuth 2.1 resource server다(MCP 2025-11-25 Authorization — Roles, 안내서 2장).
@@ -20,6 +23,10 @@ import org.springframework.web.util.UriComponentsBuilder;
  *   <li>401 challenge의 {@code resource_metadata} — PRM의 위치를 알려 준다</li>
  *   <li>token 검증 — signature, {@code iss}(issuer-uri), {@code aud}(audiences 설정)를 본다</li>
  * </ul>
+ *
+ * <p>PRM의 {@code resource}와 {@code resource_metadata}는 요청의 {@code Host}가 아니라 설정한 주소({@code audiences})로 만든다.
+ * Spring의 기본값은 요청 URL로 만든다. 그러면 {@code Host}를 바꾼 요청에 다른 서버 주소를 광고하고,
+ * reverse proxy 뒤에서는 scheme도 틀린다. token의 {@code aud}로 검증하는 값과 같은 하나를 쓰면 셋이 어긋날 일이 없다.
  */
 @Configuration
 public class SecurityConfig {
@@ -28,14 +35,19 @@ public class SecurityConfig {
 
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http,
-			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) throws Exception {
+			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
+			OAuth2ResourceServerProperties properties) throws Exception {
+		String resource = resource(properties);
+		String resourceMetadataUrl = resourceMetadataUrl(resource);
 		return http
 				.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
 				.oauth2ResourceServer(resourceServer -> resourceServer
 						.jwt(Customizer.withDefaults())
-						.authenticationEntryPoint(resourceMetadataEntryPoint())
+						.authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))
 						.protectedResourceMetadata(metadata -> metadata
 								.protectedResourceMetadataCustomizer(builder -> builder
+										// 요청 URL로 만든 기본값을 설정한 주소로 바꾼다.
+										.resource(resource)
 										// MCP client는 이 값을 보고 Authorization Server를 찾아간다.
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
@@ -46,22 +58,37 @@ public class SecurityConfig {
 	}
 
 	/**
-	 * RFC 9728 §3.1의 규칙대로, protected resource URL의 경로 앞에
-	 * {@code /.well-known/oauth-protected-resource}를 끼워 넣은 URL을 알려 준다.
-	 * 예를 들어 {@code /mcp} 요청은 {@code /.well-known/oauth-protected-resource/mcp}를 가리킨다.
+	 * 이 서버가 지키는 resource의 식별자다. token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
+	 * 이 서버의 resource는 MCP endpoint 하나라서 값도 하나여야 한다.
 	 */
-	private static BearerTokenAuthenticationEntryPoint resourceMetadataEntryPoint() {
-		BearerTokenAuthenticationEntryPoint entryPoint = new BearerTokenAuthenticationEntryPoint();
-		entryPoint.setResourceMetadataParameterResolver(SecurityConfig::resourceMetadataUrl);
-		return entryPoint;
+	private static String resource(OAuth2ResourceServerProperties properties) {
+		List<String> audiences = properties.getJwt().getAudiences();
+		Assert.state(audiences.size() == 1,
+				"spring.security.oauth2.resourceserver.jwt.audiences에는 이 MCP Server의 주소 하나만 둔다: " + audiences);
+		return audiences.get(0);
 	}
 
-	private static String resourceMetadataUrl(HttpServletRequest request) {
-		String path = request.getRequestURI();
-		return UriComponentsBuilder.fromUriString(UrlUtils.buildFullRequestUrl(request))
-				.replacePath(PROTECTED_RESOURCE_METADATA + ("/".equals(path) ? "" : path))
+	/**
+	 * RFC 9728 §3.1의 규칙대로, resource URL의 경로 앞에 {@code /.well-known/oauth-protected-resource}를 끼워 넣는다.
+	 * 예를 들어 {@code https://mcp.example.com/mcp}는 {@code https://mcp.example.com/.well-known/oauth-protected-resource/mcp}다.
+	 */
+	private static String resourceMetadataUrl(String resource) {
+		UriComponents uri = UriComponentsBuilder.fromUriString(resource).build();
+		String path = (uri.getPath() == null || "/".equals(uri.getPath())) ? "" : uri.getPath();
+		return UriComponentsBuilder.fromUriString(resource)
+				.replacePath(PROTECTED_RESOURCE_METADATA + path)
 				.replaceQuery(null)
 				.build()
 				.toUriString();
+	}
+
+	/**
+	 * {@code 401} challenge에 PRM 주소를 넣는다.
+	 * MCP endpoint가 아닌 경로로 온 요청도 이 서버가 지키는 resource는 하나라서 같은 주소를 알린다.
+	 */
+	private static BearerTokenAuthenticationEntryPoint resourceMetadataEntryPoint(String resourceMetadataUrl) {
+		BearerTokenAuthenticationEntryPoint entryPoint = new BearerTokenAuthenticationEntryPoint();
+		entryPoint.setResourceMetadataParameterResolver(request -> resourceMetadataUrl);
+		return entryPoint;
 	}
 }

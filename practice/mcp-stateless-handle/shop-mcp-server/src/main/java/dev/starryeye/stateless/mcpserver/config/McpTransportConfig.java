@@ -14,6 +14,7 @@ import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerT
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -90,9 +91,11 @@ public class McpTransportConfig {
 	 */
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
-			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties) {
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties,
+			OAuth2ResourceServerProperties resourceServer) {
+		String resourceMetadataUrl = ResourceMetadataUrl.of(ResourceMetadataUrl.resource(resourceServer));
 		FilterRegistrationBean<ToolScopeFilter> registration =
-				new FilterRegistrationBean<>(new ToolScopeFilter(registry, jsonMapper, ResourceMetadataUrl::of));
+				new FilterRegistrationBean<>(new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl));
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
 		return registration;

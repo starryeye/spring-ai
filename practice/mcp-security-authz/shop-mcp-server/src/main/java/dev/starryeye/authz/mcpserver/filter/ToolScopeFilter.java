@@ -26,7 +26,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -67,10 +66,11 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private final JsonMapper jsonMapper;
 
-	private final Function<HttpServletRequest, String> resourceMetadataUrl;
+	/** {@code 403} challenge에 넣을 PRM 주소다. 요청의 {@code Host}가 아니라 설정에서 만든 값이다. */
+	private final String resourceMetadataUrl;
 
 	public ToolScopeFilter(ToolScopeRegistry registry, JsonMapper jsonMapper,
-			Function<HttpServletRequest, String> resourceMetadataUrl) {
+			String resourceMetadataUrl) {
 		this.registry = registry;
 		this.jsonMapper = jsonMapper;
 		this.resourceMetadataUrl = resourceMetadataUrl;
@@ -88,7 +88,7 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 		// 본문을 버퍼링하기 전에 기본 scope부터 본다. 기본 scope가 없으면 tool 이름을 알 필요도 없다.
 		if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {
-			insufficientScope(request, response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
+			insufficientScope(response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
 			return;
 		}
 
@@ -110,7 +110,7 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			String missing = (tool != null && !granted.contains(this.registry.scopeFor(tool)))
 					? this.registry.scopeFor(tool) : null;
 			if (missing != null) {
-				insufficientScope(request, response, token, tool, missing, granted);
+				insufficientScope(response, token, tool, missing, granted);
 				return;
 			}
 		}
@@ -180,15 +180,15 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 		return (name != null && name.isString() && !name.stringValue().isBlank()) ? name.stringValue() : null;
 	}
 
-	private void insufficientScope(HttpServletRequest request, HttpServletResponse response,
-			JwtAuthenticationToken token, String tool, String missing, Set<String> granted) {
+	private void insufficientScope(HttpServletResponse response, JwtAuthenticationToken token, String tool,
+			String missing, Set<String> granted) {
 		// Security Best Practices — Scope Minimization: 권한 상승 요청을 기록으로 남긴다.
 		log.info("scope 부족 — 사용자={}, client_id={}, tool={}, 필요한 scope={}, 가진 scope={}",
 				(token != null) ? token.getName() : "(JWT 인증 아님)",
 				(token != null) ? token.getToken().getClaimAsString("client_id") : null, tool, missing, granted);
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"insufficient_scope\", scope=\"" + missing
-				+ "\", resource_metadata=\"" + this.resourceMetadataUrl.apply(request) + "\"");
+				+ "\", resource_metadata=\"" + this.resourceMetadataUrl + "\"");
 	}
 
 	/** transport가 실행할 수 없는 본문은 transport로 넘기지 않고 여기서 {@code 400}으로 끝낸다. */

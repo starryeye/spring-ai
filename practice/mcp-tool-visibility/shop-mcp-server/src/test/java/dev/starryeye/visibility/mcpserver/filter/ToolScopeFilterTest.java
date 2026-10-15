@@ -36,7 +36,7 @@ class ToolScopeFilterTest {
 	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
 	ToolScopeFilter filter = new ToolScopeFilter(registry,
 			new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)), JsonMapper.builder().build(),
-			request -> METADATA);
+			METADATA);
 
 	@AfterEach
 	void clear() {
