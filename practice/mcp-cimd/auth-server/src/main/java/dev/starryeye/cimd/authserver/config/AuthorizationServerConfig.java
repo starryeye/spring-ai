@@ -16,6 +16,7 @@ import dev.starryeye.cimd.authserver.security.PublicClientConsentService;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationConverter;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationProvider;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenGenerator;
+import dev.starryeye.cimd.authserver.security.RedirectUriRequiredValidator;
 import dev.starryeye.cimd.authserver.security.RefreshTokenReuseDetectingAuthorizationService;
 import dev.starryeye.cimd.authserver.security.ResourceAudienceTokenCustomizer;
 import dev.starryeye.cimd.authserver.security.ResourceIndicatorValidator;
@@ -105,6 +106,7 @@ public class AuthorizationServerConfig {
 			throws Exception {
 		IssuerIdentifyingAuthorizationResponseHandler responseHandler =
 				new IssuerIdentifyingAuthorizationResponseHandler();
+		RedirectUriRequiredValidator redirectUriRequiredValidator = new RedirectUriRequiredValidator();
 		ResourceIndicatorValidator resourceValidator = new ResourceIndicatorValidator(resources);
 		ConsentableScopeValidator consentableScopeValidator = new ConsentableScopeValidator();
 
@@ -118,12 +120,13 @@ public class AuthorizationServerConfig {
 									// 그 밖의 오류는 문서의 redirect URI로 보내지 않고 400으로 끝낸다(open redirector 방지).
 									.authorizationResponseHandler(responseHandler)
 									.errorResponseHandler(responseHandler)
-									// 기본 검증(redirect_uri·scope) 뒤에 RFC 8707 resource 검증과
-									// consent할 scope가 있는지 보는 검증을 차례로 잇는다.
+									// 기본 검증(redirect_uri·scope) 뒤에 redirect_uri를 생략하지 않았는지 보는 검증,
+									// RFC 8707 resource 검증, consent할 scope가 있는지 보는 검증을 차례로 잇는다.
 									.authenticationProviders(providers -> providers.forEach(provider -> {
 										if (provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider codeProvider) {
 											codeProvider.setAuthenticationValidator(
 													new OAuth2AuthorizationCodeRequestAuthenticationValidator()
+															.andThen(redirectUriRequiredValidator)
 															.andThen(resourceValidator)
 															.andThen(consentableScopeValidator));
 										}

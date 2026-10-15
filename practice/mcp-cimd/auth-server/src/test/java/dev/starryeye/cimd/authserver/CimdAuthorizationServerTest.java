@@ -323,6 +323,19 @@ class CimdAuthorizationServerTest {
 	}
 
 	@Test
+	void redirect_uri를_생략하면_redirect_없이_invalid_request다() throws Exception {
+		// 문서의 redirect가 하나면 Spring은 openid 없는 요청의 redirect_uri 생략을 받고, consent 화면에는 돌아갈 host가 빠진다.
+		// MCP Authorization은 consent 화면에 redirect URI의 host를 보이라고 한다(MUST). 그래서 모든 요청에 요구한다.
+		for (String clientId : List.of(CHATGPT, CLAUDE)) {
+			URI uri = authorizationRequestBuilder(clientId, "products:read")
+					.replaceQueryParam("redirect_uri")
+					.encode().build().toUri();
+
+			assertThat(오류_화면(uri)).as(clientId).contains("invalid_request").contains("redirect_uri");
+		}
+	}
+
+	@Test
 	void PKCE가_없으면_redirect_없이_invalid_request다() throws Exception {
 		URI uri = authorizationRequestBuilder(CLAUDE, "openid products:read")
 				.replaceQueryParam("code_challenge")
