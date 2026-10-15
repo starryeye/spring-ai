@@ -13,6 +13,7 @@ import dev.starryeye.cimd.authserver.security.AuthenticationMethodRecordingAutho
 import dev.starryeye.cimd.authserver.security.ClientAuthenticationChallengeFailureHandler;
 import dev.starryeye.cimd.authserver.security.ConsentableScopeValidator;
 import dev.starryeye.cimd.authserver.security.IssuerIdentifyingAuthorizationResponseHandler;
+import dev.starryeye.cimd.authserver.security.OwnTokenIntrospectionAuthenticationProvider;
 import dev.starryeye.cimd.authserver.security.PublicClientConsentService;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationConverter;
 import dev.starryeye.cimd.authserver.security.PublicClientRefreshTokenAuthenticationProvider;
@@ -45,6 +46,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.authentication.JwtClientAssertionAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2TokenIntrospectionAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.PublicClientAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
@@ -155,6 +157,12 @@ public class AuthorizationServerConfig {
 									// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
 									// WWW-Authenticate를 붙인다.
 									.errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
+							// introspection은 token을 발급받은 client에게만 내용을 알려 준다. 나머지는 active: false다.
+							.tokenIntrospectionEndpoint(introspection -> introspection
+									.authenticationProviders(providers -> providers.replaceAll(provider ->
+											(provider instanceof OAuth2TokenIntrospectionAuthenticationProvider)
+													? new OwnTokenIntrospectionAuthenticationProvider(provider, authorizationService)
+													: provider)))
 							.authorizationServerMetadataEndpoint(metadata -> metadata
 									.authorizationServerMetadataCustomizer(builder -> builder.claims(AuthorizationServerConfig::advertise)))
 							// oauth2Login이 id_token을 받으려면 OIDC가 필요하다.

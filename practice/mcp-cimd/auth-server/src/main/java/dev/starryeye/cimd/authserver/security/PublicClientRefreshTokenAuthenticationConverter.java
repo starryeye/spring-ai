@@ -29,7 +29,8 @@ import java.util.Map;
  *
  * <p>Spring의 client 인증 filter는 token endpoint 말고도 introspection, revocation, PAR, device authorization endpoint에서 돈다.
  * 이 converter가 그 endpoint까지 맡으면 인증 없이 {@code client_id}만으로 public client 행세를 할 수 있다.
- * 예를 들어 introspection endpoint는 token이 누구 것인지 확인하지 않으므로, 아무 token이나 읽을 수 있게 된다.
+ * 예를 들어 introspection endpoint에서 {@code client_id}만 대고 그 client가 받은 token의 내용을 읽을 수 있게 된다
+ * ({@link OwnTokenIntrospectionAuthenticationProvider}는 token을 받은 client인지만 본다).
  * 그래서 token endpoint로 온 {@code POST}만 맡는다.
  */
 public final class PublicClientRefreshTokenAuthenticationConverter implements AuthenticationConverter {

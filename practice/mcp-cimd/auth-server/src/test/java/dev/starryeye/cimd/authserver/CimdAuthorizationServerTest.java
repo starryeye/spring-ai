@@ -657,6 +657,51 @@ class CimdAuthorizationServerTest {
 		assertThat(body).doesNotContain("\"active\":true");
 	}
 
+	/** private_key_jwt client로 인증해 introspection을 부르고 응답 본문을 돌려준다. */
+	String introspect(String token, String clientId) throws Exception {
+		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
+		parameters.add("token", token);
+		parameters.add("client_id", clientId);
+		withAssertion(parameters, TestClientDocuments.KEY, clientId);
+		return this.mockMvc.perform(post("/oauth2/introspect").accept(MediaType.APPLICATION_JSON).params(parameters))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+	}
+
+	@Test
+	void 자기가_받은_token은_introspect할_수_있다() throws Exception {
+		String body = token(withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.KEY), 200);
+
+		String introspection = introspect(JsonPath.read(body, "$.refresh_token"), CHATGPT);
+
+		assertThat((Boolean) JsonPath.read(introspection, "$.active")).isTrue();
+		assertThat((String) JsonPath.read(introspection, "$.client_id")).isEqualTo(CHATGPT);
+	}
+
+	@Test
+	void 다른_client가_받은_token을_introspect하면_active가_false다() throws Exception {
+		// 누구나 private_key_jwt 문서를 올려 인증된 client가 될 수 있다. 남의 token이 살아 있는지, 누구 것인지 묻지 못하게 한다.
+		String claude = token(codeExchange(CLAUDE, code(CLAUDE)), 200);
+
+		for (String token : List.of((String) JsonPath.read(claude, "$.access_token"),
+				(String) JsonPath.read(claude, "$.refresh_token"))) {
+			String introspection = introspect(token, CHATGPT);
+
+			assertThat(introspection).isEqualTo("{\"active\":false}");
+		}
+	}
+
+	@Test
+	void token_주인의_문서를_가져오지_못해도_active_false로_끝난다() throws Exception {
+		문서를_올린다(TestClientDocuments.privateKeyJwtDocument(MUTABLE, REDIRECT_URI));
+		String body = token(withAssertion(codeExchange(MUTABLE, code(MUTABLE)), TestClientDocuments.KEY, MUTABLE), 200);
+		this.documents.withdraw(MUTABLE);
+
+		String introspection = introspect(JsonPath.read(body, "$.access_token"), CHATGPT);
+
+		assertThat(introspection).isEqualTo("{\"active\":false}");
+	}
+
 	@Test
 	void Claude형은_전에_허락했어도_매번_consent_화면을_거친다() throws Exception {
 		code(CLAUDE);
