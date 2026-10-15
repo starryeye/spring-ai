@@ -42,8 +42,8 @@ import java.util.List;
  * <p>metadata와 OpenID Connect Discovery customizer는 이 클래스 안에서 한 번에 구성해야 한다.
  * {@code OAuth2AuthorizationServerMetadataEndpointConfigurer#authorizationServerMetadataCustomizer}와
  * {@code OidcProviderConfigurationEndpointConfigurer#providerConfigurationCustomizer}는
- * 둘 다 customizer를 list가 아니라 field 하나에 담아, 마지막 호출로 덮어쓴다(community module이
- * 아니라 spring-security-config 7.1.0의 두 클래스를 확인했다: 모두 {@code this.xxxCustomizer = xxx;}).
+ * 둘 다 customizer를 list가 아니라 field 하나에 담아, 마지막 호출로 덮어쓴다
+ * (Spring Security(spring-security-config 7.1.0) 소스 확인: 두 클래스 모두 {@code this.xxxCustomizer = xxx;}).
  * 그래서 다른 {@code Customizer<McpAuthorizationServerConfigurer>} bean을 하나 더 만들어 같은
  * 메서드를 다시 부르면, 먼저 등록한 {@link #ISS_PARAMETER_SUPPORTED} claim이 사라진다.
  * {@code OidcDiscoveryConfig}는 {@code oidc(Customizer.withDefaults())}로 OidcConfigurer를
@@ -52,8 +52,8 @@ import java.util.List;
  * 그래도 한 곳에 모아 두면 위 함정을 다시 만들 위험이 줄어든다.
  *
  * <p>같은 이유로 이 클래스의 {@code authorizationServerMetadataCustomizer} 호출은 module
- * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)}와도 부딪힌다(community module
- * {@code mcp-authorization-server} 0.1.14 확인: {@code cimd(true)}면 init()이 그 메서드로
+ * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)}와도 부딪힌다
+ * (community module({@code mcp-authorization-server} 0.1.14) 확인: {@code cimd(true)}면 init()이 그 메서드로
  * {@code client_id_metadata_document_supported} claim을 먼저 넣는다. 그 뒤
  * {@code this.authServerCustomizer.forEach(...)}로 이 클래스가 등록한
  * customizer가 실행되어 같은 field를 덮어쓴다).
@@ -146,8 +146,9 @@ public class McpAuthorizationStandardConfig {
                         .clientAuthentication(clientAuthentication -> clientAuthentication
                                 .errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
                         // OidcDiscoveryConfig가 oidc()를 켜 둔다. providerConfigurationCustomizer는
-                        // OidcProviderConfigurationEndpointConfigurer의 field 하나에 담기므로(spring-security-config
-                        // 7.1.0 확인) token/revocation/introspection 세 claim을 모두 이 한 호출에 모아야 한다.
+                        // OidcProviderConfigurationEndpointConfigurer의 field 하나에 담긴다
+                        // (Spring Security(spring-security-config 7.1.0) 소스 확인).
+                        // 그래서 token/revocation/introspection 세 claim을 모두 이 한 호출에 모아야 한다.
                         // OidcProviderConfigurationEndpointFilter도 Authorization Server Metadata와 마찬가지로 세
                         // endpoint 모두에 clientAuthenticationMethods()(private_key_jwt·client_secret_jwt 포함)를
                         // 그대로 알리므로, 세 claim 모두가 대상이다.
