@@ -25,6 +25,7 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -117,6 +118,85 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 				new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signer.getKeyID()).type(type).build(), claims);
 		jwt.sign(new RSASSASigner(signer));
 		return jwt.serialize();
+	}
+
+	/** 시간과 jti를 정해 만든 assertion이다. {@code jti}가 null이면 넣지 않는다. */
+	static String assertion(String clientId, Instant issuedAt, Duration lifetime, String jti) throws JOSEException {
+		JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
+				.issuer(clientId)
+				.subject(clientId)
+				.audience(ISSUER)
+				.issueTime(Date.from(issuedAt))
+				.expirationTime(Date.from(issuedAt.plus(lifetime)));
+		if (jti != null) {
+			claims.jwtID(jti);
+		}
+		SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(),
+				claims.build());
+		jwt.sign(new RSASSASigner(key));
+		return jwt.serialize();
+	}
+
+	static RegisteredClient client(String clientId, String jwkSetUrl) {
+		return RegisteredClient.from(client(jwkSetUrl)).id(clientId).clientId(clientId).build();
+	}
+
+	@Test
+	void 같은_assertion을_다시_보내면_거절한다() throws Exception {
+		// 새어 나간 assertion을 exp까지 되풀이해 쓰지 못하게, 같은 client_id와 jti는 한 번만 받는다.
+		String once = assertion(key, ISSUER);
+		this.factory.createDecoder(client(JWKS)).decode(once);
+
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(once))
+				.withMessageContaining("jti");
+	}
+
+	@Test
+	void 다른_client의_같은_jti는_따로_센다() throws Exception {
+		String other = "https://localhost:8172/oauth/other.json";
+		this.factory.createDecoder(client(JWKS)).decode(assertion(CLIENT_ID, Instant.now(), Duration.ofSeconds(60), "same"));
+
+		assertThat(this.factory.createDecoder(client(other, JWKS))
+				.decode(assertion(other, Instant.now(), Duration.ofSeconds(60), "same")).getSubject()).isEqualTo(other);
+	}
+
+	@Test
+	void jti가_없는_assertion은_거절한다() throws Exception {
+		String withoutJti = assertion(CLIENT_ID, Instant.now(), Duration.ofSeconds(60), null);
+
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(withoutJti));
+	}
+
+	@Test
+	void exp가_5분보다_먼_assertion은_거절한다() throws Exception {
+		String longLived = assertion(CLIENT_ID, Instant.now(), Duration.ofMinutes(10), UUID.randomUUID().toString());
+
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> this.factory.createDecoder(client(JWKS)).decode(longLived));
+		// 5분 안이면 받는다.
+		assertThat(this.factory.createDecoder(client(JWKS))
+				.decode(assertion(CLIENT_ID, Instant.now(), Duration.ofMinutes(4), UUID.randomUUID().toString())))
+				.isNotNull();
+	}
+
+	@Test
+	void 사용_기록은_exp가_지나면_치우고_상한을_넘으면_새_assertion을_거절한다() throws Exception {
+		MutableClock clock = new MutableClock(Instant.now());
+		CimdJwtClientAssertionDecoderFactory small = new CimdJwtClientAssertionDecoderFactory(uri -> FetchedDocument
+				.of(new JWKSet(key.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8), null), clock, 1);
+
+		small.createDecoder(client(JWKS)).decode(assertion(CLIENT_ID, clock.instant(), Duration.ofSeconds(60), "a"));
+		// 기록이 가득 찼다. 기록하지 못한 assertion을 받으면 되풀이를 막지 못하므로 거절한다.
+		String second = assertion(CLIENT_ID, clock.instant(), Duration.ofSeconds(60), "b");
+		assertThatExceptionOfType(JwtException.class)
+				.isThrownBy(() -> small.createDecoder(client(JWKS)).decode(second));
+
+		// 첫 assertion이 만료되고(시간 오차 60초까지 지나) 기록이 치워지면 다시 받는다.
+		clock.advance(Duration.ofMinutes(3));
+		assertThat(small.createDecoder(client(JWKS))
+				.decode(assertion(CLIENT_ID, clock.instant(), Duration.ofSeconds(60), "c"))).isNotNull();
 	}
 
 	@Test
