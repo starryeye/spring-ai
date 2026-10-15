@@ -3,7 +3,7 @@ package dev.starryeye.stateless.localclient;
 /**
  * step-up으로 새 token을 받았다는 신호다. 실패가 아니라 "같은 호출을 새 요청으로 다시 보내라"는 뜻이다.
  *
- * <p>MCP Java SDK 2.0.0의 {@code authorizationErrorHandler}가 {@code true}를 돌려주면, SDK는 이미
+ * <p>MCP Java SDK 2.0.1(2.0.0도 같다)의 {@code authorizationErrorHandler}가 {@code true}를 돌려주면, SDK는 이미
  * 만들어 둔(= {@code httpRequestCustomizer}가 이미 지나간, 그래서 옛 token이 실린) {@code HttpRequest}를
  * 그대로 다시 보낸다({@code HttpClientStreamableHttpTransport#sendMessage}). customizer가 다시 불리지
  * 않으니 새 token은 실리지 않는다. 그래서 {@link StepUp#handle}은 성공해도 {@code true}를 돌려주지 않고
