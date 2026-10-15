@@ -9,6 +9,7 @@ import dev.starryeye.cimd.authserver.cimd.ClientIdUrlValidator;
 import dev.starryeye.cimd.authserver.cimd.ClientMetadataHttp;
 import dev.starryeye.cimd.authserver.cimd.HostResolver;
 import dev.starryeye.cimd.authserver.cimd.HttpsClientMetadataFetcher;
+import dev.starryeye.cimd.authserver.security.AuthenticationMethodRecordingAuthorizationService;
 import dev.starryeye.cimd.authserver.security.ClientAuthenticationChallengeFailureHandler;
 import dev.starryeye.cimd.authserver.security.ConsentableScopeValidator;
 import dev.starryeye.cimd.authserver.security.IssuerIdentifyingAuthorizationResponseHandler;
@@ -40,9 +41,11 @@ import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2Au
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationServerMetadataClaimNames;
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.authentication.JwtClientAssertionAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
+import org.springframework.security.oauth2.server.authorization.authentication.PublicClientAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.DelegatingOAuth2TokenGenerator;
@@ -105,8 +108,8 @@ public class AuthorizationServerConfig {
 	@Bean
 	@Order(1)
 	public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http, McpResourceProperties resources,
-			RegisteredClientRepository clients, CimdJwtClientAssertionDecoderFactory assertionDecoderFactory)
-			throws Exception {
+			RegisteredClientRepository clients, CimdJwtClientAssertionDecoderFactory assertionDecoderFactory,
+			OAuth2AuthorizationService authorizationService) throws Exception {
 		IssuerIdentifyingAuthorizationResponseHandler responseHandler =
 				new IssuerIdentifyingAuthorizationResponseHandler();
 		RedirectUriRequiredValidator redirectUriRequiredValidator = new RedirectUriRequiredValidator();
@@ -137,12 +140,17 @@ public class AuthorizationServerConfig {
 							.clientAuthentication(clientAuthentication -> clientAuthentication
 									// public client의 refresh 요청을 인증한다. Spring 기본은 code_verifier가 있는 요청만 받는다.
 									.authenticationConverter(new PublicClientRefreshTokenAuthenticationConverter())
-									.authenticationProvider(new PublicClientRefreshTokenAuthenticationProvider(clients))
+									.authenticationProvider(
+											new PublicClientRefreshTokenAuthenticationProvider(clients, authorizationService))
 									// private_key_jwt의 key는 문서의 jwks_uri에서 가져온다.
-									.authenticationProviders(providers -> providers.forEach(provider -> {
+									// public client의 refresh 요청은 위 provider가 끝까지 맡고, Spring의 public client 인증은 건너뛴다.
+									.authenticationProviders(providers -> providers.replaceAll(provider -> {
 										if (provider instanceof JwtClientAssertionAuthenticationProvider assertionProvider) {
 											assertionProvider.setJwtDecoderFactory(assertionDecoderFactory);
 										}
+										return (provider instanceof PublicClientAuthenticationProvider)
+												? PublicClientRefreshTokenAuthenticationProvider.skippingRefreshRequests(provider)
+												: provider;
 									}))
 									// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
 									// WWW-Authenticate를 붙인다.
@@ -229,10 +237,14 @@ public class AuthorizationServerConfig {
 	 * bean이 없으면 Spring이 안에서 직접 만들어, 화면에서 같은 저장소를 쓸 수 없다.
 	 * 버린 refresh token이 다시 오면 grant 전체를 끊고 rotation을 한 번에 하나씩 하도록
 	 * {@link RefreshTokenReuseDetectingAuthorizationService}로 감싼다.
+	 * 그 안에서 {@link AuthenticationMethodRecordingAuthorizationService}가 grant를 받을 때의 client 인증 방식을 남긴다.
 	 */
 	@Bean
-	public RefreshTokenReuseDetectingAuthorizationService authorizationService() {
-		return new RefreshTokenReuseDetectingAuthorizationService(new InMemoryOAuth2AuthorizationService(),
+	public RefreshTokenReuseDetectingAuthorizationService authorizationService(
+			RegisteredClientRepository registeredClientRepository) {
+		return new RefreshTokenReuseDetectingAuthorizationService(
+				new AuthenticationMethodRecordingAuthorizationService(new InMemoryOAuth2AuthorizationService(),
+						registeredClientRepository),
 				Clock.systemUTC());
 	}
 
@@ -266,7 +278,8 @@ public class AuthorizationServerConfig {
 
 	/**
 	 * {@code OAuth2AuthorizationServerConfigurer}는 이 타입의 bean이 있으면 그것을 쓴다.
-	 * public client의 consent를 기록하지 않도록, 기본 저장소를 {@link PublicClientConsentService}로 감싼다.
+	 * public client의 consent를 기록하지 않고, confidential client의 consent는 문서의 redirect 주소가 바뀌면
+	 * 다시 묻도록, 기본 저장소를 {@link PublicClientConsentService}로 감싼다.
 	 */
 	@Bean
 	public OAuth2AuthorizationConsentService authorizationConsentService(

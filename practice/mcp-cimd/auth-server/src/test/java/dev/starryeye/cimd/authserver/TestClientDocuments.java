@@ -26,6 +26,9 @@ public final class TestClientDocuments {
 
 	public static final String JWKS = "https://localhost:8172/oauth/jwks.json";
 
+	/** 테스트가 내용을 바꿔 가며 올리는 문서의 주소다. {@code CimdTestConfig.TestDocumentHost}가 cache하지 않게 돌려준다. */
+	public static final String MUTABLE = "https://localhost:8172/oauth/mutable-client.json";
+
 	public static final String REDIRECT_URI = "http://localhost:8170/login/oauth2/code/authserver";
 
 	public static final RSAKey KEY = generate();
@@ -58,6 +61,31 @@ public final class TestClientDocuments {
 				{"client_id":"%s","client_name":"Shop Agent (Claude형)","redirect_uris":["%s"],\
 				"grant_types":["authorization_code","refresh_token"],"response_types":["code"],\
 				"token_endpoint_auth_method":"none"}""".formatted(CLAUDE, REDIRECT_URI);
+	}
+
+	/** {@code private_key_jwt}를 선언한 문서다. key는 {@link #JWKS}에 있다. */
+	public static String privateKeyJwtDocument(String clientId, String... redirectUris) {
+		return """
+				{"client_id":"%s","client_name":"Mutable (private_key_jwt)","redirect_uris":%s,\
+				"grant_types":["authorization_code","refresh_token"],"response_types":["code"],\
+				"token_endpoint_auth_method":"private_key_jwt","token_endpoint_auth_signing_alg":"RS256",\
+				"jwks_uri":"%s"}""".formatted(clientId, jsonArray(redirectUris), JWKS);
+	}
+
+	/** {@code none}을 선언한 문서다. */
+	public static String publicDocument(String clientId, String... redirectUris) {
+		return """
+				{"client_id":"%s","client_name":"Mutable (none)","redirect_uris":%s,\
+				"grant_types":["authorization_code","refresh_token"],"response_types":["code"],\
+				"token_endpoint_auth_method":"none"}""".formatted(clientId, jsonArray(redirectUris));
+	}
+
+	private static String jsonArray(String... values) {
+		StringBuilder json = new StringBuilder("[");
+		for (int i = 0; i < values.length; i++) {
+			json.append((i == 0) ? "" : ",").append('"').append(values[i]).append('"');
+		}
+		return json.append(']').toString();
 	}
 
 	public static String jwks() {

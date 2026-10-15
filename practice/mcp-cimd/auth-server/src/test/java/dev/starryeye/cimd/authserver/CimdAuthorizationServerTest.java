@@ -72,6 +72,8 @@ class CimdAuthorizationServerTest {
 
 	static final String REDIRECT_URI = TestClientDocuments.REDIRECT_URI;
 
+	static final String MUTABLE = TestClientDocuments.MUTABLE;
+
 	// RFC 7636 부록 B의 예시 값이다.
 	static final String CODE_VERIFIER = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
 
@@ -86,6 +88,9 @@ class CimdAuthorizationServerTest {
 	@Autowired
 	RefreshTokenReuseDetectingAuthorizationService authorizations;
 
+	@Autowired
+	CimdTestConfig.TestDocumentHost documents;
+
 	MockHttpSession session;
 
 	@BeforeEach
@@ -94,6 +99,16 @@ class CimdAuthorizationServerTest {
 				.andExpect(status().is3xxRedirection())
 				.andReturn().getRequest().getSession(false);
 		OAuth2AuthorizationConsent consent = this.consents.findById(CHATGPT, "user");
+		if (consent != null) {
+			this.consents.remove(consent);
+		}
+		this.documents.withdraw(MUTABLE);
+	}
+
+	/** 바꿔 가며 쓰는 문서를 올리고, 앞선 테스트가 이 client에 남긴 consent를 지운다. */
+	void 문서를_올린다(String document) {
+		this.documents.publish(MUTABLE, document);
+		OAuth2AuthorizationConsent consent = this.consents.findById(MUTABLE, "user");
 		if (consent != null) {
 			this.consents.remove(consent);
 		}
@@ -191,8 +206,13 @@ class CimdAuthorizationServerTest {
 	/** ChatGPT형은 private_key_jwt로 자신을 증명한다. 문서의 jwks_uri에 있는 key로 서명한 assertion을 붙인다. */
 	static MultiValueMap<String, String> withAssertion(MultiValueMap<String, String> parameters, RSAKey key)
 			throws Exception {
+		return withAssertion(parameters, key, CHATGPT);
+	}
+
+	static MultiValueMap<String, String> withAssertion(MultiValueMap<String, String> parameters, RSAKey key,
+			String clientId) throws Exception {
 		parameters.add("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer");
-		parameters.add("client_assertion", TestClientDocuments.assertion(key, CHATGPT, ISSUER));
+		parameters.add("client_assertion", TestClientDocuments.assertion(key, clientId, ISSUER));
 		return parameters;
 	}
 
@@ -580,6 +600,31 @@ class CimdAuthorizationServerTest {
 			}
 			Thread.sleep(10);
 		}
+	}
+
+	@Test
+	void private_key_jwt로_받은_grant는_문서가_none으로_바뀌어도_client_id만으로_refresh할_수_없다() throws Exception {
+		문서를_올린다(TestClientDocuments.privateKeyJwtDocument(MUTABLE, REDIRECT_URI));
+		String issued = token(withAssertion(codeExchange(MUTABLE, code(MUTABLE)), TestClientDocuments.KEY, MUTABLE), 200);
+
+		// 문서 host를 장악한 쪽이 문서를 none으로 바꿨다. private key 없이 grant를 이어 가려 한다.
+		this.documents.publish(MUTABLE, TestClientDocuments.publicDocument(MUTABLE, REDIRECT_URI));
+		String body = token(refresh(MUTABLE, JsonPath.read(issued, "$.refresh_token")), 401);
+
+		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_client");
+	}
+
+	@Test
+	void 문서의_redirect_uris가_바뀌면_전에_허락했어도_consent_화면을_다시_거친다() throws Exception {
+		문서를_올린다(TestClientDocuments.privateKeyJwtDocument(MUTABLE, REDIRECT_URI));
+		code(MUTABLE);
+		assertThat(redirect(authorizationRequest(MUTABLE, "openid products:read"))).startsWith(REDIRECT_URI);
+
+		// 문서에 다른 redirect 주소가 늘었다. 사용자가 허락한 것은 이전 주소 목록의 client다.
+		this.documents.publish(MUTABLE,
+				TestClientDocuments.privateKeyJwtDocument(MUTABLE, REDIRECT_URI, "https://attacker.example/cb"));
+
+		assertThat(redirect(authorizationRequest(MUTABLE, "openid products:read"))).contains(ConsentController.PATH);
 	}
 
 	@Test
