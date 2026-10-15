@@ -445,7 +445,7 @@ cimd의 agent는 PRM의 issuer를 credentials의 issuer와 비교하지 않고, 
 | `revocation_endpoint` | OPTIONAL | RFC 7009 | `http://localhost:9010/oauth2/revoke` — 알리기만 하고 client는 쓰지 않는다 |
 | `revocation_endpoint_auth_methods_supported` | OPTIONAL, 생략 시 `client_secret_basic` | | Spring 기본 6개. cimd는 `["private_key_jwt"]`다(`AuthorizationServerConfig#advertise`) |
 | `revocation_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 알리면 MUST | | 12개. cimd는 `["RS256"]`이다 |
-| `introspection_endpoint` | OPTIONAL | RFC 7662 | `http://localhost:9010/oauth2/introspect` — 알리기만 하고 쓰지 않는다 |
+| `introspection_endpoint` | OPTIONAL | RFC 7662 | `http://localhost:9010/oauth2/introspect` — 알리기만 하고 쓰지 않는다. cimd는 token을 발급받은 client에게만 내용을 주고, 그 밖에는 `{"active":false}`다 |
 | `introspection_endpoint_auth_methods_supported` | OPTIONAL | | Spring 기본 6개. cimd는 `["private_key_jwt"]`다(`AuthorizationServerConfig#advertise`) |
 | `introspection_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 알리면 MUST | | 12개. cimd는 `["RS256"]`이다 |
 | `code_challenge_methods_supported` | OPTIONAL, 생략하면 PKCE 미지원 (RFC 8414) · 없으면 client는 진행 거부 MUST ([MCP](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)) | | `["S256"]` |
@@ -672,6 +672,12 @@ OIDC Core는 `claims`, `request`, `request_uri` 같은 parameter도 다른 절�
 | 그 밖의 오류 | redirect로 오류 parameter | [Authorization Response](#authorization-response--redirect) |
 
 검증은 Spring의 `redirect_uri`·`scope` 확인 → `ResourceIndicatorValidator` → `PublicClientScopeValidator` → PKCE 순서다([5장](05-authorization-and-token.md)).
+
+cimd에서는 문서를 쓴 쪽이 redirect URI를 정하므로, 검사에서 걸린 오류를 redirect하지 않는다.
+이때 응답은 `400`과 `Content-Type: text/plain;charset=UTF-8`이고, 본문은 `error=<코드>`와 `error_description=<설명>` 두 줄이다.
+redirect하는 오류는 login한 사용자가 consent 화면에서 거절한 `access_denied` 하나다([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)).
+cimd는 `redirect_uri`를 뺀 요청도 `invalid_request`로 거절한다.
+검증 순서는 Spring 기본 → `RedirectUriRequiredValidator` → `ResourceIndicatorValidator` → `ConsentableScopeValidator`다.
 관측: S17의 agent 주소에는 `nonce`와 무작위 `state`·`code_challenge`가 있고, 캡처 스크립트는 RFC 7636 부록 B의 예시 `code_challenge`를 쓴다.
 
 **예시 1** (P3, public client, login session이 있는 상태)
@@ -786,6 +792,7 @@ official은 code 흐름이라 Authorization Response에 ID token이 없다.
 
 redirect URI나 `client_id`가 없거나 틀리면 redirect하지 않는다(MUST NOT).
 그 밖의 오류는 redirect URI로 보낸다.
+cimd는 예외로, login한 사용자의 `access_denied`만 보내고 나머지는 `400`으로 끝낸다([`GET /oauth2/authorize`의 오류](#get-oauth2authorize--authorization-request)).
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
@@ -895,7 +902,7 @@ confidential client는 client 인증을, public client는 `client_id`와 PKCE의
 | `invalid_client` — 틀린 `client_secret` | `401`과 `WWW-Authenticate: Basic realm="http://localhost:9010"`(S8). `Authorization` header로 인증을 시도했으면 `WWW-Authenticate` MUST | RFC 6749 §5.2 · [OAuth 2.1 §3.2.4](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.4) |
 | `invalid_client` — public client가 Basic으로 비밀을 보냄 | S8과 같은 `401`(P12) | RFC 6749 §5.2 |
 | `invalid_client` — confidential client가 `client_id`만 보냄 | `401`, `WWW-Authenticate` 없음(P14) — `ClientAuthenticationChallengeFailureHandler`는 `Authorization` header가 있을 때만 challenge를 붙인다 | RFC 6749 §5.2 |
-| `invalid_client` — `private_key_jwt` client의 assertion이 문서의 `jwks_uri`에 없는 key로 만들어졌거나, `aud`가 issuer 하나가 아니거나, assertion 없이 `client_id`와 `code_verifier`만 옴 | cimd에서 모두 `401`, `{"error":"invalid_client"}`(D6·D16·D7). 문서에 선언한 방식 하나만 받으므로 public client처럼 오면 거절한다 | [RFC 7523 §3.2](https://www.rfc-editor.org/rfc/rfc7523#section-3.2) · [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) |
+| `invalid_client` — `private_key_jwt` client의 assertion이 문서의 `jwks_uri`에 없는 key로 만들어졌거나, `aud`가 issuer 하나가 아니거나, `jti`가 없거나 전에 쓴 값이거나, `exp`가 5분보다 멀거나, assertion 없이 `client_id`와 `code_verifier`만 옴 | cimd에서 모두 `401`, `{"error":"invalid_client"}`(D6·D16·D7). 문서에 선언한 방식 하나만 받으므로 public client처럼 오면 거절한다 | [RFC 7523 §3.2](https://www.rfc-editor.org/rfc/rfc7523#section-3.2) · [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) |
 | `invalid_grant` | code·refresh token이 무효·만료·폐기, redirect URI 불일치, 다른 client의 code, `code_verifier` 불일치 — `{"error":"invalid_grant"}`(S7, P11) | RFC 6749 §5.2 · [RFC 7636 §4.6](https://www.rfc-editor.org/rfc/rfc7636#section-4.6) |
 | `unauthorized_client` | 이 client에 허용되지 않은 grant — 관측 없음 | RFC 6749 §5.2 |
 | `unsupported_grant_type` | 지원하지 않는 grant — 관측 없음 | RFC 6749 §5.2 |
