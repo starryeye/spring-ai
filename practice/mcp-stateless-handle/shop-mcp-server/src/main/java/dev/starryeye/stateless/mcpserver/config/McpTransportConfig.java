@@ -13,6 +13,7 @@ import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServ
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -36,6 +37,7 @@ import java.util.List;
  * <p>stateless transport bean은 사용자를 읽는 {@code contextExtractor}를 넣으려고 직접 만든다.
  */
 @Configuration
+@EnableConfigurationProperties(McpLimitProperties.class)
 public class McpTransportConfig {
 
 	/**
@@ -92,10 +94,11 @@ public class McpTransportConfig {
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
 			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties,
-			OAuth2ResourceServerProperties resourceServer) {
+			OAuth2ResourceServerProperties resourceServer, McpLimitProperties limits) {
 		String resourceMetadataUrl = ResourceMetadataUrl.of(ResourceMetadataUrl.resource(resourceServer));
-		FilterRegistrationBean<ToolScopeFilter> registration =
-				new FilterRegistrationBean<>(new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl));
+		ToolScopeFilter filter =
+				new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl, limits.maxRequestBodyBytes());
+		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(filter);
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
 		return registration;

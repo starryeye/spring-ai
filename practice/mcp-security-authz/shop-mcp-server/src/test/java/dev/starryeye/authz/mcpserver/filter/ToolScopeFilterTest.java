@@ -29,8 +29,21 @@ class ToolScopeFilterTest {
 
 	static final String METADATA = "http://localhost:8141/.well-known/oauth-protected-resource/mcp";
 
-	ToolScopeFilter filter = new ToolScopeFilter(ToolScopeRegistry.of(ProductTools.class),
-			JsonMapper.builder().build(), METADATA);
+	/** 본문 상한을 시험하는 filter의 상한이다. 기본 상한(1 MiB)보다 작게 두어 큰 본문을 만들지 않는다. */
+	static final int SMALL_LIMIT = 128;
+
+	ToolScopeFilter filter = filter(1024 * 1024);
+
+	static ToolScopeFilter filter(int maxBodyBytes) {
+		return new ToolScopeFilter(ToolScopeRegistry.of(ProductTools.class), JsonMapper.builder().build(), METADATA,
+				maxBodyBytes);
+	}
+
+	/** {@code length} 바이트짜리 {@code tools/list} 본문이다. 끝의 공백으로 길이를 맞춘다. */
+	static String 길이를_맞춘_본문(int length) {
+		String head = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"";
+		return head + " ".repeat(length - head.length() - 1) + "}";
+	}
 
 	@AfterEach
 	void clear() {
@@ -74,6 +87,61 @@ class ToolScopeFilterTest {
 		public ServletInputStream getInputStream() {
 			throw new AssertionError("이 시점에는 본문을 읽으면 안 된다");
 		}
+	}
+
+	/** chunked 요청처럼 {@code Content-Length}로 길이를 미리 알 수 없는 요청이다. */
+	static final class 길이_모름 extends HttpServletRequestWrapper {
+
+		길이_모름(HttpServletRequest request) {
+			super(request);
+		}
+
+		@Override
+		public int getContentLength() {
+			return -1;
+		}
+
+		@Override
+		public long getContentLengthLong() {
+			return -1;
+		}
+	}
+
+	@Test
+	void Content_Length가_상한을_넘으면_본문을_읽지_않고_413이다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter(SMALL_LIMIT).doFilter(new 본문_읽기_금지(post(길이를_맞춘_본문(SMALL_LIMIT + 1))), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(413);
+		assertThat(response.getContentAsString()).contains("\"code\":-32600");
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void 길이를_모르는_본문도_상한을_넘게_읽히면_413이고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		filter(SMALL_LIMIT).doFilter(new 길이_모름(post(길이를_맞춘_본문(SMALL_LIMIT + 1))), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(413);
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void 상한과_같은_크기의_본문은_그대로_넘긴다() throws Exception {
+		로그인("products:read");
+		MockFilterChain chain = new MockFilterChain();
+		String body = 길이를_맞춘_본문(SMALL_LIMIT);
+
+		filter(SMALL_LIMIT).doFilter(new 길이_모름(post(body)), new MockHttpServletResponse(), chain);
+
+		assertThat(new String(chain.getRequest().getInputStream().readAllBytes(), StandardCharsets.UTF_8))
+				.isEqualTo(body);
 	}
 
 	@Test

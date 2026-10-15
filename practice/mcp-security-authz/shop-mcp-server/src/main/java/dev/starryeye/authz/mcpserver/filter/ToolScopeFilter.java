@@ -44,6 +44,9 @@ import java.util.stream.Collectors;
  * <p>검사를 tool 메서드 안(예: {@code @PreAuthorize})에서 하면 거절이 HTTP {@code 200}의 tool 오류 결과가 된다.
  * client가 step-up을 시작하려면 HTTP {@code 403}과 challenge가 필요하므로 transport 앞에서 검사한다.
  *
+ * <p>본문은 상한(기본 1 MiB, {@code mcp.limits.max-request-body})까지만 메모리에 읽는다.
+ * 넘으면 transport로 넘기지 않고 {@code 413}으로 끝낸다.
+ *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
  * transport({@code WebMvcStreamableServerTransportProvider})는 본문을 {@code request.body(String.class)}로 읽는다.
  * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
@@ -69,11 +72,15 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	/** {@code 403} challenge에 넣을 PRM 주소다. 요청의 {@code Host}가 아니라 설정에서 만든 값이다. */
 	private final String resourceMetadataUrl;
 
+	/** 메모리에 올려 읽는 본문의 상한(바이트)이다. */
+	private final int maxBodyBytes;
+
 	public ToolScopeFilter(ToolScopeRegistry registry, JsonMapper jsonMapper,
-			String resourceMetadataUrl) {
+			String resourceMetadataUrl, int maxBodyBytes) {
 		this.registry = registry;
 		this.jsonMapper = jsonMapper;
 		this.resourceMetadataUrl = resourceMetadataUrl;
+		this.maxBodyBytes = maxBodyBytes;
 	}
 
 	@Override
@@ -94,7 +101,15 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 		HttpServletRequest forwarded = request;
 		if (HttpMethod.POST.matches(request.getMethod())) {
-			CachedBodyHttpServletRequest cached = new CachedBodyHttpServletRequest(request);
+			CachedBodyHttpServletRequest cached;
+			try {
+				cached = new CachedBodyHttpServletRequest(request, this.maxBodyBytes);
+			}
+			catch (CachedBodyHttpServletRequest.BodyTooLargeException ex) {
+				rejectBody(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, -32600,
+						"요청 본문이 상한 " + ex.maxBytes() + "바이트를 넘습니다.");
+				return;
+			}
 			forwarded = cached;
 
 			JsonNode message;
@@ -102,7 +117,7 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				message = parseAsTransportWill(cached);
 			}
 			catch (BodyRejected rejected) {
-				rejectBody(response, rejected.code, rejected.reason);
+				rejectBody(response, HttpServletResponse.SC_BAD_REQUEST, rejected.code, rejected.reason);
 				return;
 			}
 
@@ -191,9 +206,12 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				+ "\", resource_metadata=\"" + this.resourceMetadataUrl + "\"");
 	}
 
-	/** transport가 실행할 수 없는 본문은 transport로 넘기지 않고 여기서 {@code 400}으로 끝낸다. */
-	private void rejectBody(HttpServletResponse response, int code, String message) throws IOException {
-		response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+	/**
+	 * transport로 넘기지 않을 본문을 여기서 끝낸다.
+	 * 읽을 수 없는 본문은 {@code 400}, 상한을 넘는 본문은 {@code 413}이다. 응답 본문은 id 없는 JSON-RPC 오류다.
+	 */
+	private void rejectBody(HttpServletResponse response, int status, int code, String message) throws IOException {
+		response.setStatus(status);
 		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
 		response.setContentType("application/json;charset=UTF-8");
 		ObjectNode body = this.jsonMapper.createObjectNode();

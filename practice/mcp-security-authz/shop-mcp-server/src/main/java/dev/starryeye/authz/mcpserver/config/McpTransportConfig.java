@@ -9,6 +9,7 @@ import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityVa
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -31,6 +32,7 @@ import java.util.List;
  * <p>Streamable HTTP transport는 Spring AI 자동 구성 bean을 그대로 쓴다.
  */
 @Configuration
+@EnableConfigurationProperties(McpLimitProperties.class)
 public class McpTransportConfig {
 
 	@Bean
@@ -66,10 +68,11 @@ public class McpTransportConfig {
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
 			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties,
-			OAuth2ResourceServerProperties resourceServer) {
+			OAuth2ResourceServerProperties resourceServer, McpLimitProperties limits) {
 		String resourceMetadataUrl = ResourceMetadataUrl.of(ResourceMetadataUrl.resource(resourceServer));
-		FilterRegistrationBean<ToolScopeFilter> registration =
-				new FilterRegistrationBean<>(new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl));
+		ToolScopeFilter filter =
+				new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl, limits.maxRequestBodyBytes());
+		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(filter);
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
 		return registration;

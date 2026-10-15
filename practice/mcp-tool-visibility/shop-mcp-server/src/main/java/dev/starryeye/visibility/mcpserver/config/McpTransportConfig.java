@@ -15,6 +15,7 @@ import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServ
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -43,6 +44,7 @@ import java.util.Map;
  * {@code @Primary}인 transport wrapper는 역할에 따라 {@code tools/list}를 거르고, 숨긴 tool의 호출에 "모르는 tool"로 답한다.
  */
 @Configuration
+@EnableConfigurationProperties(McpLimitProperties.class)
 public class McpTransportConfig {
 
 	/**
@@ -100,10 +102,12 @@ public class McpTransportConfig {
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
 			ToolVisibility visibility, @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
-			McpServerStreamableHttpProperties properties, OAuth2ResourceServerProperties resourceServer) {
+			McpServerStreamableHttpProperties properties, OAuth2ResourceServerProperties resourceServer,
+			McpLimitProperties limits) {
 		String resourceMetadataUrl = ResourceMetadataUrl.of(ResourceMetadataUrl.resource(resourceServer));
-		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(
-				new ToolScopeFilter(registry, visibility, jsonMapper, resourceMetadataUrl));
+		ToolScopeFilter filter = new ToolScopeFilter(registry, visibility, jsonMapper, resourceMetadataUrl,
+				limits.maxRequestBodyBytes());
+		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(filter);
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
 		return registration;

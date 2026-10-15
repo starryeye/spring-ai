@@ -28,6 +28,12 @@ spring:
           # 다른 resource용 token도 그대로 통과한다(confused deputy).
           audiences: http://localhost:8161/mcp
 
+mcp:
+  limits:
+    # scope filter가 tool 이름을 읽으려고 메모리에 올리는 요청 본문의 상한이다. 넘으면 413이다.
+    # Tomcat의 max-post-size는 form 본문에만 적용되어 JSON 본문을 막지 못한다.
+    max-request-body: 1MB
+
 logging:
   level:
     org.springframework.ai: INFO
