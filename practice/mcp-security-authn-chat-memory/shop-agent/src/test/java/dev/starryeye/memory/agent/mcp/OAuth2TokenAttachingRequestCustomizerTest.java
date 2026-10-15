@@ -25,8 +25,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * MCP 로 나가는 요청에 client 주인의 token 이 붙는지를 검증한다. 주인 전달, {@code Bearer } 접두사,
- * 헤더 이름, registration id 가 모두 손으로 짠 배선이라, 회귀가 나면 런타임에서 401 로만 드러난다.
+ * MCP로 나가는 요청에 client 주인의 token이 붙는지 검증한다.
+ * 주인 전달, {@code Bearer } 접두사, header 이름, registration id가 모두 손으로 짠 연결이다.
+ * 그래서 회귀가 나면 실행 중에 401로만 보인다.
  */
 class OAuth2TokenAttachingRequestCustomizerTest {
 
@@ -69,7 +70,7 @@ class OAuth2TokenAttachingRequestCustomizerTest {
 
     @Test
     void transport_context_없이_나가는_session_종료_DELETE_에도_토큰을_붙인다() {
-        // McpSyncClient#closeGracefully 는 transport context 를 넘기지 않는다.
+        // McpSyncClient#closeGracefully는 transport context를 넘기지 않는다.
         OAuth2AuthorizedClientManager manager = mock(OAuth2AuthorizedClientManager.class);
         when(manager.authorize(any(OAuth2AuthorizeRequest.class))).thenReturn(authorizedClientWithToken("abc123"));
         var customizer = new OAuth2TokenAttachingRequestCustomizer(manager, REGISTRATION_ID, this.alice);

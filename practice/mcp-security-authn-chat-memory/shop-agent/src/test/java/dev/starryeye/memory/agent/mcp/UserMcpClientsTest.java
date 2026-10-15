@@ -74,7 +74,7 @@ class UserMcpClientsTest {
 
     @Test
     void 같은_사용자의_동시_첫_요청도_client_를_하나만_연다() throws Exception {
-        // 첫 initialize 를 붙잡아 둔 채 나머지 요청을 보내, 여러 요청이 실제로 "여는 중"과 겹치게 만든다.
+        // 첫 initialize를 붙잡아 둔 채 나머지 요청을 보내, 여러 요청이 실제로 "여는 중"과 겹치게 만든다.
         CountDownLatch initializing = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicInteger initializeCalls = new AtomicInteger();
@@ -102,7 +102,7 @@ class UserMcpClientsTest {
             }
             assertThat(initializing.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
-            // 나머지 요청이 여는 중인 client 를 기다리는 자리까지 가게 잠깐 둔다.
+            // 나머지 요청이 여는 중인 client를 기다리는 자리까지 가도록 잠깐 둔다.
             Thread.sleep(200);
             assertThat(results).noneMatch(Future::isDone);
 
@@ -169,7 +169,7 @@ class UserMcpClientsTest {
 
     @Test
     void 채팅이_빌려_쓰는_중에_닫으면_돌려줄_때_닫는다() {
-        // 다른 탭의 logout 이 진행 중인 채팅의 client 를 바로 닫으면, 그 채팅의 다음 tools/call 이 닫힌 transport 로 나간다.
+        // 다른 탭의 logout이 진행 중인 채팅의 client를 바로 닫으면, 그 채팅의 다음 tools/call이 닫힌 transport로 나간다.
         UserMcpClients.Lease chatting = this.clients.acquire(user("alice"));
         McpSyncClient client = this.opened.get("alice").get(0);
 

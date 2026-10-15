@@ -30,21 +30,23 @@ import java.net.URI;
 import java.time.Duration;
 
 /**
- * MCP 호출에 쓸 토큰을 마련하는 배선.
+ * MCP 호출에 쓸 token을 준비하는 bean을 등록한다.
  *
- * <p>인가 서버의 위치는 설정이 아니라 발견에서 온다. 토큰 요청과 갱신 요청에는
- * RFC 8707 {@code resource} 를 실어, 발급되는 토큰이 이 MCP 서버 전용이 되게 한다.
+ * <p>Authorization Server의 endpoint는 설정이 아니라 discovery에서 온다.
+ * token request와 refresh 요청에는 RFC 8707 {@code resource}를 넣는다.
+ * 그래서 발급되는 token은 이 MCP Server 전용이 된다.
  */
 @Configuration
-// OAuth2ClientProperties 를 직접 켠다: Boot 의 OAuth2ClientAutoConfiguration 은 이 프로퍼티를
-// ClientRegistrationRepository 빈과 같은 조건부 설정 클래스에 묶어 두는데, 그 클래스는
-// @ConditionalOnMissingBean(ClientRegistrationRepository.class) 로 우리가 아래서 직접 만드는
-// DiscoveredClientRegistrationRepository 빈이 있으면 통째로 비활성화된다 — OAuth2ClientProperties
-// 도 같이 사라져 자격증명(client-id/secret) 을 읽어올 곳이 없어진다. 그래서 여기서 따로 켠다.
+// OAuth2ClientProperties를 여기서 직접 켠다.
+// Boot의 OAuth2ClientAutoConfiguration은 OAuth2ClientProperties를 ClientRegistrationRepository bean과
+// 같은 조건부 설정 클래스에서 켠다.
+// 그 클래스에는 @ConditionalOnMissingBean(ClientRegistrationRepository.class)가 붙어 있다.
+// 아래에서 DiscoveredClientRegistrationRepository bean을 직접 만들면 그 클래스가 통째로 빠진다.
+// 그러면 OAuth2ClientProperties도 함께 사라져 credentials(client-id/secret)를 읽을 곳이 없다.
 @EnableConfigurationProperties({ McpAuthorizationProperties.class, OAuth2ClientProperties.class })
 public class McpSecurityConfig {
 
-    /** application.yml 의 registration 키와 같아야 한다. */
+    /** application.yml의 registration key와 같아야 한다. */
     public static final String REGISTRATION_ID = "authserver";
 
     private static final McpSchema.Implementation CLIENT_INFO = new McpSchema.Implementation("memory-shop-agent", "0.0.1");
@@ -70,8 +72,9 @@ public class McpSecurityConfig {
     }
 
     /**
-     * 인가된 클라이언트를 세션이 아니라 서비스에 저장한다. 서블릿 요청 없이
-     * {@code Authentication} 만으로 토큰을 꺼낼 수 있어야 요청 밖(tool 호출, session 종료)에서도 토큰을 붙인다.
+     * authorized client를 session이 아니라 서비스에 저장한다.
+     * servlet 요청 없이 {@code Authentication}만으로 token을 꺼낼 수 있어야
+     * 요청 밖(tool 호출, session 종료)에서도 token을 붙인다.
      */
     @Bean
     public OAuth2AuthorizedClientService authorizedClientService(
@@ -79,7 +82,7 @@ public class McpSecurityConfig {
         return new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
     }
 
-    /** 로그인(코드 교환) 때 쓰는 토큰 요청 클라이언트. resource 를 함께 보낸다. */
+    /** login(code 교환) 때 token request를 보내는 client다. resource를 함께 보낸다. */
     @Bean
     public RestClientAuthorizationCodeTokenResponseClient authorizationCodeTokenResponseClient(
             DiscoveredClientRegistrationRepository registrations) {
@@ -89,7 +92,7 @@ public class McpSecurityConfig {
         return tokenResponseClient;
     }
 
-    /** 액세스 토큰이 만료된 뒤 쓰는 갱신 클라이언트. 여기에도 resource 가 필요하다. */
+    /** access token이 만료된 뒤 refresh 요청을 보내는 client다. 여기에도 resource가 필요하다. */
     @Bean
     public RestClientRefreshTokenTokenResponseClient refreshTokenTokenResponseClient(
             DiscoveredClientRegistrationRepository registrations) {
@@ -100,13 +103,13 @@ public class McpSecurityConfig {
     }
 
     /**
-     * 이 매니저의 기본 구성에는 갱신이 들어 있지 않다. refresh provider 를 직접 넣어야
-     * 만료된 토큰이 갱신된다.
+     * 이 manager의 기본 구성에는 refresh가 없다.
+     * refresh provider를 직접 넣어야 만료된 token을 새로 받는다.
      *
-     * <p>테스트가 이 메서드를 직접 호출해야 해서 static 으로 둔다. Spring 은 static
-     * {@code @Bean} 메서드도 정상적으로 지원하며, 세 번째 인자는 구체 타입인
-     * {@code RestClientRefreshTokenTokenResponseClient} 빈이 타입 할당 가능성으로
-     * 주입된다.
+     * <p>테스트가 이 메서드를 직접 불러야 해서 static으로 둔다.
+     * Spring은 static {@code @Bean} 메서드도 지원한다.
+     * 세 번째 인자에는 {@code RestClientRefreshTokenTokenResponseClient} bean이 주입된다.
+     * 이 구체 타입을 인자 타입에 대입할 수 있기 때문이다.
      */
     @Bean
     static AuthorizedClientServiceOAuth2AuthorizedClientManager authorizedClientManager(
@@ -122,8 +125,8 @@ public class McpSecurityConfig {
     }
 
     /**
-     * 사용자별 MCP client. 각 client 의 transport 는 주인의 token 만 싣는다.
-     * 연결 주소는 발견의 출발점인 {@code mcp.authorization.resource-url} 이다.
+     * 사용자별 MCP client를 만든다. 각 client의 transport는 그 client 주인의 token만 넣는다.
+     * 연결 주소는 discovery의 출발점인 {@code mcp.authorization.resource-url}이다.
      */
     @Bean
     public UserMcpClients userMcpClients(McpAuthorizationProperties properties,
@@ -140,7 +143,7 @@ public class McpSecurityConfig {
                 .build());
     }
 
-    /** HTTP session 종료를 {@code SessionDestroyedEvent} 로 알린다. {@link UserMcpClients} 가 이 event 로 client 를 닫는다. */
+    /** HTTP session 종료를 {@code SessionDestroyedEvent}로 알린다. {@link UserMcpClients}가 이 event를 받아 client를 닫는다. */
     @Bean
     public static HttpSessionEventPublisher httpSessionEventPublisher() {
         return new HttpSessionEventPublisher();

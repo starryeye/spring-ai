@@ -23,14 +23,15 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 인가 응답에 {@code iss} 를 싣는다(RFC 9207).
+ * authorization response에 {@code iss}를 넣는다(RFC 9207).
  *
- * <p>클라이언트가 여러 인가 서버를 알고 있을 때, 공격자가 자기 인가 서버의 응답을
- * 다른 인가 서버의 응답인 것처럼 흘려 보내는 mix-up 공격을 막는다. 클라이언트는
- * 받은 {@code iss} 가 자기가 요청을 보낸 인가 서버인지 확인한 뒤에야 코드를 교환한다.
+ * <p>이 {@code iss}는 mix-up 공격을 막는다.
+ * client가 여러 Authorization Server를 알 때, 공격자는 자기 Authorization Server의 응답을
+ * 다른 Authorization Server의 응답인 것처럼 끼워 넣을 수 있다.
+ * client는 받은 {@code iss}가 요청을 보낸 Authorization Server인지 확인한 뒤에야 code를 교환한다.
  *
- * <p>성공 응답과 오류 응답 모두에 붙여야 한다(RFC 9207 §2.4). Spring Security 7.1 에는
- * RFC 9207 구현이 없어서 이 핸들러가 그 자리를 대신한다.
+ * <p>성공 응답과 오류 응답 모두에 붙여야 한다(RFC 9207 §2).
+ * Spring Security 7.1에는 RFC 9207 구현이 없어서 이 handler가 그 일을 맡는다.
  */
 public class IssuerIdentifyingAuthorizationResponseHandler
 		implements AuthenticationSuccessHandler, AuthenticationFailureHandler {
@@ -63,7 +64,7 @@ public class IssuerIdentifyingAuthorizationResponseHandler
 				(exception instanceof OAuth2AuthorizationCodeRequestAuthenticationException codeRequestException)
 						? codeRequestException.getAuthorizationCodeRequestAuthentication() : null;
 
-		// redirect_uri 를 신뢰할 수 없으면 리다이렉트하지 않는다 — 오픈 리다이렉터가 된다.
+		// redirect_uri를 믿을 수 없으면 redirect하지 않는다. redirect하면 open redirector가 된다.
 		if (authorizationCodeRequest == null || !StringUtils.hasText(authorizationCodeRequest.getRedirectUri())) {
 			response.sendError(HttpStatus.BAD_REQUEST.value(), error.toString());
 			return;

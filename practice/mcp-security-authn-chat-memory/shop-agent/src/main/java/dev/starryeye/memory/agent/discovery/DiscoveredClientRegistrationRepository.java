@@ -22,10 +22,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * 설정 파일에 인가 서버 주소를 적는 대신, MCP 서버에게 물어서 등록을 만든다.
+ * 설정 파일에 Authorization Server의 endpoint를 적는 대신, MCP Server에 물어서 client 등록 정보를 만든다.
  *
- * <p>발견은 처음 필요할 때 한 번만 하고 결과를 캐시한다. 기동 시점에 하지 않는 이유는
- * MCP 서버가 아직 떠 있지 않아도 에이전트는 떠야 하기 때문이다.
+ * <p>discovery는 처음 필요할 때 한 번만 하고 결과를 cache한다.
+ * 기동할 때 하지 않는 것은 MCP Server가 아직 떠 있지 않아도 agent는 떠야 하기 때문이다.
  *
  * <p>discovery는 login하지 않은 요청에서도 시작된다. login page가 곧 authorization request라서
  * 등록 정보가 필요하기 때문이다. 그래서 MCP Server가 느리거나 응답하지 않아도 요청 thread가 서로를 붙잡지 않게 한다.
@@ -38,9 +38,10 @@ import java.util.concurrent.TimeoutException;
  *       그 시간이 지난 뒤의 첫 요청이 다시 시도한다</li>
  * </ul>
  *
- * <p>자격증명(client_id/secret)은 특정 인가 서버에 등록된 것이다. 발견이 다른 인가 서버를 가리키면
- * 그 메타데이터도 요청하지 않고 멈춘다({@link McpAuthorizationDiscovery#discover(String, String)}) —
- * 가짜 인가 서버로 비밀을 흘리지도, 공격자가 고른 주소로 요청을 보내지도 않기 위해서다.
+ * <p>credentials(client_id/secret)는 특정 Authorization Server에 등록된 것이다.
+ * discovery가 다른 Authorization Server를 가리키면 그 metadata도 요청하지 않고 멈춘다
+ * ({@link McpAuthorizationDiscovery#discover(String, String)}).
+ * 가짜 Authorization Server에 비밀을 보내지도, 공격자가 고른 주소로 요청을 보내지도 않기 위해서다.
  */
 public class DiscoveredClientRegistrationRepository implements ClientRegistrationRepository {
 
@@ -105,7 +106,10 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
         return this.registrationId.equals(registrationId) ? state().registration() : null;
     }
 
-    /** 발견한 리소스 식별자·인가 서버 메타데이터. {@code resource} 파라미터와 iss 검증이 쓴다. */
+    /**
+     * discovery로 찾은 resource 식별자와 Authorization Server metadata다.
+     * {@code resource} parameter와 iss 검증이 쓴다.
+     */
     public DiscoveredAuthorization discovered() {
         return state().authorization();
     }

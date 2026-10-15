@@ -19,7 +19,7 @@ public class ChatClientConfig {
             답변은 한국어로 간결하게 합니다.
             """;
 
-    /** MCP tool 은 기본값으로 두지 않는다. 요청마다 그 사용자의 MCP client 에서 받아 넘긴다({@link ChatController}). */
+    /** MCP tool은 기본값으로 두지 않는다. 요청마다 그 사용자의 MCP client에서 받아 넘긴다({@link ChatController}). */
     @Bean
     public ChatClient shopChatClient(ChatClient.Builder builder, ChatMemory chatMemory) {
         return builder

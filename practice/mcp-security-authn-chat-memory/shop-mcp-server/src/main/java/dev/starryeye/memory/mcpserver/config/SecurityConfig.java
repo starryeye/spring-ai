@@ -18,14 +18,14 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.List;
 
 /**
- * MCP 서버는 OAuth 2.0 보호 리소스다(MCP 2025-11-25 인가 §1).
+ * MCP Server는 OAuth 2.1 resource server다(MCP 2025-11-25 Authorization — Roles, 안내서 2장).
  *
  * <p>여기서 켜는 것은 네 가지다.
  * <ul>
- *   <li>RFC 9728 보호 리소스 메타데이터 — 클라이언트가 인가 서버를 찾는 출발점</li>
- *   <li>401 챌린지의 {@code resource_metadata} — 그 메타데이터의 위치를 알려준다</li>
- *   <li>토큰 검증 — 서명·{@code iss}(issuer-uri)와 {@code aud}(audiences 속성)</li>
- *   <li>MCP session 을 token 의 사용자에 묶기 — {@link McpSessionBindingFilter}</li>
+ *   <li>RFC 9728 Protected Resource Metadata(PRM) — client가 Authorization Server를 찾는 출발점이다</li>
+ *   <li>401 challenge의 {@code resource_metadata} — PRM의 위치를 알려 준다</li>
+ *   <li>token 검증 — signature, {@code iss}(issuer-uri), {@code aud}(audiences 설정)를 본다</li>
+ *   <li>MCP session을 token의 사용자에게 묶는다 — {@link McpSessionBindingFilter}</li>
  * </ul>
  *
  * <p>PRM의 {@code resource}와 {@code resource_metadata}는 요청의 {@code Host}가 아니라 설정한 주소({@code audiences})로 만든다.
@@ -54,13 +54,13 @@ public class SecurityConfig {
 										// Spring이 요청 URL로 만든 기본값에서 경로만 두고 origin을 설정값으로 바꾼다.
 										.claims(claims -> claims.put("resource",
 												withConfiguredOrigin((String) claims.get("resource"), resource)))
-										// MCP 클라이언트는 이 값을 보고 인가 서버로 간다.
+										// MCP client는 이 값을 보고 Authorization Server를 찾아간다.
 										.authorizationServer(issuer)
-										// 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다(Spring 기본값은 true).
+										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
 										.tlsClientCertificateBoundAccessTokens(false))))
-				// MCP session 을 token 의 사용자에 묶는다. 인증·인가를 마친 요청만 이 filter 에 닿는다.
+				// MCP session을 token의 사용자에게 묶는다. 인증과 접근 검사(AuthorizationFilter)를 마친 요청만 이 filter에 닿는다.
 				.addFilterAfter(new McpSessionBindingFilter(), AuthorizationFilter.class)
-				// 무상태 리소스 서버다. 토큰으로만 인증하므로 CSRF 토큰을 쓰지 않는다.
+				// stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
 				.csrf(csrf -> csrf.disable())
 				.build();
 	}

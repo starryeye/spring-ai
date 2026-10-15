@@ -18,20 +18,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * MCP session 을 그 session 을 연 사용자에 묶는다(MCP Security Best Practices — Session Hijacking, SHOULD).
+ * MCP session을 그 session을 연 사용자에게 묶는다(MCP Security Best Practices — Session Hijacking, SHOULD).
  *
- * <p>session ID 는 인증을 대신하지 않는다 — 모든 요청은 먼저 token 으로 인증된다. 이 filter 는 그 뒤에
- * 돌며, 요청의 {@code Mcp-Session-Id} 가 다른 사용자(token 의 {@code sub})에게 발급된 것이면 403 으로 막는다.
+ * <p>session ID는 인증을 대신하지 않는다. 모든 요청은 먼저 token으로 인증된다.
+ * 이 filter는 그 뒤에 돌며, 요청의 {@code Mcp-Session-Id}가 다른 사용자(token의 {@code sub})에게 발급된 것이면
+ * 403으로 막는다.
  *
- * <p>묶는 시점은 transport 가 응답에 {@code Mcp-Session-Id} 헤더를 쓰는 순간이다(응답 wrapper). 본문이
- * 나가기 전에 묶이므로 client 가 다음 요청을 보낼 때는 이미 묶여 있다. {@code DELETE} 로 session 이
- * 끝나면 묶음을 지운다.
+ * <p>묶는 시점은 transport가 응답에 {@code Mcp-Session-Id} header를 쓰는 순간이다(응답 wrapper).
+ * 본문이 나가기 전에 묶이므로, client가 다음 요청을 보낼 때는 이미 묶여 있다.
+ * {@code DELETE}로 session이 끝나면 묶음을 지운다.
  *
- * <p>{@code DELETE} 없이 사라진 client 의 묶음이 쌓이지 않도록, 묶음마다 마지막으로 쓴 시각을 두고
- * {@link #DEFAULT_IDLE_TIMEOUT} 동안 쓰지 않은 묶음을 지운다. 요청을 처리할 때 {@link #SWEEP_INTERVAL} 에
- * 한 번 map 전체를 훑는다. 묶음이 없는 session ID 로 온 요청은 끝난 session 으로 보고 {@code 404} 로
- * 답한다(MCP: 끝낸 session ID 에는 404). transport 에 넘기면, 묶음만 지워지고 transport 에 남은 session 을
- * 다른 사용자가 이어 쓸 수 있기 때문이다. client 는 {@code 404} 를 받으면 새 {@code initialize} 로 다시 연다.
+ * <p>{@code DELETE} 없이 사라진 client의 묶음이 쌓이지 않도록, 묶음마다 마지막으로 쓴 시각을 둔다.
+ * {@link #DEFAULT_IDLE_TIMEOUT} 동안 쓰지 않은 묶음은 지운다.
+ * 요청을 처리할 때 {@link #SWEEP_INTERVAL}에 한 번 map 전체를 훑는다.
+ * 묶음이 없는 session ID로 온 요청은 끝난 session으로 보고 {@code 404}로 답한다(MCP: 끝낸 session ID에는 404).
+ * transport에 넘기면, 묶음만 지워지고 transport에 남은 session을 다른 사용자가 이어 쓸 수 있기 때문이다.
+ * client는 {@code 404}를 받으면 새 {@code initialize}로 다시 연다.
  */
 public class McpSessionBindingFilter extends OncePerRequestFilter {
 
@@ -96,7 +98,7 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 		}
 	}
 
-	/** 지금 남아 있는 묶음 수. 테스트가 정리를 확인할 때 쓴다. */
+	/** 지금 남아 있는 묶음 수다. 테스트가 정리를 확인할 때 쓴다. */
 	int bindingCount() {
 		return this.bindings.size();
 	}
@@ -109,7 +111,7 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 		this.bindings.values().removeIf(binding -> binding.idleSince(now, this.idleTimeout));
 	}
 
-	/** session 을 연 사용자와 그 session 으로 마지막 요청이 온 시각. */
+	/** session을 연 사용자와, 그 session으로 마지막 요청이 온 시각이다. */
 	private static final class Binding {
 
 		private final String owner;
@@ -134,7 +136,7 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 		}
 	}
 
-	/** transport 가 {@code Mcp-Session-Id} 를 쓰는 순간 그 session 을 현재 사용자에 묶는다. */
+	/** transport가 {@code Mcp-Session-Id}를 쓰는 순간 그 session을 현재 사용자에게 묶는다. */
 	private final class BindingResponse extends HttpServletResponseWrapper {
 
 		private final String user;

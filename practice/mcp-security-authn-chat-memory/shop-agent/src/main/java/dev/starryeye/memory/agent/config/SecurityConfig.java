@@ -24,16 +24,16 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     /**
-     * {@code /api/chat} 과 {@code DELETE /api/conversations/{label}} 모두 CSRF 를 검사한다 — 예외가 없다.
-     * {@code csrf.spa()} 는 JS 가 읽을 수 있는 {@code XSRF-TOKEN} 쿠키를 응답에 싣고, index.html 이 그 값을
-     * {@code X-XSRF-TOKEN} 헤더로 되돌려 보낸다.
+     * {@code /api/chat}과 {@code DELETE /api/conversations/{label}} 모두 CSRF를 검사한다. 예외는 없다.
+     * {@code csrf.spa()}는 JS가 읽을 수 있는 {@code XSRF-TOKEN} cookie를 응답에 넣는다.
+     * index.html은 그 값을 {@code X-XSRF-TOKEN} header로 되돌려 보낸다.
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
             DiscoveredClientRegistrationRepository registrations,
             OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> authorizationCodeTokenResponseClient,
             UserMcpClients userMcpClients) throws Exception {
-        // iss 검증 필터와 로그인 필터가 같은 저장소를 봐야 한다.
+        // iss 검증 filter와 login filter가 같은 저장소를 봐야 한다.
         var authorizationRequests = new HttpSessionOAuth2AuthorizationRequestRepository();
         var failureHandler = new LoginFailureHandler();
 
@@ -50,7 +50,7 @@ public class SecurityConfig {
                 .addFilterBefore(new AuthorizationResponseIssuerFilter(authorizationRequests, registrations,
                         failureHandler), OAuth2LoginAuthenticationFilter.class)
                 .oauth2Client(Customizer.withDefaults())
-                // 로그아웃하면 그 사용자의 MCP client 를 닫는다(DELETE 로 MCP session 종료).
+                // logout하면 그 사용자의 MCP client를 닫는다(DELETE로 MCP session을 끝낸다).
                 .logout(logout -> logout.addLogoutHandler((request, response, authentication) -> {
                     if (authentication != null) {
                         userMcpClients.close(authentication.getName());
