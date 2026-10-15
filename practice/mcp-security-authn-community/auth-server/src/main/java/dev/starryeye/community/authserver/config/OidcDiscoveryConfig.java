@@ -30,8 +30,8 @@ public class OidcDiscoveryConfig {
      * {@code providerConfigurationCustomizer} 로 그 안의 claim 을 채우는
      * {@link McpAuthorizationStandardConfig} 보다 먼저 적용되도록 낮은 순서를 준다 —
      * 다만 {@code OAuth2AuthorizationServerConfigurer#oidc(...)} 는 호출될 때마다 같은
-     * {@code OidcConfigurer} 를 가져오거나 새로 만들어 즉시 적용하므로(module 소스 확인:
-     * spring-security-config 7.1.0 {@code OAuth2AuthorizationServerConfigurer#oidc}), 두 빈이
+     * {@code OidcConfigurer} 를 가져오거나 새로 만들어 즉시 적용하므로(community 모듈이 아니라
+     * spring-security-config 7.1.0 의 {@code OAuth2AuthorizationServerConfigurer#oidc} 를 확인했다), 두 빈이
      * 서로 다른 필드를 건드리는 지금은 이 순서가 없어도 결과는 같다.
      */
     @Bean
