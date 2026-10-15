@@ -1,6 +1,7 @@
 package dev.starryeye.memory.agent.controller;
 
 import dev.starryeye.memory.agent.config.SecurityConfig;
+import dev.starryeye.memory.agent.domain.ConversationId;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.annotation.DirtiesContext;
@@ -135,6 +137,23 @@ class ConversationControllerTest {
 		mockMvc.perform(get("/api/conversations"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$", hasItem("alice:default")));
+	}
+
+	/** 사용자 이름에 구분자({@code :})가 든 다른 사용자의 대화가 접두사 거르기를 통과하지 않는다. */
+	@Test
+	@WithMockUser(username = "alice")
+	void 사용자_이름에_구분자가_든_다른_사용자의_대화는_목록에_보이지_않는다() throws Exception {
+		String other = ConversationId.of(new UsernamePasswordAuthenticationToken("alice:x", "n/a", List.of()), "default");
+		chatMemory.add(other, List.of(new UserMessage("나는 alice:x 야")));
+		try {
+			mockMvc.perform(get("/api/conversations"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$", hasItem("alice:default")))
+					.andExpect(jsonPath("$", not(hasItem(other))));
+		}
+		finally {
+			chatMemory.clear(other);
+		}
 	}
 
 	/**
