@@ -55,9 +55,16 @@ public class McpSecurityConfig {
     /** login 경로(/oauth2/authorization/authserver)와 callback 경로에 쓰는 registration id다. */
     public static final String REGISTRATION_ID = "authserver";
 
+    /**
+     * discovery 요청은 login하지 않은 요청에서도 나간다. 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
+     * Boot가 만든 {@code RestClient.Builder}를 받아 쓰므로 message converter 같은 Boot 설정은 그대로 온다.
+     */
     @Bean
-    public McpAuthorizationDiscovery mcpAuthorizationDiscovery() {
-        return new McpAuthorizationDiscovery(RestClient.create());
+    public McpAuthorizationDiscovery mcpAuthorizationDiscovery(RestClient.Builder restClientBuilder) {
+        return new McpAuthorizationDiscovery(restClientBuilder
+                .requestFactory(McpAuthorizationDiscovery.requestFactory(McpAuthorizationDiscovery.CONNECT_TIMEOUT,
+                        McpAuthorizationDiscovery.READ_TIMEOUT))
+                .build());
     }
 
     @Bean

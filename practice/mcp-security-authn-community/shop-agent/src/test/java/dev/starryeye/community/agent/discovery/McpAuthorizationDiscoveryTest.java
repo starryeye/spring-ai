@@ -10,6 +10,10 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -231,5 +235,24 @@ class McpAuthorizationDiscoveryTest {
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
                 .withCauseInstanceOf(RestClientException.class);
+    }
+
+    @Test
+    void 연결만_받고_응답하지_않는_서버는_read_timeout_까지만_기다린다() throws Exception {
+        // backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다. 시간 제한이 없으면 discovery가 끝나지 않는다.
+        try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+            RestClient restClient = RestClient.builder()
+                    .requestFactory(McpAuthorizationDiscovery.requestFactory(Duration.ofSeconds(1), Duration.ofMillis(300)))
+                    .build();
+            McpAuthorizationDiscovery discovery = new McpAuthorizationDiscovery(
+                    new McpMetadataDiscoveryService(restClient, new DefaultUrlValidator(true)), restClient);
+            String resource = "http://127.0.0.1:" + silent.getLocalPort() + "/mcp";
+
+            long started = System.nanoTime();
+            assertThatExceptionOfType(McpDiscoveryException.class)
+                    .isThrownBy(() -> discovery.discover(resource, ISSUER))
+                    .withCauseInstanceOf(RestClientException.class);
+            assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(3));
+        }
     }
 }

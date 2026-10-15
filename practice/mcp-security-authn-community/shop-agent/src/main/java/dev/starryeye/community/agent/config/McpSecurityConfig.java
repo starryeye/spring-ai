@@ -42,9 +42,16 @@ public class McpSecurityConfig {
     /** application.yml 의 registration 키와 같아야 한다. */
     public static final String REGISTRATION_ID = "authserver";
 
+    /**
+     * discovery 요청은 login하지 않은 요청에서도 나간다. 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
+     * Boot가 만든 {@code RestClient.Builder}를 받아 쓰므로 message converter 같은 Boot 설정은 그대로 온다.
+     */
     @Bean
-    public McpAuthorizationDiscovery mcpAuthorizationDiscovery() {
-        RestClient restClient = RestClient.create();
+    public McpAuthorizationDiscovery mcpAuthorizationDiscovery(RestClient.Builder restClientBuilder) {
+        RestClient restClient = restClientBuilder
+                .requestFactory(McpAuthorizationDiscovery.requestFactory(McpAuthorizationDiscovery.CONNECT_TIMEOUT,
+                        McpAuthorizationDiscovery.READ_TIMEOUT))
+                .build();
         // 학습 환경은 localhost HTTP 다. 운영에서는 기본값(HTTPS 만 허용)을 쓴다.
         return new McpAuthorizationDiscovery(
                 new McpMetadataDiscoveryService(restClient, new DefaultUrlValidator(true)), restClient);

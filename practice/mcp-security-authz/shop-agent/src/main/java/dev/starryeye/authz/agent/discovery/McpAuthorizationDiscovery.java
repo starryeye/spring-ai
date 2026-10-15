@@ -3,10 +3,14 @@ package dev.starryeye.authz.agent.discovery;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,10 +67,37 @@ public class McpAuthorizationDiscovery {
 			{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",\
 			"capabilities":{},"clientInfo":{"name":"discovery-probe","version":"1.0.0"}}}""";
 
+	/** MCP Server나 Authorization Server가 연결을 받아 주기까지 기다리는 시간이다. */
+	public static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
+
+	/** 요청 하나를 보내고 응답 본문을 다 읽을 때까지 기다리는 시간이다. */
+	public static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+
 	private final RestClient restClient;
 
 	public McpAuthorizationDiscovery(RestClient restClient) {
 		this.restClient = restClient;
+	}
+
+	/**
+	 * discovery 요청에 쓸 request factory다. JDK {@link HttpClient}로 보내고 연결과 응답에 시간 제한을 둔다.
+	 *
+	 * <p>{@code RestClient.create()}는 classpath에서 고른 client(이 agent에서는 Reactor Netty)의 기본값을 쓴다.
+	 * 그 기본값에는 응답 전체에 걸리는 시간 제한이 없어서, 응답을 조금씩 흘리는 서버를 끝없이 기다린다.
+	 * Spring의 {@link JdkClientHttpRequestFactory}는 read timeout을 요청을 보낸 때부터 응답 본문을 다 읽을 때까지에 건다.
+	 *
+	 * <p>redirect는 따라가지 않는다. JDK {@code HttpClient}의 기본값이지만, 의존성이 바뀌어도 그대로이도록 적어 둔다.
+	 * HTTP/1.1로 고정해 {@code http} 주소에 h2c upgrade를 시도하지 않는다.
+	 */
+	public static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
+		HttpClient httpClient = HttpClient.newBuilder()
+				.version(HttpClient.Version.HTTP_1_1)
+				.connectTimeout(connectTimeout)
+				.followRedirects(HttpClient.Redirect.NEVER)
+				.build();
+		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+		requestFactory.setReadTimeout(readTimeout);
+		return requestFactory;
 	}
 
 	/**
