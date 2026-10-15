@@ -154,11 +154,11 @@ class ToolScopeFilterTest {
 	/**
 	 * transport({@code StringHttpMessageConverter})는 잘못된 UTF-8 바이트를 예외 없이 대체 문자로 바꿔 읽는다.
 	 * 이 filter도 같은 방식으로 읽어야, 조회 scope만 있는 token이 이 바이트 하나로 재고 변경을 몰래 통과시키지 못한다.
-	 * (구조를 깨지 않는 위치의 대체라 JSON 자체는 여전히 유효하므로, 검사는 그대로 적용돼 403이 된다. 값에 따라
-	 * 대체가 구조를 깨면 400도 있을 수 있어 둘 다 허용한다.)
+	 * 입력 바이트는 고정이고, 대체 문자는 문자열 값 안에 들어가 JSON 구조를 깨지 않는다.
+	 * 그래서 결과는 늘 scope 검사의 {@code 403}이다. {@code 400}이 나오면 decode 규칙이 달라졌다는 뜻이니 실패해야 한다.
 	 */
 	@Test
-	void 유효하지_않은_UTF8_바이트가_섞인_본문도_403_또는_400이고_transport로_넘기지_않는다() throws Exception {
+	void 유효하지_않은_UTF8_바이트가_섞인_본문도_scope_검사를_받아_403이고_transport로_넘기지_않는다() throws Exception {
 		로그인("products:read");
 		MockFilterChain chain = new MockFilterChain();
 		MockHttpServletResponse response = new MockHttpServletResponse();
@@ -170,10 +170,8 @@ class ToolScopeFilterTest {
 
 		this.filter.doFilter(postBytes(bytes, "application/json"), response, chain);
 
-		assertThat(response.getStatus()).isIn(403, 400);
-		if (response.getStatus() == 403) {
-			assertThat(response.getHeader("WWW-Authenticate")).contains("scope=\"products:write\"");
-		}
+		assertThat(response.getStatus()).isEqualTo(403);
+		assertThat(response.getHeader("WWW-Authenticate")).contains("scope=\"products:write\"");
 		assertThat(chain.getRequest()).isNull();
 	}
 
