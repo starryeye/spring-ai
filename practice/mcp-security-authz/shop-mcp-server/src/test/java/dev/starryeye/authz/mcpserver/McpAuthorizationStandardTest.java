@@ -48,6 +48,7 @@ class McpAuthorizationStandardTest {
 	static final String RESOURCE = "http://localhost:8141/mcp";
 	static final String HOST = "localhost:8141";
 	static final String RESOURCE_METADATA = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
+	static final String ORIGIN = RESOURCE.replace("/mcp", "");
 	static final String KEY_ID = "test-key";
 
 	static final RSAKey KEY = rsaKey();
@@ -205,6 +206,33 @@ class McpAuthorizationStandardTest {
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
 						org.hamcrest.Matchers.containsString("resource_metadata=\"" + RESOURCE_METADATA + "\"")));
+	}
+
+	/*
+	 * RFC 9728 §3.3: PRM의 resource는 그 PRM 주소를 만든 식별자와 같아야 한다.
+	 * 루트형 주소(/.well-known/oauth-protected-resource)를 만든 식별자는 서버 origin이다.
+	 * 그래서 경로 모양은 요청한 PRM 주소를 따르고, scheme·host·port만 설정에서 가져온다.
+	 */
+
+	@Test
+	void 루트형_PRM의_resource는_설정한_주소의_origin이다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource").header("Host", HOST))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(ORIGIN));
+	}
+
+	@Test
+	void Host를_바꿔_불러도_루트형_PRM의_resource는_설정한_origin이다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(ORIGIN));
+	}
+
+	@Test
+	void 그_밖의_경로형_PRM은_설정한_origin에_요청한_경로를_붙인다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/other").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(ORIGIN + "/other"));
 	}
 
 	@Test

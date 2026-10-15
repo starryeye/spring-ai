@@ -40,8 +40,9 @@ public class SecurityConfig {
 								resourceMetadataEntryPoint(ResourceMetadataUrl.of(resource)), ToolScopeRegistry.BASE_SCOPE))
 						.protectedResourceMetadata(metadata -> metadata
 								.protectedResourceMetadataCustomizer(builder -> builder
-										// 요청 URL로 만든 기본값을 설정한 주소로 바꾼다.
-										.resource(resource)
+										// Spring이 요청 URL로 만든 기본값에서 경로만 두고 origin을 설정값으로 바꾼다.
+										.claims(claims -> claims.put("resource",
+												ResourceMetadataUrl.withConfiguredOrigin((String) claims.get("resource"), resource)))
 										// MCP client는 이 값을 보고 Authorization Server를 찾아간다.
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).

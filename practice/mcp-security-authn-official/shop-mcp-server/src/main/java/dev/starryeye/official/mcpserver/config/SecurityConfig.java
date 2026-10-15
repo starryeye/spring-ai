@@ -27,6 +27,7 @@ import java.util.List;
  * <p>PRM의 {@code resource}와 {@code resource_metadata}는 요청의 {@code Host}가 아니라 설정한 주소({@code audiences})로 만든다.
  * Spring의 기본값은 요청 URL로 만든다. 그러면 {@code Host}를 바꾼 요청에 다른 서버 주소를 광고하고,
  * reverse proxy 뒤에서는 scheme도 틀린다. token의 {@code aud}로 검증하는 값과 같은 하나를 쓰면 셋이 어긋날 일이 없다.
+ * 다만 PRM의 {@code resource}는 요청한 PRM 주소의 경로 모양을 따른다({@link #withConfiguredOrigin}).
  */
 @Configuration
 public class SecurityConfig {
@@ -46,8 +47,9 @@ public class SecurityConfig {
 						.authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))
 						.protectedResourceMetadata(metadata -> metadata
 								.protectedResourceMetadataCustomizer(builder -> builder
-										// 요청 URL로 만든 기본값을 설정한 주소로 바꾼다.
-										.resource(resource)
+										// Spring이 요청 URL로 만든 기본값에서 경로만 두고 origin을 설정값으로 바꾼다.
+										.claims(claims -> claims.put("resource",
+												withConfiguredOrigin((String) claims.get("resource"), resource)))
 										// MCP client는 이 값을 보고 Authorization Server를 찾아간다.
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
@@ -77,6 +79,23 @@ public class SecurityConfig {
 		String path = (uri.getPath() == null || "/".equals(uri.getPath())) ? "" : uri.getPath();
 		return UriComponentsBuilder.fromUriString(resource)
 				.replacePath(PROTECTED_RESOURCE_METADATA + path)
+				.replaceQuery(null)
+				.build()
+				.toUriString();
+	}
+
+	/**
+	 * Spring이 요청한 PRM 주소로 만든 {@code resource}에서 경로만 두고, scheme·host·port는 설정한 resource의 것으로 바꾼다.
+	 *
+	 * <p>Spring은 PRM 주소에서 {@code /.well-known/oauth-protected-resource}를 뺀 경로를 요청의 {@code Host}에 붙인다.
+	 * 경로형({@code .../oauth-protected-resource/mcp})이면 {@code /mcp}, 루트형이면 빈 경로가 남는다.
+	 * RFC 9728 §3.3은 PRM의 {@code resource}가 그 PRM 주소를 만든 식별자와 같아야 한다고 한다.
+	 * 루트형 주소를 만든 식별자는 서버 origin이라, client는 루트형 PRM에서 경로 없는 {@code resource}를 기대한다.
+	 * 그래서 경로는 그대로 두고 {@code Host}에 기대는 부분만 설정값으로 바꾼다.
+	 */
+	private static String withConfiguredOrigin(String requested, String resource) {
+		return UriComponentsBuilder.fromUriString(resource)
+				.replacePath(UriComponentsBuilder.fromUriString(requested).build().getPath())
 				.replaceQuery(null)
 				.build()
 				.toUriString();
