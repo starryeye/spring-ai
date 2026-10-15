@@ -371,7 +371,7 @@ class McpAuthorizationStandardTest {
 	}
 
 	@Test
-	void DELETE_로_끝난_session_은_묶음이_풀리고_transport_가_모르는_session_으로_404_를_준다() throws Exception {
+	void DELETE_로_끝난_session_은_묶음이_풀리고_그_session_ID_는_404다() throws Exception {
 		String sessionId = session_을_연다("alice");
 
 		this.mockMvc.perform(mcpDelete(토큰(ISSUER, RESOURCE, "alice"), sessionId))
