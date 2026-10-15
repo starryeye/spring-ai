@@ -120,7 +120,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
             return attempt.get(this.timeout.toMillis(), TimeUnit.MILLISECONDS);
         }
         catch (TimeoutException ex) {
-            throw new McpDiscoveryException("discovery가 %s 안에 끝나지 않았다".formatted(this.timeout), ex);
+            throw new McpDiscoveryException("discovery가 %d ms 안에 끝나지 않았다".formatted(this.timeout.toMillis()), ex);
         }
         catch (ExecutionException ex) {
             McpDiscoveryException failure = failure(ex.getCause());
@@ -181,7 +181,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
             return discoveryFailure;
         }
         if (cause instanceof TimeoutException) {
-            return new McpDiscoveryException("discovery가 %s 안에 끝나지 않았다".formatted(this.timeout), cause);
+            return new McpDiscoveryException("discovery가 %d ms 안에 끝나지 않았다".formatted(this.timeout.toMillis()), cause);
         }
         return new McpDiscoveryException("discovery가 실패했다: " + cause.getMessage(), cause);
     }
