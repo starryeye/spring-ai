@@ -21,6 +21,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,11 +38,17 @@ class ToolScopeFilterTest {
 
 	ToolScopeFilter filter = filter(1024 * 1024);
 
-	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
 	static ToolScopeFilter filter(int maxBodyBytes) {
+		// 속도 제한은 따로 시험한다. 다른 시험이 걸리지 않도록 넉넉하게 둔다.
+		return filter(maxBodyBytes, 1000);
+	}
+
+	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
+	static ToolScopeFilter filter(int maxBodyBytes, int toolCallsPerMinute) {
 		ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class);
 		return new ToolScopeFilter(registry, new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)),
-				JsonMapper.builder().build(), METADATA, maxBodyBytes);
+				JsonMapper.builder().build(), METADATA, maxBodyBytes,
+				new ToolCallRateLimiter(toolCallsPerMinute, Duration.ofMinutes(1), Clock.systemUTC()));
 	}
 
 	/** {@code length} 바이트짜리 {@code tools/list} 본문이다. 끝의 공백으로 길이를 맞춘다. */
@@ -146,6 +154,38 @@ class ToolScopeFilterTest {
 
 		assertThat(new String(chain.getRequest().getInputStream().readAllBytes(), StandardCharsets.UTF_8))
 				.isEqualTo(body);
+	}
+
+	@Test
+	void 사용자의_tools_call이_상한을_넘으면_429와_Retry_After로_답하고_transport로_넘기지_않는다() throws Exception {
+		로그인("products:read");
+		ToolScopeFilter limited = filter(1024 * 1024, 1);
+		limited.doFilter(post(call("getStock")), new MockHttpServletResponse(), new MockFilterChain());
+		MockFilterChain chain = new MockFilterChain();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+
+		limited.doFilter(post(call("getStock")), response, chain);
+
+		assertThat(response.getStatus()).isEqualTo(429);
+		assertThat(response.getHeader("Retry-After")).isEqualTo("60");
+		assertThat(response.getContentAsString()).contains("\"code\":-32000");
+		assertThat(chain.getRequest()).isNull();
+	}
+
+	@Test
+	void tools_call이_아닌_요청과_scope가_모자라_거절한_호출은_세지_않는다() throws Exception {
+		로그인("products:read");
+		ToolScopeFilter limited = filter(1024 * 1024, 1);
+		limited.doFilter(post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}"),
+				new MockHttpServletResponse(), new MockFilterChain());
+		MockHttpServletResponse denied = new MockHttpServletResponse();
+		limited.doFilter(post(call("updateStock")), denied, new MockFilterChain());
+		assertThat(denied.getStatus()).isEqualTo(403);
+		MockFilterChain chain = new MockFilterChain();
+
+		limited.doFilter(post(call("getStock")), new MockHttpServletResponse(), chain);
+
+		assertThat(chain.getRequest()).isNotNull();
 	}
 
 	@Test

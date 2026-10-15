@@ -3,6 +3,7 @@ package dev.starryeye.stateless.mcpserver.config;
 import dev.starryeye.stateless.mcpserver.basket.BasketStore;
 import dev.starryeye.stateless.mcpserver.filter.McpProtocolVersionFilter;
 import dev.starryeye.stateless.mcpserver.filter.McpTransportSecurityFilter;
+import dev.starryeye.stateless.mcpserver.filter.ToolCallRateLimiter;
 import dev.starryeye.stateless.mcpserver.filter.ToolScopeFilter;
 import dev.starryeye.stateless.mcpserver.security.McpCaller;
 import dev.starryeye.stateless.mcpserver.tool.ToolScopeRegistry;
@@ -23,6 +24,7 @@ import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -90,14 +92,17 @@ public class McpTransportConfig {
 	 * {@link ToolScopeFilter}를 MCP endpoint에만 적용한다.
 	 * token 검증(Spring Security) 바로 뒤, 버전 검사 앞에서 돈다.
 	 * 인증된 사용자의 scope를 보고, 모자라면 transport에 닿기 전에 {@code 403}으로 끝낸다.
+	 * 사용자마다 {@code tools/call} 횟수도 세어, 1분 상한을 넘으면 {@code 429}로 끝낸다.
 	 */
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
 			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties,
 			OAuth2ResourceServerProperties resourceServer, McpLimitProperties limits) {
 		String resourceMetadataUrl = ResourceMetadataUrl.of(ResourceMetadataUrl.resource(resourceServer));
-		ToolScopeFilter filter =
-				new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl, limits.maxRequestBodyBytes());
+		ToolCallRateLimiter rateLimiter =
+				new ToolCallRateLimiter(limits.toolCallsPerMinute(), Duration.ofMinutes(1), Clock.systemUTC());
+		ToolScopeFilter filter = new ToolScopeFilter(registry, jsonMapper, resourceMetadataUrl,
+				limits.maxRequestBodyBytes(), rateLimiter);
 		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(filter);
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);

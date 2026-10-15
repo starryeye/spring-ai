@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.GrantedAuthority;
@@ -24,6 +25,9 @@ import tools.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -46,6 +50,9 @@ import java.util.stream.Collectors;
  *
  * <p>본문은 상한(기본 1 MiB, {@code mcp.limits.max-request-body})까지만 메모리에 읽는다.
  * 넘으면 transport로 넘기지 않고 {@code 413}으로 끝낸다.
+ *
+ * <p>scope 검사를 통과한 {@code tools/call}은 사용자({@code sub})마다 횟수를 센다({@link ToolCallRateLimiter}).
+ * 상한(기본 분당 60회, {@code mcp.limits.tool-calls-per-minute})을 넘으면 {@code 429}와 {@code Retry-After}로 끝낸다.
  *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
  * transport({@code WebMvcStreamableServerTransportProvider})는 본문을 {@code request.body(String.class)}로 읽는다.
@@ -75,12 +82,16 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	/** 메모리에 올려 읽는 본문의 상한(바이트)이다. */
 	private final int maxBodyBytes;
 
+	/** 사용자마다 {@code tools/call} 횟수를 센다. */
+	private final ToolCallRateLimiter rateLimiter;
+
 	public ToolScopeFilter(ToolScopeRegistry registry, JsonMapper jsonMapper,
-			String resourceMetadataUrl, int maxBodyBytes) {
+			String resourceMetadataUrl, int maxBodyBytes, ToolCallRateLimiter rateLimiter) {
 		this.registry = registry;
 		this.jsonMapper = jsonMapper;
 		this.resourceMetadataUrl = resourceMetadataUrl;
 		this.maxBodyBytes = maxBodyBytes;
+		this.rateLimiter = rateLimiter;
 	}
 
 	@Override
@@ -127,6 +138,16 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			if (missing != null) {
 				insufficientScope(response, token, tool, missing, granted);
 				return;
+			}
+
+			// transport로 넘길 tool 호출만 센다. 이름이 없거나 모르는 tool의 호출도 transport가 처리하므로 센다.
+			if (isToolCall(message)) {
+				String subject = Objects.toString(token.getToken().getSubject(), "");
+				Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(subject);
+				if (retryAfter.isPresent()) {
+					tooManyToolCalls(response, subject, retryAfter.get());
+					return;
+				}
 			}
 		}
 		chain.doFilter(forwarded, response);
@@ -184,10 +205,15 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				.collect(Collectors.toCollection(TreeSet::new));
 	}
 
+	/** JSON-RPC {@code method}가 {@code tools/call}인지 본다. */
+	private static boolean isToolCall(JsonNode message) {
+		JsonNode method = message.get("method");
+		return method != null && method.isString() && "tools/call".equals(method.stringValue());
+	}
+
 	/** {@code tools/call}이면 tool 이름을, 아니면 {@code null}을 돌려준다. */
 	private String toolName(JsonNode message) {
-		JsonNode method = message.get("method");
-		if (method == null || !method.isString() || !"tools/call".equals(method.stringValue())) {
+		if (!isToolCall(message)) {
 			return null;
 		}
 		JsonNode params = message.get("params");
@@ -207,8 +233,22 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * transport로 넘기지 않을 본문을 여기서 끝낸다.
-	 * 읽을 수 없는 본문은 {@code 400}, 상한을 넘는 본문은 {@code 413}이다. 응답 본문은 id 없는 JSON-RPC 오류다.
+	 * 사용자의 tool 호출이 상한을 넘었다. transport로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
+	 * {@code Retry-After}는 다시 시도할 수 있을 때까지 남은 시간을 초 단위로 올림한 값이다.
+	 */
+	private void tooManyToolCalls(HttpServletResponse response, String subject, Duration retryAfter)
+			throws IOException {
+		long seconds = Math.max(1, (retryAfter.toMillis() + 999) / 1000);
+		log.info("tool 호출 상한 초과 — 사용자={}, 다시 시도까지 {}초", subject, seconds);
+		response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
+		rejectBody(response, HttpStatus.TOO_MANY_REQUESTS.value(), -32000,
+				"tool 호출이 너무 잦습니다. " + seconds + "초 뒤에 다시 시도하세요.");
+	}
+
+	/**
+	 * transport로 넘기지 않을 요청을 여기서 끝낸다.
+	 * 읽을 수 없는 본문은 {@code 400}, 상한을 넘는 본문은 {@code 413}, tool 호출 상한을 넘으면 {@code 429}다.
+	 * 응답 본문은 id 없는 JSON-RPC 오류다.
 	 */
 	private void rejectBody(HttpServletResponse response, int status, int code, String message) throws IOException {
 		response.setStatus(status);
