@@ -414,26 +414,26 @@ agent의 `authorizedClientManager`는 `AuthorizedClientServiceOAuth2AuthorizedCl
 이때 LLM 호출과 tool 호출은 요청을 받은 thread가 아니라 reactor의 다른 thread에서 돈다.
 `SecurityContextHolder`는 thread마다 값을 따로 두므로, 그 thread에서는 login한 사용자가 보이지 않는다.
 
-```java
-public static void main(String[] args) {
-    Hooks.enableAutomaticContextPropagation();   // reactor thread로 SecurityContext를 옮긴다
-    SpringApplication.run(ShopAgentApplication.class, args);
-}
+```yaml
+spring:
+  reactor:
+    context-propagation: auto   # reactor thread로 SecurityContext를 옮긴다(기본값 limited)
 ```
 
-이 hook을 켜면 Reactor는 thread를 바꿀 때 Spring Security의 `SecurityContextHolderThreadLocalAccessor`로 `SecurityContext`를 옮겨 준다.
+`auto`면 Spring Boot가 기동할 때 Reactor의 자동 context 전파를 켠다.
+그러면 Reactor는 thread를 바꿀 때 Spring Security의 `SecurityContextHolderThreadLocalAccessor`로 `SecurityContext`를 옮겨 준다.
 그래서 context provider가 reactor thread에서도 login한 사용자를 읽는다.
 
 **오류 없이 token만 빠지는 설정 실수**
 
 | 실수 | 결과 |
 |---|---|
-| `Hooks.enableAutomaticContextPropagation()`을 뺀다 | reactor thread에서 `SecurityContextHolder`가 비어, context provider가 빈 context를 만든다 |
+| `spring.reactor.context-propagation: auto`를 빼거나 `limited`로 둔다 | reactor thread에서 `SecurityContextHolder`가 비어, context provider가 빈 context를 만든다 |
 | `spring.ai.mcp.client.type`을 `ASYNC`로 바꾼다 | context provider를 넣는 `McpClientCustomizer<McpClient.SyncSpec>`이 async client에는 적용되지 않는다 |
 
 두 실수 모두 기동할 때 오류가 나지 않는다.
 MCP 요청에서 token만 빠지고, MCP Server가 `401`로 답한 뒤에야 알 수 있다.
-`Hooks` 줄이 빠진 경우에는 `practice/mcp-security-authn-official/logs/shop-agent.log`에 DEBUG 줄 하나가 남는다.
+이 설정이 빠진 경우에는 `practice/mcp-security-authn-official/logs/shop-agent.log`에 DEBUG 줄 하나가 남는다.
 `SecurityMcpTransportContextProvider`가 남기는 `인증 없음 — 빈 전송 컨텍스트를 만든다 (토큰이 붙지 않는다)`다.
 
 **`local-client`는 한 번만 붙인다**
@@ -453,12 +453,14 @@ SDK는 이 기본 요청을 복사해 `initialize`부터 session을 끝내는 `D
 ```java
 @Bean
 public SecurityFilterChain securityFilterChain(HttpSecurity http,
-        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer) throws Exception {
+        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
+        OAuth2ResourceServerProperties properties) throws Exception {
+    String resourceMetadataUrl = /* audiences 설정의 MCP Server 주소로 만든 PRM 주소 (3장) */;
     return http
             .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())   // session ID가 있어도 token을 본다
             .oauth2ResourceServer(resourceServer -> resourceServer
                     .jwt(Customizer.withDefaults())                             // signature, iss, aud, exp
-                    .authenticationEntryPoint(resourceMetadataEntryPoint())     // 401에 resource_metadata (3장)
+                    .authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))   // 401에 resource_metadata (3장)
                     .protectedResourceMetadata(/* ... PRM (3장) */))
             .csrf(csrf -> csrf.disable())                                       // cookie가 아니라 token으로만 인증한다
             .build();

@@ -18,10 +18,10 @@ public class ChatClientConfig {
             """;
 
     /**
-     * MCP 툴은 자동으로 모델에 전달되지 않는다. MCP 클라이언트 자동설정이 만들어 주는 것은
-     * {@link ToolCallbackProvider} 빈까지이고, {@code defaultTools(...)} 로 직접 꽂아야
-     * LLM 이 툴 정의를 받는다. 이 줄을 지우면 기동도 되고 답변도 오지만 —
-     * 모델은 툴 없이 기억으로만 답한다.
+     * MCP tool은 저절로 모델에 전달되지 않는다.
+     * MCP client 자동 구성이 만들어 주는 것은 {@link ToolCallbackProvider} bean까지다.
+     * {@code defaultTools(...)}로 직접 넣어야 LLM이 tool 정의를 받는다.
+     * 이 줄을 지워도 앱은 뜨고 답변도 온다. 하지만 모델은 tool 없이 기억으로만 답한다.
      */
     @Bean
     public ChatClient shopChatClient(ChatClient.Builder builder,

@@ -38,6 +38,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,6 +111,28 @@ class ChatCsrfTest {
 		// 대신 UTF-8로 직접 읽는다.
 		assertThat(finished.getResponse().getContentAsString(StandardCharsets.UTF_8))
 				.contains("event:message\ndata:\"재고는 3개입니다\"\n\n");
+	}
+
+	@Test
+	@WithMockUser
+	void CSRF_토큰_없이_step_up_다시_요청을_보내면_403() throws Exception {
+		// 시도 기록을 지우는 요청이다. 다른 사이트가 사용자 몰래 보내지 못해야 한다.
+		this.mockMvc.perform(post("/step-up/retry").param("scope", "products:write"))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	@WithMockUser
+	void 페이지가_준_XSRF_TOKEN_을_헤더로_보내면_step_up_다시_요청이_받아진다() throws Exception {
+		Cookie token = this.mockMvc.perform(get("/index.html"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getCookie("XSRF-TOKEN");
+		assertThat(token).isNotNull();
+
+		this.mockMvc.perform(post("/step-up/retry").param("scope", "products:write")
+						.cookie(token).header("X-XSRF-TOKEN", token.getValue()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.url").value("/oauth2/authorization/authserver?step_up=products:write"));
 	}
 
 	@Test

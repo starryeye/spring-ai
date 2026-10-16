@@ -104,7 +104,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
-| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증한다. PRM과 `401`의 `resource_metadata`를 켠다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
+| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증한다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만든다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
 | `application.yml` | `issuer-uri`와 `audiences`로 token의 `iss`와 `aud`를 확인한다. `server.address: 127.0.0.1`로 이 기기의 연결만 받는다 | [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증), [6장 `127.0.0.1` bind](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
 | `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
 | `McpProtocolVersionFilter` | token 검증 뒤에 `MCP-Protocol-Version`을 보고, 모르는 버전을 `400`으로 거절한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
@@ -114,14 +114,14 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
-| `McpAuthorizationDiscovery`, `DiscoveredAuthorization`, `McpDiscoveryException` | `401` → PRM → issuer 비교 → metadata 순서로 discovery를 한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
-| `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties` | 설정의 credentials와 discovery 결과로 login에 쓸 client 등록 정보를 만든다. `credentials-issuer`와 다른 issuer에는 credentials를 쓰지 않는다 | [4장 credentials와 issuer](../mcp-guide/04-client-registration.md#47-credentials를-issuer에-묶기), [4장 official 코드](../mcp-guide/04-client-registration.md#49-official-코드에서-보기) |
+| `McpAuthorizationDiscovery`, `DiscoveredAuthorization`, `McpDiscoveryException` | `401` → PRM → issuer 비교 → metadata 순서로 discovery를 한다. `resource_metadata`는 MCP Server와 같은 origin만 따라가고, HTTP 요청은 연결 2초·응답 5초에 redirect를 따라가지 않는다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
+| `DiscoveredClientRegistrationRepository`, `McpAuthorizationProperties` | 설정의 credentials와 discovery 결과로 login에 쓸 client 등록 정보를 만들고, `credentials-issuer`와 다른 issuer에는 credentials를 쓰지 않는다. discovery는 별도 thread에서 한 번에 하나만 돌고, 요청은 15초까지 기다리며 실패 뒤 10초는 다시 시도하지 않는다 | [4장 credentials와 issuer](../mcp-guide/04-client-registration.md#47-credentials를-issuer에-묶기), [4장 official 코드](../mcp-guide/04-client-registration.md#49-official-코드에서-보기) |
 | `SecurityConfig` | `oauth2Login`을 켜고, authorization request에 PKCE와 `resource`를 더한다. `/api/chat`에도 CSRF 검사를 켠다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | `ResourceIndicators` | authorization request, token request, refresh request에 `resource`를 넣는다 | [5장 authorization request](../mcp-guide/05-authorization-and-token.md#53-authorization-request를-보낸다), [5장 만료와 refresh](../mcp-guide/05-authorization-and-token.md#59-만료와-refresh), [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | `McpSecurityConfig` | token request를 보내는 bean과 refresh를 하는 `authorizedClientManager`를 등록한다. `SecurityMcpTransportContextProvider`와 `OAuth2TokenAttachingRequestCustomizer`를 MCP client에 연결한다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기), [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
-| `AuthorizationResponseIssuerFilter`, `LoginFailureHandler` | callback의 `iss`를 code 교환 전에 확인하고, 어긋나면 `401`로 끝낸다 | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
+| `AuthorizationResponseIssuerFilter`, `LoginFailureHandler` | callback의 `iss`를 code 교환 전에 확인하고, 어긋나면 `401`로 끝낸다. 응답 본문에는 오류 코드만 쓰고, 자세한 이유는 로그에 남긴다 | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
 | `SecurityMcpTransportContextProvider`, `OAuth2TokenAttachingRequestCustomizer` | MCP 요청마다 그 요청을 일으킨 사용자의 access token을 `Authorization` header에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
-| `ShopAgentApplication` | `Hooks.enableAutomaticContextPropagation()`으로 reactor thread에 `SecurityContext`를 옮긴다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
+| `application.yml`의 `spring.reactor.context-propagation: auto` | Spring Boot가 Reactor의 자동 context 전파를 켜, reactor thread에 `SecurityContext`를 옮긴다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 | `ChatClientConfig`, `ChatController` | MCP tool을 `ChatClient`의 기본 tool로 넣고, `/api/chat`의 답을 stream으로 보낸다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 | `application.yml` | discovery의 출발점 `mcp.authorization.resource-url`과 `credentials-issuer`를 둔다. `initialized: false`로 `initialize`를 첫 채팅까지 미룬다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 
@@ -131,7 +131,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 |---|---|---|
 | `Main` | 아래 클래스를 단계 순서로 부른다. scope는 `openid profile`로 정해 둔다 | [2장 official 코드](../mcp-guide/02-why-oauth.md#28-official-코드에서-보기), [7장 authorization request](../mcp-guide/07-local-client.md#75-3단계-authorization-request-주소를-만든다--authorizationrequest) |
 | `Discovery` | `401` → PRM → metadata 순서로 Authorization Server를 찾고, 등록된 issuer인지 확인한다 | [7장 discovery](../mcp-guide/07-local-client.md#73-1단계-discovery--discovery) |
-| `LoopbackCallbackServer` | `127.0.0.1`의 빈 포트에 callback server를 연다 | [7장 callback server](../mcp-guide/07-local-client.md#74-2단계-callback-server를-연다--loopbackcallbackserver) |
+| `LoopbackCallbackServer` | `127.0.0.1`의 빈 포트에 callback server를 연다. `state`가 맞는 `GET`만 결과로 받고, 나머지에는 `400`으로 답한다 | [7장 callback server](../mcp-guide/07-local-client.md#74-2단계-callback-server를-연다--loopbackcallbackserver) |
 | `Pkce`, `AuthorizationRequest`, `Browser` | `code_verifier`와 `code_challenge`를 만들고, authorization request 주소를 기본 browser로 연다 | [5장 PKCE](../mcp-guide/05-authorization-and-token.md#54-pkce), [7장 authorization request](../mcp-guide/07-local-client.md#75-3단계-authorization-request-주소를-만든다--authorizationrequest) |
 | `AuthorizationResponse` | callback을 `state` → `iss` → `error` → `code` 순서로 확인한다 | [7장 callback 확인](../mcp-guide/07-local-client.md#76-4단계-callback을-확인한다--authorizationresponse) |
 | `TokenClient`, `TokenResponse` | `client_secret` 없이 `client_id`와 `code_verifier`로 token을 받는다 | [7장 token request](../mcp-guide/07-local-client.md#77-5단계-token-request--tokenclient) |
@@ -168,6 +168,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 | `curl -i -X POST http://localhost:8111/mcp` | `401`과 `WWW-Authenticate: Bearer resource_metadata="http://localhost:8111/.well-known/oauth-protected-resource/mcp"` |
 | `curl -i -X POST http://localhost:8111/mcp -H 'Origin: http://evil.example'` | token이 없어도 `401`보다 먼저 `403` `Invalid Origin header` |
 | `curl -i -X POST http://localhost:8111/mcp -H 'Host: evil.example:8111'` | token이 없어도 `421` `Invalid Host header` |
+| `curl -s -H 'Host: evil.example' http://localhost:8111/.well-known/oauth-protected-resource/mcp` | `"resource":"http://localhost:8111/mcp"`다. PRM은 요청의 `Host`가 아니라 `audiences` 설정으로 이름을 알린다 |
 | login하지 않은 browser로 `http://localhost:8110` 열기 | `auth-server`의 login 화면(`http://localhost:9010/login`)으로 간다 |
 | login한 뒤 `노트북 재고 있어?`와 `무선 기계식 키보드 살 수 있어?` 묻기 | p1 7개, p2 23개처럼 재고 숫자가 맞고, 재고가 0인 무선 기계식 키보드(p3)는 품절이라고 답한다 |
 | `grep '호출' logs/shop-mcp-server.log` | `사용자=user`가 찍힌다. MCP Server가 보는 사용자는 agent가 아니라 login한 사람이다 |

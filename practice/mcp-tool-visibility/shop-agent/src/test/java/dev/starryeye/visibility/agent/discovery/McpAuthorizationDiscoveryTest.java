@@ -2,10 +2,17 @@ package dev.starryeye.visibility.agent.discovery;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -103,6 +110,23 @@ class McpAuthorizationDiscoveryTest {
 		this.server.verify();
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"http://evil.example/.well-known/oauth-protected-resource/mcp",
+			"http://localhost:9999/.well-known/oauth-protected-resource/mcp",
+			"https://localhost:8161/.well-known/oauth-protected-resource/mcp",
+			"http://localhost:8161@evil.example/.well-known/oauth-protected-resource/mcp" })
+	void 챌린지의_resource_metadata_가_MCP_Server_와_다른_origin_이면_따라가지_않는다(String elsewhere) {
+		// 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다(SSRF).
+		// 기대하지 않은 요청이 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
+		챌린지("Bearer resource_metadata=\"" + elsewhere + "\"");
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.withMessageContaining("origin");
+		this.server.verify();
+	}
+
 	@Test
 	void 메타데이터의_resource_가_요청한_URL_과_다르면_실패한다() {
 		챌린지("Bearer resource_metadata=\"http://localhost:8161/.well-known/oauth-protected-resource/mcp\"");
@@ -163,6 +187,20 @@ class McpAuthorizationDiscoveryTest {
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
 				.withMessageContaining("http://evil.example");
+		this.server.verify();
+	}
+
+	@Test
+	void authorization_servers_의_어디에_있든_자격증명의_issuer_를_고른다() {
+		// 순서는 신뢰의 근거가 아니다. 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고,
+		// 목록의 다른 Authorization Server에는 요청하지 않는다.
+		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
+		챌린지("Bearer resource_metadata=\"" + prm + "\"");
+		응답(prm, """
+				{"resource":"%s","authorization_servers":["https://other.example","%s"]}""".formatted(RESOURCE, ISSUER));
+		응답(ISSUER + "/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		assertThat(this.discovery.discover(RESOURCE, ISSUER).issuer()).isEqualTo(ISSUER);
 		this.server.verify();
 	}
 
@@ -249,5 +287,34 @@ class McpAuthorizationDiscoveryTest {
 	void 챌린지의_여러_scope는_공백으로_나눈다() {
 		assertThat(McpAuthorizationDiscovery.selectScopes("products:read  products:write", null))
 				.containsExactly("products:read", "products:write");
+	}
+
+	@Test
+	void 응답을_읽지_못하면_원인을_담아_실패한다() {
+		// 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
+		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
+		챌린지("Bearer resource_metadata=\"" + prm + "\"");
+		응답(prm, "{");
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+				.withCauseInstanceOf(RestClientException.class);
+	}
+
+	@Test
+	void 연결만_받고_응답하지_않는_서버는_read_timeout_까지만_기다린다() throws Exception {
+		// backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다. 시간 제한이 없으면 discovery가 끝나지 않는다.
+		try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+			McpAuthorizationDiscovery discovery = new McpAuthorizationDiscovery(RestClient.builder()
+					.requestFactory(McpAuthorizationDiscovery.requestFactory(Duration.ofSeconds(1), Duration.ofMillis(300)))
+					.build());
+			String resource = "http://127.0.0.1:" + silent.getLocalPort() + "/mcp";
+
+			long started = System.nanoTime();
+			assertThatExceptionOfType(McpDiscoveryException.class)
+					.isThrownBy(() -> discovery.discover(resource, ISSUER))
+					.withCauseInstanceOf(RestClientException.class);
+			assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(3));
+		}
 	}
 }

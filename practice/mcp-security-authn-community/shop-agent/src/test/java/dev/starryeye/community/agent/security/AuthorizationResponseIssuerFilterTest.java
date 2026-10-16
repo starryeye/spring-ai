@@ -19,8 +19,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * RFC 9207 — 콜백의 iss 가 요청을 보낸 인가 서버와 같은지 확인한다.
- * mix-up 공격(다른 인가 서버의 응답을 끼워 넣기)을 여기서 막는다.
+ * RFC 9207 — callback의 iss가 요청을 보낸 Authorization Server와 같은지 확인한다.
+ * mix-up 공격(다른 Authorization Server의 응답을 끼워 넣기)을 여기서 막는다.
  */
 class AuthorizationResponseIssuerFilterTest {
 
@@ -84,7 +84,7 @@ class AuthorizationResponseIssuerFilterTest {
 
         assertThat(this.chain.getRequest()).isNull();
         assertThat(this.response.getStatus()).isEqualTo(401);
-        // 저장해 둔 인가 요청도 버린다. 같은 state 로 다시 시도하지 못하게 한다.
+        // 저장해 둔 authorization request도 버린다. 같은 state로 다시 시도하지 못하게 한다.
         assertThat(this.authorizationRequests.loadAuthorizationRequest(this.request)).isNull();
     }
 

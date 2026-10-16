@@ -9,8 +9,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 이 practice 의 격리는 전부 이 클래스 한 곳에 있다.
- * label 에 무엇을 넣어도 접두사를 벗어나지 못해야 한다.
+ * 이 practice의 격리는 모두 이 클래스 한 곳에 있다.
+ * label에 무엇을 넣어도 접두사를 벗어나지 못해야 한다.
  */
 class ConversationIdTest {
 
@@ -30,7 +30,7 @@ class ConversationIdTest {
         assertThat(ConversationId.of(user("alice"), "   ")).isEqualTo("alice:default");
     }
 
-    /** 핵심. bob 이 alice 의 네임스페이스를 노려도 자기 것으로 강제된다. */
+    /** 핵심이다. bob이 alice의 namespace를 노려도 자기 namespace 안에 머문다. */
     @Test
     void label_에_구분자를_넣어도_남의_네임스페이스로_못_간다() {
         String id = ConversationId.of(user("bob"), "alice:default");
@@ -51,6 +51,26 @@ class ConversationIdTest {
     @Test
     void 접두사만_따로_얻을_수_있다() {
         assertThat(ConversationId.prefixOf(user("alice"))).isEqualTo("alice:");
+    }
+
+    /**
+     * 외부 IdP의 {@code sub}는 문자 집합을 보장하지 않는다. {@code alice:x}의 대화 ID가
+     * {@code alice:}로 시작하면 alice의 목록({@code startsWith(prefix)})에 섞인다.
+     */
+    @Test
+    void 사용자_이름에_구분자가_있어도_다른_사용자의_접두사에_걸리지_않는다() {
+        String other = ConversationId.of(user("alice:x"), "default");
+
+        assertThat(other).doesNotStartWith(ConversationId.prefixOf(user("alice")));
+        assertThat(ConversationId.prefixOf(user("alice:x"))).isNotEqualTo(ConversationId.prefixOf(user("alice")));
+    }
+
+    @Test
+    void 사용자_이름을_바꿔_쓴_결과도_사용자마다_다르다() {
+        assertThat(ConversationId.of(user("alice:x"), "default"))
+                .isNotEqualTo(ConversationId.of(user("alice%3Ax"), "default"));
+        assertThat(ConversationId.of(user("a%b"), "default"))
+                .isNotEqualTo(ConversationId.of(user("a%25b"), "default"));
     }
 
     @Test

@@ -37,8 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * MCP 인가 명세가 리소스 서버에 요구하는 것들을 검증한다.
- * RFC 9728 보호 리소스 메타데이터, 401 챌린지, audience 검증, Origin/Host 검증.
+ * MCP authorization 명세가 resource server에 요구하는 것을 검증한다.
+ * RFC 9728 Protected Resource Metadata, 401 challenge, audience 검증, Origin/Host 검증을 본다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -67,8 +67,8 @@ class McpAuthorizationStandardTest {
     }
 
     /**
-     * JWT 디코더가 인가 서버에서 메타데이터·JWKS 를 받아오는 자리에 가짜 응답을 물린다.
-     * 운영 설정(issuer-uri + audiences)은 그대로 두고 네트워크만 끊는 것이라,
+     * JWT decoder가 Authorization Server에서 metadata와 JWKS를 받아 오는 자리에 가짜 응답을 넣는다.
+     * 운영 설정(issuer-uri + audiences)은 그대로 두고 network만 끊는 것이라,
      * 실제로 켜지는 검증기(issuer·audience)를 그대로 시험한다.
      */
     @TestConfiguration
@@ -134,8 +134,8 @@ class McpAuthorizationStandardTest {
     }
 
     /**
-     * {@code MCP-Protocol-Version} 헤더만 다르게 실어 보내는 요청을 만든다.
-     * {@code protocolVersion} 이 {@code null} 이면 헤더 자체를 보내지 않는다.
+     * {@code MCP-Protocol-Version} header만 다르게 넣어 보내는 요청을 만든다.
+     * {@code protocolVersion}이 {@code null}이면 header를 아예 보내지 않는다.
      */
     static MockHttpServletRequestBuilder mcpWithProtocolVersion(String token, String protocolVersion) {
         MockHttpServletRequestBuilder request = post("/mcp")
@@ -154,21 +154,21 @@ class McpAuthorizationStandardTest {
     void 보호_리소스_메타데이터를_경로형으로_공개한다() throws Exception {
         this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", HOST))
                 .andExpect(status().isOk())
-                // RFC 9728 §3.3: resource 는 메타데이터 URL 을 만든 리소스 식별자와 같아야 한다.
+                // RFC 9728 §3.3: resource는 PRM URL을 만든 resource 식별자와 같아야 한다.
                 .andExpect(jsonPath("$.resource").value(RESOURCE))
                 .andExpect(jsonPath("$.authorization_servers[0]").value(ISSUER))
                 .andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
-                // 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다. Spring 기본값이 true 라 꺼야 한다.
+                // 이 서버는 mTLS에 묶인 token을 쓰지 않는다. Spring 기본값이 true라 꺼야 한다.
                 .andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false))
                 .andExpect(jsonPath("$.resource_name").value("shop-mcp-server"));
     }
 
     @Test
     void 토큰_없는_요청의_챌린지가_경로형_메타데이터를_가리킨다() throws Exception {
-        // SecurityConfig 는 모듈의 BearerResourceMetadataTokenAuthenticationEntryPoint 를
-        // official 과 같은 Spring Security 의 BearerTokenAuthenticationEntryPoint 로 바꿔 끼운다.
-        // RFC 9110 §11.2 auth-param 문법상 ":" 와 "/" 를 담은 URL 값은 quoted-string 이어야 하므로
-        // resource_metadata 값은 따옴표로 감싸져야 한다.
+        // SecurityConfig는 module의 BearerResourceMetadataTokenAuthenticationEntryPoint를
+        // official과 같은 Spring Security의 BearerTokenAuthenticationEntryPoint로 바꾼다.
+        // RFC 9110 §11.2 auth-param 문법에 따르면 ":"와 "/"가 든 URL 값은 quoted-string이어야 하므로
+        // resource_metadata 값은 따옴표로 감싸야 한다.
         this.mockMvc.perform(mcp(null, null, HOST))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
@@ -185,12 +185,12 @@ class McpAuthorizationStandardTest {
 
     @Test
     void aud_가_다른_토큰은_거부한다() throws Exception {
-        // 같은 인가 서버가 발급했지만 다른 청중(클라이언트 자신)을 향한 토큰이다.
+        // 같은 Authorization Server가 발급했지만 다른 audience(client 자신)를 향한 token이다.
         this.mockMvc.perform(mcp(토큰(ISSUER, "shop-agent"), null, HOST))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
                         org.hamcrest.Matchers.containsString("error=\"invalid_token\"")))
-                // 토큰이 있어도 유효하지 않으면 같은 진입점이 응답한다. resource_metadata 값도
+                // token이 있어도 유효하지 않으면 같은 entry point가 응답한다. resource_metadata 값도
                 // 따옴표로 감싸져 있어야 한다(RFC 9110 §11.2 auth-param 문법).
                 .andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString(
                         "resource_metadata=\"http://localhost:8101/.well-known/oauth-protected-resource/mcp\"")));
@@ -205,7 +205,7 @@ class McpAuthorizationStandardTest {
 
     @Test
     void 만료된_토큰은_거부한다() throws Exception {
-        // Spring JwtTimestampValidator 의 기본 clock skew 는 60초다. 그보다 오래 지난 token 을 쓴다.
+        // Spring JwtTimestampValidator의 기본 clock skew는 60초다. 그보다 오래 지난 token을 쓴다.
         this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().minusSeconds(120), KEY), null, HOST))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
@@ -214,7 +214,7 @@ class McpAuthorizationStandardTest {
 
     @Test
     void 다른_키로_서명한_토큰은_거부한다() throws Exception {
-        // kid 는 같지만 JWKS 의 공개 키로 서명이 맞지 않는다.
+        // kid는 같지만 JWKS의 public key로 signature가 맞지 않는다.
         this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().plusSeconds(300), rsaKey()), null, HOST))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
@@ -223,7 +223,7 @@ class McpAuthorizationStandardTest {
 
     @Test
     void token_이_없어도_허용되지_않은_Origin_은_인증보다_먼저_403이다() throws Exception {
-        // 모듈 OriginValidationFilter 는 Spring Security 앞에서 돈다 — token 없는 요청도 403 을 본다.
+        // module의 OriginValidationFilter는 Spring Security 앞에서 돈다. token 없는 요청도 403을 받는다.
         this.mockMvc.perform(mcp(null, "http://evil.example", HOST))
                 .andExpect(status().isForbidden())
                 .andExpect(header().doesNotExist("WWW-Authenticate"));
@@ -238,15 +238,34 @@ class McpAuthorizationStandardTest {
 
     @Test
     void Host_를_바꾸고_그_Host_용_token_을_실어도_audience_계산_전에_421이다() throws Exception {
-        // 모듈 AudienceValidationJwtDecoder 는 기대 aud 를 요청 URL 로 계산한다. Host 검증이 없으면
-        // evil Host 로 계산한 aud 와 token 의 aud 가 맞아 통과한다 — OriginValidationFilter 가 먼저 막는다.
+        // module의 AudienceValidationJwtDecoder는 기대하는 aud를 요청 URL로 계산한다. Host 검증이 없으면
+        // evil Host로 계산한 aud와 token의 aud가 맞아 통과한다. OriginValidationFilter가 먼저 막는다.
         this.mockMvc.perform(mcp(토큰(ISSUER, "http://evil.example:8101/mcp"), null, "evil.example:8101"))
                 .andExpect(status().is(421));
     }
 
+    /*
+     * module은 PRM의 resource와 기대하는 aud를 요청 URL로 계산한다(ResourceIdentifier).
+     * official처럼 설정값으로 바꾸지 않는 대신, module의 OriginValidationFilter가 security filter chain의
+     * 모든 경로에서 PRM·401보다 먼저 Host를 검사한다. 허용 목록 밖의 Host로는 다른 서버 주소를 광고받을 수 없다.
+     */
+
+    @Test
+    void Host_를_바꾸면_PRM_을_만들기_전에_421이다() throws Exception {
+        this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", "evil.example"))
+                .andExpect(status().is(421));
+    }
+
+    @Test
+    void Host_를_바꾸면_MCP_endpoint_밖의_경로도_401_을_만들기_전에_421이다() throws Exception {
+        this.mockMvc.perform(get("/").header("Host", "evil.example"))
+                .andExpect(status().is(421))
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+    }
+
     @Test
     void 허용되지_않은_Origin_은_403이다() throws Exception {
-        // 모듈의 OriginValidationFilter 는 거부 응답을 JSON-RPC 본문으로 돌려준다.
+        // module의 OriginValidationFilter는 거부 응답을 JSON-RPC 본문으로 돌려준다.
         this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE), "http://evil.example", HOST))
                 .andExpect(status().isForbidden())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Invalid Origin header")));
@@ -266,9 +285,9 @@ class McpAuthorizationStandardTest {
     }
 
     /*
-     * MCP 2025-11-25 전송 명세 "Protocol Version Header" 절.
-     * SDK(WebMvcStreamableServerTransportProvider)는 이 헤더를 검증하지 않으므로
-     * McpProtocolVersionFilter 가 대신 검증한다.
+     * MCP 2025-11-25 Transports 명세의 "Protocol Version Header" 절이다.
+     * SDK(WebMvcStreamableServerTransportProvider)는 이 header를 검증하지 않으므로
+     * McpProtocolVersionFilter가 대신 검증한다.
      */
 
     @Test
@@ -283,8 +302,9 @@ class McpAuthorizationStandardTest {
         this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
-                // docs/superpowers/captures/2026-09-12-community.txt 15번 단계 본문과 바이트 단위로 같다 —
-                // 오류 응답을 문자열 연결에서 Jackson 직렬화로 바꾼 뒤에도 정상 값의 출력은 그대로다.
+                // 오류 본문을 바이트 단위로 고정한다. docs/superpowers/captures/2026-09-12-community.txt의
+                // "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
+                // filter가 본문을 Jackson tree로 직렬화하므로, field 순서나 공백이 바뀌면 이 단정이 실패한다.
                 .andExpect(content().string(
                         "{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
                                 + "\"message\":\"Unsupported MCP-Protocol-Version: 1999-01-01\"}}"));
@@ -292,17 +312,17 @@ class McpAuthorizationStandardTest {
 
     @Test
     void MCP_Protocol_Version_헤더가_없으면_명세대로_통과한다() throws Exception {
-        // 명세: 헤더가 없고 버전을 알 다른 방법이 없다면 서버는 2025-03-26 을 가정해야
-        // 한다("SHOULD assume protocol version 2025-03-26") — 거부 사유가 아니다.
+        // 명세: header가 없고 버전을 알 다른 방법도 없다면 서버는 2025-03-26으로 가정한다
+        // ("SHOULD assume protocol version 2025-03-26"). 거부할 이유가 아니다.
         this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), null))
                 .andExpect(status().isOk());
     }
 
     @Test
     void 따옴표가_든_MCP_Protocol_Version_헤더_값도_구조가_깨지지_않는_JSON으로_응답한다() throws Exception {
-        // 문자열 연결로 오류 메시지를 만들면 헤더 값에 섞인 따옴표가 JSON 구조를 깨고
-        // 임의의 최상위 멤버를 주입할 수 있었다. jsonPath 평가 자체가 본문이 유효한
-        // JSON 임을 증명하고, injected 필드 부재가 주입이 통하지 않음을 증명한다.
+        // 오류 메시지를 문자열 연결로 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고
+        // 최상위 member를 멋대로 더할 수 있다. jsonPath 평가가 성공하면 본문이 유효한 JSON이고,
+        // injected field가 없으면 injection이 통하지 않은 것이다.
         String 악성_헤더_값 = "x\"},\"injected\":{\"a\":\"b";
         this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), 악성_헤더_값))
                 .andExpect(status().isBadRequest())

@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.AuthenticationConverter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.util.StringUtils;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -24,10 +25,12 @@ import java.util.Map;
  * 그래서 refresh 요청에 다른 client 인증(Basic header, client_assertion, client_secret)이 없고
  * {@code client_id}가 하나뿐이면, 그 client_id의 public client 인증으로 넘긴다.
  * 만든 token에는 refresh 요청이라는 표시를 남겨, provider가 이 요청만 맡게 한다.
+ * refresh token도 함께 넘긴다. provider는 그 grant를 받을 때의 인증 방식이 {@code none}이었는지 본다.
  *
  * <p>Spring의 client 인증 filter는 token endpoint 말고도 introspection, revocation, PAR, device authorization endpoint에서 돈다.
  * 이 converter가 그 endpoint까지 맡으면 인증 없이 {@code client_id}만으로 public client 행세를 할 수 있다.
- * 예를 들어 introspection endpoint는 token이 누구 것인지 확인하지 않으므로, 아무 token이나 읽을 수 있게 된다.
+ * 예를 들어 introspection endpoint에서 {@code client_id}만 대고 그 client가 받은 token의 내용을 읽을 수 있게 된다
+ * ({@link OwnTokenIntrospectionAuthenticationProvider}는 token을 받은 client인지만 본다).
  * 그래서 token endpoint로 온 {@code POST}만 맡는다.
  */
 public final class PublicClientRefreshTokenAuthenticationConverter implements AuthenticationConverter {
@@ -51,8 +54,13 @@ public final class PublicClientRefreshTokenAuthenticationConverter implements Au
 		if (clientIds == null || clientIds.length != 1 || !StringUtils.hasText(clientIds[0])) {
 			return null;
 		}
-		return new OAuth2ClientAuthenticationToken(clientIds[0], ClientAuthenticationMethod.NONE, null,
-				Map.of(OAuth2ParameterNames.GRANT_TYPE, AuthorizationGrantType.REFRESH_TOKEN.getValue()));
+		Map<String, Object> parameters = new HashMap<>();
+		parameters.put(OAuth2ParameterNames.GRANT_TYPE, AuthorizationGrantType.REFRESH_TOKEN.getValue());
+		String refreshToken = request.getParameter(OAuth2ParameterNames.REFRESH_TOKEN);
+		if (StringUtils.hasText(refreshToken)) {
+			parameters.put(OAuth2ParameterNames.REFRESH_TOKEN, refreshToken);
+		}
+		return new OAuth2ClientAuthenticationToken(clientIds[0], ClientAuthenticationMethod.NONE, null, parameters);
 	}
 
 	private static boolean tokenEndpointRequest(HttpServletRequest request) {

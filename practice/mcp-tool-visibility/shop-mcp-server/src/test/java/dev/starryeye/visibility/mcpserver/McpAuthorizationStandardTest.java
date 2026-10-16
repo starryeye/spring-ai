@@ -47,6 +47,8 @@ class McpAuthorizationStandardTest {
 	static final String ISSUER = "http://localhost:9050";
 	static final String RESOURCE = "http://localhost:8161/mcp";
 	static final String HOST = "localhost:8161";
+	static final String RESOURCE_METADATA = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
+	static final String ORIGIN = RESOURCE.replace("/mcp", "");
 	static final String KEY_ID = "test-key";
 
 	static final RSAKey KEY = rsaKey();
@@ -177,6 +179,62 @@ class McpAuthorizationStandardTest {
 						"Bearer resource_metadata=\"http://localhost:8161/.well-known/oauth-protected-resource/mcp\", scope=\"products:read\""));
 	}
 
+	/*
+	 * PRM의 resource와 401의 resource_metadata는 요청의 Host가 아니라 설정한 주소(audiences)로 만든다.
+	 * Host로 만들면 Host를 바꾼 요청에 다른 서버 주소를 광고하게 된다(reverse proxy 뒤에서는 scheme도 틀린다).
+	 */
+
+	@Test
+	void Host를_바꿔_불러도_PRM의_resource는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(RESOURCE));
+	}
+
+	@Test
+	void Host를_바꿔_불러도_401의_resource_metadata는_설정한_주소다() throws Exception {
+		// MCP endpoint 밖의 경로는 Host 검사(McpTransportSecurityFilter)를 거치지 않고 바로 401이 된다.
+		this.mockMvc.perform(get("/").header("Host", "evil.example"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						org.hamcrest.Matchers.containsString("resource_metadata=\"" + RESOURCE_METADATA + "\"")));
+	}
+
+	@Test
+	void 허용한_다른_Host로_불러도_401의_resource_metadata는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(mcp(null, null, HOST.replace("localhost", "127.0.0.1")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						org.hamcrest.Matchers.containsString("resource_metadata=\"" + RESOURCE_METADATA + "\"")));
+	}
+
+	/*
+	 * RFC 9728 §3.3: PRM의 resource는 그 PRM 주소를 만든 식별자와 같아야 한다.
+	 * 루트형 주소(/.well-known/oauth-protected-resource)를 만든 식별자는 서버 origin이다.
+	 * 그래서 경로 모양은 요청한 PRM 주소를 따르고, scheme·host·port만 설정에서 가져온다.
+	 */
+
+	@Test
+	void 루트형_PRM의_resource는_설정한_주소의_origin이다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource").header("Host", HOST))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(ORIGIN));
+	}
+
+	@Test
+	void Host를_바꿔_불러도_루트형_PRM의_resource는_설정한_origin이다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(ORIGIN));
+	}
+
+	@Test
+	void 그_밖의_경로형_PRM은_설정한_origin에_요청한_경로를_붙인다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/other").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(ORIGIN + "/other"));
+	}
+
 	@Test
 	void aud_가_맞는_토큰이면_initialize_가_성공한다() throws Exception {
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE), null, HOST))
@@ -255,7 +313,7 @@ class McpAuthorizationStandardTest {
 
 	/*
 	 * MCP 2025-11-25 전송 명세 "Protocol Version Header" 절.
-	 * SDK(WebMvcStreamableServerTransportProvider)는 이 헤더를 검증하지 않으므로
+	 * transport(WebMvcStatelessServerTransport)와 SDK는 이 헤더를 검증하지 않으므로
 	 * McpProtocolVersionFilter 가 대신 검증한다.
 	 */
 
@@ -271,8 +329,9 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
-				// docs/superpowers/captures/2026-09-12-official.txt 15번 단계 본문과 바이트 단위로 같다 —
-				// 오류 응답을 문자열 연결에서 Jackson 직렬화로 바꾼 뒤에도 정상 값의 출력은 그대로다.
+				// 오류 본문을 바이트 단위로 고정한다. docs/superpowers/captures/2026-09-12-official.txt의
+				// "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
+				// filter가 본문을 Jackson tree로 직렬화하므로, field 순서나 공백이 바뀌면 이 단정이 실패한다.
 				.andExpect(content().string(
 						"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
 								+ "\"message\":\"Unsupported MCP-Protocol-Version: 1999-01-01\"}}"));

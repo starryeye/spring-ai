@@ -11,6 +11,7 @@ import dev.starryeye.stateless.agent.security.ResourceIndicators;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
 import org.springframework.ai.mcp.customizer.McpClientCustomizer;
+import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
 import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
 import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -52,9 +53,16 @@ public class McpSecurityConfig {
     /** application.yml의 registration key와 같아야 한다. */
     public static final String REGISTRATION_ID = "authserver";
 
+    /**
+     * discovery 요청은 login하지 않은 요청에서도 나간다. 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
+     * Boot가 만든 {@code RestClient.Builder}를 받아 쓰므로 message converter 같은 Boot 설정은 그대로 온다.
+     */
     @Bean
-    public McpAuthorizationDiscovery mcpAuthorizationDiscovery() {
-        return new McpAuthorizationDiscovery(RestClient.create());
+    public McpAuthorizationDiscovery mcpAuthorizationDiscovery(RestClient.Builder restClientBuilder) {
+        return new McpAuthorizationDiscovery(restClientBuilder
+                .requestFactory(McpAuthorizationDiscovery.requestFactory(McpAuthorizationDiscovery.CONNECT_TIMEOUT,
+                        McpAuthorizationDiscovery.READ_TIMEOUT))
+                .build());
     }
 
     @Bean
@@ -134,11 +142,16 @@ public class McpSecurityConfig {
     /**
      * step-up 예외는 채팅까지 올리고, 나머지는 Spring AI 기본 처리와 같게 둔다.
      * 기본 처리는 Spring Security의 {@code ClientAuthorizationException}을 다시 던지고, 그 밖의 예외는 LLM에게 줄 문장으로 바꾼다.
-     * 이 bean이 있으면 Spring AI 자동 구성의 같은 bean은 만들어지지 않는다.
+     * {@code spring.ai.tools.throw-exception-on-error}를 켜면 그 밖의 예외도 다시 던진다.
+     *
+     * <p>이 bean이 있으면 Spring AI 자동 구성의 같은 bean은 만들어지지 않는다.
+     * 그래서 자동 구성이 하던 대로 {@link ToolCallingProperties}의 설정을 여기서도 넘긴다.
+     * 넘기지 않으면 그 설정이 조용히 무시된다.
      */
     @Bean
-    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor() {
+    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(ToolCallingProperties toolCallingProperties) {
         return new StepUpToolExecutionExceptionProcessor(DefaultToolExecutionExceptionProcessor.builder()
+                .alwaysThrow(toolCallingProperties.isThrowExceptionOnError())
                 .rethrowExceptions(List.of(ClientAuthorizationException.class))
                 .build());
     }

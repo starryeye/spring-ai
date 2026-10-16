@@ -13,7 +13,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,14 +32,13 @@ class ShopMcpServerApplicationTests {
 	}
 
 	/**
-	 * 401 과 함께 {@code WWW-Authenticate} 스킴이 {@code Bearer} 인지 본다. Boot 기본 보안(Basic)으로
-	 * 막혀도 401 이므로, 스킴이 OAuth2 Resource Server 가 연결됐다는 증거다.
-	 * {@code Host} 는 {@code McpTransportSecurityFilter} 가 인증보다 먼저 보므로 허용 값으로 싣는다.
+	 * 401과 함께 {@code WWW-Authenticate}의 scheme이 {@code Bearer}인지 본다.
+	 * Boot 기본 보안(Basic)으로 막혀도 401이므로, scheme이 OAuth2 Resource Server가 연결됐다는 증거다.
+	 * {@code Host}는 {@code McpTransportSecurityFilter}가 인증보다 먼저 보므로 허용된 값으로 넣는다.
 	 */
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {
 		mockMvc.perform(post("/mcp")
-						.with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.header("Host", "localhost:8131")
 						.content("""
@@ -52,14 +50,14 @@ class ShopMcpServerApplicationTests {
 
 	@Test
 	void 아무_경로나_토큰_없이는_거부된다() throws Exception {
-		mockMvc.perform(post("/").with(csrf()))
+		mockMvc.perform(post("/"))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate", startsWith("Bearer")));
 	}
 
 	/**
-	 * SYNC 서버는 리액티브 반환 타입을 조용히 걸러낸다.
-	 * ProductTools 의 반환을 Mono<String> 으로 바꾸면 이 테스트만 깨진다.
+	 * SYNC 서버는 reactive 반환 타입의 tool을 조용히 걸러 낸다.
+	 * ProductTools의 반환 타입을 Mono<String>으로 바꾸면 이 테스트만 깨진다.
 	 */
 	@Test
 	void MCP_툴이_실제로_등록된다() {

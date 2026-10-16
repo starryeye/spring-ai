@@ -3,10 +3,9 @@ package dev.starryeye.visibility.mcpserver.config;
 import dev.starryeye.visibility.mcpserver.basket.BasketStore;
 import dev.starryeye.visibility.mcpserver.filter.McpProtocolVersionFilter;
 import dev.starryeye.visibility.mcpserver.filter.McpTransportSecurityFilter;
+import dev.starryeye.visibility.mcpserver.filter.ToolCallRateLimiter;
 import dev.starryeye.visibility.mcpserver.filter.ToolScopeFilter;
 import dev.starryeye.visibility.mcpserver.security.McpCaller;
-import dev.starryeye.visibility.mcpserver.tool.BasketTools;
-import dev.starryeye.visibility.mcpserver.tool.ProductTools;
 import dev.starryeye.visibility.mcpserver.tool.ToolScopeRegistry;
 import dev.starryeye.visibility.mcpserver.tool.ToolVisibility;
 
@@ -17,14 +16,20 @@ import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServ
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterProperties;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.web.servlet.function.RouterFunction;
+import org.springframework.web.servlet.function.ServerResponse;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -43,6 +48,7 @@ import java.util.Map;
  * {@code @Primary}인 transport wrapper는 역할에 따라 {@code tools/list}를 거르고, 숨긴 tool의 호출에 "모르는 tool"로 답한다.
  */
 @Configuration
+@EnableConfigurationProperties(McpLimitProperties.class)
 public class McpTransportConfig {
 
 	/**
@@ -58,6 +64,16 @@ public class McpTransportConfig {
 				.messageEndpoint(properties.getMcpEndpoint())
 				.contextExtractor(McpCaller::context)
 				.build();
+	}
+
+	/**
+	 * Spring AI 자동 구성의 router bean을 대신한다(그 bean은 이 이름의 bean이 없을 때만 만들어진다).
+	 * transport의 router는 그대로 쓰고, 오류 응답에서 예외 객체를 빼는 {@link TransportErrorResponseFilter}만 더한다.
+	 */
+	@Bean
+	public RouterFunction<ServerResponse> webMvcStatelessServerRouterFunction(WebMvcStatelessServerTransport transport,
+			@Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
+		return transport.getRouterFunction().filter(new TransportErrorResponseFilter(jsonMapper));
 	}
 
 	@Bean
@@ -82,22 +98,33 @@ public class McpTransportConfig {
 		return new BasketStore(Clock.systemUTC());
 	}
 
+	/**
+	 * tool별 scope 표다. tool bean을 손으로 넘기지 않고 ApplicationContext의 모든 bean에서 찾는다.
+	 * 새 tool bean을 더하고 여기에 넣는 것을 잊어도 그 tool의 scope가 빠지지 않는다.
+	 * 숨김 판단({@link ToolVisibility})도 이 표를 쓰므로, 표에서 빠진 쓰기 tool은 손님에게도 보이고 조회 token으로도 불린다.
+	 */
 	@Bean
-	public ToolScopeRegistry toolScopeRegistry(ProductTools productTools, BasketTools basketTools) {
-		return ToolScopeRegistry.scan(productTools, basketTools);
+	public ToolScopeRegistry toolScopeRegistry(ApplicationContext context) {
+		return ToolScopeRegistry.scan(context);
 	}
 
 	/**
 	 * {@link ToolScopeFilter}를 MCP endpoint에만 적용한다.
 	 * token 검증(Spring Security) 바로 뒤, 버전 검사 앞에서 돈다.
 	 * 인증된 사용자의 scope를 보고, 모자라면 transport에 닿기 전에 {@code 403}으로 끝낸다.
+	 * 사용자마다 {@code tools/call} 횟수도 세어, 1분 상한을 넘으면 {@code 429}로 끝낸다.
 	 */
 	@Bean
 	public FilterRegistrationBean<ToolScopeFilter> toolScopeFilter(ToolScopeRegistry registry,
 			ToolVisibility visibility, @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper,
-			McpServerStreamableHttpProperties properties) {
-		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(
-				new ToolScopeFilter(registry, visibility, jsonMapper, ResourceMetadataUrl::of));
+			McpServerStreamableHttpProperties properties, OAuth2ResourceServerProperties resourceServer,
+			McpLimitProperties limits) {
+		String resourceMetadataUrl = ResourceMetadataUrl.of(ResourceMetadataUrl.resource(resourceServer));
+		ToolCallRateLimiter rateLimiter =
+				new ToolCallRateLimiter(limits.toolCallsPerMinute(), Duration.ofMinutes(1), Clock.systemUTC());
+		ToolScopeFilter filter = new ToolScopeFilter(registry, visibility, jsonMapper, resourceMetadataUrl,
+				limits.maxRequestBodyBytes(), rateLimiter);
+		FilterRegistrationBean<ToolScopeFilter> registration = new FilterRegistrationBean<>(filter);
 		registration.addUrlPatterns(properties.getMcpEndpoint());
 		registration.setOrder(SecurityFilterProperties.DEFAULT_FILTER_ORDER + 1);
 		return registration;

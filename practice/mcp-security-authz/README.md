@@ -17,6 +17,7 @@ client는 처음에 조회 scope `products:read`만 받는다.
 | access token의 `client_id` | 없다 | `ResourceAudienceTokenCustomizer`가 넣는다. MCP Server는 이 값으로 어느 client를 거친 요청인지 안다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | MCP Server의 tool과 scope | 인증된 요청은 모든 tool을 부를 수 있다 | `@RequiredScope`로 tool마다 scope를 적고, `ToolScopeRegistry`가 모은다. 재고를 바꾸는 `updateStock`(`products:write`)이 더 있다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
 | MCP Server의 scope 검사 | 없다 | `ToolScopeFilter`가 모든 MCP 요청에 `products:read`를, `tools/call`에는 그 tool의 scope를 요구한다. 모자라면 `403 insufficient_scope`로 답한다 | [10장 `403 insufficient_scope`](../mcp-guide/10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다) |
+| MCP Server의 본문 크기와 tool 호출 횟수 | 제한하지 않는다 | `ToolScopeFilter`가 본문을 1MB(`mcp.limits.max-request-body`)까지만 읽고, 넘으면 `413`이다. 사용자마다 1분에 `tools/call` 60번(`mcp.limits.tool-calls-per-minute`)을 넘으면 `429`와 `Retry-After`로 답한다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
 | MCP Server의 `401`과 PRM | `401`에는 `resource_metadata`만 있고, PRM에는 `scopes_supported`가 없다 | `401`에 `scope="products:read"`가, PRM에 `"scopes_supported":["products:read"]`가 있다. 쓰기 scope는 미리 알리지 않는다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | agent가 요청하는 scope | 설정에 적은 `openid profile`이다 | discovery가 `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 고른 scope에 `openid`를 더한다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | agent의 `403` 처리 | 따로 다루지 않는다 | `StepUpAuthorizationErrorHandler`가 `403 insufficient_scope`를 예외로 바꾼다. `StepUpToolExecutionExceptionProcessor`는 그 예외를 LLM에게 넘기지 않고 채팅 응답까지 그대로 전한다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
@@ -188,11 +189,12 @@ Spring 앱 세 module은 official처럼 역할별 하위 package로 나뉘고, `
 |---|---|---|---|
 | `auth-server` | `application.yml` | 두 client에 `products:read`·`products:write`를 등록하고, `authz-shop-agent`에도 consent 화면을 켠다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다), [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다) |
 | | `ResourceAudienceTokenCustomizer` | official처럼 access token의 `aud`를 `resource`로 정하고, `client_id` claim을 더한다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
-| `shop-mcp-server` | `RequiredScope`, `ToolScopeRegistry` | tool 메서드 옆에 필요한 scope를 적고, 앱이 뜰 때 tool 이름으로 scope를 찾는 표를 만든다. `@RequiredScope`가 없거나 모르는 tool은 기본 scope `products:read`다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
-| | `ToolScopeFilter` | token 검증 뒤에 scope를 보고, 모자라면 `403`과 `WWW-Authenticate: Bearer error="insufficient_scope", scope=…`로 답한다. 본문은 transport가 읽는 것과 같은 방법으로 읽어 `params.name`에서 tool 이름을 찾고, JSON object 하나로 읽히지 않으면 transport에 넘기지 않고 `400`으로 답한다 | [10장 `403 insufficient_scope`](../mcp-guide/10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다), [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
-| | `CachedBodyHttpServletRequest` | filter가 읽은 요청 본문을 transport가 처음부터 다시 읽게 한다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
+| `shop-mcp-server` | `RequiredScope`, `ToolScopeRegistry` | tool 메서드 옆에 필요한 scope를 적고, 앱이 뜰 때 모든 bean의 `@McpTool` 메서드를 모아, tool 이름으로 scope를 찾는 표를 만든다. `@RequiredScope`가 없거나 모르는 tool은 기본 scope `products:read`다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
+| | `ToolScopeFilter` | token 검증 뒤에 scope를 보고, 모자라면 `403`과 `WWW-Authenticate: Bearer error="insufficient_scope", scope=…`로 답한다. 본문은 transport와 같은 방법으로 읽어 `params.name`에서 tool 이름을 찾고, JSON object 하나로 읽히지 않으면 `400`, 본문 상한을 넘으면 `413`, tool 호출 상한을 넘으면 `429`로 답한다 | [10장 `403 insufficient_scope`](../mcp-guide/10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다), [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
+| | `CachedBodyHttpServletRequest` | filter가 읽은 요청 본문을 transport가 처음부터 다시 읽게 한다. 본문은 상한까지만 읽고, 넘으면 `BodyTooLargeException`이다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
+| | `ToolCallRateLimiter`, `McpLimitProperties` | token의 `sub`마다 최근 1분의 `tools/call`을 세고, 상한이면 기다릴 시간을 알려 준다. 상한 값은 `mcp.limits.*` 설정이다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
 | | `ScopeChallengeEntryPoint` | `401` challenge에 `scope`가 없으면 `scope="products:read"`를 더한다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
-| | `ResourceMetadataUrl` | `401`과 `403`의 `resource_metadata`에 같은 PRM 주소를 넣는다 | [10장 `403 insufficient_scope`](../mcp-guide/10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다) |
+| | `ResourceMetadataUrl` | `audiences` 설정으로 PRM 주소를 만들어, `401`과 `403`의 `resource_metadata`에 요청의 `Host`와 상관없이 같은 주소를 넣는다 | [10장 `403 insufficient_scope`](../mcp-guide/10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다) |
 | | `SecurityConfig` | PRM의 `scopes_supported`에 `products:read`만 넣고, `401` challenge는 `ScopeChallengeEntryPoint`에 맡긴다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | | `McpTransportConfig` | `ToolScopeFilter`를 `/mcp`에만 등록한다. Spring Security 바로 뒤, `McpProtocolVersionFilter` 앞에서 돈다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기), [6장 검사 순서](../mcp-guide/06-mcp-call-and-validation.md#63-mcp-server가-요청을-검사하는-순서-시퀀스-다이어그램) |
 | | `ProductTools`, `ProductRepository` | `updateStock`이 재고를 `quantity`로 바꾸고 바뀐 재고를 문장으로 돌려준다. 조회 tool에는 `@RequiredScope("products:read")`, `updateStock`에는 `@RequiredScope("products:write")`가 붙는다 | [10장 서버 코드](../mcp-guide/10-scope-and-step-up.md#108-서버-코드에서-보기) |
@@ -207,7 +209,7 @@ Spring 앱 세 module은 official처럼 역할별 하위 package로 나뉘고, `
 | | `StepUpAuthorizationRequestResolver` | authorization request의 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. `step_up`은 MCP Server가 `403`으로 요구한 scope만 받는다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | | `StepUpState` | HTTP session에 step-up 상태를 둔다. consent 결과를 기다리는 scope, 이미 시도한 scope, MCP Server가 요구한 scope다 | [거절과 일부 허락](#거절과-일부-허락) |
 | | `StepUpLoginSuccessHandler`, `LoginFailureHandler` | step-up의 login이 끝나면 step-up으로 요청한 scope를 모두 받았는지 로그로 남긴다. step-up 중에 login이 실패하면 오류 화면 대신 채팅 화면으로 돌려보낸다 | [거절과 일부 허락](#거절과-일부-허락) |
-| | `StepUpController` | "다시 요청" 버튼이 부르는 `/step-up/retry`다. 시도 기록을 지우고 step-up을 다시 시작한다 | [거절과 일부 허락](#거절과-일부-허락) |
+| | `StepUpController` | "다시 요청" 버튼이 CSRF token과 함께 `POST`로 부르는 `/step-up/retry`다. 시도 기록을 지우고 step-up을 다시 시작할 주소를 JSON으로 돌려주며, `GET`은 `405`다 | [거절과 일부 허락](#거절과-일부-허락) |
 | | `SecurityConfig` | `oauth2Login`에 `StepUpAuthorizationRequestResolver`와 `StepUpLoginSuccessHandler`를 연결한다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | `local-client` | `Main` | discovery가 고른 scope로 authorization code 흐름을 밟는다. step-up 때는 같은 흐름을 합친 scope로 한 번 더 밟는다 | [10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login) |
 | | `Discovery`, `ScopeSelection`, `AuthorizationRequest` | `401`의 `scope`와 PRM의 `scopes_supported`를 읽어 그 순서로 처음 요청할 scope를 고른다. 둘 다 없으면 `scope` parameter를 빼고 보낸다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
@@ -229,6 +231,7 @@ web agent의 줄은 표의 순서대로 한다.
 |---|---|
 | `curl -i -X POST http://localhost:8141/mcp` | `401`과 `WWW-Authenticate: Bearer resource_metadata="http://localhost:8141/.well-known/oauth-protected-resource/mcp", scope="products:read"` |
 | `curl -s http://localhost:8141/.well-known/oauth-protected-resource/mcp` | `"scopes_supported":["products:read"]`가 있고, `products:write`는 없다 |
+| [10장 직접 해 보기](../mcp-guide/10-scope-and-step-up.md#1012-직접-해-보기)처럼 `READ_TOKEN`을 받은 뒤, 1MB가 넘는 본문을 `POST http://localhost:8141/mcp`로 보내기 | `HTTP/1.1 413`과 `{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"요청 본문이 상한 1048576바이트를 넘습니다."}}`다. 본문을 읽기 전에 token과 기본 scope를 보므로, token이 없으면 `401`이다 |
 | browser로 `http://localhost:8140`을 열고 `user`/`password`로 login | consent 화면의 선택 항목은 `products:read` 하나다 |
 | `products:read`를 체크해 제출하고 `p1 재고 알려 줘` 묻기 | p1(게이밍 노트북 15인치)의 재고가 7개라고 답한다 |
 | `p1 재고를 10개로 바꿔 줘` 보내기 | 채팅 아래에 `updateStock을(를) 하려면 products:write 권한이 더 필요합니다. 허용하면 권한을 받은 뒤 질문을 다시 보냅니다.` 카드와 "권한 허용" 버튼이 뜬다 |

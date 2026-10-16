@@ -20,7 +20,7 @@ public class ChatController {
 
     /**
      * MCP tool 호출은 요청 thread 밖, reactor의 thread에서 돈다.
-     * {@code ShopAgentApplication}이 켠 {@code Hooks.enableAutomaticContextPropagation()}은
+     * {@code spring.reactor.context-propagation: auto}(application.yml)가 켠 reactor의 자동 context 전파는
      * Spring Security의 {@code ThreadLocalAccessor}로 SecurityContext를 그 thread에 옮긴다.
      * {@link SecurityMcpTransportContextProvider}는 거기서 사용자를 읽는다.
      * community practice는 같은 일을 {@code ChatController}의 {@code .contextWrite(...)}로 한다.

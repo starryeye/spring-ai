@@ -8,11 +8,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * {@code ChatMemory} 와 {@code ChatMemoryRepository} 는 자동설정
- * ({@code ChatMemoryAutoConfiguration})이 공짜로 준다 — 둘 다
- * {@code @ConditionalOnMissingBean} 이라 여기서 정의하면 자동설정이 물러난다.
- * {@code maxMessages} 를 통제하려고 {@code ChatMemory} 만 직접 정의하고,
- * 저장소는 자동설정이 주는 {@code InMemoryChatMemoryRepository} 를 그대로 쓴다.
+ * {@code ChatMemory}와 {@code ChatMemoryRepository}는 자동 구성({@code ChatMemoryAutoConfiguration})이 만들어 준다.
+ * 둘 다 {@code @ConditionalOnMissingBean}이라, 여기서 정의하면 자동 구성의 bean은 빠진다.
+ * {@code maxMessages}를 정하려고 {@code ChatMemory}만 직접 정의한다.
+ * 저장소는 자동 구성이 주는 {@code InMemoryChatMemoryRepository}를 그대로 쓴다.
  */
 @Configuration
 public class ChatMemoryConfig {

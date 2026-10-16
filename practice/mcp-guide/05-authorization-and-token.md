@@ -245,7 +245,9 @@ MCP client는 MCP Server가 알려 주는 대로 여러 Authorization Server를 
 Spring Security의 login filter(`OAuth2LoginAuthenticationFilter`)는 `state`를 확인하고 code를 token으로 바꾸지만, `iss`는 읽지 않는다.
 그래서 agent는 `AuthorizationResponseIssuerFilter`를 login filter 바로 앞에 둔다.
 이 filter는 `state`로 session의 요청 기록을 찾고, discovery에서 확인한 issuer와 `iss`를 `String.equals`로 비교한다.
-어긋나면 요청 기록을 지우고 `401`(`로그인 실패: iss mismatch: ...`)으로 끝내며, code는 token endpoint로 가지 않는다.
+어긋나면 요청 기록을 지우고 `401`로 끝내며, code는 token endpoint로 가지 않는다.
+응답 본문의 첫 줄은 `로그인 실패: invalid_request`이고, 자세한 이유(`iss mismatch: ...`)는 agent 로그에만 남긴다.
+callback의 `iss`는 누구나 바꿔 넣을 수 있는 값이라, 응답에 그대로 쓰지 않는다.
 `state`로 요청 기록을 찾지 못하면 Spring의 login filter가 `authorization_request_not_found`로 거절한다.
 `local-client`도 `state` → `iss` → `error` → `code` 순서로 확인한다([7장](07-local-client.md)).
 

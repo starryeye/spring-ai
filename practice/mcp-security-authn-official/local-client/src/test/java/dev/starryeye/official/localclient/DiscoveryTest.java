@@ -183,4 +183,14 @@ class DiscoveryTest {
 				"https://issuer.example/.well-known/openid-configuration/tenant1",
 				"https://issuer.example/tenant1/.well-known/openid-configuration");
 	}
+
+	@Test
+	void loopback은_localhost_127_0_0_0_8의_IPv4_literal_IPv6_1만이다() {
+		// agent의 McpAuthorizationDiscovery와 같은 규칙이다. octet은 0~255만, 앞에 0을 붙인 표기는 받지 않는다.
+		assertThat(List.of("localhost", "LOCALHOST", "127.0.0.1", "127.1.2.3", "127.255.255.255", "::1", "[::1]"))
+				.allMatch(Discovery::isLoopback);
+		assertThat(List.of("127.999.999.999", "127.0.0.256", "127.00.0.1", "128.0.0.1", "127.0.0",
+				"127.0.0.1.evil.example", "localhost.evil.example", "::2"))
+				.noneMatch(Discovery::isLoopback);
+	}
 }

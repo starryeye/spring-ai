@@ -1,7 +1,9 @@
 package dev.starryeye.cimd.authserver.web;
 
 import org.junit.jupiter.api.BeforeEach;
+import dev.starryeye.cimd.authserver.security.PublicClientConsentService;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
@@ -122,6 +124,19 @@ class ConsentControllerTest {
 		assertThat(html).contains("name=\"scope\" value=\"products:write\"");
 		assertThat(html).doesNotContain("name=\"scope\" value=\"products:read\"");
 		assertThat(html).contains("이미 허락한 권한").contains("products:read");
+	}
+
+	@Test
+	void scope가_아닌_consent_기록은_화면에_보이지_않는다() throws Exception {
+		// PublicClientConsentService는 문서의 redirect 주소 hash를 consent의 authority로 함께 저장한다.
+		this.consents.save(OAuth2AuthorizationConsent.withId(CHATGPT, "user").scope("products:read")
+				.authority(new SimpleGrantedAuthority(PublicClientConsentService.REDIRECT_URIS_AUTHORITY_PREFIX + "abc"))
+				.build());
+
+		String html = 화면(CHATGPT, "openid products:read products:write", "local-state");
+
+		assertThat(html).contains("이미 허락한 권한").contains("products:read")
+				.doesNotContain(PublicClientConsentService.REDIRECT_URIS_AUTHORITY_PREFIX);
 	}
 
 	/** redirect 주소 하나만 가진 client의 화면이다. 주소의 host 표시와 loopback 경고를 따로 확인할 때 쓴다. */

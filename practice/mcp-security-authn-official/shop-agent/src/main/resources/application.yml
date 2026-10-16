@@ -11,6 +11,14 @@ server:
         name: OFFICIALAGENTSESSIONID
 
 spring:
+  reactor:
+    # SecurityContextHolder는 thread-local이고, ChatClient.stream()의 reactor chain은 요청 thread 밖에서 돈다.
+    # auto면 Boot가 기동할 때 Hooks.enableAutomaticContextPropagation()을 켠다(기본값 limited).
+    # 그러면 micrometer context-propagation이 Spring Security의 SecurityContextHolderThreadLocalAccessor로
+    # SecurityContext를 reactor의 thread에 옮겨 준다. main()이 아니라 설정으로 켜므로 테스트 context에서도 켜진다.
+    # community practice는 같은 문제를 module의 AuthenticationMcpTransportContextProvider.writeToReactorContext()와
+    # ChatController의 .contextWrite(...)로 푼다.
+    context-propagation: auto
   application:
     name: official-shop-agent
   ai:

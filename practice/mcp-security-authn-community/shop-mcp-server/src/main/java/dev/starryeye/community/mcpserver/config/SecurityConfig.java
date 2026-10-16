@@ -15,12 +15,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.List;
 
 /**
- * community 모듈의 MCP 서버 설정기를 직접 적용한다.
+ * community module의 MCP Server 설정기를 직접 적용한다.
  *
- * <p>자동설정({@code McpServerSecurityAutoConfiguration})도 같은 설정기를 쓰지만
- * audience 검증을 켜는 길이 없다. audience 검증이 없으면 같은 인가 서버가 발급한
- * 다른 리소스용 토큰이 그대로 통과한다 — MCP 인가 명세가 MUST 로 막는 것이다.
- * 그래서 여기서 필터체인을 직접 정의한다(자동설정은 물러난다).
+ * <p>자동 구성({@code McpServerSecurityAutoConfiguration})도 같은 설정기를 쓰지만
+ * audience 검증을 켜는 방법이 없다. audience 검증이 없으면 같은 Authorization Server가 발급한
+ * 다른 resource용 token이 그대로 통과한다. MCP authorization 명세가 MUST로 막는 경우다.
+ * 그래서 여기서 filter chain을 직접 정의한다(자동 구성은 빠진다).
  */
 @Configuration
 public class SecurityConfig {
@@ -35,35 +35,35 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .with(McpServerOAuth2Configurer.mcpServerOAuth2(), mcp -> {
                     mcp.authorizationServer(issuer);
-                    // Boot 가 issuer-uri 로 만든 디코더를 그대로 쓴다(서명·iss 검증).
+                    // Boot가 issuer-uri로 만든 decoder를 그대로 쓴다(signature·iss 검증).
                     mcp.jwtDecoder(jwtDecoder);
-                    // 요청 URL 로 계산한 리소스 식별자가 토큰의 aud 에 있는지 본다.
+                    // 요청 URL로 계산한 resource 식별자가 token의 aud에 있는지 본다.
                     mcp.validateAudienceClaim(true);
                     mcp.protectedResourceMetadataCustomizer(metadata -> metadata
                             .authorizationServer(issuer)
                             .resourceName("shop-mcp-server")
-                            // 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다(모듈 기본값은 true).
+                            // 이 서버는 mTLS에 묶인 token을 쓰지 않는다(module 기본값은 true).
                             .tlsClientCertificateBoundAccessTokens(false));
-                    // 브라우저에서 직접 부를 일이 없다. 자기 자신 외의 Origin 은 막는다.
+                    // browser에서 직접 부를 일이 없다. 자기 자신 밖의 Origin은 막는다.
                     mcp.allowedOrigins(List.of("http://localhost:" + port));
                     mcp.allowedHosts(List.of("localhost:" + port, "127.0.0.1:" + port));
-                    // McpServerOAuth2Configurer.init() 은 자기 진입점(모듈의
-                    // BearerResourceMetadataTokenAuthenticationEntryPoint)을 먼저 설정한 뒤
-                    // 이 customizer 를 호출하므로, 여기서 진입점을 official 과 같은 것으로 바꿔 끼울 수 있다.
-                    // 모듈 진입점은 401 챌린지의 resource_metadata 값에 따옴표를 붙이지 않는데,
-                    // RFC 9110 §11.2 의 auth-param 문법상 ":" 와 "/" 를 담은 URL 값은
+                    // McpServerOAuth2Configurer.init()은 자기 entry point(module의
+                    // BearerResourceMetadataTokenAuthenticationEntryPoint)를 먼저 설정한 뒤 이 customizer를 부른다.
+                    // 그래서 여기서 entry point를 official과 같은 것으로 바꿀 수 있다.
+                    // module의 entry point는 401 challenge의 resource_metadata 값에 따옴표를 붙이지 않는다.
+                    // 하지만 RFC 9110 §11.2의 auth-param 문법에 따르면 ":"와 "/"가 든 URL 값은
                     // quoted-string(따옴표)이어야 한다.
                     mcp.oauth2ResourceServer(rs -> rs.authenticationEntryPoint(resourceMetadataEntryPoint()));
                 })
-                // 무상태 리소스 서버다. 토큰으로만 인증하므로 CSRF 토큰을 쓰지 않는다.
+                // stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
                 .csrf(csrf -> csrf.disable())
                 .build();
     }
 
     /**
-     * RFC 9728 §3.1 이 정한 규칙대로, 보호 리소스 URL 의 경로 앞에
-     * {@code /.well-known/oauth-protected-resource} 를 끼워 넣은 URL 을 알려준다.
-     * 즉 {@code /mcp} 요청은 {@code /.well-known/oauth-protected-resource/mcp} 를 가리킨다.
+     * RFC 9728 §3.1의 규칙대로, protected resource URL의 경로 앞에
+     * {@code /.well-known/oauth-protected-resource}를 끼워 넣은 URL을 알려 준다.
+     * 곧 {@code /mcp} 요청은 {@code /.well-known/oauth-protected-resource/mcp}를 가리킨다.
      */
     private static BearerTokenAuthenticationEntryPoint resourceMetadataEntryPoint() {
         BearerTokenAuthenticationEntryPoint entryPoint = new BearerTokenAuthenticationEntryPoint();

@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.GrantedAuthority;
@@ -24,9 +25,11 @@ import tools.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -45,8 +48,20 @@ import java.util.stream.Collectors;
  * <p>검사를 tool 메서드 안(예: {@code @PreAuthorize})에서 하면 거절이 HTTP {@code 200}의 tool 오류 결과가 된다.
  * client가 step-up을 시작하려면 HTTP {@code 403}과 challenge가 필요하므로 transport 앞에서 검사한다.
  *
+ * <p>본문은 상한(기본 1 MiB, {@code mcp.limits.max-request-body})까지만 메모리에 읽는다.
+ * 넘으면 transport로 넘기지 않고 {@code 413}으로 끝낸다.
+ *
+ * <p>scope 검사를 통과한 {@code tools/call}은 사용자({@code sub})마다 횟수를 센다({@link ToolCallRateLimiter}).
+ * 상한(기본 분당 60회, {@code mcp.limits.tool-calls-per-minute})을 넘으면 {@code 429}와 {@code Retry-After}로 끝낸다.
+ *
+ * <p>{@code tools/call}의 params가 SDK의 {@code CallToolRequest}로 바뀔 수 없는 모양이면(params가 object가 아니거나,
+ * {@code name}이 문자열이 아니거나, {@code arguments}·{@code _meta}가 object가 아니면) transport로 넘기지 않고
+ * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다. 넘기면 Spring AI 2.0.1 stateless transport가 {@code 500}과 함께
+ * 예외 객체를 본문에 써서 stack trace가 나간다. {@code name}을 문자열로만 받으면, SDK가 숫자·boolean 이름을 문자열로
+ * 바꾸는 것과 이 filter가 이름을 읽는 방식이 어긋날 일도 없다. 이 거절은 속도 제한에서 세지 않는다.
+ *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
- * transport({@code WebMvcStreamableServerTransportProvider})는 본문을 {@code request.body(String.class)}로 읽는다.
+ * transport(Spring AI 2.0.1의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
  * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
  * 잘못된 바이트를 만나도 예외를 던지지 않고 대체 문자({@code U+FFFD})로 조용히 바꿔 넣는다.
  * 이 필터가 그 대신 {@code jsonMapper.readTree(byte[])}로 바이트를 직접 읽으면, Jackson은 잘못된 UTF-8 바이트에서
@@ -67,13 +82,22 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private final JsonMapper jsonMapper;
 
-	private final Function<HttpServletRequest, String> resourceMetadataUrl;
+	/** {@code 403} challenge에 넣을 PRM 주소다. 요청의 {@code Host}가 아니라 설정에서 만든 값이다. */
+	private final String resourceMetadataUrl;
+
+	/** 메모리에 올려 읽는 본문의 상한(바이트)이다. */
+	private final int maxBodyBytes;
+
+	/** 사용자마다 {@code tools/call} 횟수를 센다. */
+	private final ToolCallRateLimiter rateLimiter;
 
 	public ToolScopeFilter(ToolScopeRegistry registry, JsonMapper jsonMapper,
-			Function<HttpServletRequest, String> resourceMetadataUrl) {
+			String resourceMetadataUrl, int maxBodyBytes, ToolCallRateLimiter rateLimiter) {
 		this.registry = registry;
 		this.jsonMapper = jsonMapper;
 		this.resourceMetadataUrl = resourceMetadataUrl;
+		this.maxBodyBytes = maxBodyBytes;
+		this.rateLimiter = rateLimiter;
 	}
 
 	@Override
@@ -88,13 +112,21 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 		// 본문을 버퍼링하기 전에 기본 scope부터 본다. 기본 scope가 없으면 tool 이름을 알 필요도 없다.
 		if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {
-			insufficientScope(request, response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
+			insufficientScope(response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
 			return;
 		}
 
 		HttpServletRequest forwarded = request;
 		if (HttpMethod.POST.matches(request.getMethod())) {
-			CachedBodyHttpServletRequest cached = new CachedBodyHttpServletRequest(request);
+			CachedBodyHttpServletRequest cached;
+			try {
+				cached = new CachedBodyHttpServletRequest(request, this.maxBodyBytes);
+			}
+			catch (CachedBodyHttpServletRequest.BodyTooLargeException ex) {
+				rejectBody(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, -32600,
+						"요청 본문이 상한 " + ex.maxBytes() + "바이트를 넘습니다.");
+				return;
+			}
 			forwarded = cached;
 
 			JsonNode message;
@@ -102,7 +134,13 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				message = parseAsTransportWill(cached);
 			}
 			catch (BodyRejected rejected) {
-				rejectBody(response, rejected.code, rejected.reason);
+				rejectBody(response, HttpServletResponse.SC_BAD_REQUEST, rejected.code, rejected.reason);
+				return;
+			}
+
+			String malformed = isToolCall(message) ? malformedToolCall(message.get("params")) : null;
+			if (malformed != null) {
+				rejectBody(response, HttpServletResponse.SC_BAD_REQUEST, -32602, malformed);
 				return;
 			}
 
@@ -110,8 +148,18 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			String missing = (tool != null && !granted.contains(this.registry.scopeFor(tool)))
 					? this.registry.scopeFor(tool) : null;
 			if (missing != null) {
-				insufficientScope(request, response, token, tool, missing, granted);
+				insufficientScope(response, token, tool, missing, granted);
 				return;
+			}
+
+			// transport로 넘길 tool 호출만 센다. 이름이 없거나 모르는 tool의 호출도 transport가 처리하므로 센다.
+			if (isToolCall(message)) {
+				String subject = Objects.toString(token.getToken().getSubject(), "");
+				Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(subject);
+				if (retryAfter.isPresent()) {
+					tooManyToolCalls(response, subject, retryAfter.get());
+					return;
+				}
 			}
 		}
 		chain.doFilter(forwarded, response);
@@ -122,8 +170,9 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	 * charset이 없으면 UTF-8, 읽을 수 없으면 거절한다.
 	 * decode한 text가 JSON object가 아니면(구문 오류, 배열) {@link BodyRejected}로 거절한다.
 	 */
-	// 이 decode 규칙은 SDK transport(request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다.
-	// SDK를 올릴 때 다시 확인한다.
+	// 이 decode 규칙은 Spring AI 2.0.1 WebMvcStatelessServerTransport의 읽기
+	// (request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다(mcp-spring-webmvc 2.0.1 bytecode로 확인).
+	// Spring AI를 올리거나 transport를 바꿀 때 다시 확인한다.
 	private JsonNode parseAsTransportWill(CachedBodyHttpServletRequest request) {
 		Charset charset = charset(request);
 		String text = new String(request.body(), charset);
@@ -169,10 +218,38 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				.collect(Collectors.toCollection(TreeSet::new));
 	}
 
+	/**
+	 * {@code tools/call}의 params가 SDK의 {@code CallToolRequest}({@code name} 문자열, {@code arguments}·{@code _meta} object)로
+	 * 바뀔 수 있는 모양인지 본다. 바뀔 수 없으면 그 이유를, 바뀔 수 있으면 {@code null}을 돌려준다.
+	 * {@code arguments}·{@code _meta}는 없거나 {@code null}이어도 된다. SDK가 빈 값으로 처리한다.
+	 */
+	private static String malformedToolCall(JsonNode params) {
+		if (params == null || !params.isObject()) {
+			return "tools/call의 params는 object여야 합니다.";
+		}
+		JsonNode name = params.get("name");
+		if (name == null || !name.isString()) {
+			return "tools/call의 name은 문자열이어야 합니다.";
+		}
+		if (!absentOrObject(params.get("arguments")) || !absentOrObject(params.get("_meta"))) {
+			return "tools/call의 arguments와 _meta는 object여야 합니다.";
+		}
+		return null;
+	}
+
+	private static boolean absentOrObject(JsonNode node) {
+		return node == null || node.isNull() || node.isObject();
+	}
+
+	/** JSON-RPC {@code method}가 {@code tools/call}인지 본다. */
+	private static boolean isToolCall(JsonNode message) {
+		JsonNode method = message.get("method");
+		return method != null && method.isString() && "tools/call".equals(method.stringValue());
+	}
+
 	/** {@code tools/call}이면 tool 이름을, 아니면 {@code null}을 돌려준다. */
 	private String toolName(JsonNode message) {
-		JsonNode method = message.get("method");
-		if (method == null || !method.isString() || !"tools/call".equals(method.stringValue())) {
+		if (!isToolCall(message)) {
 			return null;
 		}
 		JsonNode params = message.get("params");
@@ -180,20 +257,38 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 		return (name != null && name.isString() && !name.stringValue().isBlank()) ? name.stringValue() : null;
 	}
 
-	private void insufficientScope(HttpServletRequest request, HttpServletResponse response,
-			JwtAuthenticationToken token, String tool, String missing, Set<String> granted) {
+	private void insufficientScope(HttpServletResponse response, JwtAuthenticationToken token, String tool,
+			String missing, Set<String> granted) {
 		// Security Best Practices — Scope Minimization: 권한 상승 요청을 기록으로 남긴다.
 		log.info("scope 부족 — 사용자={}, client_id={}, tool={}, 필요한 scope={}, 가진 scope={}",
 				(token != null) ? token.getName() : "(JWT 인증 아님)",
 				(token != null) ? token.getToken().getClaimAsString("client_id") : null, tool, missing, granted);
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer error=\"insufficient_scope\", scope=\"" + missing
-				+ "\", resource_metadata=\"" + this.resourceMetadataUrl.apply(request) + "\"");
+				+ "\", resource_metadata=\"" + this.resourceMetadataUrl + "\"");
 	}
 
-	/** transport가 실행할 수 없는 본문은 transport로 넘기지 않고 여기서 {@code 400}으로 끝낸다. */
-	private void rejectBody(HttpServletResponse response, int code, String message) throws IOException {
-		response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+	/**
+	 * 사용자의 tool 호출이 상한을 넘었다. transport로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
+	 * {@code Retry-After}는 다시 시도할 수 있을 때까지 남은 시간을 초 단위로 올림한 값이다.
+	 */
+	private void tooManyToolCalls(HttpServletResponse response, String subject, Duration retryAfter)
+			throws IOException {
+		long seconds = Math.max(1, (retryAfter.toMillis() + 999) / 1000);
+		log.info("tool 호출 상한 초과 — 사용자={}, 다시 시도까지 {}초", subject, seconds);
+		response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
+		rejectBody(response, HttpStatus.TOO_MANY_REQUESTS.value(), -32000,
+				"tool 호출이 너무 잦습니다. " + seconds + "초 뒤에 다시 시도하세요.");
+	}
+
+	/**
+	 * transport로 넘기지 않을 요청을 여기서 끝낸다.
+	 * 읽을 수 없는 본문과 형식이 틀린 {@code tools/call}은 {@code 400}, 상한을 넘는 본문은 {@code 413},
+	 * tool 호출 상한을 넘으면 {@code 429}다.
+	 * 응답 본문은 id 없는 JSON-RPC 오류다.
+	 */
+	private void rejectBody(HttpServletResponse response, int status, int code, String message) throws IOException {
+		response.setStatus(status);
 		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
 		response.setContentType("application/json;charset=UTF-8");
 		ObjectNode body = this.jsonMapper.createObjectNode();

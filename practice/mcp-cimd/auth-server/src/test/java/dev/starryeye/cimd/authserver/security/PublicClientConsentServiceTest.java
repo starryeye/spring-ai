@@ -1,6 +1,7 @@
 package dev.starryeye.cimd.authserver.security;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.server.authorization.InMemoryOAuth2AuthorizationConsentService;
@@ -55,6 +56,59 @@ class PublicClientConsentServiceTest {
 
 		this.delegate.save(consent(unknown));
 		assertThat(this.service.findById(unknown.getId(), "user")).isNull();
+	}
+
+	@Test
+	void 기밀_클라이언트의_동의에는_redirect_주소의_hash를_함께_남기고_scope로는_보이지_않는다() {
+		this.service.save(consent(CONFIDENTIAL_CLIENT));
+
+		OAuth2AuthorizationConsent stored = this.delegate.findById(CONFIDENTIAL_CLIENT.getId(), "user");
+		assertThat(stored.getAuthorities()).extracting(GrantedAuthority::getAuthority)
+				.anyMatch(authority -> authority.startsWith(PublicClientConsentService.REDIRECT_URIS_AUTHORITY_PREFIX));
+		// consent 화면과 Spring은 getScopes()만 본다. hash는 scope가 아니다.
+		assertThat(this.service.findById(CONFIDENTIAL_CLIENT.getId(), "user").getScopes()).containsExactly("profile");
+	}
+
+	@Test
+	void 문서의_redirect_주소가_바뀌면_저장된_동의가_없는_것처럼_본다() {
+		MutableRegisteredClientRepository clients = new MutableRegisteredClientRepository();
+		clients.put(CONFIDENTIAL_CLIENT);
+		PublicClientConsentService service = new PublicClientConsentService(this.delegate, clients);
+		service.save(consent(CONFIDENTIAL_CLIENT));
+		assertThat(service.findById(CONFIDENTIAL_CLIENT.getId(), "user")).isNotNull();
+
+		// 문서 host를 장악한 쪽이 redirect 주소를 바꿨다. 저장된 consent로 새 주소에 code가 나가면 안 된다.
+		clients.put(RegisteredClient.from(CONFIDENTIAL_CLIENT)
+				.redirectUri("https://attacker.example/cb")
+				.build());
+
+		assertThat(service.findById(CONFIDENTIAL_CLIENT.getId(), "user")).isNull();
+	}
+
+	@Test
+	void redirect_주소의_hash가_없는_동의는_쓰지_않는다() {
+		// 이 규칙 전에 저장된 consent처럼, 어느 주소에 대해 받은 consent인지 모른다.
+		this.delegate.save(consent(CONFIDENTIAL_CLIENT));
+
+		assertThat(this.service.findById(CONFIDENTIAL_CLIENT.getId(), "user")).isNull();
+	}
+
+	@Test
+	void 다시_저장해도_redirect_주소의_hash는_하나만_남는다() {
+		this.service.save(consent(CONFIDENTIAL_CLIENT));
+		OAuth2AuthorizationConsent stepUp = OAuth2AuthorizationConsent
+				.from(this.service.findById(CONFIDENTIAL_CLIENT.getId(), "user"))
+				.scope("orders:write")
+				.build();
+
+		this.service.save(stepUp);
+
+		assertThat(this.delegate.findById(CONFIDENTIAL_CLIENT.getId(), "user").getAuthorities())
+				.extracting(GrantedAuthority::getAuthority)
+				.filteredOn(authority -> authority.startsWith(PublicClientConsentService.REDIRECT_URIS_AUTHORITY_PREFIX))
+				.hasSize(1);
+		assertThat(this.service.findById(CONFIDENTIAL_CLIENT.getId(), "user").getScopes())
+				.containsExactlyInAnyOrder("profile", "orders:write");
 	}
 
 	static RegisteredClient client(String clientId, ClientAuthenticationMethod method) {

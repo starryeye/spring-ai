@@ -3,10 +3,13 @@ package dev.starryeye.cimd.authserver.security;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationException;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationToken;
@@ -32,13 +35,28 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>성공 응답과 오류 응답 모두에 붙여야 한다(RFC 9207 §2).
  * Spring Security 7.1에는 RFC 9207 구현이 없어서 이 handler가 그 일을 맡는다.
+ *
+ * <p>오류는 로그인한 사용자가 consent 화면에서 거절한 경우({@code access_denied})만 client에게 redirect로 알린다.
+ * 그 밖의 오류는 redirect하지 않고 Authorization Server가 400으로 끝낸다.
+ * CIMD client의 redirect URI는 누구나 자기 문서에 적는 값이라 믿을 수 없다.
+ * Spring은 authorization request를 login보다 먼저 검사하므로, 오류를 그 주소로 보내면
+ * 로그인하지 않은 사람이 누른 링크도 이 서버를 거쳐 공격자 주소로 간다(open redirector).
+ * RFC 9700 §4.11.2는 redirect 전에 사용자를 인증하고(MUST) 믿는 주소로만 자동 redirect하라고(SHOULD) 한다.
+ * MCP Security Considerations(Open Redirection)도 믿지 못하는 주소로 보내지 않게 조치하라고 한다(MUST).
+ * consent 화면의 거절은 로그인한 사용자가 문서 host와 redirect host를 보고 고른 결정이므로 redirect한다.
+ * client는 사용자가 거절했다는 사실을 알아야 흐름을 끝낼 수 있다.
  */
 public class IssuerIdentifyingAuthorizationResponseHandler
 		implements AuthenticationSuccessHandler, AuthenticationFailureHandler {
 
 	static final String ISS = "iss";
 
+	static final String TEXT_PLAIN_UTF8 = "text/plain;charset=UTF-8";
+
 	private final RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
+
+	/** 익명 사용자(login 전 요청의 principal)는 인증된 사용자로 보지 않는다. */
+	private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
 	@Override
 	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -64,9 +82,8 @@ public class IssuerIdentifyingAuthorizationResponseHandler
 				(exception instanceof OAuth2AuthorizationCodeRequestAuthenticationException codeRequestException)
 						? codeRequestException.getAuthorizationCodeRequestAuthentication() : null;
 
-		// redirect_uri를 믿을 수 없으면 redirect하지 않는다. redirect하면 open redirector가 된다.
-		if (authorizationCodeRequest == null || !StringUtils.hasText(authorizationCodeRequest.getRedirectUri())) {
-			response.sendError(HttpStatus.BAD_REQUEST.value(), error.toString());
+		if (!deniedByUser(error, authorizationCodeRequest)) {
+			writeError(response, error);
 			return;
 		}
 
@@ -84,6 +101,33 @@ public class IssuerIdentifyingAuthorizationResponseHandler
 		redirect.queryParam(ISS, encode(issuer()));
 
 		this.redirectStrategy.sendRedirect(request, response, redirect.build(true).toUriString());
+	}
+
+	/**
+	 * 로그인한 사용자가 consent 화면에서 거절했고, Spring이 검사한 redirect URI가 있을 때만 참이다.
+	 * redirect URI가 비어 있으면 Spring이 그 주소를 믿을 수 없다고 본 오류다({@code client_id}·{@code redirect_uri} 오류).
+	 */
+	private boolean deniedByUser(OAuth2Error error,
+			OAuth2AuthorizationCodeRequestAuthenticationToken authorizationCodeRequest) {
+		return authorizationCodeRequest != null
+				&& OAuth2ErrorCodes.ACCESS_DENIED.equals(error.getErrorCode())
+				&& StringUtils.hasText(authorizationCodeRequest.getRedirectUri())
+				&& authorizationCodeRequest.getPrincipal() instanceof Authentication principal
+				&& this.trustResolver.isAuthenticated(principal);
+	}
+
+	/**
+	 * 오류 코드와 설명만 text로 보인다. HTML이 아니므로 설명에 섞인 값을 escape하지 않아도 된다.
+	 * {@code error_uri}와 {@code state}는 쓰지 않는다. 사용자가 읽을 화면이고, client에게 돌려주는 응답이 아니다.
+	 */
+	private static void writeError(HttpServletResponse response, OAuth2Error error) throws IOException {
+		StringBuilder body = new StringBuilder("error=").append(error.getErrorCode()).append('\n');
+		if (StringUtils.hasText(error.getDescription())) {
+			body.append("error_description=").append(error.getDescription()).append('\n');
+		}
+		response.setStatus(HttpStatus.BAD_REQUEST.value());
+		response.setContentType(TEXT_PLAIN_UTF8);
+		response.getWriter().write(body.toString());
 	}
 
 	private static String issuer() {

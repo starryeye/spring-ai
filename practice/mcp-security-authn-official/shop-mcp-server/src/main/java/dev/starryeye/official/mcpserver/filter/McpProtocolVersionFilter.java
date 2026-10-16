@@ -35,7 +35,9 @@ import java.util.Set;
  * </ul>
  *
  * <p>지원 버전 목록은 SDK가 아는 버전 전부다({@link ProtocolVersions}).
- * 이 서버가 실제로 협상하는 버전은 {@code 2025-11-25} 하나뿐이다.
+ * initialize에서는 client가 요청한 버전이 이 목록에 있으면 그 버전으로, 없으면 {@code 2025-11-25}로 정한다
+ * (Spring AI 2.0.0 transport가 알리는 목록도 이와 같다).
+ * 이 practice의 client는 {@code 2025-11-25}를 요청하므로 실제로 쓰이는 버전은 그것 하나다.
  * 하지만 header 검증이 묻는 것은 "이 서버가 이해할 수 있는 protocol 버전인가"다.
  * "이 session에서 쓰기로 한 버전과 같은가"를 묻는 것이 아니다.
  * 그래서 SDK가 정의한 전체 버전 목록을 기준으로 삼는다.

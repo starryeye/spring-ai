@@ -17,6 +17,7 @@ web agent에서는 모델이, `local-client`에서는 코드가 앞선 tool 결�
 | MCP Server의 tool 결과 | tool이 문자열을 돌려주고, Spring AI가 그 문자열을 text content 하나인 결과로 만든다 | 장바구니 tool은 `CallToolResult`를 직접 만든다. handle과 주문 번호는 `structuredContent`에도 넣고, 쓸 수 없는 장바구니는 `isError: true`인 tool 결과로 알린다 | [11장 2단계](../mcp-guide/11-stateless-and-handle.md#114-2단계-handle을-만들고-넘긴다), [handle과 소유권](#handle과-소유권) |
 | `auth-server`의 scope 등록 | 두 client에 `products:read`와 `products:write`가 있다 | `orders:write`(주문)를 더한다. 이 scope는 `products:read`를 포함하지 않으므로, client는 authz처럼 가진 scope와 합쳐 요청한다 | [11장 시퀀스 다이어그램](../mcp-guide/11-stateless-and-handle.md#112-시퀀스-다이어그램), [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다) |
 | `auth-server`의 login 계정 | `user` 하나다 | `user2`가 더 있다. 다른 사용자가 남의 handle을 쓰면 어떻게 되는지 보는 데 쓴다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다) |
+| MCP Server의 오류 응답 | transport 오류 본문에 `McpError`와 Java stack trace가 담긴다 | `TransportErrorResponseFilter`가 `code`·`message`만 남긴다. 형식이 틀린 `tools/call`은 `ToolScopeFilter`가 `400`·`-32602`로 먼저 끝낸다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | agent의 MCP client | 모든 사용자가 client 하나를 같이 쓰고, 요청마다 그 사용자의 token을 붙인다. session은 첫 채팅을 보낸 사용자의 token으로 열리고, 앱을 끌 때 보내는 `DELETE`에는 token이 없다 | 코드는 같다. 서버에 session이 없어서, 요청마다 붙는 token만으로 사용자가 정해진다 | [session 없는 서버](#session-없는-서버), [6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자) |
 | agent의 대화 기억 | 없다. 질문마다 새 대화다 | `ChatMemoryConfig`가 사용자(`sub`)마다 최근 메시지 20개를 기억한다. 대화 기억 advisor를 tool loop 안쪽에 두어 tool 호출과 결과까지 남긴다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
 | agent의 system prompt | 상품과 재고를 물으면 tool로 실제 데이터를 조회해 답하게 한다 | 앞선 tool 결과의 `basketId`를 이어 쓰고, 장바구니가 없거나 찾을 수 없음·만료·이미 주문이라는 결과가 오면 `createBasket`으로 새로 만들게 한다. `checkout`은 사용자가 주문이나 결제를 분명히 부탁할 때만 부르게 한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
@@ -24,7 +25,8 @@ web agent에서는 모델이, `local-client`에서는 코드가 앞선 tool 결�
 | agent의 화면 | 대화를 비우는 버튼이 없다 | "새 대화" 버튼이 `POST /api/chat/reset`으로 그 사용자의 대화 기억을 지운다 | [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
 | `local-client`의 MCP 호출 | `getStock(p1)` 뒤에 `updateStock(p1, 10)`을 부르고, `403`이면 `products:write`로 step-up한다 | `getStock(p1)` 뒤에 장바구니를 만들어 두 상품을 담고, 모르는 handle로 `getBasket`을 불러 오류를 본다. 마지막 `checkout`이 `403`을 받으면 `orders:write`로 step-up한 뒤 같은 호출을 새 요청으로 다시 보낸다 | [11장 사용자 기기의 앱](../mcp-guide/11-stateless-and-handle.md#118-사용자-기기의-앱-코드가-handle을-들고-다닌다) |
 
-MCP Server의 scope 검사(`ToolScopeFilter`), `401`의 `scope`와 PRM, token 검증, `Origin`·`Host`·`MCP-Protocol-Version` 검사는 authz와 같은 클래스다.
+MCP Server의 `401`의 `scope`와 PRM, token 검증, `Origin`·`Host`·`MCP-Protocol-Version` 검사는 authz와 같은 클래스다.
+scope 검사(`ToolScopeFilter`)는 형식이 틀린 `tools/call`을 거르는 검사가 더 있고, 나머지는 authz와 같다.
 agent의 discovery 클래스와 `ChatEvents`를 뺀 step-up 클래스, `local-client`의 `StepUp`·`TokenHolder`도 authz와 같다.
 그 클래스들은 package 이름(`dev.starryeye.stateless.*`)과 포트·client_id 같은 설정 값만 다르다.
 
@@ -240,7 +242,8 @@ MCP Server에는 authz에 없는 하위 package 두 개가 더 있다.
 | `auth-server` | `application.yml` | 두 client의 scope에 `orders:write`를 더한다 | [11장 시퀀스 다이어그램](../mcp-guide/11-stateless-and-handle.md#112-시퀀스-다이어그램) |
 | | `UserConfig` | login 계정 `user`와 `user2`를 둔다. 비밀번호는 둘 다 `password`다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다) |
 | `shop-mcp-server` | `application.yml` | `spring.ai.mcp.server.protocol: STATELESS`로 session 없는 transport를 쓴다 | [11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답) |
-| | `McpTransportConfig` | Spring AI 자동 구성 대신 `WebMvcStatelessServerTransport` bean을 직접 만들어 `contextExtractor`에 `McpCaller::context`를 넣는다. `BasketStore` bean도 만들고, `ToolScopeRegistry`가 `BasketTools`의 scope도 읽게 한다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
+| | `McpTransportConfig` | Spring AI 자동 구성 대신 `WebMvcStatelessServerTransport` bean을 직접 만들어 `contextExtractor`에 `McpCaller::context`를 넣고, router에 `TransportErrorResponseFilter`를 끼운다. `BasketStore` bean도 만든다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
+| | `TransportErrorResponseFilter` | transport가 `McpError`로 끝낸 응답을 `code`·`message`만 남긴 JSON-RPC 오류로 바꿔, 본문에 stack trace가 나가지 않게 한다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `McpCaller` | Spring Security가 검증한 JWT에서 `sub`와 `client_id`를 꺼내 `McpTransportContext`에 넣는다. tool은 같은 클래스로 이 값을 꺼내고, 인증이 없으면 예외를 던진다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `BasketStore` | 장바구니를 `<sub>:<handle>` key로 메모리에 두고, handle을 만든다. 만료(30분), 사용자당 개수(5개), 상품당 수량(99개)을 지키고, 같은 장바구니를 두 번 주문하지 못하게 한다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `BasketException`, `BasketView` | 장바구니를 쓸 수 없는 이유와 모델이 읽을 문장을 정한다. `BasketView`는 tool에 돌려주는 장바구니 내용(handle, 만료 시각, 담은 상품)이다 | [handle과 소유권](#handle과-소유권) |
@@ -264,6 +267,7 @@ handle은 앞 turn의 대화 기억으로 이어지고, `orders:write`는 한 �
 | 해 볼 것 | 기대 결과 |
 |---|---|
 | `curl -i -X POST http://localhost:8151/mcp` | `401`과 `WWW-Authenticate: Bearer resource_metadata="http://localhost:8151/.well-known/oauth-protected-resource/mcp", scope="products:read"` |
+| 캡처 스크립트처럼 조회 token을 받은 뒤, `name`이 배열인 `tools/call`(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":["getStock"]}}`) 보내기 | `HTTP/1.1 400`과 `{"jsonrpc":"2.0","id":null,"error":{"code":-32602,"message":"tools/call의 name은 문자열이어야 합니다."}}`다. 본문에 stack trace가 없다 |
 | browser로 `http://localhost:8150`을 열고 `user`/`password`로 login | consent 화면의 선택 항목은 `products:read` 하나다 |
 | `products:read`를 체크해 제출하고 `장바구니 만들고 인체공학 마우스 하나 담아 줘` 보내기 | 인체공학 마우스를 장바구니에 담았다고 답한다. `logs/shop-mcp-server.log`에 `createBasket 호출 (사용자=user, client_id=stateless-shop-agent)`와 `addItem 호출 (사용자=user, productId=p4, quantity=1)`이 찍힌다 |
 | `휴대용 SSD도 두 개 담아 줘` 보내기 | `addItem 호출 (사용자=user, productId=p9, quantity=2)`가 찍히고, 앞 turn의 handle을 이어 쓰므로 새 `createBasket 호출`은 없다. 답에는 인체공학 마우스 1개(59,000원), 휴대용 SSD 1TB 2개(278,000원), 합계 337,000원이 나온다 |

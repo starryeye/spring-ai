@@ -61,15 +61,15 @@ class ShopAgentApplicationTests {
 
     @Test
     void OAuth2_클라이언트_등록이_정확히_하나다() {
-        // 리터럴 "authserver" 가 아니라 McpSecurityConfig.REGISTRATION_ID 를 그대로 써서
-        // 조회한다 — 이 상수는 application.yml 의 registration 키와 일치해야만 의미가
-        // 있는데, 그 일치 여부를 이 테스트가 실제로 검증한다. yml 이나 상수 어느 한쪽만
-        // 바뀌면 이 조회가 null 을 돌려주며 즉시 빨간불이 된다.
+        // 리터럴 "authserver"가 아니라 McpSecurityConfig.REGISTRATION_ID를 그대로 써서 조회한다.
+        // 이 상수는 application.yml의 registration key와 같아야만 의미가 있는데,
+        // 이 테스트가 그 일치를 실제로 검증한다. yml이나 상수 어느 한쪽만
+        // 바뀌면 이 조회가 null을 돌려주며 바로 실패한다.
         var registration = clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID);
 
         assertThat(registration).isNotNull();
         assertThat(registration.getClientId()).isEqualTo("memory-agent");
-        // 엔드포인트는 설정이 아니라 발견 결과에서 온다.
+        // endpoint는 설정이 아니라 discovery 결과에서 온다.
         assertThat(registration.getProviderDetails().getIssuerUri()).isEqualTo(DiscoveryFixtures.ISSUER);
         assertThat(registration.getProviderDetails().getAuthorizationUri())
                 .isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/authorize");
@@ -77,8 +77,8 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * 요청 thread 밖(tool 호출, session 종료 {@code DELETE})에서도 주인의 token 을 꺼낼 수 있어야 한다.
-     * 매니저 타입이 바뀌면 그 성질이 깨진다.
+     * 요청 thread 밖(tool 호출, session 종료 {@code DELETE})에서도 주인의 token을 꺼낼 수 있어야 한다.
+     * manager 타입이 바뀌면 그 성질이 깨진다.
      */
     @Test
     void 서블릿_요청이_필요없는_인가_매니저를_쓴다() {
@@ -87,7 +87,7 @@ class ShopAgentApplicationTests {
                         .AuthorizedClientServiceOAuth2AuthorizedClientManager.class);
     }
 
-    /** MCP client 는 사용자마다 따로 만든다. 자동 구성의 공유 client 는 없어야 한다. */
+    /** MCP client는 사용자마다 따로 만든다. 자동 구성의 공유 client는 없어야 한다. */
     @Test
     void 공유_MCP_client_없이_사용자별_client_저장소를_쓴다() {
         assertThat(applicationContext.getBeansOfType(io.modelcontextprotocol.client.McpSyncClient.class)).isEmpty();
@@ -95,8 +95,8 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * 브라우저로 보내는 인가 요청에 PKCE 챌린지와 resource 가 실려야 한다.
-     * 둘 중 하나라도 빠지면 인가 서버가 거부하거나(PKCE), 토큰의 aud 가 좁혀지지 않는다(resource).
+     * browser로 보내는 authorization request에 PKCE challenge와 resource가 있어야 한다.
+     * 둘 중 하나라도 빠지면 Authorization Server가 거부하거나(PKCE), token의 aud가 좁혀지지 않는다(resource).
      */
     @Test
     void 인가_요청에_PKCE_와_resource_가_실린다() throws Exception {

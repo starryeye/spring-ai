@@ -7,12 +7,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 /**
- * 학습용 사용자 한 명. user / password 로 로그인한다.
+ * 학습용 사용자 한 명이다. user / password로 login한다.
  *
- * <p>여기에 {@code SecurityFilterChain} 빈을 추가하면 안 된다.
- * {@code McpAuthorizationServerAutoConfiguration} 이 {@code @ConditionalOnDefaultWebSecurity}
- * 라서, 직접 만든 필터체인이 있으면 인가 서버 설정이 통째로 물러난다.
- * 필터체인(인가 서버용 + 폼 로그인용) 두 개는 그 자동설정이 이미 제공한다.
+ * <p>여기에 {@code SecurityFilterChain} bean을 더하면 안 된다.
+ * {@code McpAuthorizationServerAutoConfiguration}에는 {@code @ConditionalOnDefaultWebSecurity}가 붙어 있어,
+ * 직접 만든 filter chain이 있으면 Authorization Server 설정이 통째로 빠진다.
+ * filter chain 두 개(Authorization Server용, form login용)는 그 자동 구성이 이미 만들어 준다.
  */
 @Configuration
 public class UserConfig {

@@ -186,27 +186,43 @@ client는 다음을 확인하고, 하나라도 어긋나면 더 진행하지 않
 마지막 항목의 이유와 규칙은 [4장](04-client-registration.md#47-credentials를-issuer에-묶기)에서 본다.
 이 확인은 SSRF도 일부 막는다.
 PRM이 모르는 Authorization Server를 가리키면 agent는 그 서버의 metadata도 요청하지 않으므로, 공격자가 `authorization_servers`에 내부망 주소를 넣어도 요청이 나가지 않는다.
-`401`의 `resource_metadata`는 이 확인보다 먼저 요청하는 주소라서, 이 확인으로는 막지 못한다([8장](08-security.md)).
+`401`의 `resource_metadata`는 이 확인보다 먼저 요청하는 주소라서, 이 확인으로는 막지 못한다.
+그래서 agent는 SSRF에 대비해, 이 주소가 설정한 MCP Server와 같은 origin(scheme·host·port)일 때만 따라간다.
+명세가 요구하는 확인은 아니어서, PRM을 다른 host에 두는 MCP Server에는 이 agent가 붙지 못한다([8장](08-security.md)).
 
 ## 3.7 official 코드에서 보기
 
 **MCP Server: PRM과 `401`을 내보내는 쪽**
 
 Spring Security 7.1에서는 PRM을 `protectedResourceMetadata(...)` 설정으로 켠다.
-`shop-mcp-server`의 `SecurityConfig`는 여기에 Authorization Server 주소를 적는다.
+`shop-mcp-server`의 `SecurityConfig`는 여기에 Authorization Server 주소를 적고, `resource`를 설정값으로 고정한다.
 
 ```java
+String resource = resource(properties);                            // audiences 설정의 값 하나
+String resourceMetadataUrl = resourceMetadataUrl(resource);        // 1순위 PRM 주소
+...
 .oauth2ResourceServer(resourceServer -> resourceServer
         .jwt(Customizer.withDefaults())
-        .authenticationEntryPoint(resourceMetadataEntryPoint())   // 401에 resource_metadata를 넣는다
+        .authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))   // 401에 resource_metadata
         .protectedResourceMetadata(metadata -> metadata
                 .protectedResourceMetadataCustomizer(builder -> builder
+                        .claims(claims -> claims.put("resource",     // 경로는 두고 origin만 설정값으로
+                                withConfiguredOrigin((String) claims.get("resource"), resource)))
                         .authorizationServer(issuer)                     // PRM의 authorization_servers
                         .tlsClientCertificateBoundAccessTokens(false))))
 ```
 
-`resourceMetadataEntryPoint()`는 `/mcp` 요청이 거절될 때 `/.well-known/oauth-protected-resource/mcp` 주소를 `401`에 넣는다.
 `issuer` 값은 `application.yml`의 `spring.security.oauth2.resourceserver.jwt.issuer-uri`에서 온다.
+`resource`는 같은 파일의 `spring.security.oauth2.resourceserver.jwt.audiences`에 둔 MCP Server 주소 하나다.
+값이 하나가 아니면 어느 이름을 알릴지 정할 수 없으므로 MCP Server가 뜨지 않는다.
+token의 `aud`를 검증할 때 쓰는 값과 같아서, PRM이 알리는 이름과 MCP Server가 받는 이름이 어긋나지 않는다.
+`/mcp`가 아닌 경로로 온 요청이 거절되어도, 이 서버가 지키는 resource는 하나라서 `401`에는 늘 같은 PRM 주소를 넣는다.
+
+Spring은 PRM의 `resource`를 요청 주소로 만든다.
+그러면 `Host` header를 바꾼 요청에는 다른 서버의 이름을 알리고, reverse proxy 뒤에서는 scheme이 틀릴 수도 있다.
+어느 쪽이든 PRM이 알리는 이름이 token의 `aud`로 검증하는 이름과 달라진다.
+그래서 `withConfiguredOrigin`은 요청한 PRM 주소의 경로만 두고 scheme·host·port를 설정값으로 바꾼다.
+1순위 주소로 요청하면 `http://localhost:8111/mcp`, 2순위 주소로 요청하면 `http://localhost:8111`로 답하므로 3.4의 주소 규칙과 맞는다.
 
 **Agent: discovery를 하는 쪽**
 
@@ -223,21 +239,28 @@ mcp:
 
 ```java
 public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
-    // 1~2단계: 401 → PRM. resource가 resourceUrl과 다르면 여기서 예외
+    // 1~2단계: 401 → PRM. resource_metadata가 다른 origin이거나 resource가 resourceUrl과 다르면 여기서 예외
     Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl);
 
-    String issuer = /* authorization_servers의 첫 값 */;
-    if (!trustedIssuer.equals(issuer)) {
-        // credentials를 발급한 곳이 아니면 metadata도 요청하지 않는다
+    List<?> servers = /* authorization_servers */;
+    if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
+        // 목록 어디에도 credentials를 발급한 곳이 없으면 metadata도 요청하지 않는다
         throw new McpDiscoveryException(...);
     }
+    String issuer = trustedIssuer;                // 목록의 순서가 아니라 credentials가 issuer를 정한다
     // 3단계: metadata. issuer 일치, S256, endpoint 주소 형식을 확인한다
     return new DiscoveredAuthorization(..., issuer, authorizationServerMetadata(issuer));
 }
 ```
 
-discovery는 첫 login 때 한 번 하고, 성공한 결과만 기억해 둔다(`DiscoveredClientRegistrationRepository`).
+discovery는 첫 login 때 하고, 성공한 결과만 기억해 둔다(`DiscoveredClientRegistrationRepository`).
 agent를 띄울 때 MCP Server가 아직 꺼져 있어도 괜찮은 이유가 이것이다.
+
+login을 시작하는 요청(`/oauth2/authorization/authserver`)도 discovery 결과가 있어야 authorization request를 만든다.
+이 요청은 login하지 않은 누구나 보낼 수 있으므로, MCP Server가 느리면 요청 thread가 모두 discovery를 기다리며 묶일 수 있다.
+그래서 discovery는 별도 thread에서 한 번에 하나만 돌고, 동시에 온 요청은 그 결과를 함께 기다린다.
+기다림에는 상한이 있어서, 요청은 15초까지만 기다리고 실패한 뒤 10초 동안은 다시 시도하지 않는다.
+discovery의 HTTP 요청은 redirect를 따라가지 않는다.
 
 ## 3.8 직접 해 보기
 

@@ -1,6 +1,7 @@
 package dev.starryeye.memory.agent.controller;
 
 import dev.starryeye.memory.agent.config.SecurityConfig;
+import dev.starryeye.memory.agent.domain.ConversationId;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,10 +16,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.List;
 
@@ -30,16 +32,14 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 저장소 조회 경로는 LLM 을 부르지 않으므로 통합 테스트가 가능하다.
- * 이 practice 의 주장(사용자별 격리)이 여기서 검증된다.
+ * 저장소 조회 경로는 LLM을 부르지 않으므로 통합 테스트로 확인할 수 있다.
+ * 이 practice가 보이려는 것(사용자별 격리)을 여기서 검증한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -52,14 +52,13 @@ class ConversationControllerTest {
 	ChatMemory chatMemory;
 
 	/**
-	 * 이 Boot 버전({@code spring-boot-webmvc-test} 4.1.x)의 {@code @AutoConfigureMockMvc} 는
-	 * Spring Security 를 classpath 로 자동 감지해 {@code SecurityMockMvcConfigurers.springSecurity()}
-	 * 를 붙여주지 않는다(과거 Boot 버전과 다른 점 — {@code SpringBootMockMvcBuilderCustomizer} 소스에
-	 * security 관련 코드가 전혀 없음을 바이트코드/소스로 직접 확인했다). 이 배선이 없으면
-	 * {@code SecurityContextHolderFilter} 가 요청마다 저장소(세션/요청 속성)에서 컨텍스트를 다시
-	 * 읽어 {@code @WithMockUser} 가 스레드에 심어둔 인증을 덮어써 버려서, 모든 요청이 302 로
-	 * {@code /oauth2/authorization/authserver} 에 리다이렉트된다. 아래 커스터마이저가 그 배선을
-	 * 대신 붙인다 — 테스트 메서드 자체는 건드리지 않는다.
+	 * 이 Boot 버전({@code spring-boot-webmvc-test} 4.1.x)의 {@code @AutoConfigureMockMvc}는
+	 * classpath에 Spring Security가 있어도 {@code SecurityMockMvcConfigurers.springSecurity()}를 붙이지 않는다.
+	 * 예전 Boot 버전과 다른 점이다({@code SpringBootMockMvcBuilderCustomizer}의 소스와 bytecode에 security 관련 코드가 없다).
+	 * 이 연결이 없으면 {@code SecurityContextHolderFilter}가 요청마다 저장소(session·요청 속성)에서 context를 다시 읽는다.
+	 * 그러면 {@code @WithMockUser}가 thread에 넣어 둔 인증을 덮어써서, 모든 요청이 302로
+	 * {@code /oauth2/authorization/authserver}에 redirect된다.
+	 * 아래 customizer가 그 연결을 대신 붙인다. 테스트 메서드는 건드리지 않는다.
 	 */
 	@TestConfiguration
 	static class SecurityMockMvcSupport {
@@ -70,6 +69,24 @@ class ConversationControllerTest {
 		}
 	}
 
+	/**
+	 * index.html의 흐름을 따른다. 페이지가 준 {@code XSRF-TOKEN} cookie를 되돌려 보내고,
+	 * 그 값을 {@code X-XSRF-TOKEN} header에 넣는다.
+	 * spring-security-test의 {@code csrf()}는 context의 {@code CsrfFilter} 저장소를 바꾼다.
+	 * 그 변경이 같은 context를 쓰는 다른 테스트에 번지므로 쓰지 않는다({@code ChatControllerTest}와 같은 방식).
+	 */
+	RequestPostProcessor 페이지의_CSRF_토큰() throws Exception {
+		Cookie token = mockMvc.perform(get("/index.html"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getCookie("XSRF-TOKEN");
+		org.assertj.core.api.Assertions.assertThat(token).isNotNull();
+		return request -> {
+			request.setCookies(token);
+			request.addHeader("X-XSRF-TOKEN", token.getValue());
+			return request;
+		};
+	}
+
 	@BeforeEach
 	void seed() {
 		chatMemory.clear("alice:default");
@@ -77,9 +94,9 @@ class ConversationControllerTest {
 		chatMemory.add("alice:default", List.of(
 				new UserMessage("내 이름은 앨리스야"),
 				new AssistantMessage("반가워요 앨리스님")));
-		// bob 의 네임스페이스에도 대화를 심어둔다. 이게 없으면 아래 테스트는 ConversationId.of 가
-		// Authentication 을 아예 무시해도(즉 격리가 전혀 안 돼도) 통과해 버린다 — bob 이 파생한
-		// 키가 애초에 시드된 적이 없어 "격리됨"과 "그냥 없음"을 구분하지 못하기 때문이다.
+		// bob의 namespace에도 대화를 넣어 둔다. 이것이 없으면 아래 테스트는 ConversationId.of가
+		// Authentication을 아예 무시해도(곧 격리가 전혀 없어도) 통과해 버린다.
+		// bob의 key에 넣은 데이터가 없어서 "격리됨"과 "그냥 없음"을 구분하지 못하기 때문이다.
 		chatMemory.add("bob:default", List.of(
 				new UserMessage("내 이름은 밥이야"),
 				new AssistantMessage("반가워요 밥님")));
@@ -96,11 +113,11 @@ class ConversationControllerTest {
 	}
 
 	/**
-	 * 이 practice 의 핵심. bob 이 같은 label("default")로 조회해도 alice 의 대화가 아니라
-	 * 자기 자신의 대화를 얻는다. bob 의 네임스페이스에도 데이터를 심어두는 이유는, 심어두지
-	 * 않으면 이 테스트가 {@code ConversationId.of} 가 {@code Authentication} 을 완전히
-	 * 무시해도(격리가 전혀 없어도) 통과해버리기 때문이다 — bob 이 파생한 키가 애초에 비어
-	 * 있으니 "격리됨"과 "단순히 없음"을 구분할 수 없다.
+	 * 이 practice의 핵심이다. bob이 같은 label("default")로 조회해도 alice의 대화가 아니라
+	 * 자기 대화를 얻는다.
+	 * bob의 namespace에도 데이터를 넣어 두는 이유가 있다. 넣어 두지 않으면 {@code ConversationId.of}가
+	 * {@code Authentication}을 완전히 무시해도(격리가 전혀 없어도) 이 테스트가 통과한다.
+	 * bob의 key가 처음부터 비어 있으니 "격리됨"과 "그냥 없음"을 구분할 수 없다.
 	 */
 	@Test
 	@WithMockUser(username = "bob")
@@ -112,7 +129,7 @@ class ConversationControllerTest {
 				.andExpect(jsonPath("$[*].text", everyItem(not(containsString("앨리스")))));
 	}
 
-	/** 경로에 남의 전체 ID 를 밀어넣어도 자기 네임스페이스로 강제된다. */
+	/** 경로에 남의 전체 ID를 밀어 넣어도 서버가 자기 namespace를 붙여 찾는다. */
 	@Test
 	@WithMockUser(username = "bob")
 	void 경로에_남의_ID_를_넣어도_소용없다() throws Exception {
@@ -137,11 +154,29 @@ class ConversationControllerTest {
 				.andExpect(jsonPath("$", hasItem("alice:default")));
 	}
 
+	/** 사용자 이름에 구분자({@code :})가 든 다른 사용자의 대화는 접두사 거르기를 통과하지 못한다. */
+	@Test
+	@WithMockUser(username = "alice")
+	void 사용자_이름에_구분자가_든_다른_사용자의_대화는_목록에_보이지_않는다() throws Exception {
+		String other = ConversationId.of(new UsernamePasswordAuthenticationToken("alice:x", "n/a", List.of()), "default");
+		chatMemory.add(other, List.of(new UserMessage("나는 alice:x 야")));
+		try {
+			mockMvc.perform(get("/api/conversations"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$", hasItem("alice:default")))
+					.andExpect(jsonPath("$", not(hasItem(other))));
+		}
+		finally {
+			chatMemory.clear(other);
+		}
+	}
+
 	/**
-	 * {@link SecurityConfig} 는 이 practice 전체에서 CSRF 예외를 단 하나도 두지 않는다
-	 * (official·community practice 도 같다). 그 결정을 코드 리뷰만으로
-	 * 지키는 것은 취약하다 — 누군가 나중에 "귀찮으니 이 엔드포인트만" 하며 예외를 다시
-	 * 넣어도 아무 테스트도 실패하지 않을 것이다. 이 테스트가 그 회귀를 잡는다.
+	 * {@link SecurityConfig}는 이 practice 전체에서 CSRF 예외를 하나도 두지 않는다
+	 * (official·community practice도 같다).
+	 * 그 결정을 코드 리뷰만으로 지키기는 어렵다.
+	 * 누군가 "이 endpoint만" 하며 예외를 다시 넣어도 아무 테스트도 실패하지 않는다.
+	 * 이 테스트가 그런 회귀를 잡는다.
 	 */
 	@Test
 	@WithMockUser(username = "alice")
@@ -150,60 +185,29 @@ class ConversationControllerTest {
 				.andExpect(status().isForbidden());
 	}
 
-	/**
-	 * 위 테스트의 대조군 — 토큰을 실어 보내면 같은 요청이 정상적으로 통과한다.
-	 *
-	 * <p>{@code .with(csrf())} 는 리플렉션으로 {@link SecurityConfig} 의 {@code CsrfFilter}
-	 * (context 전체에서 하나뿐인 singleton) 가 쓰는 {@code CsrfTokenRepository} 를 세션 기반
-	 * {@code TestCsrfTokenRepository} 로 바꿔 버린다. {@code @SpringBootTest} 는 context 를 클래스
-	 * 전체에서 캐싱하므로, 이 교체를 그대로 두면 이후에 도는 다른 테스트(예: 쿠키를 직접 읽는
-	 * 테스트)가 더 이상 {@code XSRF-TOKEN} 쿠키를 받지 못한다. {@code @DirtiesContext} 로 이 테스트
-	 * 뒤에 context 를 새로 만들어 그 오염이 퍼지지 않게 막는다.
-	 */
+	/** 위 테스트의 대조군이다. 페이지가 준 CSRF token을 넣어 보내면 같은 요청이 정상으로 통과한다. */
 	@Test
 	@WithMockUser(username = "alice")
-	@DirtiesContext
 	void CSRF_토큰과_함께_지우면_204() throws Exception {
-		mockMvc.perform(delete("/api/conversations/default").with(csrf()))
+		mockMvc.perform(delete("/api/conversations/default").with(페이지의_CSRF_토큰()))
 				.andExpect(status().isNoContent());
 	}
 
 	/**
-	 * DELETE 의 격리는 지금까지 조회(GET) 경로와 {@code ConversationId.of} 를 공유한다는
-	 * 사실에만 기대고 있었다 — 직접 겨냥한 증거가 없었다. 여기서는 bob 이 경로에 alice 의
-	 * 전체 ID 를 밀어넣어 지워도, alice 의 실제 대화({@code alice:default})가 그대로
-	 * 남아있는지 저장소를 직접 열어 확인한다. 204 만 보고 끝내면 "격리돼서 남의 걸 못
-	 * 지웠다"와 "엉뚱한 걸 지워버렸다"를 구분할 수 없다 — 이 검증이 그 둘을 가른다.
+	 * DELETE의 격리를, 조회(GET) 경로와 {@code ConversationId.of}를 함께 쓴다는 사실에 기대지 않고 직접 확인한다.
+	 * bob이 경로에 alice의 전체 ID를 밀어 넣어 지워도, alice의 실제 대화({@code alice:default})가
+	 * 그대로 남아 있는지 저장소를 직접 열어 본다.
+	 * 204만 보고 끝내면 "격리되어 남의 것을 못 지웠다"와 "엉뚱한 것을 지웠다"를 구분할 수 없다.
+	 * 이 검증이 그 둘을 가른다.
 	 */
 	@Test
 	@WithMockUser(username = "bob")
-	@DirtiesContext
 	void bob_이_alice_ID_로_지워도_alice_대화는_그대로_남는다() throws Exception {
-		mockMvc.perform(delete("/api/conversations/alice:default").with(csrf()))
+		mockMvc.perform(delete("/api/conversations/alice:default").with(페이지의_CSRF_토큰()))
 				.andExpect(status().isNoContent());
 
 		List<Message> aliceMessages = chatMemory.get("alice:default");
 		assertThat(aliceMessages, hasSize(2));
 		assertThat(aliceMessages.get(0).getText(), is("내 이름은 앨리스야"));
-	}
-
-	@Test
-	@WithMockUser(username = "alice")
-	void CSRF_토큰_없이_채팅하면_403() throws Exception {
-		mockMvc.perform(post("/api/chat").param("label", "default").content("안녕"))
-				.andExpect(status().isForbidden());
-	}
-
-	/** index.html 의 흐름: 페이지가 준 XSRF-TOKEN 쿠키 값을 X-XSRF-TOKEN 헤더로 보낸다. */
-	@Test
-	@WithMockUser(username = "alice")
-	void 페이지가_준_XSRF_TOKEN_을_헤더로_보내면_지울_수_있다() throws Exception {
-		Cookie token = mockMvc.perform(get("/index.html"))
-				.andExpect(status().isOk())
-				.andReturn().getResponse().getCookie("XSRF-TOKEN");
-		org.assertj.core.api.Assertions.assertThat(token).isNotNull();
-
-		mockMvc.perform(delete("/api/conversations/default").cookie(token).header("X-XSRF-TOKEN", token.getValue()))
-				.andExpect(status().isNoContent());
 	}
 }

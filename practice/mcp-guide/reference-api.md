@@ -140,7 +140,7 @@ client는 여기서 `authorization_servers`를 읽고 Authorization Server Metad
 | 이름 | 위치 | 요구 수준 | 설명 | official |
 |---|---|---|---|---|
 | 메서드 `GET` | 요청 줄 | MUST ([§3.1](https://www.rfc-editor.org/rfc/rfc9728#section-3.1)) | parameter가 없다 | 씀 |
-| 경로 | URL | MUST ([§3](https://www.rfc-editor.org/rfc/rfc9728#section-3)) | resource 식별자의 host와 path 사이에 `/.well-known/oauth-protected-resource`를 넣고, host 뒤의 끝 `/`는 뺀다(MUST, §3.1). MCP client는 `resource_metadata`를 먼저 쓰고, 없으면 경로형 → 루트형 순서로 시도한다(MUST) | 경로형(C2)과 루트형(S2) 모두 답한다. agent·`local-client`는 `resource_metadata`를 따라간다 |
+| 경로 | URL | MUST ([§3](https://www.rfc-editor.org/rfc/rfc9728#section-3)) | resource 식별자의 host와 path 사이에 `/.well-known/oauth-protected-resource`를 넣고, host 뒤의 끝 `/`는 뺀다(MUST, §3.1). MCP client는 `resource_metadata`를 먼저 쓰고, 없으면 경로형 → 루트형 순서로 시도한다(MUST) | 경로형(C2)과 루트형(S2) 모두 답한다. agent는 `resource_metadata`가 MCP Server와 같은 origin일 때만 따라가고, `local-client`는 그대로 따라간다 |
 
 **응답 — 상태와 header**
 
@@ -152,7 +152,7 @@ client는 여기서 `authorization_servers`를 읽고 Authorization Server Metad
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
-| `resource` | REQUIRED | resource 식별자. metadata 주소를 만든 식별자와 같아야 하고, `resource_metadata`로 받았으면 client가 요청한 주소와 같아야 한다(MUST, [§3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3)) | 경로형 `http://localhost:8111/mcp`(C2) · 루트형 `http://localhost:8111`(S2) |
+| `resource` | REQUIRED | resource 식별자. metadata 주소를 만든 식별자와 같아야 하고, `resource_metadata`로 받았으면 client가 요청한 주소와 같아야 한다(MUST, [§3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3)) | 경로형 `http://localhost:8111/mcp`(C2) · 루트형 `http://localhost:8111`(S2). 경로는 요청한 PRM 주소에서, scheme·host·port는 `audiences` 설정에서 가져오므로 `Host` header를 바꿔도 같다 |
 | `authorization_servers` | OPTIONAL (RFC 9728) · MUST, 하나 이상 ([MCP Authorization Server Location](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-location)) | Authorization Server issuer 식별자의 배열 | `["http://localhost:9010"]` |
 | `jwks_uri` | OPTIONAL | protected resource 자신의 JWK Set(응답 signature 등). https MUST | 없음 |
 | `scopes_supported` | RECOMMENDED | 이 resource에 쓰는 scope의 배열 | 없음 — 그래서 `local-client`는 scope를 스스로 정한다([7장](07-local-client.md)). authz는 `["products:read"]`만 넣고, 쓰기 scope `products:write`는 넣지 않는다(A2, [10장](10-scope-and-step-up.md)) |
@@ -172,6 +172,7 @@ client는 여기서 `authorization_servers`를 읽고 Authorization Server Metad
 
 | 상황 | 응답 | 근거 |
 |---|---|---|
+| `401`의 `resource_metadata`가 MCP Server와 다른 origin | 명세 규정 없음 — agent는 SSRF에 대비해 따라가지 않고 멈춘다([3장](03-discovery.md#36-client가-반드시-확인하는-것)) | [Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) |
 | 받은 `resource`가 요청에 쓴 식별자와 다름 | client는 그 응답을 쓰지 않는다(MUST NOT) — agent·`local-client`는 여기서 멈춘다 | [RFC 9728 §3.3](https://www.rfc-editor.org/rfc/rfc9728#section-3.3) |
 | 그 밖의 실패 | 알맞은 HTTP 상태 코드 | [RFC 9728 §3.2](https://www.rfc-editor.org/rfc/rfc9728#section-3.2) |
 
@@ -249,6 +250,10 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | `Origin`이 있음(official은 허용한 `Origin`이 없다) | `403` MUST — `Invalid Origin header`(C13). token과 상관없이 인증 전에 나온다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) |
 | scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음. authz는 이 `403`을 보내고, `scope`에는 모자란 scope만 넣는다(A6 `scope="products:write"`, [준수표](reference-compliance.md#mcp-security-authz에서-달라지는-행)) | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
 | 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| 본문이 상한(`mcp.limits.max-request-body`, 기본 1MB)을 넘음 | authz부터 `413`, `id` 없는 JSON-RPC 오류 `-32600`. `Content-Length`가 넘으면 본문을 읽지 않는다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) | 명세 범위 밖 — 서버의 자원 보호 |
+| 한 사용자의 `tools/call`이 1분에 상한(`mcp.limits.tool-calls-per-minute`, 기본 60)을 넘음 | authz부터 `429`와 `Retry-After`(초), `id` 없는 JSON-RPC 오류 `-32000`. scope 검사에서 `403`으로 끝난 호출은 세지 않는다 | 속도 제한 MUST ([Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations)) |
+| 형식이 틀린 `tools/call` — `params`가 object가 아니거나, `name`이 문자열이 아니거나 없거나, `arguments`·`_meta`가 object가 아님 | stateless부터 `400`과 `id` 없는 JSON-RPC 오류 `-32602`(Invalid params)([11장](11-stateless-and-handle.md#119-서버-코드에서-보기)) | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| transport가 `McpError`로 끝낸 그 밖의 오류(`id`·`jsonrpc`가 틀린 본문 등) | stateless부터 같은 상태 코드에 `code`·`message`만 남긴 JSON-RPC 오류(`TransportErrorResponseFilter`). official·authz는 `McpError`와 Java `stackTrace`를 그대로 담는다 | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
@@ -445,7 +450,7 @@ cimd의 agent는 PRM의 issuer를 credentials의 issuer와 비교하지 않고, 
 | `revocation_endpoint` | OPTIONAL | RFC 7009 | `http://localhost:9010/oauth2/revoke` — 알리기만 하고 client는 쓰지 않는다 |
 | `revocation_endpoint_auth_methods_supported` | OPTIONAL, 생략 시 `client_secret_basic` | | Spring 기본 6개. cimd는 `["private_key_jwt"]`다(`AuthorizationServerConfig#advertise`) |
 | `revocation_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 알리면 MUST | | 12개. cimd는 `["RS256"]`이다 |
-| `introspection_endpoint` | OPTIONAL | RFC 7662 | `http://localhost:9010/oauth2/introspect` — 알리기만 하고 쓰지 않는다 |
+| `introspection_endpoint` | OPTIONAL | RFC 7662 | `http://localhost:9010/oauth2/introspect` — 알리기만 하고 쓰지 않는다. cimd는 token을 발급받은 client에게만 내용을 주고, 그 밖에는 `{"active":false}`다 |
 | `introspection_endpoint_auth_methods_supported` | OPTIONAL | | Spring 기본 6개. cimd는 `["private_key_jwt"]`다(`AuthorizationServerConfig#advertise`) |
 | `introspection_endpoint_auth_signing_alg_values_supported` | OPTIONAL — JWT 인증 방식을 알리면 MUST | | 12개. cimd는 `["RS256"]`이다 |
 | `code_challenge_methods_supported` | OPTIONAL, 생략하면 PKCE 미지원 (RFC 8414) · 없으면 client는 진행 거부 MUST ([MCP](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)) | | `["S256"]` |
@@ -674,6 +679,15 @@ OIDC Core는 `claims`, `request`, `request_uri` 같은 parameter도 다른 절�
 검증은 Spring의 `redirect_uri`·`scope` 확인 → `ResourceIndicatorValidator` → `PublicClientScopeValidator` → PKCE 순서다([5장](05-authorization-and-token.md)).
 관측: S17의 agent 주소에는 `nonce`와 무작위 `state`·`code_challenge`가 있고, 캡처 스크립트는 RFC 7636 부록 B의 예시 `code_challenge`를 쓴다.
 
+**cimd에서 달라지는 점**
+
+cimd에서는 문서를 쓴 쪽이 redirect URI를 정하므로, 검사에서 걸린 오류를 redirect하지 않는다.
+이때 응답은 `400`과 `Content-Type: text/plain;charset=UTF-8`이고, 본문은 `error=<코드>`와 `error_description=<설명>` 두 줄이다.
+redirect하는 오류는 login한 사용자가 consent 화면에서 거절한 `access_denied` 하나다([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)).
+OIDC `prompt=none` 요청의 `login_required`·`consent_required`도 redirect하지 않는다.
+cimd는 `redirect_uri`를 뺀 요청도 `invalid_request`로 거절한다.
+검증 순서는 Spring 기본 → `RedirectUriRequiredValidator` → `ResourceIndicatorValidator` → `ConsentableScopeValidator`다.
+
 **예시 1** (P3, public client, login session이 있는 상태)
 
 ```http
@@ -786,6 +800,7 @@ official은 code 흐름이라 Authorization Response에 ID token이 없다.
 
 redirect URI나 `client_id`가 없거나 틀리면 redirect하지 않는다(MUST NOT).
 그 밖의 오류는 redirect URI로 보낸다.
+cimd는 예외로, login한 사용자의 `access_denied`만 보내고 나머지는 `400`으로 끝낸다([`GET /oauth2/authorize`의 오류](#get-oauth2authorize--authorization-request)).
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
@@ -815,7 +830,7 @@ client는 `iss`가 기록해 둔 issuer와 다르거나, `authorization_response
 
 | client | 확인 순서 | 거부할 때 |
 |---|---|---|
-| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르면 `401` `로그인 실패: iss mismatch: ...`(S18), 없으면 `401` `로그인 실패: iss is missing ...`(S19)이고, code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
+| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르거나(S18) 없으면(S19) `401`이고, 본문 첫 줄은 `로그인 실패: invalid_request`다(S18·S19 캡처는 본문을 바꾸기 전의 것이다). 자세한 이유(`iss mismatch: ...`, `iss is missing ...`)는 agent 로그에만 남고, code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
 | `local-client` | `state` → `iss` → `error` → `code`(`AuthorizationResponse`) | `실패:`로 시작하는 한 줄을 찍고 끝난다([7장](07-local-client.md)) |
 
 관측: S20의 agent 정상 왕복에도 `iss`가 있다.
@@ -860,7 +875,7 @@ confidential client는 client 인증을, public client는 `client_id`와 PKCE의
 | `redirect_uri` | 본문 | authorization request에 있었으면 REQUIRED, 같은 값 MUST (RFC 6749) · OAuth 2.1은 목록에서 뺐고, 하위 호환은 [§10.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-10.2) | | 씀 — authorization request와 같은 주소 |
 | `client_id` | 본문 | client 인증을 하지 않을 때 REQUIRED ([OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3)) · client assertion과 함께면 OPTIONAL ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) | | `local-client`만 — `local-mcp-client`(P5). agent는 Basic 인증이라 보내지 않는다. cimd는 두 client type 모두 문서 주소를 보낸다(D4·D11) |
 | `client_assertion_type` | 본문 | client assertion으로 인증할 때 REQUIRED ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) | JWT assertion이면 `urn:ietf:params:oauth:client-assertion-type:jwt-bearer`다([RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2)) | 쓰지 않음. cimd의 ChatGPT형(`private_key_jwt`)은 이 값을 보낸다(D4) |
-| `client_assertion` | 본문 | client assertion으로 인증할 때 REQUIRED ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) · JWT는 하나만, 둘 이상은 MUST NOT ([RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2)) | client가 private key로 signature를 만든 JWT다. `iss`·`sub`(`client_id`), `aud`(Authorization Server), `exp`가 있어야 하고(MUST, [RFC 7523 §3](https://www.rfc-editor.org/rfc/rfc7523#section-3)), `aud`는 issuer 하나여야 하며(MUST, [RFC 7523bis](https://datatracker.ietf.org/doc/draft-ietf-oauth-rfc7523bis/)), `private_key_jwt`에서는 한 번만 쓰는 `jti`도 REQUIRED다([OIDC Core §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)) | 쓰지 않음 — cimd의 ChatGPT형은 `aud`가 issuer(`http://localhost:9060`) 하나이고 `typ`이 `client-authentication+jwt`이며, 요청마다 새 `jti`를 넣고, 60초 뒤에 만료되는 `RS256` JWT를 보낸다(D4). `aud`가 token endpoint인 assertion은 `401 invalid_client`다(D16). Authorization Server는 문서의 `jwks_uri`에서 가져온 key로 검증하지만, `jti`를 기억하지 않아 만료 전에 같은 assertion을 다시 보내도 받는다([13장](13-cimd.md#1312-다루지-않는-것)) |
+| `client_assertion` | 본문 | client assertion으로 인증할 때 REQUIRED ([RFC 7521 §4.2](https://www.rfc-editor.org/rfc/rfc7521#section-4.2)) · JWT는 하나만, 둘 이상은 MUST NOT ([RFC 7523 §2.2](https://www.rfc-editor.org/rfc/rfc7523#section-2.2)) | client가 private key로 signature를 만든 JWT다. `iss`·`sub`(`client_id`), `aud`(Authorization Server), `exp`가 있어야 하고(MUST, [RFC 7523 §3](https://www.rfc-editor.org/rfc/rfc7523#section-3)), `aud`는 issuer 하나여야 하며(MUST, [RFC 7523bis](https://datatracker.ietf.org/doc/draft-ietf-oauth-rfc7523bis/)), `private_key_jwt`에서는 한 번만 쓰는 `jti`도 REQUIRED다([OIDC Core §9](https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication)) | 쓰지 않음 — cimd의 ChatGPT형은 `aud`가 issuer(`http://localhost:9060`) 하나이고 `typ`이 `client-authentication+jwt`이며, 요청마다 새 `jti`를 넣고, 60초 뒤에 만료되는 `RS256` JWT를 보낸다(D4). `aud`가 token endpoint인 assertion은 `401 invalid_client`다(D16). Authorization Server는 문서의 `jwks_uri`에서 가져온 key로 검증하고, `jti`가 없거나 `exp`가 5분보다 멀거나 같은 client가 전에 쓴 `jti`면 `401 invalid_client`다([13장 4단계](13-cimd.md#137-4단계-두-인증-방식)) |
 | `code_verifier` | 본문 | REQUIRED ([RFC 7636 §4.5](https://www.rfc-editor.org/rfc/rfc7636#section-4.5)) · `code_challenge`가 있었으면 REQUIRED, 없었으면 MUST NOT (OAuth 2.1) | authorization request 전에 만든 무작위 문자열 | 씀 |
 | `resource` | 본문 | 표시 없음 ([RFC 8707 §2.2](https://www.rfc-editor.org/rfc/rfc8707#section-2.2)) · token request에 MUST ([MCP](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#resource-parameter-implementation)) | token을 쓸 resource | 씀 — `http://localhost:8111/mcp` |
 
@@ -895,7 +910,7 @@ confidential client는 client 인증을, public client는 `client_id`와 PKCE의
 | `invalid_client` — 틀린 `client_secret` | `401`과 `WWW-Authenticate: Basic realm="http://localhost:9010"`(S8). `Authorization` header로 인증을 시도했으면 `WWW-Authenticate` MUST | RFC 6749 §5.2 · [OAuth 2.1 §3.2.4](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-3.2.4) |
 | `invalid_client` — public client가 Basic으로 비밀을 보냄 | S8과 같은 `401`(P12) | RFC 6749 §5.2 |
 | `invalid_client` — confidential client가 `client_id`만 보냄 | `401`, `WWW-Authenticate` 없음(P14) — `ClientAuthenticationChallengeFailureHandler`는 `Authorization` header가 있을 때만 challenge를 붙인다 | RFC 6749 §5.2 |
-| `invalid_client` — `private_key_jwt` client의 assertion이 문서의 `jwks_uri`에 없는 key로 만들어졌거나, `aud`가 issuer 하나가 아니거나, assertion 없이 `client_id`와 `code_verifier`만 옴 | cimd에서 모두 `401`, `{"error":"invalid_client"}`(D6·D16·D7). 문서에 선언한 방식 하나만 받으므로 public client처럼 오면 거절한다 | [RFC 7523 §3.2](https://www.rfc-editor.org/rfc/rfc7523#section-3.2) · [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) |
+| `invalid_client` — `private_key_jwt` client의 assertion이 문서의 `jwks_uri`에 없는 key로 만들어졌거나, `aud`가 issuer 하나가 아니거나, `jti`가 없거나 전에 쓴 값이거나, `exp`가 5분보다 멀거나, assertion 없이 `client_id`와 `code_verifier`만 옴 | cimd에서 모두 `401`, `{"error":"invalid_client"}`(D6·D16·D7). 문서에 선언한 방식 하나만 받으므로 public client처럼 오면 거절한다 | [RFC 7523 §3.2](https://www.rfc-editor.org/rfc/rfc7523#section-3.2) · [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) |
 | `invalid_grant` | code·refresh token이 무효·만료·폐기, redirect URI 불일치, 다른 client의 code, `code_verifier` 불일치 — `{"error":"invalid_grant"}`(S7, P11) | RFC 6749 §5.2 · [RFC 7636 §4.6](https://www.rfc-editor.org/rfc/rfc7636#section-4.6) |
 | `unauthorized_client` | 이 client에 허용되지 않은 grant — 관측 없음 | RFC 6749 §5.2 |
 | `unsupported_grant_type` | 지원하지 않는 grant — 관측 없음 | RFC 6749 §5.2 |
@@ -1003,6 +1018,8 @@ cimd에서는 두 client type이 모두 받는다.
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | refresh token이 무효·만료·폐기 | `400` `invalid_grant`. cimd에서 rotation으로 버린 refresh token도 같고, 그 token이 다시 오면 grant 전체를 끊어 지금의 refresh token도 `invalid_grant`가 된다(D13·D17) | RFC 6749 §5.2 · OAuth 2.1 §3.2.4 |
+| 같은 refresh token으로 거의 동시에 온 두 요청 | cimd는 grant마다 lock을 두어 하나만 `200`이고, 늦은 요청은 재사용으로 보아 `400` `invalid_grant`로 답하며 grant를 끊는다(`CimdAuthorizationServerTest#같은_refresh_token으로_겹쳐_refresh하면_하나만_성공하고_grant가_끊긴다`) | OAuth 2.1 §4.3.1 — 재사용 감지 |
+| `client_id`만 온 refresh인데, grant를 받을 때의 인증 방식이 `none`이 아니거나 문서에 `refresh_token` grant가 없음 | cimd에서 `401` `invalid_client`. 문서가 나중에 `none`으로 바뀌어도 `private_key_jwt`로 받은 grant는 assertion 없이 refresh할 수 없다(`CimdAuthorizationServerTest#private_key_jwt로_받은_grant는_문서가_none으로_바뀌어도_client_id만으로_refresh할_수_없다`) | [CIMD draft-00 §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2) — 선언한 방식으로 인증 |
 | 다른 client가 받은 refresh token | `400` `invalid_grant` — cimd(`CimdAuthorizationServerTest#다른_client의_refresh_token은_쓸_수_없다`) | Authorization Server는 refresh token이 요청의 client에게 발급되었는지 확인한다 MUST ([OAuth 2.1 §4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1)) |
 | 그 밖 | [`authorization_code`](#post-oauth2token--authorization_code)의 오류 표와 같다 | RFC 6749 §5.2 |
 
@@ -1125,7 +1142,7 @@ cimd의 Authorization Server가 하는 일은 요청 표의 "cimd" 칸과 오류
 | 이름 | 위치 | 요구 수준 | 설명 | cimd |
 |---|---|---|---|---|
 | `client_id` 주소 | URL | MUST — `https` scheme, path 포함 · dot segment·fragment·username·password는 MUST NOT, query는 SHOULD NOT, port는 MAY ([§3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)) | 짧고 자주 바뀌지 않는 주소를 권한다(RECOMMENDED) | `https://localhost:8172/oauth/client.json`과 `/oauth/public-client.json`이다. `ClientIdUrlValidator`가 이 규칙에 더해 query도 거절하고, DNS로 푼 주소가 내부 주소면 거절한다(예외는 `https://localhost:8172` 하나) |
-| 메서드 `GET` | 요청 줄 | 표시 없음 — Authorization Server는 문서를 가져온다 SHOULD ([§4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4) · MCP) | authorization request에서 주소 형식의 `client_id`를 만났을 때 | cache에 없는 주소면 `Accept: application/json`으로 가져온다. redirect를 따라가지 않고, 연결은 2초·응답 전체는 3초까지 기다린다 |
+| 메서드 `GET` | 요청 줄 | 표시 없음 — Authorization Server는 문서를 가져온다 SHOULD ([§4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4) · MCP) | authorization request에서 주소 형식의 `client_id`를 만났을 때 | cache에 없는 주소면 `Accept: application/json`으로 가져온다. redirect를 따라가지 않고 DNS 조회와 연결은 2초·응답 전체는 3초까지 기다리며, 같은 주소는 한 번만, 동시에 16개(`mcp.cimd.max-concurrent-fetches`)까지 가져온다 |
 
 **응답 — metadata 문서의 field** (CIMD draft-00 §4.1의 3개와 RFC 7591 §2의 15개, 모두 18개)
 
@@ -1157,12 +1174,13 @@ RFC 7591 §2의 field는 따로 적지 않으면 OPTIONAL이다.
 
 | 상황 | 응답 | 근거 |
 |---|---|---|
+| 동시 가져오기 상한에 닿음 | 표시 없음 — cimd는 기다리지 않고 실패해, 문서를 가져오지 못한 것처럼 그 client를 모르는 client로 다룬다 | [MCP 2026-07-28 — Authorization Server Abuse Protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-server-abuse-protection) |
 | 문서를 가져오지 못함 | authorization request를 멈춘다 SHOULD. cimd는 그 client를 모르는 client로 보아 `400`으로 끝낸다(`CimdAuthorizationServerTest#가져올_수_없는_문서의_client_id는_400이다`) | [CIMD §4.3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.3) |
 | 문서의 `client_id`가 주소와 다름, JSON 구조가 잘못됨, 필수 field 없음 | 검증 MUST (MCP Implementation Requirements). MCP 흐름 다이어그램은 실패를 `error=invalid_client`나 `invalid_request`로 보이고, cimd는 `ClientMetadataValidator`에서 거절해 모르는 client로 다룬다 | [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements), [Client ID Metadata Documents Flow](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents-flow) |
 | 요청의 redirect URI가 문서에 없음 | 검증 MUST. cimd는 그 주소로 보내지 않고 `Location` 없이 `400`으로 끝낸다(D8) | MCP Implementation Requirements |
 | 오류 응답이나 잘못된 문서 | cache하지 않는다(MUST NOT). cimd는 다음 요청에서 다시 가져온다(`ClientIdMetadataDocumentRegisteredClientRepositoryTest#실패는_cache하지_않고_다음_요청에_다시_가져온다`) | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4) |
 | 정상 문서의 cache | cache할 수 있고(MAY), 그때는 HTTP cache header를 따른다(SHOULD, CIMD §4.4) · HTTP cache header를 따라 cache SHOULD (MCP). cimd는 `max-age`(상한 1시간)를 따르고, header가 없으면 5분, `no-store`·`no-cache`·`max-age=0`이면 cache하지 않는다 | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
-| 사설·loopback 주소 | 가져오지 않는다 SHOULD — SSRF. cimd는 IPv4-mapped IPv6 주소도 풀어서 거절하고, 예외는 `https://localhost:8172` 하나다 | [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5) |
+| 사설·loopback 주소 | 가져오지 않는다 SHOULD — SSRF. cimd는 IPv4-mapped IPv6 주소와 `100.64.0.0/10`·`64:ff9b::/96`·`2002::/16` 같은 공유·변환 대역도 거절하고, 예외는 `https://localhost:8172` 하나다 | [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5) |
 | 큰 응답 | 크기 제한 SHOULD, 권장 최대 5KB. cimd는 5120 byte까지 받는다 | [CIMD §6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6) |
 
 **예시** (MCP 2025-11-25·2026-07-28 명세의 예시 문서. CIMD draft-00은 §6.2에 일부 field만 보인다)

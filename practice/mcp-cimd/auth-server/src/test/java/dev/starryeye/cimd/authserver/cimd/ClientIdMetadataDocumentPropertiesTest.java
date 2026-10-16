@@ -15,7 +15,12 @@ class ClientIdMetadataDocumentPropertiesTest {
 		assertThat(properties("client-metadata-trust").trustBundle()).isEqualTo("client-metadata-trust");
 	}
 
+	@Test
+	void 동시_가져오기_상한의_기본값은_16이다() {
+		assertThat(properties(null).maxConcurrentFetches()).isEqualTo(16);
+	}
+
 	static ClientIdMetadataDocumentProperties properties(String trustBundle) {
-		return new ClientIdMetadataDocumentProperties(null, null, null, null, null, null, trustBundle, null);
+		return new ClientIdMetadataDocumentProperties(null, null, null, null, null, null, trustBundle, null, null);
 	}
 }

@@ -45,8 +45,12 @@ mcp:
     loopback-exception: https://localhost:8172
     # CIMD draft는 문서 크기 상한으로 5KB를 권한다.
     max-document-bytes: 5120
+    # connect-timeout은 문서 host의 이름 조회(DNS)를 기다리는 시간에도 쓴다.
     connect-timeout: 2s
     read-timeout: 3s
+    # 문서와 JWKS를 동시에 가져오는 수의 상한이다. 넘으면 기다리지 않고 바로 실패한다.
+    # 인증 없는 요청이 이 서버를 시켜 바깥으로 보내는 요청의 양을 묶는다.
+    max-concurrent-fetches: 16
     # 응답에 Cache-Control이 없을 때 cache하는 기간과, max-age가 길어도 넘지 않는 기간이다.
     default-cache-ttl: 5m
     max-cache-ttl: 1h

@@ -34,6 +34,7 @@ LLM은 tool 결과나 문서에 섞인 글을 사용자의 지시로 여기고 �
 다만 한 번 허락한 scope는 token에 남으므로, 사용자가 이 화면을 보는 것은 그 권한을 처음 쓸 때 한 번뿐이다.
 게다가 consent는 권한의 범위를 묻는 화면이라, 이번 호출이 어떤 인자로 무엇을 바꾸는지는 보여 주지 않는다.
 호출마다 인자를 보여 주고 확인받는 일은 client가 따로 맡는다([8장](08-security.md#810-prompt-injection)).
+MCP Server는 사용자마다 tool 호출 속도도 제한해, 속은 모델이 짧은 시간에 tool을 수없이 부르지 못하게 한다(10.8).
 
 그래서 client는 위험이 낮은 조회 scope만 받아 시작한다.
 권한이 더 필요한 작업을 처음 시도하면 MCP Server가 `403`으로 필요한 scope를 알린다.
@@ -360,7 +361,10 @@ tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 �
 사용자가 `products:write`를 체크하지 않거나 Cancel을 누르면, agent는 이전 scope만 담긴 token을 받는다(10.5의 일부 허락).
 돌아와 다시 보낸 질문은 또 `403`을 받고, `ChatEvents`는 이 scope로 이미 step-up을 거친 것을 알아 `step-up-declined` event를 보낸다.
 화면에는 `updateStock에 필요한 products:write 권한을 받지 못했습니다. 다시 요청하려면 아래 버튼을 누르세요.`와 "다시 요청" 버튼이 뜬다.
-이 버튼은 `/step-up/retry`로 가서 시도 기록을 지우고 step-up을 처음부터 다시 시작한다.
+이 버튼은 CSRF token을 담아 `/step-up/retry`에 `POST`를 보낸다.
+agent는 시도 기록을 지우고 step-up을 다시 시작할 주소를 돌려주고, 화면은 그 주소로 이동한다.
+시도 기록이 지워지면 사용자가 거절한 scope를 다시 묻게 된다(10.5).
+그래서 `GET`은 받지 않아, 다른 사이트의 링크나 이미지가 사용자 몰래 이 기록을 지우지 못하게 한다.
 
 널리 쓰이는 AI client도 권한이 더 필요하면 사용자에게 다시 묻는다.
 [claude.ai](https://claude.com/docs/connectors/building/lazy-authentication)는 tool 호출이 `401`을 받으면 대화 안에 Connect 카드를 띄우고, login이 끝나면 같은 tool 호출을 다시 보낸다.
@@ -445,12 +449,14 @@ handler가 `true`를 돌려주면 SDK는 같은 요청을 다시 보내는데, �
 
 tool 메서드에는 `@McpTool`과 함께 `@RequiredScope("products:write")`처럼 필요한 scope를 적는다.
 MCP에는 tool 정의에 필요한 scope를 적는 표준 field가 없으므로, 서버 안에서만 쓰는 annotation으로 적고 client에게는 `403`으로 알린다.
-`ToolScopeRegistry.scan`은 앱이 뜰 때 이 annotation을 모아 tool 이름으로 scope를 찾는 표를 만든다.
 `@RequiredScope`가 없거나 표에 없는 tool이면 기본 scope `products:read`를 요구한다.
+그래서 쓰기 tool이 표에서 빠지면 조회 token으로도 불린다.
+`ToolScopeRegistry.scan`은 이런 누락이 없도록, 앱이 뜰 때 ApplicationContext의 모든 bean에서 `@McpTool` 메서드를 모아 tool 이름으로 scope를 찾는 표를 만든다.
+이름이 같은 tool이 둘이면 어느 scope를 요구할지 정할 수 없으므로 앱이 뜨지 않는다.
 
 **`ToolScopeFilter`**
 
-`ToolScopeFilter`는 기본 scope, 본문, tool의 scope 순서로 확인한다.
+`ToolScopeFilter`는 기본 scope, 본문, tool의 scope, tool 호출 횟수 순서로 확인한다.
 
 ```java
 protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -458,12 +464,13 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
     JwtAuthenticationToken token = /* 인증이 JwtAuthenticationToken이면 그것, 아니면 null */;
     Set<String> granted = (token != null) ? grantedScopes(token) : Set.of();   // JWT가 아니면 scope가 없다
     if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {                   // 본문을 읽기 전에 기본 scope
-        insufficientScope(request, response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
+        insufficientScope(response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
         return;
     }
     HttpServletRequest forwarded = request;
     if (HttpMethod.POST.matches(request.getMethod())) {                      // GET·DELETE는 기본 scope만 본다
-        CachedBodyHttpServletRequest cached = new CachedBodyHttpServletRequest(request);
+        CachedBodyHttpServletRequest cached;
+        /* cached = new CachedBodyHttpServletRequest(request, this.maxBodyBytes). 상한을 넘으면 413으로 끝낸다 */
         forwarded = cached;
         JsonNode message;
         /* message = parseAsTransportWill(cached). JSON object가 아니면 400으로 끝낸다 */
@@ -471,8 +478,16 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
         String missing = (tool != null && !granted.contains(this.registry.scopeFor(tool)))
                 ? this.registry.scopeFor(tool) : null;
         if (missing != null) {
-            insufficientScope(request, response, token, tool, missing, granted);   // 403 insufficient_scope
+            insufficientScope(response, token, tool, missing, granted);      // 403 insufficient_scope
             return;
+        }
+        if (isToolCall(message)) {                                           // scope 검사를 지난 tools/call만 센다
+            String subject = Objects.toString(token.getToken().getSubject(), "");
+            Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(subject);
+            if (retryAfter.isPresent()) {
+                tooManyToolCalls(response, subject, retryAfter.get());       // 429와 Retry-After
+                return;
+            }
         }
     }
     chain.doFilter(forwarded, response);
@@ -508,12 +523,26 @@ filter와 transport가 다르게 읽을 여지가 있는 본문은 아예 넘기
 **`CachedBodyHttpServletRequest`와 `ScopeChallengeEntryPoint`**
 
 servlet 요청의 본문은 stream이라서 한 번만 읽을 수 있고, filter가 먼저 읽으면 transport는 빈 본문을 받는다.
-`CachedBodyHttpServletRequest`는 생성될 때 본문을 바이트 배열로 모두 읽어 두고, `getInputStream()`이 불릴 때마다 처음부터 읽는 새 stream을 준다.
+`CachedBodyHttpServletRequest`는 생성될 때 본문을 바이트 배열로 읽어 두고, `getInputStream()`이 불릴 때마다 처음부터 읽는 새 stream을 준다.
 Spring의 `ContentCachingRequestWrapper`는 누군가 본문을 읽은 뒤에야 내용을 모으므로, transport보다 먼저 읽어야 하는 이 자리에는 맞지 않는다.
+
+본문을 메모리에 모두 읽어 두므로, 아주 큰 본문 하나로 서버 메모리를 채울 수 있다.
+그래서 본문은 `mcp.limits.max-request-body`(기본 1MB)까지만 읽고, 넘으면 transport에 넘기지 않고 `413`으로 답한다.
+`Content-Length`가 상한을 넘으면 본문을 읽지 않고, 길이를 모르면 상한보다 1 byte 더 읽어 본다.
 
 Spring Security의 `BearerTokenAuthenticationEntryPoint`는 token이 없는 요청의 `401` challenge에 `scope`를 넣지 않는다.
 `ScopeChallengeEntryPoint`는 그 결과 header 끝에 `scope="products:read"`를 붙인다.
 PRM의 `scopes_supported`는 `SecurityConfig`의 PRM 설정에 `.scope(ToolScopeRegistry.BASE_SCOPE)`를 더해 넣는다.
+
+**tool 호출 횟수: `ToolCallRateLimiter`**
+
+MCP 명세는 서버가 tool 호출 속도를 제한하게 한다.
+prompt injection에 속은 모델이나 훔친 token이 짧은 시간에 tool을 수없이 부르는 피해를 줄이려는 것이다.
+`ToolScopeFilter`는 scope 검사를 지난 `tools/call`을 `ToolCallRateLimiter`에 넘기고, 이 클래스는 token의 `sub`마다 최근 1분 동안 받아들인 호출을 센다.
+1분에 `mcp.limits.tool-calls-per-minute`(기본 60)번을 넘으면 `429`, `Retry-After`(초), `id` 없는 JSON-RPC 오류 `-32000`으로 답한다.
+`tools/list`와 scope가 모자라 `403`으로 끝난 호출은 세지 않는다.
+기록은 process 메모리에만 있으므로, 서버를 여러 대 두면 서버마다 따로 센다.
+그런 배포에서는 gateway나 공유 저장소에서 센다.
 
 ## 10.9 client 코드에서 보기
 
@@ -543,6 +572,8 @@ web agent는 이 자리에서 새 token을 받을 수 없으므로, 다시 보�
 MCP SDK와 Spring AI가 예외를 한두 겹 감싸기 때문이다.
 찾으면 tool 이름을 붙여 다시 던지고, 나머지 예외는 Spring AI의 기본 처리에 맡긴다.
 `McpSecurityConfig`는 handler를 MCP client의 transport에, processor를 `ToolExecutionExceptionProcessor` bean으로 연결한다.
+`spring.ai.tools.throw-exception-on-error`가 `true`면 이 processor는 step-up이 아닌 tool 예외도 LLM에게 넘기지 않고 다시 던진다.
+기본값 `false`에서는 Spring AI처럼 예외 메시지를 tool 결과로 LLM에게 넘긴다.
 
 **agent: `StepUpAuthorizationRequestResolver`**
 
@@ -670,7 +701,13 @@ curl -i -X POST http://localhost:8141/mcp "${H[@]}" -H "Authorization: Bearer $R
 
 # 본문이 JSON object 하나가 아니면 transport에 넘기지 않고 400
 curl -i -X POST http://localhost:8141/mcp "${H[@]}" -H "Authorization: Bearer $READ_TOKEN" -d '[]'
+
+# 본문이 1MB를 넘으면 transport에 넘기지 않고 413
+head -c 1100000 /dev/zero | tr '\0' ' ' | curl -i -X POST http://localhost:8141/mcp "${H[@]}" \
+  -H "Authorization: Bearer $READ_TOKEN" --data-binary @-
 ```
+
+마지막 명령의 응답은 `HTTP/1.1 413`이고, 본문은 `{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"요청 본문이 상한 1048576바이트를 넘습니다."}}`다.
 
 **local-client**: `JAVA_HOME`을 Java 21로 맞춘 뒤([practice README의 실행](../mcp-security-authz/README.md#실행)) 실행한다.
 
@@ -688,6 +725,7 @@ browser가 두 번 열린다.
 - agent의 권한은 사용자가 그 client에 맡긴 범위이고, token의 `scope`가 상한이다. 쓰기 scope를 처음 쓸 때 묻는 consent는 prompt injection에 속은 호출을 사람이 막을 첫 기회가 되지만, 그 뒤의 호출과 인자까지 확인하지는 않는다.
 - MCP Server는 `401`의 `scope`와 PRM의 `scopes_supported`에 조회 scope만 알리고, client는 그 값만 요청해 시작한다.
 - 권한이 모자라면 MCP Server는 transport 앞의 filter에서 `403 insufficient_scope`로 알린다. 이 filter는 transport와 같은 규칙으로 본문을 읽고, 다르게 읽힐 수 있는 본문은 `400`으로 거절한다.
+- MCP Server는 사용자마다 tool 호출 속도를 제한한다. 이 practice는 scope 검사를 지난 `tools/call`을 1분 단위로 세어, 넘으면 `429`로 답한다.
 - client는 가진 scope와 challenge의 scope를 합쳐 다시 authorization을 받는다. 사용자는 일부만 허락할 수 있고, client는 거절된 scope로 step-up을 되풀이하지 않는다.
 - web agent는 `403`을 채팅의 consent 카드로 전하고, 사용자 기기의 앱은 그 자리에서 browser를 연다. 어느 쪽이든 새 token은 새로 만든 요청에 붙는다.
 
@@ -704,5 +742,6 @@ browser가 두 번 열린다.
 | scope에 계층이 있으면 서버는 넓은 scope가 좁은 scope를 포함하는 것을 반영해 판단한다. MCP Server는 `offline_access`를 challenge나 `scopes_supported`에 넣지 않는다 | [MCP 2026-07-28 Authorization — Step-Up Authorization Flow](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#step-up-authorization-flow), [Refresh Tokens](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#refresh-tokens) | MUST, SHOULD NOT |
 | JWT access token에는 token을 받은 client의 `client_id`가 있다 | [RFC 9068 §2.2](https://www.rfc-editor.org/rfc/rfc9068#section-2.2) | REQUIRED |
 | 2026-07-28의 POST 요청은 `Mcp-Method`와, `tools/call` 같은 요청이면 `Mcp-Name` header를 보낸다. 본문을 처리하는 server는 header와 본문의 값이 다르면 `400`과 `HeaderMismatch`로 거절한다 | [MCP 2026-07-28 Streamable HTTP — Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers), [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation) | REQUIRED, MUST |
+| 서버는 tool 호출 속도를 제한한다 | [MCP 2025-11-25 Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations) | MUST |
 
 [← 9장](09-versions.md) · [목차](README.md) · [11장 →](11-stateless-and-handle.md)
