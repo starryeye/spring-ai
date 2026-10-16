@@ -11,6 +11,7 @@
 마지막 자리는 AI agent에만 있는 자리로, tool 결과나 문서에 지시를 숨겨 LLM이 그 지시를 따르게 만든다.
 8.2\~8.9의 막는 장치는 모두 앞 장에서 설명했으므로, 여기서는 공격 과정에 집중하고 자세한 설명은 그 장의 링크로 넘긴다.
 8.10과 8.11은 앞 장에서 다루지 않은 prompt injection과 token 보관을 본다.
+official이 각 공격을 어디서 막는지는 8.12의 표 하나에 모았다.
 
 | 절 | 공격 | 공격자 | 막는 것 |
 |---|---|---|---|
@@ -50,23 +51,13 @@ SSRF는 서버에서 도는 client의 문제라서, official에서는 `shop-agen
 
 **막는 것**
 
-agent는 discovery 순서대로 확인한다([3장](03-discovery.md)).
-먼저 `401`의 `resource_metadata`가 설정한 MCP Server와 같은 origin인지 보고, 다르면 따라가지 않는다.
-`401`을 보낸 쪽이 고른 주소로 agent가 요청을 보내지 않으려는 것이다.
-다음으로 PRM이 알려 준 issuer가 credentials를 발급한 issuer와 같은지 보고, 다르면 metadata도 요청하지 않는다.
-위 PRM의 `http://169.254.169.254`는 credentials를 발급한 issuer가 아니므로, 그 주소로는 요청이 나가지 않는다.
+agent는 discovery에서 세 가지를 차례로 확인한다([3장](03-discovery.md#36-client가-반드시-확인하는-것)).
+`401`의 `resource_metadata`는 설정한 MCP Server와 같은 origin일 때만 따라간다.
+PRM이 알려 준 issuer가 credentials를 발급한 issuer와 다르면 metadata도 요청하지 않으므로, 위 PRM의 `http://169.254.169.254`로는 요청이 나가지 않는다.
 metadata의 두 endpoint는 `https`이거나 loopback 주소의 `http`여야 해서, `javascript:`·`file:` 같은 주소가 오면 여기서 멈춘다.
-discovery의 HTTP 요청은 redirect를 따라가지 않으므로, 확인을 통과한 주소가 내부망으로 redirect해도 따라가지 않는다.
+discovery의 HTTP 요청은 redirect를 따라가지 않아서, 확인을 통과한 주소가 내부망으로 redirect해도 그리로 가지 않는다.
 실제 서버형 agent에서는 사용자가 MCP Server 주소를 넣으므로, 그 주소부터 내부망일 수 있다.
 이 경우는 사설 IP 차단과 egress proxy가 막고, official에는 둘 다 없다.
-
-**official에서**
-
-`McpAuthorizationDiscovery#discover`는 `resource_metadata`의 origin을 먼저 보고, issuer를 비교한 뒤에야 metadata를 요청한다.
-HTTP 요청은 `McpAuthorizationDiscovery.requestFactory`가 만든 JDK `HttpClient`로 보내고, 이 client는 redirect를 따라가지 않게 정해 두었다.
-endpoint 주소는 `requireHttpUrl`이 확인한다.
-`local-client`의 `Discovery`도 issuer 비교와 endpoint 확인을 같은 순서로 한다([7장](07-local-client.md)).
-`local-client`는 사용자 기기에서 도는 앱이라 SSRF의 대상이 아니므로, `resource_metadata`의 origin은 보지 않는다.
 
 ## 8.3 Redirect URI 바꿔치기와 authorization code 가로채기
 
@@ -89,12 +80,6 @@ loopback IP 주소만은 포트를 빼고 비교한다([4장](04-client-registra
 새어 나간 code는 PKCE가 막는다.
 token request에는 요청을 시작한 client만 가진 `code_verifier`가 있어야 하기 때문이다([5장](05-authorization-and-token.md)).
 
-**official에서**
-
-`redirect_uri` 비교는 Spring의 `OAuth2AuthorizationCodeRequestAuthenticationValidator`가 `application.yml`의 `redirect-uris`로 한다.
-두 client 모두 `require-proof-key: true`여서, `code_challenge`가 없는 요청은 `invalid_request`로 거절된다.
-`shop-agent`는 `withPkce()`로, `local-client`는 `Pkce`로 `S256` 값을 만든다.
-
 ## 8.4 Public client 사칭
 
 **공격**
@@ -109,11 +94,6 @@ PKCE로도 막지 못하는 이유는 [4장](04-client-registration.md)에 있�
 
 public client의 요청에는 매번 consent를 받는다([5장](05-authorization-and-token.md)).
 사용자는 자기가 시작하지 않은 consent 화면을 보고 거절할 수 있다.
-
-**official에서**
-
-`local-mcp-client`는 `require-authorization-consent: true`로 등록되어 있다.
-Spring이 consent를 건너뛰는 두 경우는 `PublicClientConsentService`와 `PublicClientScopeValidator`가 막는다([5장](05-authorization-and-token.md)).
 
 ## 8.5 Mix-up
 
@@ -170,13 +150,6 @@ Authorization Server마다 다른 redirect 주소를 쓰는 것도 방법이다.
 code가 돌아온 주소로 어느 Authorization Server의 응답인지 알 수 있기 때문이다.
 ChatGPT는 `iss`를 알리지 않는 Authorization Server에 이 방법을 쓴다([2장](02-why-oauth.md#23-client의-두-종류-confidential-client와-public-client)).
 
-**official에서**
-
-`auth-server`의 `IssuerIdentifyingAuthorizationResponseHandler`는 성공과 오류 redirect 모두에 `iss`를 붙인다.
-`shop-agent`에서는 `AuthorizationResponseIssuerFilter`가, `local-client`에서는 `AuthorizationResponse#code`가 `iss`를 확인한다.
-official의 두 client는 한 Authorization Server에만 등록되어 있어서, PRM이 다른 곳을 가리키면 discovery에서 먼저 멈춘다([4장](04-client-registration.md)).
-`iss` 확인은 client가 여러 Authorization Server를 쓸 때도 통한다.
-
 ## 8.6 Confused deputy와 다른 MCP Server용 token
 
 confused deputy는 남의 권한을 확인 없이 대신 행사하게 되는 프로그램을 말한다.
@@ -202,12 +175,6 @@ proxy는 이 결과로 만든 MCP authorization code를 공격자의 redirect UR
 제3자 Authorization Server는 MCP client를 구별하지 못하므로, 구별은 proxy가 해야 한다.
 proxy는 제3자 Authorization Server로 보내기 전에, MCP client마다 자기 consent 화면을 보여 주고 허락을 받는다.
 
-**official에서**
-
-official에는 이 공격의 조건이 없다.
-`shop-mcp-server`는 제3자 API를 부르지 않고 authorization endpoint도 없다.
-`auth-server`는 DCR을 켜지 않는다.
-
 **공격: 다른 MCP Server용 token**
 
 한 Authorization Server가 MCP Server A와 B의 token을 모두 발급한다고 해 보자.
@@ -218,14 +185,7 @@ A는 사용자가 허락한 적 없는 B의 tool을 사용자 이름으로 부�
 **막는 것**
 
 client는 token을 요청할 때 `resource`로 쓸 곳을 밝히고, Authorization Server는 그 값을 token의 `aud`에 넣는다([5장](05-authorization-and-token.md)).
-MCP Server는 `aud`에 자기가 없는 token을 `401`로 거절하므로, A용 token은 B에서 통하지 않는다([6장](06-mcp-call-and-validation.md)).
-
-**official에서**
-
-agent의 `ResourceIndicators`가 authorization·token·refresh request에 `resource`를 넣는다.
-`auth-server`의 `ResourceIndicatorValidator`는 모르는 `resource`를 `invalid_target`으로 거절한다.
-`ResourceAudienceTokenCustomizer`는 `resource`를 access token의 `aud`에 넣는다.
-MCP Server는 `audiences: http://localhost:8111/mcp` 설정으로 `aud`를 본다.
+MCP Server는 `aud`에 자기가 없는 token을 `401`로 거절하므로, A용 token은 B에서 통하지 않는다([6장](06-mcp-call-and-validation.md#65-2단계-token-검증)).
 
 ## 8.7 Token passthrough
 
@@ -243,34 +203,20 @@ MCP Server는 `aud`에 자기가 있는 token만 받는다([6장](06-mcp-call-an
 downstream API를 불러야 하면, MCP Server는 그 API의 OAuth client가 되어 그 API용 token을 따로 받는다.
 client도 그 MCP Server의 Authorization Server가 발급한 token만 보낸다.
 
-**official에서**
-
-`shop-mcp-server`는 downstream API를 부르지 않고, tool은 메모리에 든 `ProductRepository`만 읽는다.
-agent의 `OAuth2TokenAttachingRequestCustomizer`는 요청을 일으킨 사용자가 `official-shop-agent`로 받은 access token만 붙인다.
-그 token의 `aud`는 이 MCP Server다([6장](06-mcp-call-and-validation.md)).
-
 ## 8.8 전송 단계: DNS rebinding, 같은 네트워크, 도청
 
 **공격**
 
-사용자가 연 악성 web page는 DNS rebinding으로 browser를 거쳐 `localhost`의 MCP Server를 부른다([6장](06-mcp-call-and-validation.md)).
+사용자가 연 악성 web page는 DNS rebinding으로 browser를 거쳐 `localhost`의 MCP Server를 부른다([6장](06-mcp-call-and-validation.md#64-1단계-originhost-검사)).
 authorization 없이 도는 로컬 MCP Server라면, page의 script가 tool을 마음대로 부른다.
 서버가 모든 네트워크 interface(`0.0.0.0`)에서 연결을 받으면, 같은 네트워크의 다른 기기도 그 서버에 바로 연결한다.
 요청이 평문 HTTP로 네트워크를 지나면, 경로에 있는 누구든 token과 authorization code, `client_secret`을 읽는다.
 
 **막는 것**
 
-MCP Server는 `Origin`이 허용 목록 밖이면 `403`, `Host`가 허용 목록 밖이면 `421`로 거절한다.
-이 검사는 token과 상관없이 하므로, token을 요구하지 않는 서버에서도 통한다.
+MCP Server는 `Origin`·`Host`가 허용 목록 밖인 요청을 token과 상관없이 거절하므로, token을 요구하지 않는 서버에서도 이 검사가 통한다.
 로컬 서버는 `127.0.0.1`에만 bind해 다른 기기의 연결을 받지 않는다.
 Authorization Server의 endpoint는 모두 HTTPS로 열고, redirect URI는 `localhost`이거나 HTTPS를 쓴다.
-
-**official에서**
-
-`McpTransportSecurityFilter`가 SDK의 `DefaultServerTransportSecurityValidator`로 `Origin`과 `Host`를 본다.
-`McpTransportConfig`는 이 filter를 Spring Security 앞에 둔다.
-세 앱은 `application.yml`의 `server.address: 127.0.0.1`로 이 기기 안의 연결만 받는다.
-official은 HTTPS를 쓰지 않고 `http://localhost`로 돈다(8.12).
 
 ## 8.9 Session hijacking
 
@@ -281,14 +227,8 @@ session ID만 보고 요청을 처리하는 서버는 공격자를 원래 client
 
 **막는 것**
 
-session ID는 어느 연결인지 가리킬 뿐 인증 수단이 아니다.
-MCP Server는 session ID가 있어도 요청마다 token을 검사한다([6장](06-mcp-call-and-validation.md)).
-
-**official에서**
-
-`shop-mcp-server`의 `SecurityConfig`는 `anyRequest().authenticated()`로 모든 요청에 token을 요구한다.
-SDK는 session ID를 `UUID.randomUUID()`로 만든다.
-official이 session을 사용자에 묶지 않는 이유와 묶는 방법은 [6장](06-mcp-call-and-validation.md)에 있다.
+session ID는 인증 수단이 아니라서, MCP Server는 session ID가 있어도 요청마다 token을 검사한다.
+session을 사용자에 묶는 방법은 [6장](06-mcp-call-and-validation.md#67-session과-사용자)에 있다.
 
 ## 8.10 Prompt injection
 
@@ -321,9 +261,7 @@ tool의 `annotations`에 있는 `destructiveHint`(되돌릴 수 없는 작업인
 **practice에서**
 
 모든 practice의 agent는 호출마다 확인을 받지 않고, LLM이 고른 tool을 바로 부른다.
-`mcp-security-authz`부터는 쓰기 scope를 처음 쓸 때 consent 카드가 뜬다.
-그러나 카드는 tool 이름과 scope만 보여 주고 인자는 보여 주지 않는다([10장](10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드)).
-같은 practice부터 MCP Server는 사용자마다 1분에 60번까지 `tools/call`을 받고, 넘으면 `429`로 답한다.
+`mcp-security-authz`부터는 쓰기 scope를 처음 쓸 때 consent 카드가 뜨지만, 카드는 인자를 보여 주지 않는다([10장](10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드)).
 
 ## 8.11 서버에서 도는 agent의 token 보관과 폐기
 
@@ -347,26 +285,26 @@ ChatGPT나 Claude 같은 서버형 agent는 많은 사용자의 token을 한곳�
 MCP 명세는 client와 서버 모두 token을 안전하게 보관하라고 정하지만, 방법은 정하지 않는다.
 위 장치는 OAuth의 일반 권고를 따른 것이다.
 
-**official에서**
+## 8.12 official에서 보기
 
-agent는 token을 Spring의 `InMemoryOAuth2AuthorizedClientService`에 둔다.
-token은 process 메모리에만 있어서 디스크와 로그에 남지 않지만, 암호화하지 않고 agent를 다시 띄우면 사라진다.
-logout해도 agent는 token을 지우거나 폐기하지 않는다.
-Authorization Server는 metadata에 `revocation_endpoint`를 알리지만, agent는 이 endpoint를 쓰지 않는다.
-access token은 Spring 기본값인 5분 동안 유효하다.
-`local-client`는 token을 실행하는 동안 메모리에만 두고 끝나면 버리며, 실제 앱의 보관 방법은 [7장](07-local-client.md)에 있다.
-MCP Server는 token을 검증만 하고 저장하지 않는다.
+앞 절의 공격을 official이 어디서 막는지 모으면 다음과 같다.
 
-## 8.12 official이 지키지 못한 것
-
-| 항목 | official의 상태 | 이유 |
+| 공격 | official에서 막는 곳 | 설명한 장 |
 |---|---|---|
-| HTTPS | 세 앱이 모두 `http://localhost`로 돈다 | 학습용으로 요청과 응답을 그대로 보려는 선택이다. 요청은 loopback 주소 안에서만 오간다 |
-| SSE event `id` | 응답 event의 `id`가 모두 session ID라서, 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([1장](01-mcp-basics.md)) | 값은 Spring AI의 `WebMvcStreamableServerTransportProvider`가 정한다. 이 클래스가 `final`이라 fork하지 않고는 바꿀 수 없다 |
-| tool 호출 속도 제한 | MCP Server가 사용자의 tool 호출 횟수를 세지 않는다 | official은 인증 흐름만 다루는 기준 practice다. tool 단위의 제한은 scope와 함께 `mcp-security-authz`부터 더한다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) |
-| agent가 앱 종료 때 보내는 session `DELETE`의 token | 앱이 끝날 때 agent가 보내는 session 종료 `DELETE`에는 token이 붙지 않아, MCP Server에 닿으면 `401`이다. session은 MCP Server가 내려갈 때까지 남는다 | token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`는 요청을 일으킨 사용자를 찾아 그 token을 고르는데, 앱이 끝날 때의 `DELETE`에는 그 사용자가 없다([6장](06-mcp-call-and-validation.md)) |
+| discovery SSRF, 위험한 authorization 주소 | agent의 `McpAuthorizationDiscovery`가 origin, issuer, endpoint 순서로 확인하고 redirect를 따라가지 않는다. `local-client`의 `Discovery`는 SSRF의 대상이 아니라서 origin은 보지 않고 issuer와 endpoint만 확인한다 | [3장](03-discovery.md#37-official-코드에서-보기), [7장](07-local-client.md#73-1단계-discovery--discovery) |
+| redirect URI 바꿔치기, code 가로채기 | `auth-server`는 `redirect_uri`를 `application.yml`의 `redirect-uris`와 비교한다. 두 client 모두 `require-proof-key: true`라서 `code_challenge`가 없는 요청은 거절된다 | [4장](04-client-registration.md#44-public-client의-규칙), [5장](05-authorization-and-token.md#54-pkce) |
+| public client 사칭 | `local-mcp-client`는 `require-authorization-consent: true`로 등록되어 있다. Spring이 consent를 건너뛰는 두 경우는 `PublicClientConsentService`와 `PublicClientScopeValidator`가 막는다 | [5장](05-authorization-and-token.md#55-login과-consent) |
+| mix-up | `auth-server`의 `IssuerIdentifyingAuthorizationResponseHandler`가 `iss`를 넣고, agent의 `AuthorizationResponseIssuerFilter`와 `local-client`의 `AuthorizationResponse`가 확인한다. 두 client는 한 Authorization Server에만 등록되어 있어서, PRM이 다른 곳을 가리키면 discovery에서 먼저 멈춘다 | [4장](04-client-registration.md#47-credentials를-issuer에-묶기), [5장](05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
+| OAuth proxy의 confused deputy | 이 공격의 조건이 없다. `shop-mcp-server`는 제3자 API를 부르지 않고 authorization endpoint도 없으며, `auth-server`는 DCR을 켜지 않는다 | — |
+| 다른 MCP Server용 token | agent의 `ResourceIndicators`가 `resource`를 넣고, `auth-server`는 모르는 `resource`를 거절하며 아는 값을 access token의 `aud`에 넣는다. MCP Server는 `audiences` 설정으로 `aud`를 본다 | [5장](05-authorization-and-token.md#511-official-코드에서-보기), [6장](06-mcp-call-and-validation.md#65-2단계-token-검증) |
+| token passthrough | `shop-mcp-server`는 downstream API를 부르지 않는다. agent는 사용자가 `official-shop-agent`로 받은, `aud`가 이 MCP Server인 token만 붙인다 | [6장](06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
+| DNS rebinding, 같은 네트워크, 도청 | `McpTransportSecurityFilter`가 Spring Security 앞에서 `Origin`과 `Host`를 보고, 세 앱은 `127.0.0.1`에만 bind한다. HTTPS는 쓰지 않는다 | [6장](06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
+| session hijacking | MCP Server는 session ID가 있어도 모든 요청에 token을 요구하고, SDK는 session ID를 `UUID.randomUUID()`로 만든다. session을 사용자에 묶지는 않는다 | [6장](06-mcp-call-and-validation.md#67-session과-사용자) |
+| prompt injection | 8.10 표의 장치가 하나도 없다. tool별 scope와 consent 카드, tool 호출 속도 제한은 `mcp-security-authz`부터 더한다 | [10장](10-scope-and-step-up.md) |
+| 모아 둔 token 탈취 | agent는 token을 process 메모리(`InMemoryOAuth2AuthorizedClientService`)에만 두어 디스크와 로그에 남기지 않지만, 암호화하지 않고 logout해도 지우거나 metadata가 알리는 `revocation_endpoint`로 폐기하지 않는다. `local-client`도 실행하는 동안 메모리에만 두고, MCP Server는 token을 저장하지 않는다 | — |
 
-항목별 전체 판정은 [준수표](reference-compliance.md)에 있다.
+official이 명세를 지키지 못한 곳은 HTTPS, SSE event `id`의 유일성, tool 호출 속도 제한, agent가 앱 종료 때 보내는 session `DELETE`의 token 네 가지다.
+항목별 이유와 판정은 [준수표의 남은 위반](reference-compliance.md#남은-위반)에 있다.
 
 ## 8.13 다루지 않는 것
 
@@ -410,7 +348,6 @@ curl -si -b /tmp/agent-cookies.txt \
 - token은 `resource`와 `aud`로 한 MCP Server에 묶이고, MCP Server는 자기용 token만 받아 downstream으로 넘기지 않는다.
 - prompt injection에 속은 호출에도 사용자의 정상 token이 붙는다. OAuth의 장치는 피해 범위를 줄일 뿐이고, 호출마다 인자를 보여 주고 확인받는 일은 client가 맡는다.
 - 서버형 agent는 token을 사용자별로 나눠 암호화해 두고, 연결을 끊으면 폐기한다. official의 agent는 메모리에만 두고 폐기하지 않는다.
-- official은 HTTPS, SSE event `id`, tool 호출 속도 제한, agent가 앱 종료 때 보내는 `DELETE`의 token을 지키지 못한다.
 
 ## 8.16 명세 근거
 
@@ -426,8 +363,6 @@ curl -si -b /tmp/agent-cookies.txt \
 | MCP Server는 자기를 audience로 발급된 token만 받고, 다른 token을 넘기지 않는다. client는 `resource`를 넣고, 그 MCP Server의 Authorization Server가 발급한 token만 보낸다 | [MCP 2025-11-25 Authorization — Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Security Best Practices — Token Passthrough](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#token-passthrough) | MUST, MUST NOT |
 | 서버는 모든 연결의 `Origin`을 검증하고, 로컬 서버는 `127.0.0.1`에만 bind한다. Authorization Server의 endpoint는 HTTPS이고, redirect URI는 `localhost`이거나 HTTPS다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2025-11-25 Authorization — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security) | MUST, SHOULD |
 | MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없게 만들고 사용자 정보에 묶는다 | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
-| client는 session을 끝내는 `DELETE`까지 모든 HTTP 요청의 `Authorization` header에 access token을 넣는다 | [MCP 2025-11-25 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements) | MUST |
-| SSE event에 `id`를 붙일 수 있고, 붙이면 session 안의 모든 stream에서 유일하다 | [MCP 2025-11-25 Transports — Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) | MAY, MUST |
 | tool 호출을 거부할 수 있는 사람이 늘 있게 한다. client는 민감한 작업 전에 확인받고, tool을 부르기 전에 인자를 보여 준다 | [MCP 2025-11-25 Tools — User Interaction Model](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#user-interaction-model), [Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations) | SHOULD |
 | client는 믿을 수 있는 서버가 준 것이 아니면 tool `annotations`를 믿지 않는다 | [MCP 2025-11-25 Tools — Tool](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#tool) | MUST |
 | 서버는 tool 호출 속도를 제한한다 | [MCP 2025-11-25 Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations) | MUST |

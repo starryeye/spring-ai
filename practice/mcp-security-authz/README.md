@@ -22,7 +22,7 @@ client는 처음에 조회 scope `products:read`만 받는다.
 | agent가 요청하는 scope | 설정에 적은 `openid profile`이다 | discovery가 `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 고른 scope에 `openid`를 더한다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | agent의 `403` 처리 | 따로 다루지 않는다 | `StepUpAuthorizationErrorHandler`가 `403 insufficient_scope`를 예외로 바꾼다. `StepUpToolExecutionExceptionProcessor`는 그 예외를 LLM에게 넘기지 않고 채팅 응답까지 그대로 전한다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | agent의 채팅 응답 | `text/plain` stream이다 | SSE event(`message`, `step-up`, `step-up-declined`)다. `ChatEvents`가 만들고, `index.html`이 consent 카드를 보여 준다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
-| agent의 authorization request | 설정에 적은 scope(`openid profile`) 그대로다 | `StepUpAuthorizationRequestResolver`가 요청 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. 진행 상태와 결과는 `StepUpState`와 `StepUpLoginSuccessHandler`가 기록한다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [거절과 일부 허락](#거절과-일부-허락) |
+| agent의 authorization request | 설정에 적은 scope(`openid profile`) 그대로다 | `StepUpAuthorizationRequestResolver`가 요청 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. 진행 상태와 결과는 `StepUpState`와 `StepUpLoginSuccessHandler`가 기록한다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | `local-client`가 요청하는 scope | `Main`에 정해 둔 `openid profile`이다 | `ScopeSelection`이 `401`의 `scope` → PRM의 `scopes_supported` → 생략 순서로 고른다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |
 | `local-client`의 MCP 호출 | `getStock(p1)`까지 부른다 | `updateStock(p1, 10)`도 부른다. `403`이면 `StepUp`이 합친 scope로 authorization을 다시 받고, `McpCalls`가 같은 호출을 새 요청으로 보낸다 | [10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login) |
 | `local-client`의 token 붙이기 | transport의 기본 요청에 한 번 넣는다 | 요청을 만들 때마다 `TokenHolder`에서 지금 token을 읽는다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
@@ -72,53 +72,19 @@ sequenceDiagram
 
 [다이어그램 그림으로 보기](diagrams/README-1.png)
 
-agent는 더 넓은 scope의 token을 혼자서 받아 올 수 없다.
-더 넓은 scope는 사용자가 자기 browser에서 직접 consent해야 하기 때문이다.
-그래서 tool 호출이 `403`을 받으면(3), agent는 그 결과를 LLM에게 오류 문장으로 넘기지 않는다.
-채팅 응답을 멈추고, 대신 consent 카드 event를 보낸다(4).
-사용자가 "권한 허용"을 누르면 browser는 질문을 `sessionStorage`에 넣어 둔다.
-그다음 agent의 login 시작 주소 `/oauth2/authorization/authserver`로 간다(5).
-agent는 `step_up`의 scope를 지금 token의 scope와 합쳐 authorization request를 만든다(6)(7).
-scope를 합쳐 요청하는 이유는 새 token이 옛 token을 대신하기 때문이다.
-`products:write`만 요청하면 새 token에는 모든 MCP 요청에 필요한 `products:read`가 없다.
-
+agent는 더 넓은 scope의 token을 혼자 받아 올 수 없으므로, `403`을 받으면(3) 채팅 응답을 멈추고 consent 카드 event를 보낸다(4).
+"권한 허용"을 누르면 browser는 질문을 넣어 두고, agent는 지금 token의 scope에 `products:write`를 합쳐 authorization을 다시 받는다(5)\~(14).
 consent 화면에서 새로 고를 항목은 `products:write` 하나다(8).
-`authz-shop-agent`는 confidential client라서 Authorization Server가 그 consent를 저장한다.
-그래서 전에 허락한 scope는 다시 묻지 않는다.
-agent는 callback(11)의 code로 새 token을 받고(12)(13), 그 사용자의 authorized client를 새 token으로 바꾼다.
-그다음 browser를 채팅 화면으로 돌려보낸다(14).
-화면은 넣어 둔 질문을 한 번 다시 보내고(15), 이번 `tools/call`에는 새 token이 붙는다(16).
+돌아온 화면은 넣어 둔 질문을 한 번 다시 보내고, 이번 `tools/call`에는 새 token이 붙는다(15)(16).
+카드를 쓰는 이유는 [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드)에, scope를 합치는 이유는 [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다)에 있다.
 
-`local-client`는 사용자가 바로 앞에 있는 앱이라서 카드를 띄우지 않는다.
-그 자리에서 browser를 다시 열고, 새 token을 받으면 질문이 아니라 같은 MCP 호출을 새 요청으로 다시 보낸다.
-`local-mcp-client`는 public client라서 Authorization Server가 consent를 저장하지 않는다.
-그래서 step-up의 consent 화면도 `products:read`와 `products:write`를 모두 묻는다.
+`local-client`는 카드 없이 그 자리에서 browser를 다시 열고, 새 token으로 같은 MCP 호출을 다시 보낸다([10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login)).
+public client라서 consent가 저장되지 않으므로, step-up의 consent 화면은 `products:read`와 `products:write`를 모두 묻는다.
 
-### 거절과 일부 허락
-
-Spring Authorization Server의 consent 화면은 scope마다 checkbox를 둔다.
-그래서 사용자는 요청받은 scope 가운데 일부만 허락할 수 있다.
-step-up의 consent 화면에서 `products:write`를 체크하지 않고 제출해도, Cancel을 눌러도 agent는 오류가 아니라 새 token을 받는다.
-Authorization Server는 전에 허락받은 scope를 새 token에도 넣는다.
-그래서 이 token의 scope는 `openid products:read`다.
-요청보다 좁은 scope의 token을 주는 이 경우를 일부 허락(down-scoping)이라 한다.
-`StepUpLoginSuccessHandler`는 새 token에서 빠진 step-up scope를 로그에 남긴다.
-
-거절한 권한을 묻고 또 물으면, 사용자는 무엇을 허락하는지 읽지 않고 누르기 쉽다.
-그래서 두 client는 한 번 요청했는데도 받지 못한 scope로 step-up을 되풀이하지 않는다.
-
-- agent의 `StepUpState`는 이 HTTP session에서 step-up을 시작한 scope를 기록한다.
-  같은 scope로 다시 `403`이 오면 `ChatEvents`는 카드 대신 거절 안내(`step-up-declined`)를 보낸다.
-  안내의 "다시 요청" 버튼을 눌러야 `StepUpController`가 기록을 지우고 step-up을 다시 시작한다.
-- `local-client`의 `StepUp`은 새 token에도 필요한 scope가 없으면 더 시도하지 않는다.
-  서버가 이미 가진 scope를 모자라다고 할 때도 같다.
-  이때 앱은 `실패: products:write 권한을 받지 못했다`를 찍고 끝난다.
-
-agent가 step-up 기록을 HTTP session에 두는 방식에는 전제가 하나 있다.
-agent는 HTTP session에 넣어 둔 `StepUpState` 객체의 값만 바꾸고, `setAttribute`를 다시 부르지 않는다.
-기본 설정인 메모리 session에서는 이것으로 충분하다.
-Spring Session(Redis 등)은 기본 설정에서 `setAttribute`를 부를 때만 attribute를 저장한다.
-그래서 Spring Session을 쓰면 값을 바꿀 때마다 `setAttribute`를 다시 불러야 한다.
+consent 화면에서 `products:write`를 빼고 제출하거나 Cancel을 누르면, 오류 대신 `openid products:read`의 token이 온다(일부 허락).
+두 client는 이렇게 거절된 scope로 step-up을 되풀이하지 않는다.
+agent는 카드 대신 거절 안내와 "다시 요청" 버튼을 보이고, `local-client`는 `실패: products:write 권한을 받지 못했다`를 찍고 끝난다.
+일부 허락과 되풀이하지 않는 이유는 [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다)에 있다.
 
 ## 실행
 
@@ -148,8 +114,7 @@ official과 달리 login 뒤에 consent 화면이 나오고, 선택 항목은 `p
 
 `local-client`에게는 `auth-server`와 `shop-mcp-server`만 있으면 된다.
 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 돈다.
-Java 21을 sdkman으로 설치했다면 아래 첫 줄로 맞춘다.
-다른 방법으로 설치했다면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
+sdkman으로 설치한 Java 21이면 아래 첫 줄로 맞추고, 아니면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
 
 ```bash
 # 저장소 최상위 폴더에서
@@ -207,9 +172,9 @@ Spring 앱 세 module은 official처럼 역할별 하위 package로 나뉘고, `
 | | `ChatController`, `ChatEvents` | 채팅 답을 SSE event로 보낸다. stream으로 오는 답은 `message`, consent 카드는 `step-up`, 이미 step-up을 거친 scope의 거절 안내는 `step-up-declined` event다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | | `index.html` | 카드를 보여 주고, consent 화면으로 가기 전에 질문을 `sessionStorage`에 넣어 둔다. 채팅 화면으로 돌아오면 그 질문을 한 번 다시 보낸다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | | `StepUpAuthorizationRequestResolver` | authorization request의 scope에 지금 token의 scope와 `step_up` parameter의 scope를 더한다. `step_up`은 MCP Server가 `403`으로 요구한 scope만 받는다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다), [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
-| | `StepUpState` | HTTP session에 step-up 상태를 둔다. consent 결과를 기다리는 scope, 이미 시도한 scope, MCP Server가 요구한 scope다 | [거절과 일부 허락](#거절과-일부-허락) |
-| | `StepUpLoginSuccessHandler`, `LoginFailureHandler` | step-up의 login이 끝나면 step-up으로 요청한 scope를 모두 받았는지 로그로 남긴다. step-up 중에 login이 실패하면 오류 화면 대신 채팅 화면으로 돌려보낸다 | [거절과 일부 허락](#거절과-일부-허락) |
-| | `StepUpController` | "다시 요청" 버튼이 CSRF token과 함께 `POST`로 부르는 `/step-up/retry`다. 시도 기록을 지우고 step-up을 다시 시작할 주소를 JSON으로 돌려주며, `GET`은 `405`다 | [거절과 일부 허락](#거절과-일부-허락) |
+| | `StepUpState` | HTTP session에 step-up 상태를 둔다. consent 결과를 기다리는 scope, 이미 시도한 scope, MCP Server가 요구한 scope다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드), [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
+| | `StepUpLoginSuccessHandler`, `LoginFailureHandler` | step-up의 login이 끝나면 step-up으로 요청한 scope를 모두 받았는지 로그로 남긴다. step-up 중에 login이 실패하면 오류 화면 대신 채팅 화면으로 돌려보낸다 | [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다) |
+| | `StepUpController` | "다시 요청" 버튼이 CSRF token과 함께 `POST`로 부르는 `/step-up/retry`다. 시도 기록을 지우고 step-up을 다시 시작할 주소를 JSON으로 돌려주며, `GET`은 `405`다 | [10장 consent 카드](../mcp-guide/10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드) |
 | | `SecurityConfig` | `oauth2Login`에 `StepUpAuthorizationRequestResolver`와 `StepUpLoginSuccessHandler`를 연결한다 | [10장 client 코드](../mcp-guide/10-scope-and-step-up.md#109-client-코드에서-보기) |
 | `local-client` | `Main` | discovery가 고른 scope로 authorization code 흐름을 밟는다. step-up 때는 같은 흐름을 합친 scope로 한 번 더 밟는다 | [10장 다시 login](../mcp-guide/10-scope-and-step-up.md#107-사용자-기기의-앱-그-자리에서-다시-login) |
 | | `Discovery`, `ScopeSelection`, `AuthorizationRequest` | `401`의 `scope`와 PRM의 `scopes_supported`를 읽어 그 순서로 처음 요청할 scope를 고른다. 둘 다 없으면 `scope` parameter를 빼고 보낸다 | [10장 처음 요청할 scope](../mcp-guide/10-scope-and-step-up.md#103-1단계-먼저-조회-scope만-받는다) |

@@ -25,9 +25,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 1장부터 13장까지 차례로 읽는다.
 뒤 장은 앞 장에서 본 요청과 용어를 다시 설명하지 않는다.
 10장은 5\~7장에서 본 흐름에 scope와 step-up을 더하므로, 7장 다음에 읽어도 된다.
-11장은 10장의 scope와 step-up에 session 없는 서버와 handle을 더하므로, 10장 다음에 읽는다.
-12장은 10장의 step-up과 11장의 session 없는 서버에 사용자별 tool 목록을 더하므로, 10·11장 다음에 읽는다.
-13장은 4장의 CIMD를 실제로 구현해 보므로 4장과 12장 다음에 읽는다.
+11\~13장은 앞 장의 practice를 이어받으므로 10장 다음에 차례로 읽는다.
 
 시간이 없으면 2·3·5·6장만 읽는다.
 2장에서 전체 흐름을 보고, 3장의 discovery, 5장의 token 발급, 6장의 token 검증으로 흐름의 중심을 따라간다.
@@ -38,10 +36,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 
 장마다 있는 "직접 해 보기" 절의 명령은 official practice를 띄운 상태에서 보낸다.
 official을 띄우는 방법과 필요한 도구는 [official README의 실행](../mcp-security-authn-official/README.md#실행)에 있다.
-10장의 명령은 official 대신 [mcp-security-authz practice](../mcp-security-authz/README.md#실행)를 띄운 상태에서 보낸다.
-11장의 명령은 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md#실행)를 띄운 상태에서 보낸다.
-12장의 명령은 [mcp-tool-visibility practice](../mcp-tool-visibility/README.md#실행)를 띄운 상태에서 보낸다.
-13장의 명령은 [mcp-cimd practice](../mcp-cimd/README.md#실행)를 띄운 상태에서 보낸다.
+10\~13장의 명령은 official 대신 각 장의 practice([authz](../mcp-security-authz/README.md#실행)·[stateless-handle](../mcp-stateless-handle/README.md#실행)·[tool-visibility](../mcp-tool-visibility/README.md#실행)·[cimd](../mcp-cimd/README.md#실행))를 띄운 상태에서 보낸다.
 
 다이어그램은 mermaid로 그렸다.
 GitHub와 IntelliJ는 mermaid를 그림으로 보여 준다.
@@ -60,10 +55,10 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [7. 로컬 MCP client](07-local-client.md) | 사용자 기기의 public client가 기본 browser와 loopback callback으로 전체 흐름을 혼자 밟는 과정 | `local-client`로 login부터 MCP 호출까지 하기, 등록되지 않은 issuer로 discovery에서 멈추기 |
 | [8. 보안](08-security.md) | SSRF, code 가로채기, 사칭, mix-up, confused deputy, token passthrough, DNS rebinding, session hijacking과 각 공격을 막는 장치 | agent의 callback에 다른 `iss`를 넣어 `401` 받기 |
 | [9. 버전](09-versions.md) | 2025-03-26부터 2026-07-28까지 authorization과 transport가 바뀐 이유, official이 따르는 기준 버전 | `2026-07-28`로 요청해 official이 `2025-11-25`로 답하고 `_meta` 요청을 `400`으로 거절하는 것 보기 |
-| [10. scope와 step-up](10-scope-and-step-up.md) | tool별 scope, 조회 scope로 시작해 쓰기 tool을 처음 부를 때 `403 insufficient_scope`를 받아 scope를 늘리는 step-up, web agent와 사용자 기기의 앱이 사용자에게 다시 묻는 방법 | `401`의 `scope`와 PRM의 `scopes_supported` 읽기, 조회 token으로 `403 insufficient_scope` 받기, web agent의 consent 카드와 `local-client`의 step-up 해 보기 |
-| [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, web agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | web agent에서 장바구니에 상품을 담고 결제하기, 캡처 스크립트로 session 없는 `initialize`와 GET의 `405`, `user2`가 남의 handle로 받는 결과 보기, `local-client`로 handle을 넘기고 step-up하기 |
-| [12. tool 목록과 권한](12-tool-visibility.md) | 사용자의 권한 밖의 tool은 숨기고 권한 안이지만 scope 밖의 tool은 step-up하는 MCP Server, 숨긴 tool의 호출에 없는 tool과 같은 오류로 답하는 이유, web agent가 사용자별 목록을 token마다 따로 cache하는 방법 | web agent에서 손님 `user2`와 점원 `user`로 재고 변경을 요청해 consent 카드가 점원에게만 뜨는 것 보기, 캡처 스크립트로 두 사용자의 `tools/list`와 숨긴 tool·없는 tool의 응답 비교하기, `local-client`로 숨긴 tool 불러 보기 |
-| [13. CIMD](13-cimd.md) | 미리 등록하지 않은 client가 `https` 문서의 주소를 `client_id`로 쓰는 방식, Authorization Server가 문서를 가져와 믿기까지의 검사, `private_key_jwt`와 `none` 두 인증 방식, public client의 refresh rotation | ChatGPT형과 Claude형으로 login해 consent 화면의 두 host 보기, 캡처 스크립트로 assertion 없는 요청과 옛 refresh token이 거절되는 것 보기 |
+| [10. scope와 step-up](10-scope-and-step-up.md) | tool별 scope, 조회 scope로 시작해 쓰기 tool을 처음 부를 때 `403 insufficient_scope`를 받아 scope를 늘리는 step-up, web agent와 사용자 기기의 앱이 사용자에게 다시 묻는 방법 | 조회 token으로 `403 insufficient_scope` 받기, web agent와 `local-client`의 step-up 해 보기 |
+| [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, web agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | web agent에서 장바구니에 상품을 담고 결제하기, `user2`가 남의 handle로 받는 결과 보기 |
+| [12. tool 목록과 권한](12-tool-visibility.md) | 사용자의 권한 밖의 tool은 숨기고 권한 안이지만 scope 밖의 tool은 step-up하는 MCP Server, 숨긴 tool의 호출에 없는 tool과 같은 오류로 답하는 이유, web agent가 사용자별 목록을 token마다 따로 cache하는 방법 | 손님 `user2`와 점원 `user`의 `tools/list` 비교하기, 숨긴 tool과 없는 tool의 응답 비교하기 |
+| [13. CIMD](13-cimd.md) | 미리 등록하지 않은 client가 `https` 문서의 주소를 `client_id`로 쓰는 방식, Authorization Server가 문서를 가져와 믿기까지의 검사, `private_key_jwt`와 `none` 두 인증 방식, public client의 refresh rotation | ChatGPT형과 Claude형으로 login해 consent 화면의 두 host 보기, 옛 refresh token이 거절되는 것 보기 |
 
 ## 부록
 
@@ -76,13 +71,6 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 
 - [mcp-security-authn-chat-memory](../mcp-security-authn-chat-memory/README.md): official에 사용자별 대화 기억을 더하고, MCP session을 사용자에 묶는다.
 - [mcp-security-authn-community](../mcp-security-authn-community/README.md): 같은 흐름을 spring-ai-community의 MCP 보안 module 자동 설정으로 만든다.
-- [mcp-security-authz](../mcp-security-authz/README.md): official에 tool별 scope와 step-up을 더한다.
-  10장은 이 practice로 scope와 step-up을 설명한다.
-- [mcp-stateless-handle](../mcp-stateless-handle/README.md): authz의 MCP Server를 session 없이 돌리고, 장바구니처럼 호출 사이에 남는 상태를 서버가 만든 handle로 주고받는다.
-  11장은 이 practice로 stateless와 handle을 설명한다.
-- [mcp-tool-visibility](../mcp-tool-visibility/README.md): stateless에 사용자 역할을 더해, 사용자의 권한으로는 쓸 수 없는 tool은 목록에서 숨기고 권한은 있지만 아직 scope를 받지 않은 tool은 step-up하게 한다.
-  12장은 이 practice로 사용자별 tool 목록과 그 목록의 cache를 설명한다.
-- [mcp-cimd](../mcp-cimd/README.md): visibility에 CIMD를 더해, 미리 등록하지 않은 client가 `https` 문서의 주소를 `client_id`로 쓴다.
-  13장은 이 practice로 Authorization Server가 문서를 가져와 믿기까지의 검사와 두 인증 방식을 설명한다.
+- [mcp-security-authz](../mcp-security-authz/README.md), [mcp-stateless-handle](../mcp-stateless-handle/README.md), [mcp-tool-visibility](../mcp-tool-visibility/README.md), [mcp-cimd](../mcp-cimd/README.md): 10\~13장이 차례로 쓰는 practice다. 각 practice가 더하는 것은 이 문서의 맨 위에 있다.
 - [agent-mcp](../agent-mcp/README.md)와 [agent-mcps](../agent-mcps/README.md): authorization 없이 MCP Server와 agent만 다룬다.
   1장의 내용을 더 작은 예제로 볼 수 있다.

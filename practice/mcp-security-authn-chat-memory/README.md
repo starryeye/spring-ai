@@ -107,9 +107,7 @@ sequenceDiagram
 
 ### 사용자별 MCP client의 필요성
 
-official의 agent는 MCP client 하나를 모든 사용자가 같이 쓴다.
-그 client의 session에는 채팅한 사용자마다 다른 token이 붙는다.
-MCP Server가 session을 처음 연 사용자에 묶으면, 다른 사용자의 요청은 모두 막힌다.
+official처럼 MCP client 하나를 모든 사용자가 같이 쓰면, MCP Server가 session을 처음 연 사용자에 묶을 때 다른 사용자의 요청이 모두 막힌다.
 그래서 이 practice의 agent는 사용자마다 MCP client를 따로 연다.
 
 `application.yml`의 `spring.ai.mcp.client.enabled: false`가 Spring AI의 MCP client 자동 구성을 끈다.
@@ -141,18 +139,15 @@ client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 �
 | 요청의 session ID가 누구에게도 묶여 있지 않을 때 | `404`로 답하고 transport에 넘기지 않는다. 처음 보는 ID, 끝낸 session, 만료된 묶음이 여기에 든다 |
 | 묶음을 1시간 쓰지 않았을 때 | 묶음을 지운다. 요청을 처리할 때 1분에 한 번 오래된 묶음을 정리한다 |
 
-한 사용자가 여러 session을 열면 session마다 그 사용자에 묶인다.
-묶음은 서버 메모리의 map에 있고, 성공한 `DELETE`로 지워진다.
-agent가 `DELETE` 없이 끝나면 묶음이 계속 쌓이므로, 1시간 쓰지 않은 묶음도 지운다.
-묶음만 지우고 요청을 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있다.
-그래서 묶음이 지워진 session으로 요청하면 filter가 직접 `404`로 답하고, SDK client는 다음 요청부터 다시 `initialize`한 새 session을 쓴다.
+한 사용자가 여러 session을 열면 session마다 그 사용자에 묶이고, 묶음은 서버 메모리의 map에 있다.
+1시간 쓰지 않은 묶음을 지우는 것은 agent가 `DELETE` 없이 끝나면 묶음이 계속 쌓이기 때문이다.
+묶음이 없는 session을 filter가 직접 `404`로 끝내는 것은, 묶음만 지우고 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있기 때문이다.
+SDK client는 `404`를 받으면 다음 요청부터 다시 `initialize`한 새 session을 쓴다.
 
 ### token을 client 주인에게 묶는 이유
 
-official의 `OAuth2TokenAttachingRequestCustomizer`는 요청마다 transport context에서 사용자를 찾는다([6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법)).
-그 context는 MCP 요청을 일으킨 thread의 `SecurityContext`에서 온다.
-그런데 client를 닫을 때 SDK가 보내는 session 종료 `DELETE`에는 빈 transport context가 넘어온다.
-그래서 official의 agent는 앱이 끝날 때 이 `DELETE`를 token 없이 보낸다([8장 official이 지키지 못한 것](../mcp-guide/08-security.md#812-official이-지키지-못한-것)).
+official의 `OAuth2TokenAttachingRequestCustomizer`는 요청마다 transport context, 곧 MCP 요청을 일으킨 thread의 `SecurityContext`에서 사용자를 찾는다([6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법)).
+그런데 client를 닫을 때 SDK가 보내는 session 종료 `DELETE`에는 빈 transport context가 넘어와, official의 agent는 앱이 끝날 때 이 `DELETE`를 token 없이 보낸다([준수표의 남은 위반](../mcp-guide/reference-compliance.md#남은-위반)).
 
 이 practice의 `OAuth2TokenAttachingRequestCustomizer`는 client를 만들 때 주인의 `Authentication`을 받는다.
 요청마다 transport context를 보지 않고, 그 주인으로 token을 찾는다.

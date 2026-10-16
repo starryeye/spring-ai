@@ -116,8 +116,7 @@ sequenceDiagram
 지금 쓰는 MCP Java SDK가 아직 최신 2026-07-28 버전을 지원하지 않기 때문이다.
 2026-07-28 버전에는 `initialize`와 session이 없고, 무엇이 왜 바뀌었는지는 [9장](09-versions.md)에서 본다.
 
-아래 예시는 official practice를 실제로 띄워 받은 응답이다.
-official의 MCP Server는 token이 없는 요청을 `401`로 거절해서, 모든 요청에 `Authorization` header가 있다.
+official의 MCP Server는 token이 없는 요청을 `401`로 거절해서, 아래 예시의 모든 요청에 `Authorization` header가 있다.
 token을 받는 과정은 3\~5장, 이 header를 검사하는 과정은 6장에서 다룬다. 이 장에서는 이 header를 건너뛰고 읽어도 된다.
 
 ## 1.4 1단계: `initialize`로 서로를 소개한다
@@ -199,7 +198,7 @@ data:{"jsonrpc":"2.0","id":2,"result":{"tools":[ ... ]}}
 1단계 응답은 JSON(`application/json`) 하나였지만, 이번 응답은 `text/event-stream`, 즉 SSE(Server-Sent Events) 형식이다.
 SSE는 서버가 한 응답 안에서 메시지를 여러 번 나눠 보내는 방식이고, 메시지 하나는 `id:`·`event:`·`data:` 줄의 묶음이다.
 오래 걸리는 작업이라면 진행 상황 notification을 먼저 보내고 마지막에 JSON-RPC 응답을 보낼 수 있다. official의 tool은 바로 끝나서 응답 하나만 있다.
-client는 JSON과 SSE 중 무엇이 올지 모르므로, `Accept`에 두 형식을 모두 적고 둘 다 처리한다. official은 `text/event-stream`이 빠진 요청을 `400`으로 거절한다.
+client는 JSON과 SSE 중 무엇이 올지 모르므로, `Accept`에 두 형식을 모두 적고 둘 다 처리한다.
 `id:` 줄은 끊긴 stream을 이어 받을 때 쓰는 SSE event ID로, JSON-RPC의 `id`와는 다르다. official에서는 Spring AI의 transport가 이 자리에 session ID를 넣는다.
 
 `data:` 줄의 JSON을 펼치면 다음과 같다.
@@ -277,7 +276,7 @@ client 쪽에서는 MCP Java SDK의 `McpSyncClient` 객체가 session ID와 협�
 
 명세는 이 header를 `MCP-Session-Id`로 적는다. HTTP header 이름은 대소문자를 가리지 않아서 official의 `Mcp-Session-Id`와 같은 header다.
 
-session ID 없이 `tools/list`를 보내면 `400`, `DELETE`로 끝낸 session으로 보내면 `404`가 온다.
+official에 session ID 없이 `tools/list`를 보낸 응답과, `DELETE`로 끝낸 session으로 보낸 응답은 다음과 같다.
 
 ```text
 HTTP/1.1 400  {"jsonRpcError":{"code":-32601,"message":"Session ID missing"},"...":"그 밖의 field는 생략"}
@@ -285,7 +284,7 @@ HTTP/1.1 404  {"jsonRpcError":{"code":-32603,"message":"Session not found: d04dc
 ```
 
 두 본문은 Spring AI의 transport가 예외 객체를 그대로 JSON으로 만든 것이라, JSON-RPC 응답 형식이 아니고 stack trace까지 들어 있다. 그러니 client는 본문이 아니라 상태 코드로 판단한다.
-서버가 발급한 적 없는 session ID를 보내도 똑같이 `404`다. MCP Java SDK client는 `404`를 받으면 그 session을 버리고 `initialize`부터 다시 한다.
+서버가 발급한 적 없는 session ID를 보내도 똑같이 `404`다.
 
 **MCP session은 사용자의 login session이 아니다**
 
@@ -337,8 +336,7 @@ Content-Type: application/json;charset=UTF-8
 1.2에서 설명한 `error`다. `code`는 오류 종류를 나타내는 정수다. `-32600`은 JSON-RPC가 정한 "잘못된 요청(Invalid Request)"이다.
 `id`가 `null`인 것은 서버가 본문을 읽기 전에 거절해서 요청의 `id`를 모르기 때문이다.
 
-official의 MCP Server가 쓰는 Spring AI MCP 2.0.0의 Streamable HTTP transport는 이 header를 검사하지 않는다. 모르는 버전을 보내도 `200`이다.
-그래서 official은 `McpProtocolVersionFilter`로 이 검사를 따로 한다. 이 filter의 코드는 6장에서 본다.
+official이 쓰는 Spring AI의 Streamable HTTP transport는 이 header를 검사하지 않아서, official은 filter를 따로 두어 검사한다(6장).
 header가 없는 요청은 그대로 통과시킨다. 이 서버는 버전에 따라 동작이 달라지지 않기 때문이다.
 
 ## 1.11 transport: stdio와 Streamable HTTP
@@ -368,7 +366,6 @@ HTTP 서버에는 주소를 아는 누구나 요청을 보낼 수 있다.
 
 stdio server는 사용자의 앱이 사용자의 기기에서 띄운다. 네트워크로 열려 있지 않아서, 띄운 client 말고는 요청을 보낼 수 없다.
 그래도 외부 API를 부르려면 API key 같은 credentials가 필요하고, 이 값은 host가 서버를 띄울 때 환경 변수로 넘긴다.
-MCP 명세도 authorization 규칙은 HTTP transport에만 적용하고, stdio server는 환경에서 credentials를 가져오게 한다.
 Spring AI는 `spring.ai.mcp.client.stdio.connections.<이름>`의 `command`·`args`·`env`로, Claude Desktop은 설정 파일의 같은 세 항목으로 서버를 띄운다.
 
 ## 1.12 official 코드에서 보기

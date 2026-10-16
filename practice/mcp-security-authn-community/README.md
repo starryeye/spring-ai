@@ -12,7 +12,7 @@ module의 소스와 문서는 [spring-ai-community/mcp-security](https://github.
   official의 클래스가 무엇으로 바뀌었는지는 [대체 표](#대체-표)에 있다.
 - MCP Server는 token의 `aud`와 비교할 값을 설정이 아니라 요청 URL로 계산한다.
   그래서 `Host` 검사가 audience 검증의 전제가 된다([Host 검증과 audience 계산](#host-검증과-audience-계산)).
-- agent는 PRM을 요청하기 전에 그 URL의 scheme을 module의 검증기로 확인한다([준수표에서 official과 다른 곳](#준수표에서-official과-다른-곳)).
+- agent는 PRM을 요청하기 전에 그 URL의 scheme을 module의 검증기로 확인한다([준수표](../mcp-guide/reference-compliance.md#준수표)의 27번).
 - MCP Server가 `Origin`이나 `Host`를 거절할 때 본문이 JSON-RPC 오류 형식이다.
 - 포트와 client_id가 official과 달라서 두 practice를 함께 띄울 수 있다.
 
@@ -194,25 +194,6 @@ sequenceDiagram
 `127.0.0.1:8101`로 부르면 `Host` 검사는 통과하지만, 비교할 값이 `http://127.0.0.1:8101/mcp`가 된다.
 Authorization Server는 `http://localhost:8101/mcp`용 token만 발급하므로, 그 요청은 `401`이다.
 
-## 준수표에서 official과 다른 곳
-
-세 practice의 판정은 [준수표](../mcp-guide/reference-compliance.md#준수표)에 있다.
-community의 판정 근거가 official과 갈리는 행은 아래와 같다.
-session을 사용자에 묶지 않는 28번 행은 이유가 official과 같아서 이 표에 넣지 않는다.
-
-| 행 | 항목 | community의 동작 |
-|---|---|---|
-| 8 | token audience 검증 | 비교할 `aud`를 요청 URL로 계산한다. 그래서 `Host` 검사가 먼저 온다([Host 검증과 audience 계산](#host-검증과-audience-계산)) |
-| 11 | `Origin`·`Host` 검사 | module의 `OriginValidationFilter`가 filter chain 안, 인증 filter 앞에서 검사한다. 허용 `Origin`은 `http://localhost:8101` 하나다 |
-| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM을 요청하기 전에 그 URL을 URL 검증기로 확인한다. 검증기는 scheme과 경로의 `..`만 보므로, origin 확인은 module이 challenge를 읽은 뒤 PRM을 가져오기 전에 `McpAuthorizationDiscovery`가 한다 |
-| 36 | 모든 MCP 요청의 `Authorization` header | module의 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`는 transport context에 `Authentication`과 servlet 요청이 모두 있어야 token을 붙인다. 앱이 끝날 때 나가는 session 종료 `DELETE`에는 둘 다 없어 token 없이 나간다 |
-
-27번의 URL 검증기는 `shop-agent`의 `McpSecurityConfig`가 정한다.
-이 practice는 모든 앱이 `http://localhost`에서 돌아서, loopback 주소의 `http`도 받는 `DefaultUrlValidator(true)`를 넘긴다.
-module의 기본값 `DefaultUrlValidator()`는 `https`만 받으므로, 운영에서는 기본값을 쓴다.
-official의 agent는 scheme 검증기 없이, `resource_metadata`가 MCP Server와 같은 origin인지만 본다([8장 discovery SSRF](../mcp-guide/08-security.md#82-discovery-ssrf와-위험한-authorization-주소)).
-session 종료 `DELETE`에 token을 붙이는 방법은 [chat-memory practice](../mcp-security-authn-chat-memory/README.md#token을-client-주인에게-묶는-이유)에 있다.
-
 ## 실행
 
 준비물과 `run.sh`가 하는 일은 [official의 실행](../mcp-security-authn-official/README.md#실행)과 같다.
@@ -225,10 +206,8 @@ cd practice/mcp-security-authn-community
 
 `run.sh`는 `auth-server`(9000) → `shop-mcp-server`(8101) → `shop-agent`(8100) 순서로 띄운다.
 직접 띄울 때 순서를 지키지 않아도 되는 것은 official과 같다.
-이 practice에서는 `SecurityConfig`가 Boot의 `JwtDecoder`를 module에 넘기기 때문에 이 성질이 유지된다.
-Boot의 decoder는 Authorization Server의 metadata를 첫 token 검증 때 읽는다.
-module이 직접 만드는 `NimbusJwtDecoder.withIssuerLocation(...).build()`는 앱이 뜰 때 metadata를 읽는다.
-그래서 이 decoder를 쓰면 `auth-server`가 떠 있지 않을 때 `shop-mcp-server`가 뜨지 않는다.
+`SecurityConfig`가 module에 넘기는 Boot의 `JwtDecoder`는 Authorization Server의 metadata를 첫 token 검증 때 읽기 때문이다.
+module이 직접 만드는 `NimbusJwtDecoder.withIssuerLocation(...).build()`를 쓰면 앱이 뜰 때 metadata를 읽으므로, `auth-server`가 떠 있지 않으면 `shop-mcp-server`가 뜨지 않는다.
 앱의 로그는 `practice/mcp-security-authn-community/logs/<module>.log`에 남는다.
 
 browser에서 `http://localhost:8100/`을 열고 `user`/`password`로 login한 뒤 상품 재고를 묻는다.
@@ -257,8 +236,8 @@ package는 `auth-server`가 `dev.starryeye.community.authserver`, `shop-mcp-serv
 | | `ResourceAudienceTokenCustomizer` | access token의 `aud`를 `resource`로 정하고, ID token의 `aud`를 client_id로 되돌린다 | [5장 token의 내용](../mcp-guide/05-authorization-and-token.md#58-token의-내용-access-token과-id-token) |
 | `shop-mcp-server` | `SecurityConfig` | `McpServerOAuth2Configurer`로 token 검증, audience 검증, PRM, `401` entry point, `Origin`·`Host` 검사를 설정한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증) |
 | | `McpProtocolVersionFilterConfig` | `McpProtocolVersionFilter`를 MCP endpoint에만 등록한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
-| `shop-agent` | `McpAuthorizationDiscovery` | challenge와 PRM은 module에 맡기고, issuer 비교와 Authorization Server Metadata 확인을 한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
-| | `McpSecurityConfig` | discovery, client 등록 정보, `resource`를 넣는 token request client, authorized client manager를 등록한다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
+| `shop-agent` | `McpAuthorizationDiscovery` | challenge와 PRM은 module에 맡기되 그 사이에서 `resource_metadata`의 origin을 확인하고, 그 뒤의 issuer 비교와 Authorization Server Metadata 확인을 한다. module의 URL 검증기는 scheme과 경로의 `..`만 보기 때문이다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
+| | `McpSecurityConfig` | discovery, client 등록 정보, `resource`를 넣는 token request client, authorized client manager를 등록한다. 모든 앱이 `http://localhost`라서 PRM URL 검증기로 loopback `http`도 받는 `DefaultUrlValidator(true)`를 넘기고, 운영에서는 `https`만 받는 기본값 `DefaultUrlValidator()`를 쓴다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | | `ChatController` | `.contextWrite(...)`로 요청 thread의 인증을 reactor context에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 
 ## 직접 확인할 것

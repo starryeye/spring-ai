@@ -33,38 +33,20 @@ MCP 요청 형식은 stateless와 같은 2025-11-25이고, 버전도 Spring Boot
 
 ### 숨기기와 step-up
 
-모델은 `tools/list`로 받은 tool만 안다.
-그래서 지금 token에 없는 scope의 tool까지 숨기면, 모델은 그 tool을 몰라 부르지 않고 step-up도 시작되지 않는다.
-이 practice의 MCP Server는 "이 사용자가 언젠가 받을 수 있는 scope인지"로 숨길지를 정한다.
-자세한 이유는 [12장 필요성](../mcp-guide/12-tool-visibility.md#121-권한별-tool-목록의-필요성)에서 본다.
+MCP Server는 지금 token의 scope가 아니라, 이 사용자가 언젠가 받을 수 있는 scope인지로 tool을 숨길지 정한다.
+지금 token에 없는 scope의 tool까지 숨기면, 모델이 그 tool을 몰라 step-up도 시작되지 않기 때문이다([12장 필요성](../mcp-guide/12-tool-visibility.md#121-권한별-tool-목록의-필요성)).
+역할 표에서는 `user`만 점원(`STAFF`)이고, `user2`처럼 표에 없는 사용자와 `sub`가 없는 token은 손님(`CUSTOMER`)이다.
+그래서 손님에게는 `products:write`가 필요한 `updateStock`만 숨긴다.
+`checkout`과 점원의 `updateStock`은 목록에 보이고, 처음 부르면 `403`으로 step-up한다.
+역할별 scope와 tool 표는 [12장 1단계](../mcp-guide/12-tool-visibility.md#123-1단계-역할로-거른-toolslist)에 있다.
 
-역할은 MCP Server의 표에 있다.
-`user`만 점원(`STAFF`)이고, 표에 없는 사용자(`user2` 포함)와 `sub`가 없는 token은 손님(`CUSTOMER`)이다.
-
-| 역할 | 받을 수 있는 scope |
-|---|---|
-| 점원(`STAFF`) | `products:read`, `products:write`, `orders:write` |
-| 손님(`CUSTOMER`) | `products:read`, `orders:write` |
-
-tool마다 필요한 scope(`@RequiredScope`)를 이 표와 맞춰 보면, 손님에게는 `updateStock`만 숨겨진다.
-
-| tool | 필요한 scope | 점원 `user` | 손님 `user2` |
-|---|---|---|---|
-| `searchProducts`, `getStock`, `createBasket`, `addItem`, `getBasket` | `products:read` | 보인다 | 보인다 |
-| `checkout` | `orders:write` | 보인다. 처음 부르면 `403`으로 step-up한다 | 보인다. 처음 부르면 `403`으로 step-up한다 |
-| `updateStock` | `products:write` | 보인다. 처음 부르면 `403`으로 step-up한다 | 숨긴다. 부르면 "모르는 tool" 오류가 오고 step-up은 없다 |
-
-Authorization Server는 역할을 모른다.
-그래서 client가 `user2`의 authorization request에 `products:write`를 넣어도, Authorization Server는 consent 화면을 보여 주고 그 scope가 든 token을 준다.
-그래도 MCP Server는 역할로 거르므로, 그 token으로 받은 목록도 6개이고 `updateStock`은 "모르는 tool"이며 재고는 그대로다.
-MCP Server는 손님에게 `products:write`를 요구하는 `403`을 보내지 않는다.
-그래서 web agent와 `local-client`가 손님의 token에 이 scope를 요청할 일은 없다.
+Authorization Server는 역할을 모르므로, `user2`가 `products:write`가 든 token을 받아도 목록은 6개이고 `updateStock`은 "모르는 tool"이다.
+MCP Server는 손님에게 `products:write`를 요구하는 `403`을 보내지 않으므로, 두 client가 손님의 token에 이 scope를 요청할 일은 없다.
 
 ### 사용자별 목록 cache
 
 agent에서는 모든 사용자가 MCP client 하나를 같이 쓴다([stateless의 session 없는 서버](../mcp-stateless-handle/README.md#session-없는-서버)).
-MCP Server가 사용자마다 다른 목록을 주므로, 목록 하나를 받아 모두에게 쓰면 먼저 물은 사람의 목록이 다른 사람에게 간다.
-그래서 자동 구성의 tool provider를 끄고, `UserToolCatalog`가 목록을 access token별로 둔다.
+목록 하나를 받아 모두에게 쓰면 먼저 물은 사람의 목록이 다른 사람에게 가므로, `UserToolCatalog`가 목록을 access token별로 둔다.
 
 ```mermaid
 sequenceDiagram
@@ -98,13 +80,8 @@ sequenceDiagram
 step-up으로 token이 바뀌면 key가 달라지므로 목록을 다시 받는다(9)(10)(11).
 질문마다 그 사용자의 목록만 모델에게 가므로, `user2`의 질문을 받은 모델은 `updateStock`을 보지 못한다.
 
-로그나 heap dump에 token이 그대로 보이지 않도록, key는 token 값 대신 그 SHA-256 hex로 둔다.
-5분은 agent가 정한 값이다.
-2025-11-25 서버는 목록의 유효 시간(`ttlMs`)을 알려 주지 않기 때문이다.
-만료된 항목은 목록을 꺼낼 때 지우고, 만료 전에 미리 다시 받지는 않는다.
-"모르는 tool" 오류가 오면 5분이 지나지 않았어도 그 token의 목록을 버린다.
-access token은 5분 동안 유효하고 agent는 만료 1분 전부터 refresh하므로, 같은 key는 token을 받은 뒤 4분쯤까지만 쓰인다.
-이 규칙들이 2026-07-28 Caching의 어느 규칙에 해당하는지는 [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)에서 본다.
+key는 token 값 대신 그 SHA-256 hex이고, "모르는 tool" 오류가 오면 5분이 지나지 않았어도 그 token의 목록을 버린다.
+key를 token으로 잡는 이유, 5분을 agent가 정하는 이유, refresh 때문에 한 key가 4분쯤까지만 쓰이는 이유는 [12장 web agent의 목록 cache](../mcp-guide/12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)에 있다.
 
 ## 실행
 
@@ -145,8 +122,7 @@ agent 화면에는 logout이 없다.
 
 `local-client`에게는 `auth-server`와 `shop-mcp-server`만 있으면 된다.
 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 돈다.
-Java 21을 sdkman으로 설치했다면 아래 첫 줄로 맞춘다.
-다른 방법으로 설치했다면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
+sdkman으로 설치한 Java 21이면 아래 첫 줄로 맞추고, 아니면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
 
 ```bash
 # 저장소 최상위 폴더에서
@@ -158,8 +134,7 @@ cd practice/mcp-tool-visibility/local-client
 browser는 두 번 열린다.
 처음 열린 browser에 login 화면이 나오면 `user`나 `user2`로 login하고, consent 화면에서 `products:read`를 체크해 제출한다.
 `checkout`이 `403`을 받으면 step-up의 consent 화면이 열린다.
-`local-mcp-client`는 public client라서 Authorization Server가 consent를 저장하지 않는다.
-그래서 이 화면은 `products:read`와 `orders:write`를 모두 묻고, 여기서는 둘 다 체크해 제출한다.
+public client는 consent가 저장되지 않아 이 화면이 `products:read`와 `orders:write`를 모두 묻고, 여기서는 둘 다 체크해 제출한다.
 `user`면 `tools:` 줄에 tool 7개가, `user2`면 6개와 `updateStock(목록에 없음)` 줄이 찍힌다.
 
 browser가 이미 auth-server에 login되어 있으면, login 화면 없이 그 계정으로 진행된다.
@@ -237,32 +212,11 @@ web agent의 줄은 표의 순서대로 한다.
 LLM의 답은 `qwen3:8b`의 출력이라 문장이 매번 조금씩 다르다.
 기기에 따라 답 하나에 30\~100초가 걸린다.
 
-모델이 손님의 목록에 없는 `updateStock`을 그래도 부르면, Spring AI가 MCP 요청 없이 그 turn을 끝낸다.
-agent는 그 turn을 대화 기억에서 되돌리고, 화면에 `이 계정에서는 updateStock을(를) 쓸 수 없습니다.`를 보여 준다.
-다음 질문은 그 turn이 시작되기 전의 기억에서 이어진다.
-
 `logs/shop-agent.log`에는 실패가 아닌데도 `ERROR` 줄이 남는 경우가 있다.
-점원의 `updateStock`이 `403`을 받을 때 남는 줄은 [stateless의 직접 확인할 것](../mcp-stateless-handle/README.md#직접-확인할-것)과 같다.
+점원의 `updateStock`이 `403`을 받을 때 남는 줄은 [authz의 직접 확인할 것](../mcp-security-authz/README.md#직접-확인할-것)과 같다.
 agent의 목록이 낡아 MCP Server가 "모르는 tool"로 답하면, `SyncMcpToolCallback`이 `Protocol error while calling tool:`로 시작하는 `ERROR` 줄을 남긴다.
-목록이 낡는 것은 agent가 목록을 받아 둔 동안 MCP Server의 목록이 바뀐 경우다.
-이 practice에서는 `McpTransportConfig`의 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면 이렇게 된다.
 agent는 이 오류를 받아 그 token의 목록을 버리고 모델에게 문장으로 돌려주므로, turn은 이어진다.
-
-직접 보려면 점원의 step-up이 끝난 직후에 한다.
-agent는 step-up으로 받은 token의 목록을 그 뒤 4분쯤까지만 쓰기 때문이다.
-`shop-mcp-server`의 `McpTransportConfig`에서 역할 표 `Map.of("user", ToolVisibility.Role.STAFF)`를 `Map.of()`로 바꾸고, MCP Server만 다시 띄운다.
-`run.sh`는 포트가 이미 쓰이고 있는 서버를 건너뛰므로, 나머지 두 서버는 그대로 두고 MCP Server만 새로 띄운다.
-
-```bash
-# practice/mcp-tool-visibility에서
-kill $(lsof -ti tcp:8161 -sTCP:LISTEN)
-./run.sh
-```
-
-`run.sh`가 `[건너뜀] shop-mcp-server`를 찍으면 옛 MCP Server가 아직 내려가는 중이므로, 몇 초 뒤 `./run.sh`를 다시 실행한다.
-그 뒤 점원이 재고를 다시 바꿔 달라고 해서 모델이 `updateStock`을 부르면, MCP Server 로그에 `숨긴 tool 호출 — 사용자=user, 역할=CUSTOMER, tool=updateStock`이 찍힌다.
-`logs/shop-agent.log`에는 위의 `ERROR` 줄과 `모르는 tool 오류로 이 token의 tool 목록을 버린다`가 찍힌다.
-확인한 뒤에는 역할 표를 되돌리고, 같은 명령으로 MCP Server를 다시 띄운다.
+역할 표에서 `user`를 빼고 MCP Server만 다시 띄워 낡은 목록을 직접 만드는 절차는 [12장 직접 해 보기](../mcp-guide/12-tool-visibility.md#1213-직접-해-보기)의 "낡은 목록"에 있다.
 
 agent는 SSE stream을 시작하기 전에, 요청 thread에서 그 사용자의 목록을 꺼낸다.
 그래서 목록을 새로 받다가 실패하면 화면에는 `오류: HTTP 500`만 나오고, 원인은 `logs/shop-agent.log`에 있다.

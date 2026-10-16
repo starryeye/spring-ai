@@ -22,7 +22,7 @@ Spring Boot 없이 Java 21과 MCP Java SDK만 쓴다.
 한 클래스가 한 단계를 맡는다.
 3장의 discovery, 5장의 authorization request와 token request, 6장의 MCP 호출이 이 앱 하나에 모두 들어 있다.
 이 장에서는 `local-client`의 클래스를 단계 순서로 읽고, 직접 돌려 본다.
-단계를 차례로 부르는 `Main#run`은 [2장](02-why-oauth.md)의 2.8에 있다.
+단계를 차례로 부르는 `Main#run`은 [2장](02-why-oauth.md#28-official-코드에서-보기)에 있다.
 
 ## 7.2 전체 흐름: 시퀀스 다이어그램
 
@@ -94,8 +94,7 @@ public AuthorizationServer discover(String resourceUrl, String trustedIssuer) {
 }
 ```
 
-확인하는 항목은 3장 3.6의 표와 같다.
-PRM의 `resource`, metadata의 `issuer`, PKCE `S256` 지원, endpoint 주소의 형식을 본다.
+확인하는 항목은 [3장](03-discovery.md#36-client가-반드시-확인하는-것)의 표와 같다.
 하나라도 어긋나면 `LocalClientException`을 던지고, `Main`은 `실패:`로 시작하는 한 줄을 찍고 끝난다.
 
 PRM의 `authorization_servers`에는 issuer가 여럿 있을 수 있다.
@@ -135,17 +134,13 @@ private void handle(HttpExchange exchange) throws IOException {
 }
 ```
 
-포트를 정해 두지 않는 이유가 있다.
-고정 포트는 다른 프로그램이 이미 쓰고 있을 수 있고, 그러면 callback server를 열 수 없다.
-운영체제가 고른 빈 포트는 실행할 때마다 다르다.
-
-등록된 redirect URI는 `http://127.0.0.1:8123/callback`이지만, Authorization Server가 loopback IP 주소의 포트를 빼고 비교하므로 빈 포트를 써도 된다([4장](04-client-registration.md)).
+포트를 고정하면 다른 프로그램이 그 포트를 쓰고 있을 때 callback server를 열 수 없어서, 운영체제가 고른 빈 포트를 쓴다.
+등록된 redirect URI는 `http://127.0.0.1:8123/callback`이지만, Authorization Server가 loopback IP 주소의 포트를 빼고 비교하므로 빈 포트를 써도 된다([4장](04-client-registration.md#44-public-client의-규칙)).
 
 `Main`은 callback server를 열기 전에 이번 authorization request의 `state`를 만들어 넘긴다(7.5).
 callback server는 `GET`이고 `state`가 그 값과 같은 callback만 결과로 쓴다.
 같은 기기의 다른 프로그램이나 web page가 빈 포트를 찾아 가짜 callback을 먼저 보낼 수 있기 때문이다.
 그런 callback이 결과가 되면 진짜 callback은 버려지고 login이 실패하므로, 가짜에는 `400`으로 답하고 진짜 callback을 계속 기다린다.
-browser가 함께 보내는 `/favicon.ico` 같은 요청에는 `404`로 답한다.
 `Main`은 callback을 5분 동안 기다리고, 그 안에 login이 끝나지 않으면 멈춘다.
 
 ## 7.5 3단계: authorization request 주소를 만든다 — `AuthorizationRequest`
@@ -171,21 +166,13 @@ public static URI uri(AuthorizationServer server, String clientId, URI redirectU
 }
 ```
 
-parameter의 뜻은 5장과 같다.
-같은 기기의 다른 프로그램이 loopback redirect의 code를 가로채도, `code_verifier`가 없으므로 token으로 바꾸지 못한다(5장).
+parameter의 뜻은 [5장](05-authorization-and-token.md)과 같고, 하나씩은 [부록: API 레퍼런스](reference-api.md#get-oauth2authorize--authorization-request)에 있다.
 
 **scope**
 
-`scope`는 `Main`에 상수로 정해 두었다.
-
-```java
-/** public client는 openid 말고 consent할 scope가 하나는 있어야 한다. */
-static final String SCOPE = "openid profile";
-```
-
-official의 MCP Server는 scope를 알려 주지 않으므로, 5장의 scope 고르기 순서를 따르면 `local-client`는 `scope` 없이 요청하게 된다.
-그런 public client의 요청은 official의 Authorization Server가 `invalid_scope`로 거절하므로(5.5), `local-client`는 `openid profile`을 보낸다.
-MCP Server가 `scope`나 `scopes_supported`를 알려 주면, client는 그 값을 쓰면 된다.
+`scope`는 `Main`에 `openid profile`로 정해 두었다.
+official의 MCP Server는 scope를 알려 주지 않아서, 5장의 scope 고르기 순서를 따르면 `scope`를 빼고 보내게 된다.
+그런데 official의 Authorization Server는 `openid` 말고 consent할 scope가 없는 public client의 요청을 `invalid_scope`로 거절하므로, `profile`을 넣는다([5장](05-authorization-and-token.md#55-login과-consent)).
 
 **browser 열기**
 
@@ -195,8 +182,7 @@ MCP Server가 `scope`나 `scopes_supported`를 알려 주면, client는 그 값�
 사용자도 주소창을 볼 수 없어서, 진짜 Authorization Server의 화면인지 알 수 없다.
 기본 browser로 열면 비밀번호는 Authorization Server에만 가고, browser에 남은 login session도 그대로 쓴다.
 
-`local-client`는 browser를 열기 전에 주소를 terminal에도 찍는다.
-browser를 열 수 없는 환경이면, 사용자가 그 주소를 같은 기기의 browser에 붙여 넣는다.
+`local-client`는 주소를 terminal에도 찍으므로, browser를 열 수 없으면 그 주소를 같은 기기의 browser에 붙여 넣는다(7.9의 `--no-browser`).
 callback이 `127.0.0.1`로 오므로, browser는 `local-client`와 같은 기기에 있어야 한다.
 
 ## 7.6 4단계: callback을 확인한다 — `AuthorizationResponse`
@@ -259,10 +245,7 @@ public TokenResponse exchange(AuthorizationServer server, String clientId, Strin
 }
 ```
 
-confidential client인 `shop-agent`는 `Authorization: Basic` header로 `client_secret`을 보낸다(5장).
-`local-client`의 요청에는 그 header가 없다.
 `local-mcp-client`는 인증 방식 `none`으로 등록돼 있어서, Authorization Server는 비밀 대신 `code_verifier`가 `code_challenge`와 맞는지 본다.
-보내는 parameter는 5장의 public client token request와 같다.
 
 응답에는 `refresh_token`이 없다(4장).
 `TokenResponse`는 access token과 `expires_in` 두 값만 가진다.
@@ -317,9 +300,8 @@ cd practice/mcp-security-authn-official
 ./run.sh
 ```
 
-`run.sh`는 `shop-agent`가 쓸 ollama와 `qwen3:8b` 모델도 준비한다.
 두 서버만 띄우려면 terminal 두 개에서 `practice/mcp-security-authn-official/auth-server`와 `practice/mcp-security-authn-official/shop-mcp-server`로 가서 각각 `./gradlew bootRun`을 실행한다.
-`run.sh`는 Java 21을 스스로 찾지만, `./gradlew bootRun`과 아래의 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 실행된다.
+`run.sh`와 달리 `./gradlew bootRun`과 아래의 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 실행된다([practice README의 실행](../mcp-security-authn-official/README.md#실행)).
 
 **`local-client` 실행**
 
@@ -336,9 +318,7 @@ browser가 열리면 다음 순서로 진행한다.
 3. browser에 `login이 끝났습니다. 이 창을 닫고 terminal로 돌아가세요.`가 나온다. 이 글은 `local-client`의 callback server가 보여 준다.
 
 terminal에는 다음이 나온다.
-아래 출력은 browser 대신 curl이 login과 consent를 하는 스크립트 `docs/superpowers/captures/local-client-run.sh`로 받았다.
-이 스크립트는 `local-client`를 `--no-browser`로 돌린다.
-사람이 browser로 login해도 출력은 같다.
+아래 출력은 browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/local-client-run.sh`(`--no-browser`)로 받았고, 사람이 browser로 해도 같다.
 `./gradlew -q run`으로 실행하면 Gradle의 진행 메시지 없이 이 출력만 보인다.
 
 ```text
@@ -411,8 +391,7 @@ token의 `aud`가 MCP Server마다 다르므로, token도 MCP Server마다 따�
 
 `local-client`는 token이 만료되기 전에 할 일을 마치고 끝난다.
 실제 앱은 MCP Server에서 `401 invalid_token`을 받으면 새 token을 받는다.
-refresh token이 없으면 authorization request부터 다시 한다.
-official의 Authorization Server가 그런 경우로, public client에 refresh token을 주지 않는다(4장).
+official의 Authorization Server처럼 public client에 refresh token을 주지 않으면 authorization request부터 다시 한다(4장).
 browser에 Authorization Server의 login session이 남아 있으면, login 화면 없이 consent 화면이 바로 나온다.
 public client에도 refresh token을 주는 Authorization Server라면, 앱은 refresh token으로 새 token을 받고 refresh token도 비밀 저장소에 둔다.
 
@@ -420,12 +399,10 @@ public client에도 refresh token을 주는 Authorization Server라면, 앱은 r
 
 `local-mcp-client`는 official의 Authorization Server 한 곳에 미리 등록한 `client_id`다.
 Claude Code(CLI) 같은 앱은 사용자가 어떤 MCP Server를 넣을지 모르므로, Authorization Server마다 미리 등록해 둘 수 없다.
-그래서 앱의 metadata 문서를 자기 `https` 주소에 올리고, CIMD를 지원하는 Authorization Server에서는 그 주소를 `client_id`로 쓴다(4장).
-Claude Code(CLI)는 CIMD를 지원하는 Authorization Server에서 `https://claude.ai/oauth/claude-code-client-metadata`를 `client_id`로 쓴다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
-이 문서의 `redirect_uris`에는 포트 없는 `http://localhost/callback`과 `http://127.0.0.1/callback`이 들어 있다.
-`127.0.0.1` 주소는 Authorization Server가 포트를 빼고 비교하므로, 실행마다 포트가 달라도 된다([4장](04-client-registration.md)의 4.4).
-`localhost`는 이 예외에 들지 않는다.
-Claude Code(CLI)는 기본으로 `localhost` 주소를 쓰므로, Claude 문서는 Authorization Server에 `localhost`도 포트를 빼고 비교해 달라고 한다.
+그래서 앱의 metadata 문서를 자기 `https` 주소에 올리고, CIMD를 지원하는 Authorization Server에서는 그 주소를 `client_id`로 쓴다([4장](04-client-registration.md#45-cimd)).
+Claude Code(CLI)의 CIMD 문서는 `redirect_uris`에 포트 없는 `http://localhost/callback`을 적고, Claude Code(CLI)는 기본으로 이 주소를 쓴다([13장](13-cimd.md#132-실제-제품의-문서)).
+`localhost`는 Authorization Server가 포트를 빼고 비교하는 loopback IP 주소의 예외에 들지 않는다([4장](04-client-registration.md#44-public-client의-규칙)).
+그래서 [Claude 문서](https://claude.com/docs/connectors/building/authentication)는 Authorization Server에 `localhost`도 포트를 빼고 비교해 달라고 한다.
 
 **issuer별 등록 상태**
 

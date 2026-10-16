@@ -72,8 +72,7 @@ flowchart LR
 **바뀐 이유**
 
 Authorization Server가 MCP Server에서 떨어져 나오자, 한 Authorization Server가 여러 MCP Server의 token을 발급하게 되었다.
-token에 대상이 없으면 같은 Authorization Server를 믿는 MCP Server는 모두 그 token을 받는다.
-악의적인 MCP Server는 사용자가 보낸 token을 다른 MCP Server에 그대로 보내 사용자 행세를 할 수 있다.
+token에 대상이 없으면 한 MCP Server에 보낸 token이 같은 Authorization Server를 믿는 다른 MCP Server에서도 통한다([8장](08-security.md#86-confused-deputy와-다른-mcp-server용-token)).
 
 **바뀐 것**
 
@@ -83,18 +82,16 @@ MCP Server는 token의 `aud`에 자기가 있는지 확인한다([6장](06-mcp-c
 **다른 버전을 만나면**
 
 `resource`를 보내지 않는 client가 official에서 token을 받으면 `aud`가 `client_id`로 남고, MCP Server는 그 token을 `401`로 거절한다.
-`resource`를 모르는 Authorization Server는 이 parameter를 무시하므로, 새 client가 보내도 authorization 흐름은 깨지지 않는다.
-다만 그 Authorization Server는 `aud`에 MCP Server를 넣지 않을 수 있어서, `aud`를 확인하는 MCP Server는 그 token을 거절할 수 있다.
+`resource`를 모르는 Authorization Server를 만나도 흐름은 이어지지만, token의 `aud`에 MCP Server가 없을 수 있고 그러면 MCP Server가 그 token을 거절한다.
 상용 IdP마다 `resource`를 어떻게 다루는지는 [5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token)에 있다.
 
 ## 9.5 CIMD의 등장과 DCR의 deprecated 지정 (2025-11-25, 2026-07-28)
 
 **바뀐 이유**
 
-MCP client에게는 처음 보는 Authorization Server에서 `client_id`를 얻을 방법이 필요하다.
-2025-06-18까지는 그 방법으로 DCR을 권했다.
+MCP client에게는 처음 보는 Authorization Server에서 `client_id`를 얻을 방법이 필요하고, 2025-06-18까지는 그 방법으로 DCR을 권했다.
 그런데 DCR로 등록된 client는 Authorization Server에 끝없이 쌓이고, 누가 등록했는지 알 수 없다.
-CIMD는 client가 올린 `https` 문서의 주소를 `client_id`로 써서 이 문제가 없다([4장](04-client-registration.md)).
+CIMD는 client가 올린 `https` 문서의 주소를 `client_id`로 써서 이 문제가 없다([4장](04-client-registration.md#46-dcr)).
 
 **바뀐 것**
 
@@ -131,8 +128,7 @@ PRM이 생기면서 client가 만나는 Authorization Server는 MCP Server가 �
 **다른 버전을 만나면**
 
 2025-11-25의 Authorization Server는 `iss`를 넣지 않고 metadata에도 알리지 않을 수 있다.
-이때 2026-07-28의 client는 `iss` 없는 응답을 받아들인다.
-metadata가 `iss`를 넣는다고 알렸는데 `iss`가 없을 때만 응답을 버린다.
+2026-07-28의 client는 metadata가 `iss`를 넣는다고 알렸는데 `iss`가 없을 때만 응답을 버린다([5장](05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다)).
 그래서 옛 Authorization Server와도 동작하지만, mix-up을 `iss`로 막지는 못한다.
 
 ## 9.7 `initialize`와 session의 제거 (2026-07-28)
@@ -181,48 +177,29 @@ sequenceDiagram
 **session ID가 없어져도 되는 이유**
 
 2025-11-25의 서버는 session ID를 key로 몇 가지를 기억해 두고, 요청이 오면 그 session ID로 찾아 쓴다.
-MCP Java SDK 2.0.1의 서버 쪽 session 객체 `McpStreamableServerSession`이 들고 있는 것은 다음과 같다.
 2026-07-28은 이것들을 하나씩 다른 곳으로 옮기므로, 서버가 session ID로 찾아야 할 것이 남지 않는다.
 
-| 서버가 session에 두던 것 | SDK의 field | 2026-07-28에서 옮겨 간 곳 |
-|---|---|---|
-| client의 capability | `clientCapabilities` | 요청마다 `_meta`의 `io.modelcontextprotocol/clientCapabilities` |
-| client 정보(이름과 버전) | `clientInfo` | 요청마다 `_meta`의 `io.modelcontextprotocol/clientInfo` |
-| log level | `minLoggingLevel` | 요청마다 `_meta`의 `io.modelcontextprotocol/logLevel`. `logging/setLevel`은 없어진다 |
-| 서버가 먼저 보내는 알림의 GET stream | `listeningStreamRef` | `subscriptions/listen`이다. client가 받을 알림 종류를 골라 여는, 오래 열린 POST 응답 stream이다 |
-| 서버가 client에게 보내는 요청: sampling(LLM 호출 부탁), elicitation(사용자 입력 요청), roots(client가 열어 둔 파일 범위 질문) | `requestIdToStream` | 서버는 `input_required` 결과로 필요한 값을 알리고, client는 그 값을 넣어 원래 요청을 다시 보낸다(MRTR, Multi Round-Trip Request) |
-| 앱 상태(장바구니 등) | 없음. 서버 코드가 session에 둘 때 생긴다 | 서버가 만든 handle을 tool 인자로 주고받는다(아래) |
+| 서버가 session에 두던 것 | 2026-07-28에서 옮겨 간 곳 |
+|---|---|
+| client의 capability | 요청마다 `_meta`의 `io.modelcontextprotocol/clientCapabilities` |
+| client 정보(이름과 버전) | 요청마다 `_meta`의 `io.modelcontextprotocol/clientInfo` |
+| log level | 요청마다 `_meta`의 `io.modelcontextprotocol/logLevel`. `logging/setLevel`은 없어진다 |
+| 서버가 먼저 보내는 알림의 GET stream | `subscriptions/listen`이다. client가 받을 알림 종류를 골라 여는, 오래 열린 POST 응답 stream이다 |
+| 서버가 client에게 보내는 요청: sampling(LLM 호출 부탁), elicitation(사용자 입력 요청), roots(client가 열어 둔 파일 범위 질문) | 서버는 `input_required` 결과로 필요한 값을 알리고, client는 그 값을 넣어 원래 요청을 다시 보낸다(MRTR, Multi Round-Trip Request) |
+| 앱 상태(장바구니 등) | 서버가 만든 handle을 tool 인자로 주고받는다(아래) |
 
 협상한 버전은 2025-11-25에서도 요청마다 `MCP-Protocol-Version` header로 보내고([1장](01-mcp-basics.md)), 2026-07-28은 `_meta`의 `io.modelcontextprotocol/protocolVersion`에도 넣는다.
-client 쪽에서 `initialize` 응답으로 받아 두던 서버 정보는 결과마다 `_meta`의 `io.modelcontextprotocol/serverInfo`로 온다.
-서버의 capability와 지원 버전은 `server/discover`로 미리 물을 수 있다.
-
-`_meta`는 2026-07-28에서 새로 생긴 field가 아니다.
-2025-11-25에서도 진행 알림을 받으려는 요청은 `params._meta`에 `progressToken`을 넣는다.
-2026-07-28에서 새로 생긴 것은 `_meta` 안의 `io.modelcontextprotocol/...` key들이다.
-
-연결마다 한 번 정하던 값은 요청마다 보내고, 서버가 먼저 말을 거는 통로는 따로 만들고, 앱 상태는 handle로 들고 다닌다.
+client 쪽에서 `initialize` 응답으로 받아 두던 서버 정보는 결과마다 `_meta`의 `io.modelcontextprotocol/serverInfo`로 오고, 서버의 capability는 `server/discover`로 미리 물을 수 있다.
 그래서 서버는 session ID 없이 요청 하나만 보고 처리할 수 있다.
 
 **상태는 tool 인자의 handle로**
 
 호출 사이의 상태는 서버가 만든 식별자(handle)로 가리킨다.
 서버는 handle을 tool 결과로 돌려주고, LLM은 다음 호출의 인자로 넘긴다.
-
-```text
-create_basket()                                → {"basket_id": "bsk_a1b2c3"}
-add_item(basket_id="bsk_a1b2c3", sku="shoes")
-checkout(basket_id="bsk_a1b2c3")
-```
-
 handle은 protocol의 기능이 아니라 tool을 설계하는 방법이다.
-`basket_id`는 평범한 문자열 인자다.
-session과 달리 LLM은 장바구니를 여럿 만들 수도, 한 `basket_id`를 여러 agent에게 나눠 줄 수도 있다.
-handle은 채팅 기록에 남으므로, 가졌다는 것만으로 권한을 주지 않는다.
-authorization을 쓰는 서버는 호출마다 handle과 token의 사용자를 함께 보고, 그 사용자의 장바구니인지 확인한다.
-[6장](06-mcp-call-and-validation.md)에서 session을 사용자에 묶던 일이 2026-07-28에서는 이 확인으로 바뀐다.
-official의 tool은 호출 사이에 상태를 두지 않아서 handle이 필요 없다.
-[11장](11-stateless-and-handle.md)에서는 요청 형식은 2025-11-25 그대로 두고, `mcp-stateless-handle` practice로 이 방식을 써 본다.
+이 값은 대화 기록에 남으므로, authorization을 쓰는 서버는 호출마다 handle과 token의 사용자를 함께 확인한다.
+[6장](06-mcp-call-and-validation.md#67-session과-사용자)에서 session을 사용자에 묶던 일이 2026-07-28에서는 이 확인으로 바뀐다.
+official의 tool은 상태를 두지 않아 handle이 필요 없고, 이 방식은 [11장](11-stateless-and-handle.md)에서 `mcp-stateless-handle` practice로 써 본다.
 
 **다른 버전을 만나면**
 
@@ -247,17 +224,7 @@ modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답�
 
 **transport: SDK가 아는 버전**
 
-SDK가 아는 버전은 `io.modelcontextprotocol.spec.ProtocolVersions`의 상수 네 개다.
-
-```java
-public interface ProtocolVersions {             // MCP Java SDK 2.0.0 (mcp-core)
-    String MCP_2024_11_05 = "2024-11-05";
-    String MCP_2025_03_26 = "2025-03-26";
-    String MCP_2025_06_18 = "2025-06-18";
-    String MCP_2025_11_25 = "2025-11-25";       // 가장 새 버전
-}
-```
-
+MCP Java SDK 2.0.0의 `io.modelcontextprotocol.spec.ProtocolVersions`는 `2024-11-05`부터 `2025-11-25`까지 네 버전만 안다.
 서버는 `initialize`에서 이 가운데 하나로 협상하고, official의 `McpProtocolVersionFilter`도 이 네 값만 받는다([6장](06-mcp-call-and-validation.md)).
 SDK와 Spring AI 2.0.0의 MCP module에는 `_meta`로 버전을 받는 처리도, `server/discover`도 없다.
 `spring.ai.mcp.server.protocol: STATELESS`도 session ID를 주지 않을 뿐, `initialize`를 받는 2025-11-25 방식이다.
@@ -268,11 +235,7 @@ discovery, login, token 발급은 MCP 메시지가 SDK에 닿기 전에 끝난�
 이 단계는 Spring Security와 Spring Authorization Server가 맡는다.
 MCP Server의 token 검사도 SDK 앞의 Spring Security filter에서 한다.
 어느 단계도 MCP 메시지의 버전을 읽지 않으므로, SDK가 2025-11-25에 머물러도 새 authorization 규칙을 따를 수 있다.
-official에서 2026-07-28 추가분을 맡는 곳은 다음과 같다.
-
-- `iss`를 넣는다: `auth-server`의 `IssuerIdentifyingAuthorizationResponseHandler`([5장](05-authorization-and-token.md))
-- `iss`를 확인한다: `shop-agent`의 `AuthorizationResponseIssuerFilter`, `local-client`의 `AuthorizationResponse`([5장](05-authorization-and-token.md), [7장](07-local-client.md))
-- credentials를 issuer에 묶는다: `shop-agent`의 `mcp.authorization.credentials-issuer`, `local-client`의 `--issuer`([4장](04-client-registration.md))
+official의 2026-07-28 추가분인 `iss` 넣기·확인과 issuer binding도 모두 이 HTTP 단계의 클래스와 설정이 맡는다([4장](04-client-registration.md#47-credentials를-issuer에-묶기), [5장](05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다)).
 
 **지금 새로 만든다면**
 
@@ -352,7 +315,6 @@ Content-Type: application/json;charset=UTF-8
 | 2026-07-28은 `initialize`를 없애고 요청마다 `_meta`와 header(`MCP-Protocol-Version`·`Mcp-Method`·`Mcp-Name`)를 보내며, header의 버전이 `_meta`와 다르면 서버는 `400`과 `HeaderMismatch`로 거절한다. 모르는 버전에는 `400`과 `UnsupportedProtocolVersionError`로 답하고, 서버는 `server/discover`를 구현한다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [SEP-2575](https://modelcontextprotocol.io/seps/2575-stateless-mcp) | MUST, REQUIRED |
 | 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
 | 2026-07-28은 GET stream과 `resources/subscribe`를 `subscriptions/listen`으로, 서버가 client에게 보내는 요청을 MRTR로, `logging/setLevel`을 요청마다의 `_meta` log level로 바꾼다. client는 요청마다 `clientInfo`를, 서버는 결과마다 `serverInfo`를 `_meta`에 넣는다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Multi Round-Trip Requests](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr) | SHOULD, MUST NOT |
-| `progressToken`은 요청의 `params._meta`에 넣는다 | [MCP 2025-11-25 Progress](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/progress#progress-flow) | MUST |
 | dual-era client는 modern 요청을 먼저 보내고, `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 | [MCP 2026-07-28 Streamable HTTP — Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility) | MAY, SHOULD |
 
 [← 8장](08-security.md) · [목차](README.md) · [10장 →](10-scope-and-step-up.md)

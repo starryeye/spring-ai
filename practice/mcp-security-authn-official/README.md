@@ -104,7 +104,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
-| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증한다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만든다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
+| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증하며, `audiences` 값이 하나가 아니면 서버가 뜨지 않는다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만들며 `/mcp`가 아닌 경로로 온 요청의 `401`에도 같은 PRM 주소를 넣는다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
 | `application.yml` | `issuer-uri`와 `audiences`로 token의 `iss`와 `aud`를 확인한다. `server.address: 127.0.0.1`로 이 기기의 연결만 받는다 | [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증), [6장 `127.0.0.1` bind](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
 | `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
 | `McpProtocolVersionFilter` | token 검증 뒤에 `MCP-Protocol-Version`을 보고, 모르는 버전을 `400`으로 거절한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
@@ -191,8 +191,6 @@ export JAVA_HOME=$(find $HOME/.sdkman/candidates/java -maxdepth 1 -type d -name 
 docs/superpowers/captures/local-client-run.sh > /tmp/official-local-client.txt
 ```
 
-마지막 스크립트는 `local-client`를 `./gradlew run`으로 돌리므로 `JAVA_HOME`이 Java 21을 가리켜야 한다.
-Java 21을 sdkman이 아닌 방법으로 설치했다면 `export` 줄 대신 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
 출력의 단계 번호가 어느 장의 어느 요청인지는 장마다 "직접 해 보기" 절에 있다.
 
 ## 더 읽을 것

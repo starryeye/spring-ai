@@ -14,6 +14,7 @@ client 인증과 CIMD를 다루는 행에는 visibility에 CIMD를 더한 [mcp-c
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 `stateless S<n>`은 [stateless 캡처](../../docs/superpowers/captures/2026-10-01-stateless-walkthrough.txt)의 단계 번호이고, supplement 캡처의 `S<n>`과 구별하려고 앞에 stateless를 붙인다.
 캡처 번호 `V<n>`은 [visibility 캡처](../../docs/superpowers/captures/2026-10-05-visibility-walkthrough.txt)의 단계 번호다.
+캡처 번호 `L<n>`은 [login 실패 캡처](../../docs/superpowers/captures/2026-10-17-official-login-failure.txt)의 단계 번호다.
 캡처 번호 `D<n>`은 [cimd 캡처](../../docs/superpowers/captures/2026-10-09-cimd-walkthrough.txt)의 단계 번호이고, 요청은 [`mcp-cimd-walkthrough.sh`](../../docs/superpowers/captures/mcp-cimd-walkthrough.sh)가 curl로 보낸 것이다.
 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
 JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
@@ -681,11 +682,8 @@ OIDC Core는 `claims`, `request`, `request_uri` 같은 parameter도 다른 절�
 
 **cimd에서 달라지는 점**
 
-cimd에서는 문서를 쓴 쪽이 redirect URI를 정하므로, 검사에서 걸린 오류를 redirect하지 않는다.
-이때 응답은 `400`과 `Content-Type: text/plain;charset=UTF-8`이고, 본문은 `error=<코드>`와 `error_description=<설명>` 두 줄이다.
-redirect하는 오류는 login한 사용자가 consent 화면에서 거절한 `access_denied` 하나다([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)).
-OIDC `prompt=none` 요청의 `login_required`·`consent_required`도 redirect하지 않는다.
-cimd는 `redirect_uri`를 뺀 요청도 `invalid_request`로 거절한다.
+cimd에서는 문서를 쓴 쪽이 redirect URI를 정하므로, login한 사용자가 consent 화면에서 거절한 `access_denied`만 redirect한다.
+나머지 오류는 `400`과 `text/plain` 본문(`error=<코드>`, `error_description=<설명>` 두 줄)으로 끝내고, `redirect_uri`를 뺀 요청도 `invalid_request`다([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)).
 검증 순서는 Spring 기본 → `RedirectUriRequiredValidator` → `ResourceIndicatorValidator` → `ConsentableScopeValidator`다.
 
 **예시 1** (P3, public client, login session이 있는 상태)
@@ -830,7 +828,7 @@ client는 `iss`가 기록해 둔 issuer와 다르거나, `authorization_response
 
 | client | 확인 순서 | 거부할 때 |
 |---|---|---|
-| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르거나(S18) 없으면(S19) `401`이고, 본문 첫 줄은 `로그인 실패: invalid_request`다(S18·S19 캡처는 본문을 바꾸기 전의 것이다). 자세한 이유(`iss mismatch: ...`, `iss is missing ...`)는 agent 로그에만 남고, code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
+| agent | `AuthorizationResponseIssuerFilter`(login filter 바로 앞): `state`로 session의 요청 기록을 찾아 `iss`를 비교한다 → `OAuth2LoginAuthenticationFilter`: `state`를 확인하고 code를 token으로 바꾼다 | `iss`가 다르거나(L1) 없으면(L2) `401`이고, 본문 첫 줄은 `로그인 실패: invalid_request`다. 자세한 이유(`iss mismatch: ...`, `iss is missing ...`)는 agent 로그에만 남고(L3), code는 token endpoint로 가지 않는다. 요청 기록을 찾지 못하면 login filter가 `authorization_request_not_found`로 거절한다 |
 | `local-client` | `state` → `iss` → `error` → `code`(`AuthorizationResponse`) | `실패:`로 시작하는 한 줄을 찍고 끝난다([7장](07-local-client.md)) |
 
 관측: S20의 agent 정상 왕복에도 `iss`가 있다.
@@ -1141,8 +1139,8 @@ cimd의 Authorization Server가 하는 일은 요청 표의 "cimd" 칸과 오류
 
 | 이름 | 위치 | 요구 수준 | 설명 | cimd |
 |---|---|---|---|---|
-| `client_id` 주소 | URL | MUST — `https` scheme, path 포함 · dot segment·fragment·username·password는 MUST NOT, query는 SHOULD NOT, port는 MAY ([§3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)) | 짧고 자주 바뀌지 않는 주소를 권한다(RECOMMENDED) | `https://localhost:8172/oauth/client.json`과 `/oauth/public-client.json`이다. `ClientIdUrlValidator`가 이 규칙에 더해 query도 거절하고, DNS로 푼 주소가 내부 주소면 거절한다(예외는 `https://localhost:8172` 하나) |
-| 메서드 `GET` | 요청 줄 | 표시 없음 — Authorization Server는 문서를 가져온다 SHOULD ([§4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4) · MCP) | authorization request에서 주소 형식의 `client_id`를 만났을 때 | cache에 없는 주소면 `Accept: application/json`으로 가져온다. redirect를 따라가지 않고 DNS 조회와 연결은 2초·응답 전체는 3초까지 기다리며, 같은 주소는 한 번만, 동시에 16개(`mcp.cimd.max-concurrent-fetches`)까지 가져온다 |
+| `client_id` 주소 | URL | MUST — `https` scheme, path 포함 · dot segment·fragment·username·password는 MUST NOT, query는 SHOULD NOT, port는 MAY ([§3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-3)) | 짧고 자주 바뀌지 않는 주소를 권한다(RECOMMENDED) | `https://localhost:8172/oauth/client.json`과 `/oauth/public-client.json`이다. `ClientIdUrlValidator`가 이 규칙과 내부 주소를 검사한다([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)) |
+| 메서드 `GET` | 요청 줄 | 표시 없음 — Authorization Server는 문서를 가져온다 SHOULD ([§4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4) · MCP) | authorization request에서 주소 형식의 `client_id`를 만났을 때 | cache에 없는 주소면 `HttpsClientMetadataFetcher`가 `Accept: application/json`으로 가져온다. redirect, 시간, 동시 수의 제한은 [13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)에 있다 |
 
 **응답 — metadata 문서의 field** (CIMD draft-00 §4.1의 3개와 RFC 7591 §2의 15개, 모두 18개)
 
@@ -1175,12 +1173,12 @@ RFC 7591 §2의 field는 따로 적지 않으면 OPTIONAL이다.
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | 동시 가져오기 상한에 닿음 | 표시 없음 — cimd는 기다리지 않고 실패해, 문서를 가져오지 못한 것처럼 그 client를 모르는 client로 다룬다 | [MCP 2026-07-28 — Authorization Server Abuse Protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-server-abuse-protection) |
-| 문서를 가져오지 못함 | authorization request를 멈춘다 SHOULD. cimd는 그 client를 모르는 client로 보아 `400`으로 끝낸다(`CimdAuthorizationServerTest#가져올_수_없는_문서의_client_id는_400이다`) | [CIMD §4.3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.3) |
+| 문서를 가져오지 못함 | authorization request를 멈춘다 SHOULD. cimd는 그 client를 모르는 client로 보아 `400`으로 끝낸다 | [CIMD §4.3](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.3) |
 | 문서의 `client_id`가 주소와 다름, JSON 구조가 잘못됨, 필수 field 없음 | 검증 MUST (MCP Implementation Requirements). MCP 흐름 다이어그램은 실패를 `error=invalid_client`나 `invalid_request`로 보이고, cimd는 `ClientMetadataValidator`에서 거절해 모르는 client로 다룬다 | [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements), [Client ID Metadata Documents Flow](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents-flow) |
 | 요청의 redirect URI가 문서에 없음 | 검증 MUST. cimd는 그 주소로 보내지 않고 `Location` 없이 `400`으로 끝낸다(D8) | MCP Implementation Requirements |
-| 오류 응답이나 잘못된 문서 | cache하지 않는다(MUST NOT). cimd는 다음 요청에서 다시 가져온다(`ClientIdMetadataDocumentRegisteredClientRepositoryTest#실패는_cache하지_않고_다음_요청에_다시_가져온다`) | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4) |
-| 정상 문서의 cache | cache할 수 있고(MAY), 그때는 HTTP cache header를 따른다(SHOULD, CIMD §4.4) · HTTP cache header를 따라 cache SHOULD (MCP). cimd는 `max-age`(상한 1시간)를 따르고, header가 없으면 5분, `no-store`·`no-cache`·`max-age=0`이면 cache하지 않는다 | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
-| 사설·loopback 주소 | 가져오지 않는다 SHOULD — SSRF. cimd는 IPv4-mapped IPv6 주소와 `100.64.0.0/10`·`64:ff9b::/96`·`2002::/16` 같은 공유·변환 대역도 거절하고, 예외는 `https://localhost:8172` 하나다 | [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5) |
+| 오류 응답이나 잘못된 문서 | cache하지 않는다(MUST NOT). cimd는 다음 요청에서 다시 가져온다 | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4) |
+| 정상 문서의 cache | cache할 수 있고(MAY), 그때는 HTTP cache header를 따른다(SHOULD, CIMD §4.4) · HTTP cache header를 따라 cache SHOULD (MCP). cimd의 cache 기간은 [13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)의 cache 표에 있다 | [CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4), [MCP Implementation Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#implementation-requirements) |
+| 사설·loopback 주소 | 가져오지 않는다 SHOULD — SSRF. cimd는 공유·변환 대역까지 거절하고([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)), 예외는 `https://localhost:8172` 하나다 | [CIMD §6.5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.5) |
 | 큰 응답 | 크기 제한 SHOULD, 권장 최대 5KB. cimd는 5120 byte까지 받는다 | [CIMD §6.6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.6) |
 
 **예시** (MCP 2025-11-25·2026-07-28 명세의 예시 문서. CIMD draft-00은 §6.2에 일부 field만 보인다)
@@ -1208,7 +1206,7 @@ cimd의 agent는 `https://localhost:8172`(self-signed 인증서)에 ChatGPT형�
 
 | header | 요구 수준 | cimd |
 |---|---|---|
-| `Content-Type` | 표시 없음 — 문서는 JSON이다. JSON이면 `application/<Authorization Server가 정한 이름>+json` 같은 더 구체적인 type도 된다(MAY, [CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)) | `application/json`이다. Authorization Server는 `application/json`과 `+json`만 문서로 받는다 |
+| `Content-Type` | 표시 없음 — 문서는 JSON이다. JSON이면 `application/<Authorization Server가 정한 이름>+json` 같은 더 구체적인 type도 된다(MAY, [CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)) | `application/json`이다 |
 | `Cache-Control` | Authorization Server는 HTTP cache header를 따른다 SHOULD, 자기 상한·하한을 둘 수 있다 MAY ([CIMD §4.4](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.4)) | `max-age=300`이다. Authorization Server는 문서를 300초 cache하고(D15의 `cache=300초`), JWKS는 cache하지 않는다 |
 
 | field | 요구 수준 | ChatGPT형(`/oauth/client.json`) | Claude형(`/oauth/public-client.json`) | cimd의 Authorization Server |
@@ -1216,7 +1214,7 @@ cimd의 agent는 `https://localhost:8172`(self-signed 인증서)에 ChatGPT형�
 | `client_id` | MUST ([CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1) · MCP) | `https://localhost:8172/oauth/client.json` | `https://localhost:8172/oauth/public-client.json` | 문서 주소와 글자까지 같아야 받는다. `RegisteredClient`의 `id`와 `clientId`가 된다 |
 | `client_name` | MUST (MCP) | `Shop Agent (ChatGPT형)` | `Shop Agent (Claude형)` | 없으면 거절한다. consent 화면의 제목이 된다 |
 | `client_uri` | OPTIONAL | `https://localhost:8172/` | 같음 | 읽지 않는다 |
-| `redirect_uris` | MUST (MCP) · 모든 값은 `localhost`이거나 `https` MUST ([MCP Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security)) | `["http://localhost:8170/login/oauth2/code/authserver"]` | 같음 | host가 있는 `https`나 loopback(`localhost`, `127.0.0.0/8`, `[::1]`) `http`이고 fragment 없는 절대 주소만 받는다. authorization request의 redirect URI를 이 목록과 비교한다 |
+| `redirect_uris` | MUST (MCP) · 모든 값은 `localhost`이거나 `https` MUST ([MCP Communication Security](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#communication-security)) | `["http://localhost:8170/login/oauth2/code/authserver"]` | 같음 | `https`나 loopback `http`만 받고([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)), authorization request의 redirect URI를 이 목록과 비교한다 |
 | `grant_types` | OPTIONAL | `["authorization_code", "refresh_token"]` | 같음 | `authorization_code`가 없으면 거절하고, field가 없으면 `authorization_code` 하나로 본다. `refresh_token`이 있어야 refresh token을 준다 |
 | `response_types` | OPTIONAL | `["code"]` | 같음 | 읽지 않는다 |
 | `token_endpoint_auth_method` | OPTIONAL — 공유 비밀 방식은 MUST NOT ([CIMD §4.1](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-4.1)) | `private_key_jwt` | `none` | `none`과 `private_key_jwt`만 받고, 없으면 거절한다. 그 client는 이 방식 하나로만 인증할 수 있다 |
@@ -1224,7 +1222,7 @@ cimd의 agent는 `https://localhost:8172`(self-signed 인증서)에 ChatGPT형�
 | `jwks_uri` | OPTIONAL — `private_key_jwt`의 public key ([CIMD §6.2](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-6.2)) | `https://localhost:8172/oauth/jwks.json` | 없음 | `private_key_jwt`면 있어야 하고, 문서 주소와 같은 주소 규칙을 지켜야 한다 |
 
 `token_endpoint_auth_signing_alg`는 RFC 7591이 아니라 OpenID Connect Dynamic Client Registration이 정한 field이고, CIMD 문서는 같은 IANA registry의 이름을 쓴다(§4.1).
-cimd의 Authorization Server는 문서의 `scope`를 읽지 않고, 정책 값 `openid products:read products:write orders:write`를 쓴다.
+cimd의 Authorization Server는 문서의 `scope`를 읽지 않고 서버 정책의 scope를 쓴다([13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지)).
 
 ## `POST /register` — Dynamic Client Registration
 
