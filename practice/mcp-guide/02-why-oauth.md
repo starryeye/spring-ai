@@ -310,7 +310,7 @@ official은 `auth-server`와 `shop-mcp-server`를 다른 process로 띄운다.
 
 ```java
 static void run(Options options, PrintStream out) {
-    HttpClient http = /* redirect를 따라가지 않는 HttpClient. 흐름이 끝나면 닫는다 */;
+    HttpClient http = /* redirect를 따라가지 않는 HttpClient. 실제 코드는 try-with-resources로 열어 흐름이 끝나면 닫는다 */;
 
     // (1)~(6) discovery: MCP Server 주소에서 Authorization Server의 endpoint까지
     AuthorizationServer server = new Discovery(http).discover(options.resourceUrl(), options.issuer());

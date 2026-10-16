@@ -50,20 +50,23 @@ SSRF는 서버에서 도는 client의 문제라서, official에서는 `shop-agen
 
 **막는 것**
 
-agent는 PRM이 알려 준 issuer가 credentials를 발급한 issuer와 같은지 먼저 보고, 다르면 metadata도 요청하지 않는다([3장](03-discovery.md)).
+agent는 discovery 순서대로 확인한다([3장](03-discovery.md)).
+먼저 `401`의 `resource_metadata`가 설정한 MCP Server와 같은 origin인지 보고, 다르면 따라가지 않는다.
+`401`을 보낸 쪽이 고른 주소로 agent가 요청을 보내지 않으려는 것이다.
+다음으로 PRM이 알려 준 issuer가 credentials를 발급한 issuer와 같은지 보고, 다르면 metadata도 요청하지 않는다.
 위 PRM의 `http://169.254.169.254`는 credentials를 발급한 issuer가 아니므로, 그 주소로는 요청이 나가지 않는다.
 metadata의 두 endpoint는 `https`이거나 loopback 주소의 `http`여야 해서, `javascript:`·`file:` 같은 주소가 오면 여기서 멈춘다.
-`401`의 `resource_metadata`는 issuer를 비교하기 전에 요청하는 주소다.
-그래서 agent는 이 주소가 설정한 MCP Server와 같은 origin(scheme·host·port)일 때만 따라간다.
-discovery의 HTTP 요청은 redirect를 따라가지 않으므로, 정상 주소가 내부망으로 redirect해도 따라가지 않는다.
-설정한 주소 자체가 내부망을 가리키는 경우는 사설 IP 차단과 egress proxy가 막고, official에는 둘 다 없다.
+discovery의 HTTP 요청은 redirect를 따라가지 않으므로, 확인을 통과한 주소가 내부망으로 redirect해도 따라가지 않는다.
+실제 서버형 agent에서는 사용자가 MCP Server 주소를 넣으므로, 그 주소부터 내부망일 수 있다.
+이 경우는 사설 IP 차단과 egress proxy가 막고, official에는 둘 다 없다.
 
 **official에서**
 
 `McpAuthorizationDiscovery#discover`는 `resource_metadata`의 origin을 먼저 보고, issuer를 비교한 뒤에야 metadata를 요청한다.
 HTTP 요청은 `McpAuthorizationDiscovery.requestFactory`가 만든 JDK `HttpClient`로 보내고, 이 client는 redirect를 따라가지 않게 정해 두었다.
 endpoint 주소는 `requireHttpUrl`이 확인한다.
-`local-client`의 `Discovery`도 같은 순서로 확인한다([7장](07-local-client.md)).
+`local-client`의 `Discovery`도 issuer 비교와 endpoint 확인을 같은 순서로 한다([7장](07-local-client.md)).
+`local-client`는 사용자 기기에서 도는 앱이라 SSRF의 대상이 아니므로, `resource_metadata`의 origin은 보지 않는다.
 
 ## 8.3 Redirect URI 바꿔치기와 authorization code 가로채기
 
@@ -319,8 +322,8 @@ tool의 `annotations`에 있는 `destructiveHint`(되돌릴 수 없는 작업인
 
 모든 practice의 agent는 호출마다 확인을 받지 않고, LLM이 고른 tool을 바로 부른다.
 `mcp-security-authz`부터는 쓰기 scope를 처음 쓸 때 consent 카드가 뜬다.
-같은 practice부터 MCP Server는 사용자마다 1분에 60번까지 `tools/call`을 받고, 넘으면 `429`로 답한다.
 그러나 카드는 tool 이름과 scope만 보여 주고 인자는 보여 주지 않는다([10장](10-scope-and-step-up.md#106-web-agent-대화-안-consent-카드)).
+같은 practice부터 MCP Server는 사용자마다 1분에 60번까지 `tools/call`을 받고, 넘으면 `429`로 답한다.
 
 ## 8.11 서버에서 도는 agent의 token 보관과 폐기
 
@@ -390,14 +393,20 @@ curl -si -b /tmp/agent-cookies.txt \
   "http://localhost:8110/login/oauth2/code/authserver?code=forged-code&state=$STATE&iss=http%3A%2F%2Fevil.example"
 ```
 
-응답 본문은 `로그인 실패: invalid_request`이다.
+응답 본문은 다음 두 줄이다.
+
+```text
+로그인 실패: invalid_request
+자세한 이유는 agent 로그에 남겼다.
+```
+
 `logs/shop-agent.log`에는 `로그인 실패: iss mismatch: expected http://localhost:9010 but got http://evil.example`이 남는다.
 
 다른 공격은 앞 장에서 재현한다: `Origin`·`Host`와 ID token의 `aud`는 [6장](06-mcp-call-and-validation.md), 모르는 `resource`는 [5장](05-authorization-and-token.md), 다른 issuer는 [7장](07-local-client.md).
 
 ## 8.15 정리
 
-- discovery는 issuer를 먼저 비교하고 endpoint 주소를 확인한다. code는 redirect URI 비교, PKCE, public client에게 매번 받는 consent, `iss` 확인이 지킨다.
+- discovery는 `resource_metadata`를 MCP Server와 같은 origin에서만 따라가고, issuer를 먼저 비교하며, endpoint 주소를 확인한다. code는 redirect URI 비교, PKCE, public client에게 매번 받는 consent, `iss` 확인이 지킨다.
 - token은 `resource`와 `aud`로 한 MCP Server에 묶이고, MCP Server는 자기용 token만 받아 downstream으로 넘기지 않는다.
 - prompt injection에 속은 호출에도 사용자의 정상 token이 붙는다. OAuth의 장치는 피해 범위를 줄일 뿐이고, 호출마다 인자를 보여 주고 확인받는 일은 client가 맡는다.
 - 서버형 agent는 token을 사용자별로 나눠 암호화해 두고, 연결을 끊으면 폐기한다. official의 agent는 메모리에만 두고 폐기하지 않는다.

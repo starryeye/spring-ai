@@ -119,7 +119,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 
 | official | module이 하는 일 또는 확장점 | 이 practice가 얹은 것 |
 |---|---|---|
-| `McpAuthorizationDiscovery`(`401` → PRM → issuer 비교 → metadata) | `McpMetadataDiscoveryService`가 `401` challenge와 PRM을 읽고, PRM의 `resource`를 확인한다 | `McpAuthorizationDiscovery`가 challenge와 PRM은 module에 맡기고, 그 뒤의 issuer 비교와 Authorization Server Metadata 확인을 official과 같은 코드로 한다 |
+| `McpAuthorizationDiscovery`(`401` → PRM → issuer 비교 → metadata) | `McpMetadataDiscoveryService`가 `401` challenge와 PRM을 읽고, PRM의 `resource`를 확인한다 | `McpAuthorizationDiscovery`가 challenge와 PRM은 module에 맡기되 두 단계 사이에서 `resource_metadata`의 origin을 확인하고, 그 뒤의 issuer 비교와 Authorization Server Metadata 확인을 official과 같은 코드로 한다 |
 | `DiscoveredClientRegistrationRepository` | module의 `mcpClientRegistrationRepository`는 `ClientRegistrationRepository` bean이 없을 때만 생긴다 | 같은 클래스를 bean으로 등록한다 |
 | `McpSecurityConfig` | transport customizer와 context provider는 module이 등록한다 | discovery, client 등록 정보, token request client, `DefaultOAuth2AuthorizedClientManager`만 등록한다. module customizer가 servlet 요청을 함께 넘기므로 요청을 보는 manager를 쓴다 |
 | `OAuth2TokenAttachingRequestCustomizer` | `HttpClientStreamableHttpTransportAutoConfiguration`이 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`를 transport에 넣는다 | 없음 |
@@ -204,7 +204,7 @@ session을 사용자에 묶지 않는 28번 행은 이유가 official과 같아�
 |---|---|---|
 | 8 | token audience 검증 | 비교할 `aud`를 요청 URL로 계산한다. 그래서 `Host` 검사가 먼저 온다([Host 검증과 audience 계산](#host-검증과-audience-계산)) |
 | 11 | `Origin`·`Host` 검사 | module의 `OriginValidationFilter`가 filter chain 안, 인증 filter 앞에서 검사한다. 허용 `Origin`은 `http://localhost:8101` 하나다 |
-| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM을 요청하기 전에 그 URL을 URL 검증기로 확인한다. 검증기는 scheme과 경로의 `..`만 보므로, origin 확인은 module의 두 단계 사이에서 `McpAuthorizationDiscovery`가 한다 |
+| 27 | 서버에 배포된 MCP client의 SSRF 대응 | module의 `McpMetadataDiscoveryService`는 PRM을 요청하기 전에 그 URL을 URL 검증기로 확인한다. 검증기는 scheme과 경로의 `..`만 보므로, origin 확인은 module이 challenge를 읽은 뒤 PRM을 가져오기 전에 `McpAuthorizationDiscovery`가 한다 |
 | 36 | 모든 MCP 요청의 `Authorization` header | module의 `OAuth2AuthorizationCodeSyncHttpRequestCustomizer`는 transport context에 `Authentication`과 servlet 요청이 모두 있어야 token을 붙인다. 앱이 끝날 때 나가는 session 종료 `DELETE`에는 둘 다 없어 token 없이 나간다 |
 
 27번의 URL 검증기는 `shop-agent`의 `McpSecurityConfig`가 정한다.

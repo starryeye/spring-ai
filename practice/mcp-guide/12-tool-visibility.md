@@ -224,6 +224,8 @@ browser에서 점원이 "권한 허용"을 누르면 consent 화면의 새 체�
 2. 보이는 tool인지 본다. 숨긴 tool이면 tool의 scope를 보지 않고 transport로 넘기고, transport가 "모르는 tool"로 답한다.
 3. tool의 scope가 있는지 본다. 없으면 `403 insufficient_scope`와 모자란 scope다.
 
+본문 상한(`413`), 형식이 틀린 `tools/call`(`400`), tool 호출 횟수(`429`) 검사는 10·11장과 같다.
+
 기본 scope는 tool 이름을 보기 전에 검사하므로, 기본 scope가 없는 token은 숨긴 tool을 부르든 없는 tool을 부르든 같은 `403`을 받는다.
 
 **거꾸로면 생기는 일**
@@ -464,7 +466,7 @@ tool을 감싸 막으면 인자가 틀린 숨긴 tool 호출은 인자 오류를
 
 `McpTransportConfig`는 감싼 transport를 `@Primary` bean으로 둔다.
 Spring AI의 자동 구성에서 SDK server는 transport를 `McpStatelessServerTransport` interface 타입으로 받으므로, `@Primary`인 이 bean이 server에 간다.
-HTTP 경로를 만드는 router는 구체 타입 `WebMvcStatelessServerTransport`로 받으므로, 요청은 원래 transport로 들어와 감싼 handler를 거친다.
+HTTP 경로를 만드는 router(`McpTransportConfig`가 등록한다, 11장)는 구체 타입 `WebMvcStatelessServerTransport`로 받으므로, 요청은 원래 transport로 들어와 감싼 handler를 거친다.
 
 **`ToolScopeFilter`: 보이는 tool인지 먼저**
 
@@ -482,9 +484,10 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
         String missing = (tool != null && !hidden && !granted.contains(this.registry.scopeFor(tool)))
                 ? this.registry.scopeFor(tool) : null;
         if (missing != null) {
-            insufficientScope(request, response, token, tool, missing, granted);
+            insufficientScope(response, token, tool, missing, granted);
             return;
         }
+        /* scope 검사를 지난 tools/call은 호출 횟수를 센다(429, 10장) */
     }
     chain.doFilter(forwarded, response);
 }
@@ -504,6 +507,7 @@ agent의 클래스는 `practice/mcp-tool-visibility/shop-agent/src/main/java/dev
 `application.yml`의 `spring.ai.mcp.client.toolcallback.enabled: false`는 자동 구성의 tool provider를 끈다.
 MCP client bean(`mcpSyncClients`)은 그대로 남는다.
 `ChatClientConfig`는 기본 tool을 넣지 않고, `ToolCatalogConfig`는 이 MCP client로 `UserToolCatalog` bean을 만든다.
+목록을 어느 연결에서 받을지 정해야 하므로, MCP 연결이 정확히 하나가 아니면 앱이 뜨지 않는다.
 cache key의 access token은 MCP 요청에 token을 붙이는 customizer와 같은 `OAuth2AuthorizedClientManager.authorize(...)`로 얻는다.
 token이 만료되었으면 이 호출이 refresh하므로, key의 token과 실제로 붙는 token이 같다.
 

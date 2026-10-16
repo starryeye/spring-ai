@@ -141,8 +141,10 @@ private void handle(HttpExchange exchange) throws IOException {
 
 등록된 redirect URI는 `http://127.0.0.1:8123/callback`이지만, Authorization Server가 loopback IP 주소의 포트를 빼고 비교하므로 빈 포트를 써도 된다([4장](04-client-registration.md)).
 
-callback server는 `GET`이고 `state`가 이번 authorization request의 값과 같은 callback만 결과로 쓴다.
-같은 기기의 다른 프로그램이나 web page가 빈 포트를 찾아 가짜 callback을 먼저 보내도, `400`으로 답하고 진짜 callback을 계속 기다린다.
+`Main`은 callback server를 열기 전에 이번 authorization request의 `state`를 만들어 넘긴다(7.5).
+callback server는 `GET`이고 `state`가 그 값과 같은 callback만 결과로 쓴다.
+같은 기기의 다른 프로그램이나 web page가 빈 포트를 찾아 가짜 callback을 먼저 보낼 수 있기 때문이다.
+그런 callback이 결과가 되면 진짜 callback은 버려지고 login이 실패하므로, 가짜에는 `400`으로 답하고 진짜 callback을 계속 기다린다.
 browser가 함께 보내는 `/favicon.ico` 같은 요청에는 `404`로 답한다.
 `Main`은 callback을 5분 동안 기다리고, 그 안에 login이 끝나지 않으면 멈춘다.
 
@@ -201,6 +203,8 @@ callback이 `127.0.0.1`로 오므로, browser는 `local-client`와 같은 기기
 
 사용자가 login과 consent를 마치면 browser는 callback 주소로 redirect된다.
 `LoopbackCallbackServer`가 받은 query parameter를 `AuthorizationResponse`가 확인하고, 그다음에야 code를 꺼낸다.
+callback server는 기다릴 callback을 고를 때만 `state`를 보고, 응답이 맞는지는 `AuthorizationResponse`가 받은 값만으로 다시 판단한다.
+그래서 `state` 확인이 두 곳에 있지만, 아래 확인은 callback server가 어떻게 동작하든 그대로 지켜진다.
 
 ```java
 public static String code(Map<String, String> params, String expectedState, AuthorizationServer server) {

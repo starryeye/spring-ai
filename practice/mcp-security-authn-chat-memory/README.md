@@ -44,8 +44,9 @@ client가 이 값을 정하게 하면, 다른 사용자의 `conversationId`를 �
 client는 대화를 구분하는 이름인 label만 고른다.
 
 `ConversationId.of(authentication, label)`은 `<사용자 이름>:<label>` 형식의 ID를 만든다.
-사용자 이름의 `%`와 `:`는 `%25`와 `%3A`로 바꿔 넣는다.
-그래서 `alice`의 ID는 `alice:default` 그대로이고, 이름에 `:`가 든 사용자 `alice:x`의 대화가 `alice`의 목록에 섞이지 않는다.
+사용자 이름에 `:`가 들어 있으면, `alice:x`의 ID `alice:x:default`도 `alice:`로 시작해 `alice`의 대화 목록에 섞인다.
+그래서 사용자 이름의 `%`와 `:`는 `%25`와 `%3A`로 바꿔 넣는다.
+두 글자가 없는 `alice`의 ID는 `alice:default` 그대로다.
 label에서 영문, 숫자, 한글, `_`, `-`가 아닌 글자는 모두 `_`로 바꾼다.
 구분자 `:`도 바뀌므로, bob이 label에 `alice:default`를 넣어도 ID는 `bob:alice_default`가 된다.
 label이 비어 있으면 `default`를 쓴다.
@@ -116,9 +117,11 @@ MCP Server가 session을 처음 연 사용자에 묶으면, 다른 사용자의 
 연결 주소는 discovery의 출발점인 `mcp.authorization.resource-url`(`http://localhost:8131/mcp`)이다.
 client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 보낸다.
 같은 사용자의 첫 요청이 동시에 와도 client는 하나만 열린다.
-`initialize`는 map을 고치는 동안이 아니라 그 밖에서 하므로, 한 사용자의 느린 `initialize`가 다른 사용자의 첫 채팅을 막지 않는다.
+`UserMcpClients`는 사용자별 client를 map에 두고, `initialize`는 이 map을 고치는 동안이 아니라 그 밖에서 한다.
+그래서 한 사용자의 느린 `initialize`가 다른 사용자의 첫 채팅을 막지 않는다.
 `initialize`가 실패하면 그 client를 닫고 오류를 그대로 올리며, 다음 채팅이 다시 연다.
 채팅은 `acquire`로 client를 빌려(`Lease`) 쓰고, 답 stream이 끝나면 돌려준다.
+그래서 다른 browser의 logout이나 session 만료로 client를 닫아도, 진행 중인 채팅이 끝난 뒤에 닫힌다.
 
 `ChatClientConfig`는 MCP tool을 기본 tool로 두지 않는다.
 `ChatController`가 요청마다 그 사용자 client의 tool만 LLM에 넘긴다.
@@ -139,9 +142,10 @@ client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 �
 | 묶음을 1시간 쓰지 않았을 때 | 묶음을 지운다. 요청을 처리할 때 1분에 한 번 오래된 묶음을 정리한다 |
 
 한 사용자가 여러 session을 열면 session마다 그 사용자에 묶인다.
-묶음은 서버 메모리의 map에 있고, 성공한 `DELETE`나 1시간 동안 쓰지 않으면 지워진다.
-묶음이 지워진 session으로 요청하면 `404`이고, SDK client는 다음 요청부터 다시 `initialize`한 새 session을 쓴다.
-묶음만 지우고 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있어서, filter가 직접 `404`로 답한다.
+묶음은 서버 메모리의 map에 있고, 성공한 `DELETE`로 지워진다.
+agent가 `DELETE` 없이 끝나면 묶음이 계속 쌓이므로, 1시간 쓰지 않은 묶음도 지운다.
+묶음만 지우고 요청을 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있다.
+그래서 묶음이 지워진 session으로 요청하면 filter가 직접 `404`로 답하고, SDK client는 다음 요청부터 다시 `initialize`한 새 session을 쓴다.
 
 ### token을 client 주인에게 묶는 이유
 
