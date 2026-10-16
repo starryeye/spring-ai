@@ -17,15 +17,12 @@ Authorization Server는 등록된 정보를 다음 세 곳에 쓴다.
 official의 Authorization Server는 등록되지 않은 `client_id`로 온 authorization request를 어느 주소로도 redirect하지 않고 오류로 끝낸다.
 이 client의 redirect URI를 모르므로 믿고 보낼 주소가 없다.
 요청에 적힌 주소로 오류를 보내 주면, 공격자가 Authorization Server를 거쳐 사용자를 아무 사이트로나 보내는 데 쓸 수 있다.
-login한 browser에는 이 오류가 `400`으로 보인다.
-login하지 않은 browser에는 login 화면이 보인다.
-official에서는 오류 page(`/error`)도 login을 요구하기 때문이다.
 
 2장에서 본 대로 MCP client는 처음 보는 Authorization Server를 만나므로, MCP는 미리 등록하는 방법 말고도 처음 만난 자리에서 `client_id`를 마련하는 방법을 둔다.
 
 등록은 3장의 Authorization Server Metadata를 읽은 뒤에 한다.
 그 Authorization Server가 어떤 등록 방식을 받는지 metadata가 알려 주기 때문이다.
-미리 등록한 client는 이 단계가 이미 끝나 있고, official의 두 client가 그렇다.
+미리 등록한 client는 이 단계가 이미 끝나 있다.
 
 ## 4.2 등록 방식 네 가지와 우선순위
 
@@ -56,7 +53,7 @@ CIMD와 DCR은 둘 다 처음 만난 Authorization Server에서 `client_id`를 �
 2026-07-28 버전은 DCR을 deprecated로 정하고, 새 구현에는 CIMD를 쓰라고 한다.
 
 등록 방식과 client 종류(2장의 confidential·public)는 따로 정한다.
-official은 두 종류를 모두 pre-registration으로 등록하고, CIMD와 DCR은 쓰지 않는다.
+official은 두 종류를 모두 pre-registration으로 등록한다.
 
 ## 4.3 pre-registration: official의 두 client
 
@@ -136,7 +133,7 @@ Authorization Server는 요청을 보낸 것이 진짜 `local-client`인지 확�
 | 비밀 없이 등록한다(`none`) | `client-authentication-methods: [none]` | 배포 파일의 비밀은 누구나 꺼낼 수 있다. 꺼낸 비밀로 다른 프로그램이 이 client 행세를 한다 |
 | PKCE를 반드시 쓴다 | `require-proof-key: true` | loopback redirect로 온 code를 같은 기기의 다른 프로그램이 가로채 token으로 바꾼다(5장) |
 | loopback redirect의 포트는 자유다 | Spring이 loopback IP 주소의 포트를 빼고 비교한다 | 포트를 고정하면 그 포트를 다른 프로그램이 쓰고 있을 때 login이 실패한다 |
-| consent를 매번 받는다 | `require-authorization-consent: true`와 consent·scope를 다루는 클래스 두 개(4.9) | 다른 프로그램이 `client_id`에 `local-mcp-client`를 넣어 요청하면 사용자 모르게 code가 발급된다 |
+| consent를 매번 받는다 | `require-authorization-consent: true`와 consent를 건너뛰지 못하게 하는 클래스 두 개([5장](05-authorization-and-token.md#55-login과-consent)) | 다른 프로그램이 `client_id`에 `local-mcp-client`를 넣어 요청하면 사용자 모르게 code가 발급된다 |
 | refresh token을 주지 않는다(official의 선택) | Spring 기본 동작 | 그냥 주면 새어 나간 refresh token 하나로 누구든 오랫동안 새 token을 받는다. 주려면 rotation으로 재사용을 잡아낸다([13장](13-cimd.md)) |
 
 **비밀 없음: `none`**
@@ -174,10 +171,9 @@ public client는 consent할 scope가 하나는 있어야 하고, 그 이유와 �
 **refresh token**
 
 `local-mcp-client`의 등록에는 `refresh_token` grant가 있지만, Spring은 인증 방식이 `none`인 client에게 refresh token을 주지 않는다.
-refresh token은 오래 쓰이는데, public client는 그것을 쓸 때도 자기를 증명하지 못해서 새어 나가면 누구든 쓸 수 있다.
 그래서 `local-client`는 token이 만료되면 authorization 흐름을 처음부터 다시 밟는다.
 
-주지 않는 것은 official의 선택이고, 표준은 public client에게도 refresh token을 줄 수 있게 한다.
+표준은 public client에게도 refresh token을 줄 수 있게 한다.
 그때는 refresh할 때마다 새 refresh token을 주고 옛것을 버리는 rotation으로, 새어 나간 refresh token의 재사용을 잡아낸다.
 Claude 앱처럼 public client로 붙는 제품도 refresh token과 rotation을 쓰고, 이 방식은 [13장](13-cimd.md#138-5단계-public-client의-refresh와-rotation)에서 본다.
 
@@ -266,8 +262,7 @@ DCR로 등록된 client는 Authorization Server에 계속 쌓인다.
 누가 등록했는지도 Authorization Server는 알 수 없다.
 CIMD라면 Authorization Server가 저장할 것이 없다.
 `client_id`의 host를 보면 이 client를 누가 올렸는지도 알 수 있다.
-2026-07-28 버전은 DCR을 deprecated로 정했다.
-DCR은 CIMD를 모르는 Authorization Server와 호환하려고 남아 있다.
+그래서 2026-07-28 버전은 DCR을 deprecated로 정했다(4.2).
 
 DCR을 쓰는 client는 `application_type`을 넣는다.
 OpenID Connect를 지원하는 Authorization Server는 이 값이 없으면 `web`으로 보고, `127.0.0.1` 같은 redirect URI를 거절할 수 있다.
@@ -293,23 +288,25 @@ PRM이 위조되었다면 비밀은 공격자에게 간다.
 
 DCR로 받아 저장해 둔 credentials도 같은 규칙을 따른다.
 CIMD는 어느 Authorization Server든 `client_id` 주소에서 문서를 직접 가져가므로, 서버가 바뀌어도 다시 등록할 필요가 없다.
+그래서 CIMD로 붙는 client는 issuer binding 대신 metadata의 CIMD 표시와 인증 방식을 확인한다([13장](13-cimd.md#134-1단계-metadata와-두-문서)).
 
 official의 agent는 `mcp.authorization.credentials-issuer`에, `local-client`는 `--issuer` 옵션(기본값 `http://localhost:9010`)에 이 issuer를 둔다.
 discovery는 PRM의 `authorization_servers`를 이 값과 먼저 비교하고, 다르면 metadata도 요청하지 않고 멈춘다(3장).
-
-CIMD로 붙는 client는 issuer binding을 하지 않는다.
-그 대신 metadata의 CIMD 표시와 인증 방식을 확인한다([13장](13-cimd.md#134-1단계-metadata와-두-문서)).
 
 ## 4.8 미리 등록한 client의 첫 연결
 
 미리 등록한 client로 MCP Server를 쓰려면, 사용자나 운영자가 MCP client에 몇 가지 값을 넣는다.
 MCP Server 주소와 그 MCP Server의 Authorization Server에서 미리 받은 `client_id`다.
 confidential client라면 `client_secret`도 함께 넣는다.
-official은 credentials를 발급한 Authorization Server의 issuer도 함께 넣는다(4.7).
 
 MCP 명세는 두 경우를 모두 pre-registration으로 본다.
 앱을 만들 때 `client_id`를 코드에 넣어 두는 경우와, 사용자가 직접 등록해 받은 값을 앱의 설정 화면에 넣어 두는 경우다.
 4.2의 사용자 입력은 이와 달리, 다른 방법을 모두 쓸 수 없을 때 연결 도중에 사용자에게 `client_id`를 묻는 방식이다.
+
+Claude에 Google의 Gmail MCP Server를 붙일 때가 두 번째 경우다([Google 문서](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)).
+사용자는 Google Cloud에서 Web application 종류의 OAuth client를 직접 만들고, redirect URI로 `https://claude.ai/api/mcp/auth_callback`을 등록한다.
+받은 client ID와 secret은 Claude의 connector 설정(Advanced settings)에 넣는다.
+이 client는 secret이 있는 confidential client이고, 연결하는 순서는 아래와 같다.
 
 값을 넣고 연결 버튼을 누르면 곧바로 login 화면이 뜨는 것처럼 보인다.
 그러나 `client_id`는 이 client가 누구인지만 알려 준다.
@@ -322,12 +319,10 @@ login 화면이 뜰 때는 이미 3장의 discovery가 끝나 있다.
 | MCP Server 주소 | 사용자나 운영자가 넣는다 |
 | `client_id` | 사용자나 운영자가 넣거나, 앱에 들어 있다 |
 | `client_secret` | confidential client에만 있다. 사용자나 운영자가 넣는다 |
-| credentials를 발급한 issuer | official은 credentials와 함께 넣는다. agent는 `credentials-issuer` 설정, `local-client`는 `--issuer` 옵션이다(4.7) |
+| credentials를 발급한 issuer | official은 credentials와 함께 넣는다(4.7) |
 | Authorization Server | PRM의 `authorization_servers`에서 알아낸다(3장) |
 | authorization endpoint, token endpoint | Authorization Server Metadata에서 알아낸다(3장) |
-| 처음 요청할 scope | `401`의 `scope`, PRM의 `scopes_supported` 순서로 고르고, 둘 다 없으면 `scope`를 빼고 보낸다(5장). official의 두 client는 `openid profile`로 정해 두었다 |
-
-`401`과 PRM으로 scope를 고르는 client는 [10장](10-scope-and-step-up.md)에서 본다.
+| 처음 요청할 scope | `401`과 PRM에서 고른다(5장). official의 두 client는 `openid profile`로 정해 두었다 |
 
 ```mermaid
 sequenceDiagram
@@ -356,18 +351,8 @@ sequenceDiagram
 [다이어그램 그림으로 보기](diagrams/04-client-registration-3.png)
 
 사용자 눈에 보이는 단계는 값을 넣는 (1)과 login·consent를 하는 (9)뿐이다.
-(2)\~(7)은 화면 없이 곧바로 지나가고, (8)에서 browser가 Authorization Server의 화면으로 넘어간다.
-그래서 값을 넣는 일과 login이 한 동작처럼 느껴진다.
-
-(2)\~(7)에서 client는 `client_id`를 쓰지 않는다.
+화면 없이 지나가는 (2)\~(7)에서 client는 `client_id`를 쓰지 않는다.
 `client_id`는 (8)의 authorization request에 처음 들어가고, (12)의 token request에 다시 들어간다.
-DCR이나 CIMD를 쓰는 client라면 (7)과 (8) 사이에서 `client_id`를 마련한다.
-4.2의 사용자 입력도 이 자리에서 사용자에게 `client_id`를 묻는다.
-미리 등록한 client는 연결하기 전에 값을 넣어 두었으므로 이 단계가 없고, 나머지 순서는 같다.
-
-(5)와 (6) 사이에서는 4.7의 issuer 비교를 한다.
-CIMD의 `client_id`와 달리, 미리 등록한 credentials는 발급한 Authorization Server에서만 통하기 때문이다.
-official의 두 client는 issuer를 credentials와 함께 넣어 두므로, 첫 연결에서도 이 비교를 할 수 있다.
 
 **confidential client와 public client의 차이**
 
@@ -377,27 +362,12 @@ official의 두 client로 보면, 첫 연결에서 다른 점은 다음과 같�
 | 단계 | confidential client: official의 agent | public client: official의 `local-client` |
 |---|---|---|
 | (1) 값을 넣는 사람과 때 | 운영자가 agent를 배포할 때 설정 파일에 한 번 넣는다. 사용자는 login만 한다 | 사용자가 실행할 때 `--resource`와 `--issuer`로 넣는다. 둘 다 기본값이 있다 |
-| (1) 넣는 값 | MCP Server 주소, `client_id`, `client_secret`, credentials를 발급한 issuer | MCP Server 주소와 `local-mcp-client`가 등록된 issuer다. `client_id`는 코드에 있고, 비밀은 없다 |
 | (2)\~(7) discovery를 하는 때 | 첫 사용자가 login할 때 한다. 성공한 결과만 기억해 두고 모든 사용자가 함께 쓴다(3장) | 실행할 때마다 한다 |
 
+넣는 값은 [2장](02-why-oauth.md#26-각자-미리-아는-것과-알아내는-것)의 표와 같다.
 authorization request, consent, token request에서 다른 점은 [2장](02-why-oauth.md#25-전체-흐름-시퀀스-다이어그램)의 표에 있다.
 
-두 client 모두 (12)에 `code_verifier`를 넣는다.
-`code_verifier`는 client가 진짜인지가 아니라, code를 token으로 바꾸려는 쪽이 (8)의 요청을 시작한 쪽인지만 증명한다(5장).
-그래서 public client에게는 비밀 대신 4.4의 규칙이 따로 필요하다.
-
-`local-client`의 출력에도 이 순서가 그대로 찍힌다.
-`[1]`의 discovery가 끝나야 `[2]`의 authorization request 주소가 만들어진다.
-`client_id`는 `[2]`의 주소에서 처음 보이고, access token은 `[4]`에서야 받는다.
-
-```text
-[1] discovery: http://localhost:8111/mcp
-    Authorization Server: http://localhost:9010
-[2] browser에서 login과 consent를 한다
-    http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A59597%2Fcallback&scope=openid+profile&...
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:59597/callback
-[4] client_secret 없이 access token을 받았다(299초 뒤 만료)
-```
+`local-client`의 출력([7장](07-local-client.md#79-실행해-보기))에서도 `[1]`의 discovery가 끝난 뒤에야 `client_id`가 든 `[2]`의 주소가 찍힌다.
 
 **endpoint를 직접 입력받는 client**
 
@@ -425,10 +395,8 @@ OpenID Connect discovery 문서(`/.well-known/openid-configuration`)에도 같�
                         methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD))))
 ```
 
-같은 클래스는 `PublicClientConsentService`를 consent 저장소 bean으로 등록한다.
-이 bean은 public client의 consent를 저장하지 않아서, public client는 매번 consent 화면을 거친다.
-authorization request 검증의 마지막 단계에는 `PublicClientScopeValidator`를 붙인다.
-두 클래스는 등록된 `client-authentication-methods`에 `none`이 있는 client만 다르게 처리하고, 자세한 동작은 5장에서 본다.
+같은 클래스는 public client가 consent를 건너뛰지 못하게 하는 `PublicClientConsentService`와 `PublicClientScopeValidator`도 연결한다.
+두 클래스의 동작은 [5장](05-authorization-and-token.md#55-login과-consent)에서 본다.
 
 **shop-agent: 설정의 credentials와 discovery 결과를 합친다**
 

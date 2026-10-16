@@ -18,11 +18,11 @@ web agent에서는 모델이, `local-client`에서는 코드가 앞선 tool 결�
 | `auth-server`의 scope 등록 | 두 client에 `products:read`와 `products:write`가 있다 | `orders:write`(주문)를 더한다. 이 scope는 `products:read`를 포함하지 않으므로, client는 authz처럼 가진 scope와 합쳐 요청한다 | [11장 시퀀스 다이어그램](../mcp-guide/11-stateless-and-handle.md#112-시퀀스-다이어그램), [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다) |
 | `auth-server`의 login 계정 | `user` 하나다 | `user2`가 더 있다. 다른 사용자가 남의 handle을 쓰면 어떻게 되는지 보는 데 쓴다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다) |
 | MCP Server의 오류 응답 | transport 오류 본문에 `McpError`와 Java stack trace가 담긴다 | `TransportErrorResponseFilter`가 `code`·`message`만 남긴다. 형식이 틀린 `tools/call`은 `ToolScopeFilter`가 `400`·`-32602`로 먼저 끝낸다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
-| agent의 MCP client | 모든 사용자가 client 하나를 같이 쓰고, 요청마다 그 사용자의 token을 붙인다. session은 첫 채팅을 보낸 사용자의 token으로 열리고, 앱을 끌 때 보내는 `DELETE`에는 token이 없다 | 코드는 같다. 서버에 session이 없어서, 요청마다 붙는 token만으로 사용자가 정해진다 | [session 없는 서버](#session-없는-서버), [6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자) |
-| agent의 대화 기억 | 없다. 질문마다 새 대화다 | `ChatMemoryConfig`가 사용자(`sub`)마다 최근 메시지 20개를 기억한다. 대화 기억 advisor를 tool loop 안쪽에 두어 tool 호출과 결과까지 남긴다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
+| agent의 MCP client | 모든 사용자가 client 하나를 같이 쓰고, 요청마다 그 사용자의 token을 붙인다 | 코드는 같다. 서버에 session이 없어서, 요청마다 붙는 token만으로 사용자가 정해진다 | [session 없는 서버](#session-없는-서버), [6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자) |
+| agent의 대화 기억 | 없다. 질문마다 새 대화다 | `ChatMemoryConfig`가 사용자(`sub`)마다 최근 메시지 20개를 기억한다. 대화 기억 advisor를 tool loop 안쪽에 두어 tool 호출과 결과까지 남긴다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | agent의 system prompt | 상품과 재고를 물으면 tool로 실제 데이터를 조회해 답하게 한다 | 앞선 tool 결과의 `basketId`를 이어 쓰고, 장바구니가 없거나 찾을 수 없음·만료·이미 주문이라는 결과가 오면 `createBasket`으로 새로 만들게 한다. `checkout`은 사용자가 주문이나 결제를 분명히 부탁할 때만 부르게 한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | agent의 step-up | `403`이면 consent 카드를 보내고, consent 뒤 browser가 같은 질문을 다시 보낸다 | 같다. 그리고 step-up으로 끊긴 turn을 대화 기억에서 되돌려, 다시 보낸 질문이 끊기기 전의 기억에서 시작하게 한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
-| agent의 화면 | 대화를 비우는 버튼이 없다 | "새 대화" 버튼이 `POST /api/chat/reset`으로 그 사용자의 대화 기억을 지운다 | [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
+| agent의 화면 | 대화를 비우는 버튼이 없다 | "새 대화" 버튼이 `POST /api/chat/reset`으로 그 사용자의 대화 기억을 지운다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | `local-client`의 MCP 호출 | `getStock(p1)` 뒤에 `updateStock(p1, 10)`을 부르고, `403`이면 `products:write`로 step-up한다 | `getStock(p1)` 뒤에 장바구니를 만들어 두 상품을 담고, 모르는 handle로 `getBasket`을 불러 오류를 본다. 마지막 `checkout`이 `403`을 받으면 `orders:write`로 step-up한 뒤 같은 호출을 새 요청으로 다시 보낸다 | [11장 사용자 기기의 앱](../mcp-guide/11-stateless-and-handle.md#118-사용자-기기의-앱-코드가-handle을-들고-다닌다) |
 
 MCP Server의 `401`의 `scope`와 PRM, token 검증, `Origin`·`Host`·`MCP-Protocol-Version` 검사는 authz와 같은 클래스다.
@@ -40,21 +40,10 @@ MCP 요청 형식은 authz와 같은 2025-11-25다.
 
 ### session 없는 서버
 
-authz의 agent는 MCP client 하나를 모든 사용자가 같이 쓴다([6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자)).
-session이 있는 서버에서는 모든 사용자의 요청이 이 client의 session 하나로 간다.
-그래서 session에 사용자 상태를 두면 사용자끼리 섞인다.
-이 session은 첫 채팅을 보낸 사용자의 token으로 열린다.
-session을 첫 사용자에게 묶으면 두 번째 사용자부터는 요청이 막힌다.
-앱을 끌 때 session을 끝내려고 보내는 `DELETE`에는 붙일 사용자 token도 없다.
-
-이 practice의 MCP Server는 session을 만들지 않는다.
-`initialize` 응답에 `Mcp-Session-Id`가 없으므로, client는 이후 요청에 session header를 보내지 않는다.
-agent는 authz처럼 MCP 요청을 보낼 때마다 그 요청을 일으킨 사용자의 token을 붙인다(`OAuth2TokenAttachingRequestCustomizer`).
-서버는 요청이 어느 연결이나 session에서 왔는지 기억하지 않으므로, 요청에 붙은 token의 `sub`만으로 사용자를 구별한다.
-그래서 공유 client를 그대로 두어도 사용자끼리 섞일 상태가 없다.
-
-MCP Java SDK의 client는 session ID를 받지 않았으면 닫을 때 `DELETE`를 보내지 않는다.
-GET `/mcp`에 `405`를 받으면, 서버가 먼저 보내는 stream 없이 요청과 응답만으로 돈다.
+authz의 agent는 MCP client 하나를 모든 사용자가 같이 쓰므로, session이 있는 서버에서는 사용자끼리 상태가 섞일 수 있었다([6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자)).
+이 practice의 MCP Server는 session ID를 주지 않는다.
+그래서 SDK client는 session header도 종료 `DELETE`도 보내지 않고, GET `/mcp`에 `405`를 받으면 요청과 응답만으로 돈다([11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답)).
+agent는 authz처럼 MCP 요청마다 그 요청을 일으킨 사용자의 token을 붙이고, 서버는 token의 `sub`만으로 사용자를 구별한다.
 
 ```mermaid
 sequenceDiagram
@@ -85,86 +74,45 @@ sequenceDiagram
 그 뒤의 요청에는 그 요청을 일으킨 사용자의 token만 붙는다(4)(7)(9).
 MCP Server는 token의 `sub`로 장바구니 key를 만들므로, 한 client를 거쳐 온 `user`와 `user2`의 장바구니가 따로 있다(5)(8).
 
-session이 없으면 요청을 어느 서버가 받아도 되므로, MCP Server를 여러 대로 늘리기 쉽다.
-다만 이 practice의 장바구니는 서버 한 대의 메모리에 있어서, 여러 대로 늘리려면 Redis 같은 공유 저장소가 필요하다.
+session이 없으면 요청을 어느 서버가 받아도 되지만, 이 practice의 장바구니는 서버 한 대의 메모리에 있다.
+그래서 MCP Server를 여러 대로 늘리려면 Redis 같은 공유 저장소가 필요하다.
 
 ### handle과 소유권
 
-handle은 장바구니를 가리키는 이름일 뿐, 가졌다고 쓸 수 있는 권한이 아니다.
-handle은 tool 결과에 담겨 대화 기록에 남으므로, 다른 사람이 알게 될 수 있다.
-그래서 `BasketStore`는 장바구니를 `<sub>:<handle>` key로 저장하고 찾는다.
-`sub`는 tool 인자가 아니라 MCP Server가 검증한 token에서 온다(`McpCaller`).
-다른 사용자가 handle을 알아내도 자기 `sub`로 찾게 되어, 장바구니를 찾을 수 없다는 결과만 받는다.
-
-handle은 추측으로 맞힐 수 없어야 한다.
-그래서 `SecureRandom`의 128bit 무작위 값을 base64url 22자로 적고, 앞에 `bsk_`를 붙여 만든다.
-
-장바구니를 쓸 수 없는 이유를 모델이 읽으면, 새 장바구니를 만들어 이어 갈 수 있다.
-그래서 tool은 JSON-RPC 오류가 아니라 `isError: true`인 tool 결과로 답한다.
+MCP Server는 장바구니를 `<sub>:<handle>` key로 찾으므로, 남의 handle을 보내면 모르는 handle과 같은 "찾을 수 없는 장바구니" 결과를 받는다.
+쓸 수 없는 장바구니는 모델이 읽고 새 장바구니로 이어 가도록 JSON-RPC 오류가 아니라 `isError: true`인 tool 결과로 알린다.
+소유권과 추측할 수 없는 handle 값, 만료·주문 완료·개수 상한의 문장, 한 번만 되는 주문은 [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다)에 있다.
+11장에 없는 경우의 문장은 다음과 같다.
 
 | 경우 | tool 결과의 문장 |
 |---|---|
-| 모르는 handle, 다른 사용자의 handle | `찾을 수 없는 장바구니입니다(bsk_…). createBasket으로 새 장바구니를 만드세요.` |
-| `bsk_` 뒤에 22자가 오는 형식이 아닌 값 | 같은 문장이고, 괄호 안의 handle 자리에 `올바르지 않은 ID`가 들어간다 |
-| 본인 handle, 만든 뒤 30분이 지남 | `만료된 장바구니입니다(bsk_…, 만든 뒤 30분). createBasket으로 새 장바구니를 만드세요.` |
-| 본인 handle, 이미 주문함 | `이미 주문한 장바구니입니다(bsk_…, 주문 번호 ord-…).` |
+| `bsk_` 뒤에 22자가 오는 형식이 아닌 값 | 모르는 handle과 같은 문장이고, 괄호 안의 handle 자리에 `올바르지 않은 ID`가 들어간다 |
 | 이미 담은 수량과 합쳐 99개를 넘는 `addItem` | `한 장바구니에는 같은 상품을 99개까지 담을 수 있습니다(지금 98개, 더하려는 수량 2개).`처럼 지금 수량과 더하려는 수량이 붙는다. 장바구니는 그대로다 |
 | 빈 장바구니의 `checkout` | `비어 있는 장바구니입니다(bsk_…). addItem으로 상품을 담으세요.` |
 | 재고가 모자란 상품이 있는 `checkout` | `재고가 모자라 주문할 수 없습니다: p3`처럼 모자란 상품 ID가 붙는다. 장바구니는 열린 채로 남는다 |
-| 열린 장바구니가 이미 5개인 사용자의 `createBasket` | `열린 장바구니는 5개까지 만들 수 있습니다. 쓰던 장바구니를 이어 쓰세요.` |
-
-남의 handle을 보내도 서버는 보낸 사람의 `sub`로 key를 만들어 찾으므로, 모르는 handle과 같은 문장이 된다.
-그래서 만료와 주문 완료를 따로 알려도, 남의 handle이 있는지는 알 수 없다.
-같은 장바구니를 두 번 주문하지 못하게 하는 방법은 [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다)에서 본다.
 
 ### 대화 기억과 끊긴 turn
 
 web agent에서 handle을 다음 tool 호출에 넘기는 것은 모델이다.
-모델이 앞선 turn(사용자 질문 하나와 그 답)의 tool 결과를 봐야 그 안의 `basketId`를 다시 쓸 수 있다.
-Spring AI의 기본 배치에서는 대화 기억에 사용자 질문과 마지막 답만 남고, tool 호출과 결과는 남지 않는다.
-
-agent는 두 설정을 함께 바꿔 tool 호출과 결과까지 기억에 남긴다.
-
-- `ChatMemoryConfig`는 `ToolCallingAdvisor`의 내부 history를 끈다(`disableInternalConversationHistory()`).
-  그러면 대화 history는 대화 기억 한 곳에만 있다.
-- `ChatClientConfig`는 `MessageChatMemoryAdvisor`를 `ChatMemoryConfig`의 `MEMORY_ADVISOR_ORDER`로 넣는다.
-  이 order는 `ToolCallingAdvisor`의 order보다 커서, 대화 기억 advisor가 tool loop 안쪽에 든다.
-  그래서 tool loop의 한 단계마다 tool 호출과 결과가 저장된다.
-
-두 설정이 함께 있어야 하는 이유는 [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화)에서 본다.
-
-conversation ID는 login한 사용자의 `sub`다(`ChatController`).
-그래서 사용자마다 대화가 따로 있다.
-기억은 사용자마다 최근 메시지 20개이고 메모리에 있어서, agent를 다시 띄우면 사라진다.
-
-**step-up으로 끊긴 turn 되돌리기**
-
-`checkout`이 `403`을 받으면 turn은 답 없이 consent 카드로 끝난다.
-이때 기억에는 그 turn의 사용자 질문과 결과 없는 `checkout` 호출이 남아 있다.
-되돌리지 않으면, consent 뒤 browser가 같은 질문을 다시 보낼 때 모델은 같은 질문 두 개와 결과 없는 tool 호출이 섞인 기억을 받는다.
-
-그래서 `ChatController`는 turn을 시작하기 전의 기억을 복사해 둔다.
-turn이 step-up으로 끝나면 `ChatEvents`가 consent 카드 event를 만들기 직전에 그 복사본으로 기억을 되돌린다.
-다시 보낸 질문은 끊기기 전의 기억에서 새 turn으로 시작한다.
-거절 안내(`step-up-declined`)로 끝나는 turn도 같은 방법으로 되돌린다.
-
-**새 대화**
-
-화면의 "새 대화" 버튼은 `POST /api/chat/reset`을 보내 그 사용자의 대화 기억을 지운다.
-기억이 지워지면 모델은 전에 받은 handle을 모르므로, 장바구니가 필요할 때 `createBasket`으로 새로 만든다.
-옛 장바구니는 서버에 남아 있다가 만료된다.
-turn이 도는 중에 기억을 지우면, 그 turn은 지운 뒤에도 기억에 계속 쓴다.
-그래서 화면은 turn이 끝날 때까지 이 버튼을 막아 둔다.
+그래서 agent는 대화 기억 advisor를 tool loop 안쪽에 두어, 사용자(`sub`)마다 최근 메시지 20개를 tool 호출과 결과까지 기억한다.
+step-up으로 끊긴 turn은 기억에서 되돌려, consent 뒤 다시 보낸 질문이 끊기기 전의 기억에서 시작하게 한다.
+화면의 "새 대화" 버튼은 그 사용자의 기억을 지우고, turn이 도는 동안에는 막혀 있다.
+두 설정이 함께 있어야 하는 이유와 되돌리기, 새 대화는 [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화)에 있다.
 
 **이 practice의 한계**
 
-- 되돌리기는 turn 전체를 되돌린다.
+- 되돌리기는 turn 전체를 되돌리지만, 서버에서 이미 끝난 일은 되돌리지 않는다.
   한 turn에서 `addItem`을 부른 뒤 `checkout`이 step-up으로 끊기면, 담은 상품은 서버에 그대로 있다.
-  다시 보낸 질문이 `addItem`을 또 불러 수량이 늘어난다.
-  그래서 결제는 `결제해 줘`처럼 따로 한 turn으로 부탁한다.
+  다시 보낸 질문이 `addItem`을 또 불러 수량이 늘어나므로, 결제는 `결제해 줘`처럼 따로 한 turn으로 부탁한다.
 - 기억은 최근 메시지 20개다.
   20개를 넘으면 `MessageWindowChatMemory`는 오래된 메시지를 다음 사용자 질문 앞까지 한꺼번에 지운다.
   그래서 한 turn에서 tool을 10번쯤 넘게 부르면, 그 turn이 통째로 기억에서 빠질 수 있다.
+- 마지막 답은 stream이 끝나야 저장된다.
+  browser가 도중에 끊으면 기억에는 tool 호출과 결과만 남고 답은 없다.
+- step-up이 아닌 오류나 tool 실행 중의 연결 끊김으로 turn이 끝나면 되돌리지 않는다.
+  그래서 결과 없는 tool 호출이 "새 대화"까지 기억에 남을 수 있다.
+- 모델은 Ollama의 `qwen3:8b`이고, 결과 없는 tool 호출이 섞인 history도 받는다.
+  Claude API는 tool 호출 바로 뒤에 그 결과가 오지 않는 history를 받지 않으므로([Claude API 문서](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)), provider를 바꾸면 이 경우를 따로 다뤄야 한다.
 - 같은 사용자가 browser tab 두 개에서 채팅하면, 두 tab이 대화 하나를 lock 없이 같이 쓴다.
   한 tab의 turn이 step-up으로 되돌려지면, 다른 tab이 그 사이에 쌓은 기억도 함께 되돌려진다.
 
@@ -197,8 +145,7 @@ login 뒤 consent 화면의 선택 항목은 `products:read` 하나다.
 
 `local-client`에게는 `auth-server`와 `shop-mcp-server`만 있으면 된다.
 `./gradlew run`은 `JAVA_HOME`이 Java 21을 가리켜야 돈다.
-Java 21을 sdkman으로 설치했다면 아래 첫 줄로 맞춘다.
-다른 방법으로 설치했다면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
+sdkman으로 설치한 Java 21이면 아래 첫 줄로 맞추고, 아니면 `JAVA_HOME`을 그 Java 21 폴더로 둔다.
 
 ```bash
 # 저장소 최상위 폴더에서
@@ -211,8 +158,7 @@ browser는 두 번 열린다.
 처음 열린 browser에 login 화면이 나오면 `user`/`password`로 login한다.
 consent 화면에서는 `products:read`를 체크해 제출한다.
 `checkout`이 `403`을 받으면 step-up의 consent 화면이 열린다.
-`local-mcp-client`는 public client라서 Authorization Server가 consent를 저장하지 않는다.
-그래서 이 화면은 `products:read`와 `orders:write`를 모두 묻고, 여기서는 둘 다 체크해 제출한다.
+public client는 consent가 저장되지 않아 이 화면이 `products:read`와 `orders:write`를 모두 묻고, 여기서는 둘 다 체크해 제출한다.
 terminal에 `[1]`부터 `[7]`까지 찍히고 앱은 끝난다.
 `./gradlew run --args="--no-browser"`는 browser를 열지 않고 authorization request 주소만 찍는다.
 인자와 멈추는 경우는 [7장 실행해 보기](../mcp-guide/07-local-client.md#79-실행해-보기)에 있다.
@@ -252,8 +198,8 @@ MCP Server에는 authz에 없는 하위 package 두 개가 더 있다.
 | `shop-agent` | `ChatMemoryConfig` | 사용자마다 최근 메시지 20개를 기억하는 `ChatMemory`를 만든다. `ToolCallingAdvisor`의 내부 history를 끄고, 대화 기억 advisor가 tool loop 안쪽에 들 order 값(`MEMORY_ADVISOR_ORDER`)을 정한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [11장 client 코드](../mcp-guide/11-stateless-and-handle.md#1110-client-코드에서-보기) |
 | | `ChatClientConfig` | 대화 기억 advisor를 `MEMORY_ADVISOR_ORDER`로 기본 advisor에 넣고, system prompt에 장바구니 규칙을 적는다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | | `ChatController` | login한 사용자의 `sub`를 conversation ID로 쓴다. turn 전의 기억을 복사해 두었다가 step-up으로 끊기면 되돌리고, `/api/chat/reset`으로 기억을 지운다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [11장 client 코드](../mcp-guide/11-stateless-and-handle.md#1110-client-코드에서-보기) |
-| | `ChatEvents` | step-up event를 만들기 직전에 `ChatController`가 넘긴 되돌리기를 부른다 | [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
-| | `index.html` | "새 대화" 버튼을 둔다. turn이 도는 동안에는 보내기 버튼과 함께 막아 둔다 | [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
+| | `ChatEvents` | step-up event를 만들기 직전에 `ChatController`가 넘긴 되돌리기를 부른다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
+| | `index.html` | "새 대화" 버튼을 둔다. turn이 도는 동안에는 보내기 버튼과 함께 막아 둔다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | `local-client` | `McpCalls` | 장바구니 시나리오를 부른다. `createBasket`의 `structuredContent`에서 `basketId`를 꺼내 다음 호출의 인자로 넘기고, `isError`인 결과 앞에는 `[오류]`를 찍는다 | [11장 사용자 기기의 앱](../mcp-guide/11-stateless-and-handle.md#118-사용자-기기의-앱-코드가-handle을-들고-다닌다), [11장 client 코드](../mcp-guide/11-stateless-and-handle.md#1110-client-코드에서-보기) |
 
 ## 직접 확인할 것
@@ -291,10 +237,7 @@ LLM의 답은 `qwen3:8b`의 출력이라 문장이 매번 조금씩 다르다.
 기기에 따라 답 하나에 30\~100초가 걸린다.
 `./gradlew test` 전에는 [실행](#실행)의 `export` 줄로 `JAVA_HOME`을 Java 21로 맞춘다.
 
-`logs/shop-agent.log`에는 `checkout`이 `403`을 받을 때 `ERROR` 줄 세 개가 남는다.
-`SyncMcpToolCallback`의 `Exception while tool calling` 한 줄과 `MessageAggregator`의 `Aggregation Error` 두 줄이다.
-이 줄들은 Spring AI가 tool 예외를 채팅 응답까지 전하면서 남긴다.
-실패가 아니라 step-up이 정상으로 진행될 때 남는 로그다.
+`logs/shop-agent.log`에서 `checkout`이 `403`을 받을 때 남는 `ERROR` 줄 세 개는 [authz의 직접 확인할 것](../mcp-security-authz/README.md#직접-확인할-것)과 같고, step-up이 정상으로 진행될 때 남는 로그다.
 찾을 수 없는 장바구니처럼 `isError: true`인 tool 결과가 오면 `SyncMcpToolCallback`이 `Error calling tool: [TextContent[…]]`라는 `ERROR` 줄을 남기고, 모델은 이 문자열을 tool 결과로 받아 답을 이어 간다.
 
 `mcp-stateless-walkthrough.sh`는 agent의 client `stateless-shop-agent`로 `user`와 `user2`의 token을 받고, 장바구니 흐름과 `checkout`의 step-up까지 밟는다.

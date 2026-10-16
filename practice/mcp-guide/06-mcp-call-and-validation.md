@@ -7,8 +7,7 @@ client는 5장에서 이 MCP Server에서만 통하는 access token을 받았다
 
 OAuth에서 MCP Server는 resource server 역할을 한다.
 주소를 아는 누구나 HTTP 요청을 보낼 수 있으므로, MCP Server는 요청이 올 때마다 누가 누구를 대신해 보냈는지 token으로 확인한다.
-1장의 session ID가 있어도 마찬가지다.
-session ID는 어느 연결인지 가리킬 뿐, 보낸 사람을 증명하지 않는다.
+1장의 session ID가 있어도 마찬가지다(6.7).
 
 token 검사는 보통의 API 서버가 Bearer token을 검사하는 것과 같다.
 MCP는 여기에 전송 단계의 검사를 더한다.
@@ -132,28 +131,19 @@ official은 두 header를 모두 본다.
 browser는 같은 출처로 보내는 `GET`에는 `Origin`을 붙이지 않지만, `Host`는 모든 요청에 있다.
 
 `Origin`이 붙은 요청과 `Host`가 다른 요청은 token이 없어도 이렇게 거절된다.
+본문은 둘 다 `text/plain`이다.
 
-```http
-HTTP/1.1 403
-Content-Type: text/plain;charset=UTF-8
-
-Invalid Origin header
-```
-
-```http
-HTTP/1.1 421
-Content-Type: text/plain;charset=UTF-8
-
-Invalid Host header
+```text
+HTTP/1.1 403  Invalid Origin header
+HTTP/1.1 421  Invalid Host header
 ```
 
 `421 Misdirected Request`는 "이 요청은 이 서버로 올 것이 아니었다"는 뜻이다.
 
 **인증보다 먼저 검사하는 이유**
 
-MCP Java SDK에는 `Origin`·`Host`를 검사하는 `DefaultServerTransportSecurityValidator`가 있다.
-SDK transport는 이 검증기를 받아 쓸 수 있지만, Spring AI 자동 구성은 transport에 검증기를 넣지 않는다.
-넣더라도 transport는 Spring Security를 지난 요청만 받아서, token 없는 요청은 `Origin`을 보기 전에 `401`로 끝난다.
+MCP Java SDK에는 `Origin`·`Host`를 검사하는 `DefaultServerTransportSecurityValidator`가 있지만, Spring AI 자동 구성은 이 검증기를 transport에 넣지 않는다.
+넣더라도 transport는 Spring Security 뒤에 있어서, token 없는 요청은 `Origin`을 보기 전에 `401`로 끝난다.
 `Origin` 검사는 token과 상관없이 browser를 거친 요청을 `403`으로 거절하는 방어다.
 그래서 official은 같은 검증기를 `McpTransportSecurityFilter`라는 servlet filter로 감싸 Spring Security 앞에 둔다(6.9).
 
@@ -234,10 +224,9 @@ spring:
 `issuer-uri`는 두 가지 일을 한다.
 이 주소로 metadata를 찾아 `jwks_uri`를 알아내고, token의 `iss`가 이 값과 같은지 본다.
 `audiences`는 token의 `aud`에 이 값이 있는지 본다.
-상용 IdP에서는 `aud`가 MCP Server 주소가 아닐 수 있다.
-예를 들어 Entra의 v2 token은 `aud`가 API의 client ID다([5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token)).
+상용 IdP에서 `audiences`에 넣을 값은 MCP Server 주소가 아닐 수 있다([5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token)).
 Spring은 이 줄이 없으면 `aud`를 검사하지 않고, 같은 Authorization Server가 다른 서비스용으로 발급한 token도 받는다.
-그러면 사용자가 다른 MCP Server에 준 token을 그 서버가 이 MCP Server에 들고 와도 통과한다.
+이 틈을 노리는 공격은 [8장](08-security.md#86-confused-deputy와-다른-mcp-server용-token)에서 본다.
 
 ID token을 Bearer로 보내 보면 `aud` 검사가 하는 일이 보인다.
 ID token은 access token과 같은 key로 signature를 만들었고 `iss`도 같다.
@@ -256,7 +245,6 @@ WWW-Authenticate: Bearer error="invalid_token", error_description="An error occu
 
 token이 아예 없을 때의 `401`에는 `error`가 없다(3장).
 그래서 `401`을 받은 client는 `error`가 있는지로 "token이 필요하다"와 "이 token은 쓸 수 없다"를 가린다.
-token은 쓸 수 있지만 scope가 모자란 경우는 `401`이 아니라 `403`으로 온다(아래의 step-up).
 
 **`exp`**
 
@@ -267,28 +255,12 @@ agent는 만료가 가까운 token을 refresh token으로 새로 받아 붙인�
 
 **`403 insufficient_scope`와 step-up**
 
-MCP Server는 tool마다 다른 권한을 요구할 수 있다.
-읽기 tool은 `files:read`로 충분하고, 쓰기 tool에는 `files:write`가 더 필요한 식이다.
-client는 처음에 기본 기능에 필요한 scope만 받으므로(5장), 쓰기 tool을 부르면 token은 유효해도 scope가 모자랄 수 있다.
-이때 MCP Server는 `403`으로 답하고, 이 요청에 필요한 scope를 `WWW-Authenticate` header에 적는다.
-아래는 MCP 명세의 예시를 줄인 것이다.
-
-```http
-HTTP/1.1 403 Forbidden
-WWW-Authenticate: Bearer error="insufficient_scope", scope="files:read files:write", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"
-```
-
-2025-11-25에서는 `scope`에 새로 필요한 scope와 함께, 이미 받은 scope 가운데 계속 필요한 것도 적는다.
-client가 새 token을 받으면서 원래 있던 권한을 잃지 않게 하기 위해서다.
-2026-07-28은 이전 scope와 합치는 일을 client에게 맡기므로, 서버는 새로 필요한 scope만 적어도 된다([10장](10-scope-and-step-up.md#104-2단계-쓰기를-처음-시도하면-403이-온다)).
-사용자를 대신하는 client는 이 `scope`로 authorization request를 다시 보내 새 token을 받고, 원래 요청을 다시 보낸다.
+token은 유효하지만 이 요청에 필요한 scope가 모자라면, MCP Server는 `401`이 아니라 `403`과 `error="insufficient_scope"`, 필요한 `scope`로 답한다.
+쓰기 tool에만 쓰기 scope를 요구하는 서버에 조회 scope만 받은 client가 쓰기 tool을 부르면 이렇게 된다.
+사용자를 대신하는 client는 그 scope로 다시 authorization을 받아 원래 요청을 다시 보낸다.
 이렇게 필요할 때 scope를 넓혀 가는 흐름이 step-up authorization이다.
-같은 요청이 계속 실패하지 않도록, client는 다시 시도하는 횟수를 제한한다.
-
-official의 MCP Server는 인증된 요청에 모든 tool을 허용하고, tool마다 scope를 요구하지 않는다.
-그래서 `403 insufficient_scope`를 보내지 않고, official의 두 client에도 step-up 처리가 없다.
-official의 scope 설계에 대한 판정은 [준수표](reference-compliance.md)의 16번에 있다.
-tool마다 scope를 두고 `403 insufficient_scope`로 알리는 MCP Server와 step-up을 하는 client는 [10장](10-scope-and-step-up.md)에서 `mcp-security-authz` practice로 직접 본다.
+official의 MCP Server는 tool마다 scope를 두지 않아서 이 `403`을 보내지 않고, 두 client에도 step-up 처리가 없다([준수표](reference-compliance.md)의 16번).
+tool별 scope와 step-up은 [10장](10-scope-and-step-up.md)에서 `mcp-security-authz` practice로 직접 본다.
 
 ## 6.6 3·4단계: `MCP-Protocol-Version`과 session 검사
 
@@ -343,14 +315,9 @@ official은 흐름을 단순하게 보이려고 이 client 하나를 모든 사�
 다른 사용자의 token으로 그 session ID를 쓰면 `403`이다.
 client를 닫을 때 보내는 `DELETE`에도 그 client 주인의 token이 붙는다.
 
-MCP 2026-07-28에서는 protocol 수준의 session과 `Mcp-Session-Id`가 없어졌다.
-session이 없으므로, official처럼 client 하나를 두고 요청마다 그 사용자의 token을 붙여도 session이 사용자끼리 섞일 일은 없다.
-chat-memory처럼 session을 사용자에 묶는 일도 필요 없어진다.
-다만 client가 사용자마다 다른 결과를 cache한다면, 그 cache는 사용자마다 따로 둔다.
-서버가 사용자마다 다른 tool 목록을 줄 때 공유 client의 목록 cache가 섞이는 문제는 [12장](12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)에서 본다.
-호출 사이에 상태가 필요한 서버는 스스로 만든 handle을 tool 인자로 주고받고, 그 handle이 요청한 사용자의 것인지 token으로 확인한다.
-자세한 것은 9장에서 본다.
-session 없이 도는 서버와 handle은 [11장](11-stateless-and-handle.md)에서 `mcp-stateless-handle` practice로 본다.
+MCP 2026-07-28에는 protocol 수준의 session이 없어서, official처럼 client 하나에 요청마다 그 사용자의 token을 붙여도 session이 사용자끼리 섞이지 않는다([9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)).
+호출 사이의 상태는 서버가 만든 handle로 가리키고, 서버는 handle과 token의 사용자를 함께 확인한다([11장](11-stateless-and-handle.md)).
+다만 사용자마다 다른 tool 목록을 공유 client가 cache하면 목록이 사용자끼리 섞일 수 있다([12장](12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)).
 
 ## 6.8 agent가 token을 붙이는 방법
 
@@ -384,9 +351,7 @@ sequenceDiagram
 | `SecurityMcpTransportContextProvider` | MCP client가 요청을 만들 때 (2)(3) | `SecurityContextHolder`의 `Authentication`을 `McpTransportContext`에 담는다 |
 | `OAuth2TokenAttachingRequestCustomizer` | transport가 HTTP 요청을 보내기 직전 (4)(5) | context의 사용자로 access token을 찾아 `Authorization` header를 넣는다 |
 
-`McpSecurityConfig`는 `McpClientCustomizer` bean 두 개로 두 클래스를 Spring AI의 MCP client에 연결한다.
-context provider는 `McpClient.SyncSpec`에, token customizer는 `HttpClientStreamableHttpTransport.Builder`에 넣는다.
-token customizer는 요청을 보낼 때마다 불린다.
+두 클래스는 `McpSecurityConfig`가 `McpClientCustomizer` bean으로 Spring AI의 MCP client에 연결한다.
 
 ```java
 public void customize(HttpRequest.Builder builder, String method, URI endpoint, String body,
@@ -438,10 +403,7 @@ MCP 요청에서 token만 빠지고, MCP Server가 `401`로 답한 뒤에야 알
 
 **`local-client`는 한 번만 붙인다**
 
-`local-client`는 사용자 한 명이 자기 기기에서 쓰고, 한 번 실행하는 동안 token도 하나다.
-그래서 transport를 만들 때 기본 요청에 `Authorization` header를 한 번 넣는다(`McpCalls`).
-SDK는 이 기본 요청을 복사해 `initialize`부터 session을 끝내는 `DELETE`까지 모든 요청을 만든다.
-자세한 과정은 7장에서 본다.
+`local-client`는 실행하는 동안 token이 하나라서, transport의 기본 요청에 `Authorization` header를 한 번 넣는다([7장](07-local-client.md#78-6단계-mcp-호출--mcpcalls)).
 
 ## 6.9 official 코드에서 보기
 
@@ -452,24 +414,19 @@ SDK는 이 기본 요청을 복사해 `initialize`부터 session을 끝내는 `D
 
 ```java
 @Bean
-public SecurityFilterChain securityFilterChain(HttpSecurity http,
-        @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
-        OAuth2ResourceServerProperties properties) throws Exception {
-    String resourceMetadataUrl = /* audiences 설정의 MCP Server 주소로 만든 PRM 주소 (3장) */;
+public SecurityFilterChain securityFilterChain(HttpSecurity http /* , issuer, properties */) throws Exception {
     return http
             .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())   // session ID가 있어도 token을 본다
             .oauth2ResourceServer(resourceServer -> resourceServer
                     .jwt(Customizer.withDefaults())                             // signature, iss, aud, exp
-                    .authenticationEntryPoint(resourceMetadataEntryPoint(resourceMetadataUrl))   // 401에 resource_metadata (3장)
-                    .protectedResourceMetadata(/* ... PRM (3장) */))
+                    /* 401의 resource_metadata와 PRM (3장) */)
             .csrf(csrf -> csrf.disable())                                       // cookie가 아니라 token으로만 인증한다
             .build();
 }
 ```
 
 `jwt(Customizer.withDefaults())`는 Spring Boot가 `issuer-uri`와 `audiences`로 만든 `JwtDecoder`를 쓴다.
-이 decoder는 처음 token을 검증할 때 metadata를 읽는다.
-그래서 Authorization Server가 꺼져 있어도 MCP Server는 뜨고, token이 붙은 첫 요청에서 실패한다.
+이 decoder는 첫 token 검증 때 metadata를 읽으므로, Authorization Server가 꺼져 있어도 MCP Server는 뜨고 token이 붙은 첫 요청에서 실패한다.
 
 **`McpTransportConfig`: filter 두 개의 자리**
 
@@ -490,11 +447,9 @@ public FilterRegistrationBean<McpTransportSecurityFilter> mcpTransportSecurityFi
 }
 ```
 
-`SecurityFilterProperties.DEFAULT_FILTER_ORDER`는 Spring Security filter chain의 순서다.
-1을 빼면 그보다 먼저 돈다.
+`SecurityFilterProperties.DEFAULT_FILTER_ORDER`는 Spring Security filter chain의 순서라서, 1을 빼면 그보다 먼저 돈다.
 `mcpProtocolVersionFilter` bean은 순서를 정하지 않는다.
 `FilterRegistrationBean`의 기본 순서는 가장 뒤라서, 이 filter는 Spring Security 다음에 돈다.
-`McpTransportSecurityFilter`는 검증기가 거절하면 `403`·`421`로 바로 응답하고, 그 요청을 Spring Security로 넘기지 않는다.
 
 **`McpProtocolVersionFilter`: 3단계**
 

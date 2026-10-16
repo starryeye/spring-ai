@@ -3,7 +3,6 @@
 이 장부터는 사용자 기기의 앱 대신, 서버에서 도는 두 제품(ChatGPT와 Claude)이 Authorization Server에 붙는 방식을 web agent로 본다.
 MCP Server를 두 제품에 붙이려면 먼저 이 두 client에 맞춰야 하고, 두 제품은 사용자 기기가 아니라 자기 회사 서버에서 token을 받는다.
 사용자 기기의 앱이 CIMD로 붙는 방식(Claude Code(CLI))은 실제 문서로만 본다.
-예시 값은 `mcp-cimd` practice(`http://localhost:9060`, `http://localhost:8171/mcp`, `http://localhost:8170`, `https://localhost:8172`)를 띄워 받은 캡처다.
 
 ## 13.1 CIMD의 필요성
 
@@ -13,11 +12,10 @@ ChatGPT나 Claude의 사용자는 아무 MCP Server 주소나 붙이고, 두 제
 
 연결할 때마다 등록을 요청하는 DCR은 등록된 client가 쌓이는 문제로 2026-07-28에서 deprecated다([4장](04-client-registration.md#46-dcr)).
 
-CIMD는 등록 요청이 없다.
-client는 자기 정보를 담은 JSON 문서를 자기 `https` 주소에 올리고, 그 주소를 `client_id`로 쓴다.
-Authorization Server는 cache에 없는 주소를 만나면 그 문서를 가져와 등록 정보로 쓰므로, 따로 저장해 둘 것이 없다.
+CIMD에는 등록 요청이 없다.
+client가 자기 `https` 주소에 올린 JSON 문서의 주소가 `client_id`이고, Authorization Server는 처음 보는 주소면 그 문서를 가져와 등록 정보로 쓴다([4장 CIMD](04-client-registration.md#45-cimd)).
 문서의 내용은 그 domain의 주인만 바꿀 수 있다.
-CIMD의 기본 규칙은 [4장 CIMD](04-client-registration.md#45-cimd)에서 보았고, 이 장은 그 규칙을 실제로 돌려 본다.
+이 장은 4장에서 본 CIMD의 규칙을 실제로 돌려 본다.
 
 CIMD가 정하는 것은 client가 누구인지 알리는 방법이다.
 token endpoint에서 자기를 어떻게 증명할지는 client가 문서의 `token_endpoint_auth_method`로 고른다.
@@ -60,11 +58,9 @@ ChatGPT는 이 목록과 Authorization Server metadata의 같은 이름 field가
 claude.ai·Claude Desktop 같은 Claude 앱도 CIMD로 붙을 때 public client다.
 [Claude 문서](https://claude.com/docs/connectors/building/authentication#dcr-and-cimd-details)에 따르면 Claude는 metadata에 `client_id_metadata_document_supported: true`와 `none`이 함께 있을 때만 CIMD를 쓴다.
 `none`은 `token_endpoint_auth_methods_supported`에 있어야 하고, 둘 중 하나라도 없으면 Claude는 DCR로 간다.
-Claude 앱의 redirect 주소는 `https://claude.ai/api/mcp/auth_callback`이다.
 같은 문서의 [token refresh](https://claude.com/docs/connectors/building/authentication#token-refresh) 항목은 public client 연결의 refresh token을 rotation하고, 더는 쓸 수 없는 refresh token에는 `invalid_grant`로 답하라고 한다.
 
 두 제품이 다른 방식을 고른 것은 표준 안의 선택이고, Authorization Server가 metadata에 두 방식을 모두 알리면 두 제품이 모두 붙는다.
-이 practice의 ChatGPT형 문서는 ChatGPT 문서처럼 `private_key_jwt`·`RS256`·`jwks_uri`를 적고, Claude형 문서는 Claude Code 문서처럼 `none`을 적는다.
 
 ## 13.3 시퀀스 다이어그램
 
@@ -114,6 +110,7 @@ sequenceDiagram
 Claude형은 (8)에서 `/oauth/public-client.json`을 가져오고, (14)에 assertion을 넣지 않으므로 (15)(16)이 없다.
 
 아래 예시는 `practice/mcp-cimd`를 실제로 띄워 받은 값이고, token이 필요한 요청은 agent 대신 캡처 스크립트가 curl로 보냈다.
+Authorization Server는 `http://localhost:9060`, MCP Server는 `http://localhost:8171/mcp`, agent는 `http://localhost:8170`, 문서 host는 `https://localhost:8172`다.
 ChatGPT형의 assertion은 agent와 같은 private key로 `openssl`이 만들었고, JWT는 앞 20자, refresh token과 code는 앞 12자만 남겼다.
 
 ## 13.4 1단계: metadata와 두 문서
@@ -158,7 +155,6 @@ issuer 비교는 PRM이 모르는 Authorization Server를 가리킬 때 metadata
 그러나 issuer 비교가 없으므로, agent는 PRM의 `authorization_servers` 첫 값에 scheme과 host를 보지 않고 metadata를 요청한다.
 악성 MCP Server는 `authorization_servers`에 내부망 주소를 넣어 agent가 그곳에 요청하게 만들 수 있다.
 그래서 실제 배포라면 사설 주소로 가는 요청을 막는 egress proxy를 두거나, 쓸 Authorization Server를 정한 목록으로 좁힌다.
-이 위험은 [부록: 명세 준수표](reference-compliance.md)의 SSRF 행에 남는다.
 
 **두 문서와 JWKS**
 
@@ -188,10 +184,7 @@ JWKS(`/oauth/jwks.json`)에는 public key 하나만 있다.
 ```
 
 private key 값 `d`는 없고, `kid`는 public key의 RFC 7638 thumbprint라서 같은 key 파일이면 실행마다 같다.
-Authorization Server는 두 문서를 `Cache-Control: max-age=300`에 따라 5분 동안 cache한다.
-JWKS 응답에도 같은 header가 있지만, JWKS는 cache하지 않고 assertion을 검증할 때마다 새로 가져온다(13.10).
-agent는 문서의 redirect 주소를 authorization request에도 그대로 쓰므로, browser에서는 `http://localhost:8170`을 연다.
-`http://127.0.0.1:8170`으로 열면 callback이 `localhost`로 돌아와 `127.0.0.1`에서 받은 session cookie가 가지 않고, login이 실패한다.
+agent는 문서의 redirect 주소를 authorization request에도 그대로 쓰므로, browser에서는 `127.0.0.1`이 아니라 `http://localhost:8170`을 연다([practice README의 실행](../mcp-cimd/README.md#실행)).
 
 **localhost 학습 환경의 타협**
 
@@ -203,9 +196,8 @@ Authorization Server는 `certs/client-metadata-trust.p12`의 그 인증서 하�
 **DPoP를 알리지 않는 이유**
 
 DPoP(RFC 9449)는 client가 요청마다 자기 key로 만든 증명(DPoP proof)을 붙여, 새어 나간 token을 key가 없는 사람은 쓰지 못하게 하는 방식이다.
-mTLS binding(RFC 8705)은 같은 일을 client 인증서로 하고, 두 방식 모두 token 안의 `cnf` claim에 key나 인증서의 지문을 넣어 묶는다.
-Spring의 기본 metadata는 `dpop_signing_alg_values_supported`와 `tls_client_certificate_bound_access_tokens`를 알린다.
-Spring이 기본으로 구성하는 token generator는 DPoP proof나 client 인증서가 있으면 access token을 그 key(`cnf.jkt`)나 인증서(`cnf.x5t#S256`)에 묶기 때문이다.
+Spring의 기본 metadata는 DPoP와 mTLS 인증서 binding(RFC 8705)을 알린다(`dpop_signing_alg_values_supported`, `tls_client_certificate_bound_access_tokens`).
+Spring이 기본으로 구성하는 token generator가 proof나 client 인증서가 오면 token을 그 key나 인증서에 묶기 때문이다.
 이 서버는 public client에게도 refresh token을 주려고 token generator를 직접 만들고(13.8), 그 generator는 두 binding을 하지 않는다.
 그래서 묶이지 않은 token을 묶인 것처럼 기대하게 하지 않도록 두 field를 metadata에서 지운다.
 그래도 DPoP proof를 붙여 오면 `Bearer` token을 주고, proof를 붙인 public client의 refresh는 `invalid_dpop_proof`로 실패한다.
@@ -216,21 +208,19 @@ authorization request는 login보다 먼저 검사된다([5장](05-authorization
 그래서 login하지 않은 누구든 `client_id`에 주소 하나를 적어 보내면, Authorization Server가 그 주소로 요청을 보내게 할 수 있다.
 Authorization Server는 cache에 없는 주소를 만날 때마다 아래 항목으로 검사하고, 하나라도 어긋나면 그 client를 모르는 client로 다룬다.
 
-| 확인 | 자리 | 어기면 생기는 일 |
-|---|---|---|
-| `https`이고 path가 있으며, `.`·`..` path 조각(`%2e%2e`도 풀어서 본다), fragment, 사용자 정보, query가 없다 | `ClientIdUrlValidator` | 같은 문서를 여러 이름으로 가리키거나, 평문으로 오가는 문서를 중간에서 바꿔치기한다 |
-| DNS로 푼 주소가 loopback·사설·link-local·any-local·multicast가 아니다. 일부 cloud의 metadata 주소가 있는 CGNAT(`100.64.0.0/10`)와, IPv4 주소를 안에 담는 NAT64·6to4·IPv4-mapped IPv6 주소도 풀어서 막는다 | `ClientIdUrlValidator` | `client_id`에 내부망 주소를 적어 Authorization Server가 그곳에 요청하게 한다(SSRF) |
-| loopback 예외는 `https://localhost:8172` 하나이고, scheme·host·port가 모두 같아야 한다 | `ClientIdUrlValidator` | `https://localhost:8173`이나 `http://localhost:8172`처럼 같은 기기의 다른 서비스로 요청이 간다 |
-| redirect를 따라가지 않는다 | `HttpsClientMetadataFetcher` | 검사를 통과한 공개 주소가 `302`로 내부망을 가리키면, 검사하지 않은 곳으로 요청이 간다 |
-| 응답은 5120 byte까지, DNS 조회와 연결은 2초, header와 본문을 합친 응답 전체는 3초까지다 | `ClientIdUrlValidator`, `HttpsClientMetadataFetcher` | 느린 DNS, 아주 큰 문서, 본문을 조금씩 흘리는 응답으로 서버의 memory와 thread를 묶는다 |
-| 같은 주소는 한 번만 가져오고, 문서와 JWKS를 합쳐 동시에 16개(`mcp.cimd.max-concurrent-fetches`)까지만 가져온다. 자리가 없으면 기다리지 않고 실패한다 | `HttpsClientMetadataFetcher` | 같은 주소를 한꺼번에 보내 문서 host로 가는 요청을 부풀리거나, 느린 문서 여럿으로 서버의 thread를 모두 묶는다 |
-| 상태가 `200`이고 `Content-Type`이 `application/json`이나 `+json`이다 | `HttpsClientMetadataFetcher` | HTML 오류 page 같은 응답을 문서로 읽는다 |
-| 문서의 `client_id`가 문서 주소와 글자까지 같다 | `ClientMetadataValidator` | 남의 문서를 복사해 자기 주소에 올린 client가 그 client 행세를 한다 |
-| `client_name`과 `redirect_uris`(fragment 없는 절대 주소)가 있고, `client_secret`·`client_secret_expires_at`은 없다 | `ClientMetadataValidator` | consent 화면에 보일 이름이나 code를 보낼 주소가 없다. 누구나 읽는 문서의 비밀은 비밀이 아니다 |
-| `redirect_uris`는 모두 host가 있는 `https`이거나, host가 loopback(`localhost`, `127.0.0.0/8`, `[::1]`)인 `http`다 | `ClientMetadataValidator` | `http`로 다른 host에 돌아가면 code가 평문으로 network를 지난다. `javascript:` 같은 주소로 browser가 이동한다 |
-| 인증 방식은 `none`이나 `private_key_jwt`다. `private_key_jwt`면 `jwks_uri`가 위의 주소 규칙을 지키고 알고리즘은 `RS256`이다 | `ClientMetadataValidator` | 공유 비밀 방식은 비밀 없이 흉내 낼 수 있다. `jwks_uri`가 내부 주소면 key를 가져올 때 SSRF가 된다 |
-
-ChatGPT 문서의 `token_endpoint_auth_methods_supported` 같은 모르는 field는 무시한다.
+| 확인 | 어기면 생기는 일 |
+|---|---|
+| `https`이고 path가 있으며, `.`·`..` path 조각(`%2e%2e`도 풀어서 본다), fragment, 사용자 정보, query가 없다 | 같은 문서를 여러 이름으로 가리키거나, 평문으로 오가는 문서를 중간에서 바꿔치기한다 |
+| DNS로 푼 주소가 loopback·사설·link-local·any-local·multicast가 아니다. 일부 cloud의 metadata 주소가 있는 CGNAT(`100.64.0.0/10`)와, IPv4 주소를 안에 담는 NAT64·6to4·IPv4-mapped IPv6 주소도 풀어서 막는다 | `client_id`에 내부망 주소를 적어 Authorization Server가 그곳에 요청하게 한다(SSRF) |
+| loopback 예외는 `https://localhost:8172` 하나이고, scheme·host·port가 모두 같아야 한다 | `https://localhost:8173`이나 `http://localhost:8172`처럼 같은 기기의 다른 서비스로 요청이 간다 |
+| redirect를 따라가지 않는다 | 검사를 통과한 공개 주소가 `302`로 내부망을 가리키면, 검사하지 않은 곳으로 요청이 간다 |
+| 응답은 5120 byte까지, DNS 조회와 연결은 2초, header와 본문을 합친 응답 전체는 3초까지다 | 느린 DNS, 아주 큰 문서, 본문을 조금씩 흘리는 응답으로 서버의 memory와 thread를 묶는다 |
+| 같은 주소는 한 번만 가져오고, 문서와 JWKS를 합쳐 동시에 16개(`mcp.cimd.max-concurrent-fetches`)까지만 가져온다. 자리가 없으면 기다리지 않고 실패한다 | 같은 주소를 한꺼번에 보내 문서 host로 가는 요청을 부풀리거나, 느린 문서 여럿으로 서버의 thread를 모두 묶는다 |
+| 상태가 `200`이고 `Content-Type`이 `application/json`이나 `+json`이다 | HTML 오류 page 같은 응답을 문서로 읽는다 |
+| 문서의 `client_id`가 문서 주소와 글자까지 같다 | 남의 문서를 복사해 자기 주소에 올린 client가 그 client 행세를 한다 |
+| `client_name`과 `redirect_uris`(fragment 없는 절대 주소)가 있고, `client_secret`·`client_secret_expires_at`은 없다 | consent 화면에 보일 이름이나 code를 보낼 주소가 없다. 누구나 읽는 문서의 비밀은 비밀이 아니다 |
+| `redirect_uris`는 모두 host가 있는 `https`이거나, host가 loopback(`localhost`, `127.0.0.0/8`, `[::1]`)인 `http`다 | `http`로 다른 host에 돌아가면 code가 평문으로 network를 지난다. `javascript:` 같은 주소로 browser가 이동한다 |
+| 인증 방식은 `none`이나 `private_key_jwt`다. `private_key_jwt`면 `jwks_uri`가 위의 주소 규칙을 지키고 알고리즘은 `RS256`이다 | 공유 비밀 방식은 비밀 없이 흉내 낼 수 있다. `jwks_uri`가 내부 주소면 key를 가져올 때 SSRF가 된다 |
 
 문서가 통과하면 Spring의 authorization request 검증이 요청의 `redirect_uri`를 문서의 `redirect_uris`와 비교한다.
 `redirect_uri`를 문서에 없는 `http://localhost:8170/elsewhere`로 바꾸면 `Location` 없이 `HTTP/1.1 400`으로 끝난다.
@@ -239,10 +229,9 @@ consent 화면은 이 요청의 `redirect_uri`에서 돌아갈 host를 읽어 �
 Spring은 redirect 주소가 하나뿐인 client의 `redirect_uri` 생략을 받아 주지만, 그러면 화면에 보여 줄 값이 없다.
 그래서 이 서버는 `redirect_uri`를 늘 요구하고, 없으면 `400` `invalid_request`로 끝낸다(`RedirectUriRequiredValidator`).
 
-통과한 문서는 Spring의 client 정보(`RegisteredClient`)로 바뀌고, `id`와 `clientId`는 둘 다 문서 주소다.
-인증 방식은 문서의 것 하나뿐이다(13.7).
+통과한 문서는 Spring의 client 정보(`RegisteredClient`)가 되고, 인증 방식은 문서의 것 하나뿐이다(13.7).
+처음 보는 client라서 PKCE를 반드시 쓰게 하고 consent도 받는다.
 CIMD 문서에도 RFC 7591의 `scope`를 적을 수 있지만, 이 서버는 그 값을 읽지 않고 서버 정책 `openid products:read products:write orders:write`를 쓴다.
-처음 보는 client라서 PKCE를 반드시 쓰게 하고 consent도 받으며, refresh token은 refresh할 때마다 새것을 준다(13.8).
 
 **오류는 문서의 redirect 주소로 보내지 않는다**
 
@@ -252,7 +241,6 @@ CIMD 문서에도 RFC 7591의 `scope`를 적을 수 있지만, 이 서버는 그
 믿을 만한 Authorization Server의 주소를 거쳐 가므로 phishing에 쓰기 좋은 open redirector가 된다.
 그래서 이 서버는 login한 사용자가 consent 화면에서 돌아갈 host를 보고 거절한 경우(`access_denied`)만 redirect한다.
 그 밖의 오류는 login 전후와 상관없이 `400`과 `text/plain` 본문으로 Authorization Server에서 끝낸다.
-OIDC `prompt=none` 요청의 `login_required`·`consent_required`도 redirect하지 않는다(이 practice의 agent는 `prompt=none`을 쓰지 않는다).
 아래는 `openid` 하나만 요청한 경우다(이 요청을 거절하는 규칙은 13.6에서 본다).
 
 ```http
@@ -299,8 +287,9 @@ client 문서를 cache에서 꺼낸다 (client_id=https://localhost:8172/oauth/p
 
 `ClientIdUrlValidator`는 host를 DNS로 풀어 검사하지만, 실제 연결은 JDK `HttpClient`가 이름을 다시 풀어서 한다.
 공격자의 DNS 서버가 검사할 때는 공개 IP를, 연결할 때는 내부 IP를 돌려주면 요청이 내부망으로 간다.
-이 practice는 검사한 IP로 연결을 고정하지 않아 이 경우를 막지 않으며, 실제 배포라면 검사한 IP로 직접 연결하거나 egress proxy를 둔다.
-내부 주소 목록도 완전하지 않으므로, 실제 배포에서는 목록보다 egress proxy를 믿는다.
+검사와 연결 사이에 DNS 답을 바꾸는 이 SSRF 기법도 DNS rebinding이라 부르지만, [6장](06-mcp-call-and-validation.md#64-1단계-originhost-검사)에서 본 browser가 `localhost`를 부르게 하는 공격과는 다른 기법이다.
+이 practice는 검사한 IP로 연결을 고정하지 않아 이 경우를 막지 않는다.
+내부 주소 목록도 완전하지 않으므로, 실제 배포라면 검사한 IP로 직접 연결하고 목록보다 egress proxy를 믿는다.
 동시에 가져오는 문서 수의 상한은 모든 client가 함께 쓴다.
 공격자가 느린 문서로 자리를 채우면 그동안 다른 client의 문서도 가져오지 못하므로, 실제 배포라면 client나 원격 IP별 속도 제한을 더한다.
 
@@ -352,18 +341,10 @@ ChatGPT형(`private_key_jwt`)의 consent는 저장한다.
 저장한 consent로 화면 없이 code가 나가도 code는 문서의 redirect 주소로만 가고, 그 code를 token으로 바꾸려면 문서의 key로 만든 assertion이 있어야 한다.
 그런데 문서 host를 장악한 공격자가 redirect 주소를 바꾸면, 사용자가 본 적 없는 주소로 화면 없이 code가 간다.
 그래서 consent를 저장할 때 문서 `redirect_uris`의 hash도 함께 남기고, 문서의 redirect 주소가 바뀌면 저장한 consent를 쓰지 않고 화면을 다시 띄운다.
-browser로 step-up을 해 보면 새로 고를 항목은 `products:write` 하나이고, `products:read`는 "이미 허락한 권한" 아래에 나온다.
 
 Claude형(`none`)의 consent는 저장하지 않는다.
 public client는 누구나 그 `client_id`를 댈 수 있어 이전에 허락한 그 client인지 확인할 수 없으므로, 이전 consent가 없는 것처럼 처리한다.
-그래서 방금 허락한 Claude형도 같은 요청을 다시 보내면 consent 화면이 다시 나온다.
-
-```http
-HTTP/1.1 302
-Location: http://localhost:9060/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8172/oauth/public-client.json&state=i8U62aHuKfSN...
-```
-
-browser의 step-up에서도 `products:read`와 `products:write`가 모두 체크박스로 나온다.
+그래서 방금 허락한 Claude형이 같은 요청을 다시 보내도 `Location`은 다시 `/oauth2/consent`다.
 
 ## 13.7 4단계: 두 인증 방식
 
@@ -445,23 +426,7 @@ Claude형은 자기를 증명하지 않는다.
 **인증 방식 낮추기**
 
 metadata는 `private_key_jwt`와 `none`을 둘 다 알린다.
-공격자가 ChatGPT형의 `client_id`로 assertion 없이, public client처럼 token request를 보내면 다음과 같다.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant X as 공격자
-    participant A as auth-server (9060)
-    participant H as 문서 host (8172)
-    X->>A: POST /oauth2/token (client_id=…/client.json, code_verifier, assertion 없음)
-    A->>H: GET /oauth/client.json (cache에 없을 때)
-    H-->>A: token_endpoint_auth_method: private_key_jwt
-    Note over A: 문서가 정한 방식 하나만 받는다
-    A-->>X: 401 invalid_client
-```
-
-[다이어그램 그림으로 보기](diagrams/13-cimd-2.png)
-
+그래서 공격자는 ChatGPT형의 `client_id`로 assertion 없이, public client처럼 token request를 보내 볼 수 있다.
 Authorization Server는 문서에서 만든 `RegisteredClient`에 문서의 인증 방식 하나만 넣으므로, `private_key_jwt`를 선언한 client는 `none`으로 인증할 수 없다.
 이 방식을 받아 주면 그 client의 refresh token을 손에 넣은 공격자가 key 없이 새 token을 받는다.
 CIMD도 `private_key_jwt`를 선언한 client를 confidential client로 보고, 요청마다 그 방식으로 인증하게 한다.
@@ -471,6 +436,22 @@ CIMD도 `private_key_jwt`를 선언한 client를 confidential client로 보고, 
 | assertion 없이 `client_id`와 `code_verifier`만 보낸다 | `401`, `{"error":"invalid_client"}` |
 | 문서의 `jwks_uri`에 없는 key로 signature를 만든 assertion을 보낸다 | `401`, `{"error":"invalid_client"}` |
 | refresh request에 assertion 없이 `client_id`만 보낸다 | `401 invalid_client`다. refresh의 public client 인증은 문서가 `none`을 선언한 client만 받는다(13.8) |
+
+**누구나 client가 될 수 있어서 더 막는 것**
+
+미리 등록하는 Authorization Server는 등록할 때 믿을 client를 고른다.
+CIMD에서는 누구나 문서를 올려 `private_key_jwt` client가 될 수 있고, 문서는 그 domain의 주인이 언제든 바꿀 수 있다.
+그래서 이 서버는 Spring이 인증된 client에게 기본으로 허락하는 일을 네 곳에서 더 좁힌다.
+앞에서 본 두 곳은 consent할 scope가 없는 요청의 거절(13.6)과, 같은 client의 `jti`를 한 번만 받는 assertion 검사다.
+
+세 번째는 introspection endpoint다.
+Spring 기본대로면 인증된 client는 남의 token이 살아 있는지, 누구의 어떤 scope인지 물어볼 수 있다.
+그래서 이 서버는 token을 발급받은 client에게만 내용을 알려 주고, 그 밖에는 `{"active":false}`로 답한다(`OwnTokenIntrospectionAuthenticationProvider`).
+
+네 번째는 grant의 인증 방식이다.
+`private_key_jwt`로 받은 grant의 refresh token이 새고 문서 host까지 장악되면, 문서를 `none`으로 바꿔 key 없이 refresh할 수 있다.
+그래서 이 서버는 grant를 처음 저장할 때 그 client의 인증 방식을 grant에 적어 두고, `client_id`만 보내는 refresh는 그 기록이 `none`인 grant에만 허락한다.
+기록이 다르거나 없으면 `401` `invalid_client`다.
 
 ## 13.8 5단계: public client의 refresh와 rotation
 
@@ -513,21 +494,8 @@ access token은 JWT라서 MCP Server가 Authorization Server에 묻지 않고 �
 
 Spring의 refresh token generator는 public client의 authorization code 요청에는 refresh token을 만들지 않는다.
 Spring의 public client 인증은 `code_verifier`가 있는 요청만 받으므로, `code_verifier`가 없는 refresh 요청은 client 인증에서 실패한다.
-그래서 이 서버는 세 곳을 직접 만든다.
-
-| 클래스 | 하는 일 |
-|---|---|
-| `PublicClientRefreshTokenGenerator` | client의 grant에 `refresh_token`이 있으면 public client에게도 refresh token을 만든다 |
-| `PublicClientRefreshTokenAuthenticationConverter` | token endpoint로 온 `POST`의 `grant_type=refresh_token` 요청에 다른 client 인증이 없고 `client_id`가 하나면, public client 인증으로 넘긴다 |
-| `PublicClientRefreshTokenAuthenticationProvider` | 문서가 `none`을 선언하고, refresh token으로 찾은 grant에 적힌 인증 방식도 `none`인 client만 인증한다. refresh token이 이미 버린 것인지는 Spring이 이어서 본다 |
-
-Spring의 client 인증 filter는 introspection, revocation, PAR, device authorization endpoint에서도 돌기 때문에 converter는 token endpoint만 맡는다.
-그 endpoint까지 맡으면 `client_id`만으로 public client 행세를 할 수 있고, 예를 들어 introspection endpoint로 아무 token이나 읽을 수 있게 된다.
-
-introspection endpoint 자체에도 같은 걱정이 남는다.
-CIMD에서는 누구나 `private_key_jwt` 문서를 올려 인증된 client가 될 수 있다.
-Spring 기본대로면 그런 client가 남의 token이 살아 있는지, 누구의 어떤 scope인지 물어볼 수 있다.
-그래서 이 서버는 token을 발급받은 client에게만 내용을 알려 주고, 그 밖에는 `{"active":false}`로 답한다(`OwnTokenIntrospectionAuthenticationProvider`).
+그래서 이 서버는 public client에게도 refresh token을 만드는 generator와, refresh 요청만 맡는 public client 인증을 더한다(13.10).
+이 인증은 문서가 `none`을 선언하고 grant도 `none`으로 받은 client만 받는다(13.7).
 
 **한 grant의 refresh는 한 번에 하나씩**
 
@@ -542,16 +510,6 @@ lock은 process 하나 안에서만 통하므로, 서버를 여러 대 두면 �
 한 사용자의 요청 둘이 동시에 만료된 token을 보고 같은 refresh token으로 refresh하면, 늦게 간 요청은 버린 token을 내민 셈이 되어 grant가 끊긴다.
 그래서 agent는 같은 사용자의 refresh를 한 번에 하나씩 한다(13.11).
 
-**grant의 인증 방식은 처음 것을 지킨다**
-
-문서는 그 domain의 주인이 언제든 바꿀 수 있다.
-`private_key_jwt`로 받은 grant의 refresh token이 새고 문서 host까지 장악되면, 문서를 `none`으로 바꿔 key 없이 refresh할 수 있다.
-그래서 이 서버는 grant를 처음 저장할 때 그 client의 인증 방식을 grant에 적어 두고, `client_id`만 보내는 refresh는 그 기록이 `none`인 grant에만 허락한다.
-기록이 다르거나 없으면 `401` `invalid_client`다.
-
-browser로 확인하면, Claude형으로 재고를 바꾸고 6분 뒤에 질문을 보내도 login 화면 없이 답이 온다.
-access token이 끝나 agent가 `client_id`만 보내는 refresh로 새 token을 받았고, 문서 cache(5분)도 끝나 `auth-server` 로그에 `client 문서를 가져왔다`가 한 줄 더 찍힌다.
-
 ## 13.9 MCP Server에서 보이는 client_id
 
 access token의 `client_id` claim은 문서 주소다.
@@ -561,22 +519,20 @@ ChatGPT형 token의 payload는 다음과 같다(`nbf`·`iat`·`exp`·`jti`는 �
 {"sub":"user","aud":"http://localhost:8171/mcp","scope":["products:read","openid"],"iss":"http://localhost:9060","client_id":"https://localhost:8172/oauth/client.json"}
 ```
 
-Claude형 token은 `client_id`만 `https://localhost:8172/oauth/public-client.json`이다.
-ChatGPT형 token으로 `tools/list`를 보내면 `200`이 오고, MCP Server 로그에는 `tools/list — 사용자=user, 역할=STAFF, 보인 tool=7/7`이 찍힌다.
 browser로 ChatGPT형 step-up을 해 보면 MCP Server 로그에 다음 줄이 남는다.
 
 ```text
 scope 부족 — 사용자=user, client_id=https://localhost:8172/oauth/client.json, tool=updateStock, 필요한 scope=products:write, 가진 scope=[openid, products:read]
-updateStock 호출 (productId=p1, quantity=10, 사용자=user)
 ```
 
-Claude형으로 띄우면 같은 줄의 `client_id=`가 `https://localhost:8172/oauth/public-client.json`이다.
+Claude형 token은 `client_id`만 `https://localhost:8172/oauth/public-client.json`이고, Claude형으로 띄우면 이 로그의 `client_id=`도 그 주소다.
 MCP Server의 코드는 [12장](12-tool-visibility.md)과 같고, token의 `iss`·`aud`·signature·scope를 볼 뿐 client가 어떻게 등록되었는지는 보지 않는다.
 12장에서 `visibility-shop-agent`였던 `client_id` 값이 주소로 바뀌었을 뿐이고, 주소의 host가 그 client를 올린 domain이다.
 
 ## 13.10 Authorization Server 코드에서 보기
 
 클래스는 `practice/mcp-cimd/auth-server/src/main/java/dev/starryeye/cimd/authserver/` 아래에 있다.
+13.5\~13.8의 규칙을 맡는 클래스의 목록은 [practice README의 코드 지도](../mcp-cimd/README.md#코드-지도)에 있다.
 
 **`ClientIdMetadataDocumentRegisteredClientRepository.findByClientId`: 문서에서 client를 만든다**
 
@@ -601,24 +557,6 @@ public RegisteredClient findByClientId(String clientId) {
 ```
 
 `findById`도 이 메서드를 부르고, `save`는 지원하지 않는다.
-`remember`는 만료된 항목을 치운 뒤 1000개 상한을 보고, `forLog`는 로그에 남길 외부 값을 다듬는다.
-`ClientIdUrlValidator.validate`는 13.5 표의 주소 규칙을 차례로 보고, `loopback-exception`과 scheme·host·port가 모두 같은 주소가 아니면 DNS로 푼 주소를 검사한다.
-path 조각은 percent-encoding을 푼 `getPath()`로 나눠 보므로 `%2e%2e`도 `..`로 잡힌다.
-
-**`HttpsClientMetadataFetcher.get`: 문서와 JWKS를 가져온다**
-
-```java
-this.urlValidator.validate(uri.toString());                          // 가져오기 직전에 다시 검사한다
-CompletableFuture<HttpResponse<byte[]>> future = this.http.sendAsync(request,
-        info -> new BoundedBodySubscriber(limit + 1));                // 상한보다 1 byte만 더 모은다
-response = future.get(this.properties.readTimeout().toNanos(), TimeUnit.NANOSECONDS);
-/* 3초를 넘기면 future.cancel(true)로 연결을 닫는다. 이어서 200, JSON Content-Type, 크기를 본다 */
-```
-
-`HttpClient`는 `followRedirects(NEVER)`, 연결 시간 2초, `trust-bundle`의 truststore로 만든 `SSLContext`로 만든다.
-시간 제한을 응답 전체에 하나만 두는 것은, header만 빨리 보내고 본문을 조금씩 흘리는 응답도 3초에 끊기 위해서다.
-같은 주소의 요청은 `inFlight` map에서 진행 중인 `CompletableFuture`를 찾아 그 결과를 함께 기다린다.
-동시 가져오기 수는 `Semaphore`(`max-concurrent-fetches`)의 `tryAcquire`로 막으므로, 자리가 없으면 기다리지 않고 실패한다.
 
 **`CimdJwtClientAssertionDecoderFactory`: assertion을 검증한다**
 
@@ -630,10 +568,7 @@ public JwtDecoder createDecoder(RegisteredClient client) {
 }
 
 private JwtDecoder build(RegisteredClient client, String jwkSetUrl) {
-    JWKSource<SecurityContext> keys = /* this.http.get(jwks_uri)로 JWKS를 가져와 header에 맞는 key를 고른다 */;
-    NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSource(keys).jwsAlgorithm(SignatureAlgorithm.RS256).build();
-    decoder.setJwtValidator(validator(client));
-    return decoder;
+    /* this.http.get(jwks_uri)로 받은 JWKS로 RS256 signature를 검증하는 NimbusJwtDecoder에 validator(client)를 넣는다 */
 }
 
 OAuth2TokenValidator<Jwt> validator(RegisteredClient client) {
@@ -656,16 +591,13 @@ OAuth2TokenValidator<Jwt> validator(RegisteredClient client) {
 
 Spring의 `JwtClientAssertionDecoderFactory`는 JVM 기본 truststore를 쓰는 HTTP client로 JWKS를 받아, self-signed 인증서의 문서 host를 읽지 못하고 주소 검사도 거치지 않는다.
 이 factory는 문서와 같은 `ClientMetadataHttp`로 JWKS를 받는다.
-검증 규칙은 Spring의 기본 규칙에서 두 가지가 다르다.
-Spring의 기본 규칙은 `aud`에 issuer나 네 endpoint 주소 가운데 하나만 있어도 받으므로, issuer 하나만 받는 규칙으로 바꾼다.
-그리고 13.7의 세 검사(`jti` 필수, 5분 상한, `jti` 재사용 거절)를 더한다.
-`firstUse`는 signature와 다른 검사를 모두 통과한 assertion의 `jti`만 기록하므로, 검사에 실패하는 assertion으로는 기록을 채울 수 없다.
-
-쓴 `jti`는 메모리에 client마다 1,000개, 모두 합쳐 10,000개까지 기억하고, 기록은 그 assertion이 만료되면 지운다.
-누구나 client가 될 수 있으므로, 한 client가 기록을 채워 다른 client의 인증을 막지 못하게 상한을 둘로 나눈다.
-client 하나가 자기 상한을 채우면 그 client의 새 assertion만 거절하고, 전체 상한을 넘으면 만료가 가장 이른 기록부터 지운다.
 decoder는 client 인증이 끝나기 전에 만들어지므로, cache하면 요청하는 쪽이 고른 `client_id`마다 쌓인다.
 key 목록을 들고 있지 않아 만드는 비용이 작고, key 목록도 검증할 때마다 가져오므로 client가 key를 바꾸면 바로 적용된다.
+
+`firstUse`는 signature와 다른 검사를 모두 통과한 assertion의 `jti`만 기록하므로, 검사에 실패하는 assertion으로는 기록을 채울 수 없다.
+쓴 `jti`는 그 assertion이 만료될 때까지 메모리에 기억한다.
+한 client가 기록을 채워 다른 client의 인증을 막지 못하게, 기록의 상한은 client별과 전체로 따로 둔다.
+client별 상한을 채우면 그 client의 새 assertion만 거절하고, 전체 상한을 넘으면 만료가 가장 이른 기록부터 지운다.
 
 **`PublicClientRefreshTokenAuthenticationProvider`: refresh의 public client 인증**
 
@@ -684,12 +616,12 @@ if (notGrantedAsPublicClient(client, /* 요청의 refresh_token */)) {
 return new OAuth2ClientAuthenticationToken(client, ClientAuthenticationMethod.NONE, null);
 ```
 
-`notGrantedAsPublicClient`는 refresh token으로 grant를 찾아, 처음 저장할 때 적어 둔 인증 방식이 `none`인지 본다.
-그래서 문서가 나중에 `none`으로 바뀌어도, `private_key_jwt`로 받은 grant는 여기서 걸린다(13.8).
-인증 방식은 `AuthenticationMethodRecordingAuthorizationService`가 grant를 처음 저장할 때 적고, 그 뒤의 저장에서도 처음 값을 지킨다.
-
-converter가 만든 refresh 요청의 인증만 맡고, authorization code 요청은 맡지 않는다.
-그 요청은 Spring의 public client 인증이 PKCE와 함께 검사하므로, 이 provider가 대신하면 PKCE 검사를 건너뛰게 된다.
+`notGrantedAsPublicClient`는 refresh token으로 grant를 찾아, 처음 저장할 때 적어 둔 인증 방식이 `none`인지 본다(13.7).
+이 provider는 `PublicClientRefreshTokenAuthenticationConverter`가 token endpoint에서 넘긴 refresh 요청만 맡는다.
+Spring의 client 인증 filter는 introspection·revocation 같은 다른 endpoint에서도 돌므로, 거기까지 맡으면 `client_id`만 대고 그 client가 받은 token의 내용을 introspect할 수 있다.
+authorization code 요청은 Spring의 public client 인증이 PKCE와 함께 검사하므로, 이 provider가 맡으면 PKCE 검사를 건너뛰게 된다.
+반대로 Spring의 public client provider는 refresh 요청을 건너뛰게 감싼다.
+그 provider가 refresh 요청에 내는 `invalid_grant`가 이 provider의 `invalid_client`를 덮어쓰기 때문이다.
 
 **`RefreshTokenReuseDetectingAuthorizationService`: 버린 refresh token이 다시 오면 grant를 끊는다**
 
@@ -722,81 +654,23 @@ public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) 
 }
 ```
 
-Spring의 `InMemoryOAuth2AuthorizationService`를 감싼다.
 Spring의 refresh 처리는 refresh token으로 authorization을 찾고, 새 refresh token을 넣어 같은 id로 다시 저장한다.
 그래서 저장할 때 이전 refresh token과 새것을 비교하면 버린 token을 알 수 있다.
 token 값은 기억하지 않고 SHA-256 hash만 둔다.
 refresh 요청이 아닌 조회(introspection 등)에서는 grant를 끊지 않는다.
+authorization 저장소는 Spring의 `InMemoryOAuth2AuthorizationService`를 `AuthenticationMethodRecordingAuthorizationService`(grant의 인증 방식 기록)와 이 클래스로 차례로 감싼 것이다.
 
-refresh token으로 grant를 찾으면 그 grant의 lock을 잡고 한 번 더 찾아본다.
-lock을 기다리는 사이 앞 요청이 rotation을 끝냈다면, 이 요청의 refresh token은 이미 버린 token이므로 재사용으로 본다.
 lock은 grant를 저장할 때 풀린다.
 검증에 실패해 저장하지 않고 끝난 요청의 lock은 `RefreshLockReleasingFilter`가 요청이 끝날 때 푼다.
 이 filter는 Spring Security filter chain 바깥에 두어, client 인증 실패로 끝난 요청도 이 filter를 거치게 한다.
 
-**`AuthorizationServerConfig`: 연결**
-
-authorization endpoint에는 consent 화면 `/oauth2/consent`(`ConsentController`)와, 기본 검증 뒤의 `RedirectUriRequiredValidator` → `ResourceIndicatorValidator` → `ConsentableScopeValidator`를 넣는다.
-오류 응답은 `IssuerIdentifyingAuthorizationResponseHandler`가 맡고, consent에서 거절한 `access_denied`만 redirect한다(13.5).
-client 인증에는 refresh converter·provider를 더하고, `JwtClientAssertionAuthenticationProvider`에 `CimdJwtClientAssertionDecoderFactory`를 넣는다.
-Spring의 public client provider는 refresh 요청을 건너뛰게 감싼다.
-그 provider가 refresh 요청에 내는 `invalid_grant`가 이 서버의 `invalid_client`를 덮어쓰기 때문이다.
-introspection endpoint의 provider는 `OwnTokenIntrospectionAuthenticationProvider`로 감싼다(13.8).
-`advertise`는 두 discovery 문서에 CIMD 표시, 두 인증 방식, `RS256`을 넣고 DPoP·mTLS binding 알림을 지운다.
-bean으로는 CIMD 저장소, `trust-bundle`의 truststore를 쓰는 fetcher, 세 generator를 묶은 token generator, `PublicClientConsentService`를 둔다.
-authorization 저장소는 메모리 저장소를 `AuthenticationMethodRecordingAuthorizationService`(grant의 인증 방식 기록)와 `RefreshTokenReuseDetectingAuthorizationService`(재사용 감지와 grant lock)로 차례로 감싼 것이다.
-token endpoint에는 요청이 끝날 때 잡은 grant lock을 푸는 `RefreshLockReleasingFilter`를 Spring Security 바깥에 둔다.
-token generator는 `JwtGenerator`(`ResourceAudienceTokenCustomizer`), `OAuth2AccessTokenGenerator`, `PublicClientRefreshTokenGenerator` 순서다.
-
 ## 13.11 agent 코드에서 보기
 
 클래스는 `practice/mcp-cimd/shop-agent/src/main/java/dev/starryeye/cimd/agent/` 아래에 있다.
-
-**`ClientType`과 문서 host**
-
-`ClientType`은 `CHATGPT`(`/oauth/client.json`, `PRIVATE_KEY_JWT`)와 `CLAUDE`(`/oauth/public-client.json`, `NONE`)다.
-`clientId(baseUrl)`는 `https://localhost:8172`에 path를 붙인 문서 주소이고, `mcp.authorization.client-type`(기본 `chatgpt`)이나 `./run.sh claude`로 고른다.
-`ClientMetadataDocuments`는 두 문서와 JWKS의 JSON을 만들고, JWKS에는 `toPublicJWK()`로 private key 값을 뺀 public key만 넣는다.
-`ClientMetadataServer`는 JDK `HttpsServer`로 `127.0.0.1:8172`를 열어, 세 주소만 `GET`으로 주고 다른 주소는 `404`, 다른 method는 `405`로 답한다.
-요청은 virtual thread로 따로 처리해, handshake만 하고 멈춘 연결(browser의 preconnect 같은) 하나가 Authorization Server의 문서 요청을 막지 못하게 한다.
-`ClientSigningKey`는 `certs/client-signing.p12`의 RSA key를 읽고, `keyIDFromThumbprint()`로 `kid`를 정한다.
-
-**`DiscoveredClientRegistrationRepository.registration`: client 등록 정보**
-
-```java
-return ClientRegistration.withRegistrationId(this.registrationId)
-        .clientId(clientType.clientId(this.clientMetadata.baseUrl()))   // 문서 주소가 client_id
-        .clientAuthenticationMethod(clientType.authenticationMethod())   // PRIVATE_KEY_JWT나 NONE
-        .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-        .redirectUri(this.clientMetadata.redirectUri())                  // 문서에 올린 주소 그대로
-        /* scope, endpoint, issuer, metadata는 discovery에서 */
-        .build();
-```
-
-`clientSecret`이 없고, redirect 주소는 문서의 목록과 달라지지 않도록 요청 host로 만들지 않고 문서의 값을 그대로 쓴다.
-
-**`McpAuthorizationDiscovery`: CIMD 확인**
-
-```java
-if (!Boolean.TRUE.equals(metadata.get(CLIENT_ID_METADATA_DOCUMENT_SUPPORTED))) {
-    throw new McpDiscoveryException(/* CIMD를 알리지 않는다 */);
-}
-if (!(metadata.get("token_endpoint_auth_methods_supported") instanceof List<?> authMethods)
-        || !authMethods.contains(authenticationMethod.getValue())) {
-    throw new McpDiscoveryException(/* 문서에 적은 인증 방식을 받지 않는다 */);
-}
-```
-
-`discover`는 `authorization_servers`의 첫 값을 issuer로 쓰고, 미리 정한 issuer와 비교하지 않는다(13.4).
+문서 host는 agent process 안의 `ClientMetadataServer`(JDK `HttpsServer`, `127.0.0.1:8172`)이고, `ClientMetadataDocuments`가 만든 두 문서와 JWKS만 준다.
+client type(`ClientType`)은 `mcp.authorization.client-type`(기본 `chatgpt`)이나 `./run.sh claude`로 고르고, 이 값이 `client_id`로 쓸 문서 주소와 인증 방식을 정한다.
 
 **`McpSecurityConfig`: token request에 assertion을 붙인다**
-
-```java
-static Function<ClientRegistration, JWK> clientAssertionKey(ClientSigningKey signingKey) {
-    return registration -> ClientAuthenticationMethod.PRIVATE_KEY_JWT
-            .equals(registration.getClientAuthenticationMethod()) ? signingKey.key() : null;
-}
-```
 
 ```java
 converter.setJwtClientAssertionCustomizer(context -> {
@@ -808,9 +682,8 @@ converter.setJwtClientAssertionCustomizer(context -> {
 });
 ```
 
-authorization code와 refresh의 token response client 둘 다 이 key 함수와 customizer로 만든 `NimbusJwtClientAuthenticationParametersConverter`를 더한다.
-ChatGPT형이면 converter가 이 key로 assertion을 만들어 `client_assertion_type`과 `client_assertion`을 붙이고, Claude형이면 parameter를 더하지 않는다.
-step-up의 token request도 같은 client를 쓰므로 assertion이 붙는다.
+authorization code와 refresh의 token response client 둘 다 이 customizer를 넣은 `NimbusJwtClientAuthenticationParametersConverter`를 더한다.
+ChatGPT형이면 converter가 `ClientSigningKey`의 key로 assertion을 만들어 `client_assertion_type`과 `client_assertion`을 붙이고, Claude형이면 key가 없어 parameter를 더하지 않는다.
 
 **`SingleFlightAuthorizedClientManager`: 같은 사용자의 refresh를 한 번에 하나씩**
 
@@ -828,15 +701,15 @@ public OAuth2AuthorizedClient authorize(OAuth2AuthorizeRequest authorizeRequest)
     }
     finally {
         userLock.lock.unlock();
+        // 쓰는 요청이 없어진 사용자의 lock은 지워, login했던 사용자 수만큼 쌓이지 않게 한다
         this.locks.computeIfPresent(key, (ignored, current) -> (--current.users == 0) ? null : current);
     }
 }
 ```
 
 MCP 요청마다 token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`와 사용자별 tool 목록의 `UserToolCatalog`는 이 manager로 token을 꺼낸다.
-먼저 들어간 요청이 refresh해 저장하면, 기다리던 요청은 저장된 새 token을 받으므로 refresh는 한 번만 나간다(13.8).
+먼저 들어간 요청이 refresh해 저장하면, 기다리던 요청은 저장된 새 token을 받으므로 refresh는 한 번만 나간다.
 사용자가 다르면 서로 기다리지 않는다.
-쓰는 요청이 없어진 사용자의 lock은 map에서 지우므로, login했던 사용자 수만큼 lock이 쌓이지 않는다.
 
 ## 13.12 다루지 않는 것
 
@@ -846,11 +719,9 @@ MCP 요청마다 token을 붙이는 `OAuth2TokenAttachingRequestCustomizer`와 �
 - DPoP 같은 sender-constrained token: public client의 refresh token은 rotation으로만 지킨다.
 - client host 신뢰 정책: 허용 domain 목록이나 새 domain 경고 없이, 예외 주소 하나만 둔다.
 - `logo_uri`: consent 화면에 보여 주지 않고, 가져오지도 않는다.
-- DNS rebinding: 검사한 IP로 연결을 고정하지 않는다(13.5).
-- discovery의 SSRF: agent는 PRM이 가리킨 Authorization Server의 metadata를 주소 확인 없이 요청한다(13.4).
 - 기록의 보관: 버린 refresh token의 hash, 쓴 assertion의 `jti`, grant의 lock은 메모리에만 있어서 Authorization Server를 다시 띄우면 사라지고, 서버 여러 대 사이에서 나눠 쓰지 못한다.
-- 문서 가져오기의 속도 제한: 동시 상한과 같은 주소 합치기만 있고, client나 원격 IP별 속도 제한은 없다(13.5).
 - 공개 HTTPS 배포: 학습용 localhost에 머문다.
+- 남는 SSRF 위험: discovery의 SSRF는 13.4에서, DNS rebinding과 문서 가져오기의 속도 제한은 13.5에서 보았다.
 
 ## 13.13 직접 해 보기
 
@@ -902,10 +773,9 @@ docs/superpowers/captures/mcp-cimd-walkthrough.sh > /tmp/cimd-walkthrough.txt
 - CIMD에서는 client가 자기 `https` 주소에 올린 문서의 주소가 `client_id`다. Authorization Server는 cache에 없는 주소를 만나면 문서를 가져오므로, 미리 등록하거나 등록을 저장할 필요가 없다.
 - Authorization Server는 모르는 client가 준 주소로 요청을 보내므로, 주소 규칙·내부 주소·redirect·크기·시간을 먼저 막고, 문서의 `client_id` 일치와 필수 field를 본 뒤에 cache한다. 실패는 cache하지 않는다.
 - consent 화면은 client가 마음대로 적는 이름과 함께 문서 host와 redirect host를 보여 주고, `localhost`로만 돌아가는 client에는 경고를 더한다.
-- 누구나 client가 될 수 있으므로, 검사에서 걸린 authorization request의 오류는 문서의 redirect 주소로 보내지 않고 Authorization Server에서 `400`으로 끝낸다. redirect는 consent 화면에서 거절한 `access_denied`뿐이다.
-- CIMD는 공유 비밀만 금지하므로 ChatGPT형 `private_key_jwt`와 Claude형 `none`이 모두 가능하다. Authorization Server는 metadata에 두 방식을 알리되, client마다 문서가 정한 방식 하나만 받는다.
-- `private_key_jwt`의 assertion은 `aud`에 Authorization Server의 issuer 하나만 넣는다. Authorization Server는 endpoint 주소나 여러 값을 넣은 assertion을 거절한다.
-- 누구나 client가 될 수 있으므로 Authorization Server는 assertion의 `jti`를 한 번만 받고, introspection에는 token을 받은 client에게만 답하며, refresh에서도 grant를 받을 때의 인증 방식을 지킨다.
+- 누구나 문서에 redirect 주소를 적을 수 있으므로, 검사에서 걸린 authorization request의 오류는 그 주소로 보내지 않고 Authorization Server에서 `400`으로 끝낸다. redirect는 consent 화면에서 거절한 `access_denied`뿐이다.
+- CIMD는 공유 비밀만 금지하므로 ChatGPT형 `private_key_jwt`와 Claude형 `none`이 모두 가능하다. Authorization Server는 metadata에 두 방식을 알리되 client마다 문서가 정한 방식 하나만 받고, assertion은 `aud`에 자기 issuer 하나만 든 것만 받는다.
+- 누구나 client가 될 수 있으므로 Authorization Server는 consent할 scope가 없는 요청을 거절하고, assertion의 `jti`를 한 번만 받는다. introspection에는 token을 받은 client에게만 답하고, refresh에서도 grant를 받을 때의 인증 방식을 지킨다.
 - public client에게도 refresh token을 주려면 rotation한다. 버린 refresh token이 다시 오면 grant 전체를 끊고, 다른 client의 refresh token도 쓸 수 없다. agent는 같은 사용자의 refresh를 한 번에 하나씩 해, 자기 refresh로 grant를 끊지 않는다.
 
 ## 13.15 명세 근거

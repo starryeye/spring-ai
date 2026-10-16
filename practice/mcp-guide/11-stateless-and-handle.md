@@ -31,17 +31,12 @@ login한 뒤 담은 상품은 다른 기기에서 열어도 그대로 있고, �
 여기에 장바구니를 두면 세 가지 문제가 생긴다.
 
 첫째, MCP client 하나를 여러 사용자가 같이 쓰면 장바구니가 사용자끼리 섞인다.
-MCP Java SDK의 `McpSyncClient`는 서버가 준 session ID를 들고 모든 요청에 붙이므로, JDBC `Connection`처럼 객체 하나가 session 하나다.
-official과 authz의 agent는 이 객체 하나를 모든 사용자가 같이 쓴다([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)).
-그래서 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보인다.
-두 practice의 tool은 session에 아무것도 두지 않아서 섞인 적은 없다.
-agent가 사용자마다 client를 따로 두면 이 문제는 풀린다([`mcp-security-authn-chat-memory`](../mcp-security-authn-chat-memory/README.md#사용자별-mcp-client의-필요성)).
-이때 session은 token 값이 아니라 token의 사용자(`sub`)에 묶는다.
-token은 refresh나 step-up 때마다 바뀌기 때문이다.
+MCP Java SDK의 `McpSyncClient`는 서버가 준 session ID를 모든 요청에 붙이므로, JDBC `Connection`처럼 객체 하나가 session 하나다.
+official과 authz의 agent는 이 객체 하나를 모든 사용자가 같이 쓰므로([6장 session과 사용자](06-mcp-call-and-validation.md#67-session과-사용자)), 장바구니를 session에 두면 `user`가 담은 상품이 `user2`에게도 보인다.
+agent가 사용자마다 client를 따로 두고, session을 refresh·step-up 때마다 바뀌는 token 값이 아니라 token의 사용자(`sub`)에 묶으면 이 문제는 풀린다([`mcp-security-authn-chat-memory`](../mcp-security-authn-chat-memory/README.md#사용자별-mcp-client의-필요성)).
 
-둘째, session이 언제 시작해 언제 끝나는지가 client마다 달라서, 서버는 장바구니가 언제까지 남는지 알 수 없다([9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)).
-tool 호출마다 session을 새로 여는 client에서는 장바구니가 다음 호출까지 남지 않는다.
-[SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp)을 쓸 무렵(2026년 3월)의 ChatGPT가 그랬고, claude.ai도 그 얼마 전까지 그랬다.
+둘째, [9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)에서 본 대로 session이 언제 시작해 언제 끝나는지는 client마다 달라서, 서버는 장바구니가 언제까지 남는지 알 수 없다.
+[SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp)을 쓸 무렵(2026년 3월)의 ChatGPT는 tool 호출마다 session을 새로 열어 장바구니가 다음 호출까지 남지 않았고, claude.ai도 그 얼마 전까지 그랬다.
 반대로 앱을 켤 때 session 하나를 열어 끌 때까지 쓰는 client에서는, 같은 사용자의 두 대화가 장바구니 하나를 같이 쓴다.
 이 문제는 사용자마다 client를 따로 두어도 남는다.
 
@@ -146,7 +141,7 @@ stateless 서버는 연결을 기억하지 않으므로, 먼저 보낼 메시지
 MCP Java SDK의 client는 `initialize` 응답을 받은 뒤 GET으로 이 stream을 열어 보고, `405`가 오면 요청과 응답만 주고받는다.
 
 MCP Java SDK의 client는 session ID를 받지 않았으면 닫을 때 DELETE를 보내지 않는다.
-그래서 공유 client가 앱을 끌 때 token 없는 DELETE를 보내는 일(준수표 36번)도 생기지 않는다.
+그래서 공유 client가 앱을 끌 때 token 없는 DELETE를 보내는 일도 생기지 않는다([부록: 준수표](reference-compliance.md#mcp-stateless-handle에서-달라지는-행)).
 명세는 session 종료를 허용하지 않는 서버가 `405`로 답할 수 있다고 하지만, Spring AI의 stateless transport는 DELETE 경로를 두지 않으므로 `404`다.
 
 **요청 형식은 2025-11-25 그대로다**
@@ -156,9 +151,7 @@ session을 주지 않는 서버도 2025-11-25를 따르므로, client는 여전�
 
 ## 11.4 2단계: handle을 만들고 넘긴다
 
-session이 없으면 서버는 "이 client의 장바구니"를 찾을 곳이 없다.
-그래서 장바구니를 만들 때 그 이름(handle)을 client에게 준다.
-상태는 서버가 가지고, client는 이름만 들고 다닌다.
+session이 없으면 서버는 "이 client의 장바구니"를 찾을 곳이 없으므로, 장바구니를 만들 때 그 이름(handle)을 client에게 준다.
 
 ```http
 POST /mcp HTTP/1.1
@@ -190,7 +183,6 @@ handle은 결과의 두 곳에 있다.
 web agent에서 Spring AI는 tool 결과의 `content`를 JSON 문자열로 바꿔 모델에게 주고, `structuredContent`는 넘기지 않는다.
 그래서 handle이 `text`에도 있어야 모델이 본다.
 명세는 옛 client를 위해 같은 내용을 JSON 문자열로 `text`에도 넣기를 권하지만, 이 practice의 `text`는 같은 값을 담은 문장이다.
-SEP-2567의 예시도 `text`에 `Created basket bsk_a1b2c3` 같은 문장을 쓴다.
 
 **handle을 다음 호출의 인자로 넘긴다**
 
@@ -202,12 +194,7 @@ SEP-2567의 예시도 `text`에 `Created basket bsk_a1b2c3` 같은 문장을 쓴
 
 응답의 `text`에는 담은 상품 `- [p4] 인체공학 마우스 × 1 = 59,000원`과 합계가 적혀 있고, 같은 handle로 부른 `getBasket`도 같은 문장을 준다.
 어느 장바구니인지는 session이 아니라 인자의 `basketId`가 정한다.
-
-**handle은 protocol의 기능이 아니다**
-
-SEP-2567은 handle을 protocol이 아니라 tool을 설계하는 방법으로 설명하고, session이 빠진 자리를 채우는 방법으로 권한다.
-이 practice의 handle은 `bsk_` 뒤에 무작위 22자를 붙인 불투명한 값이다.
-`cart_user42_2026-03-11`처럼 안의 구조가 보이는 값은 client가 쪼개 읽거나, 모델이 비슷한 값을 지어내기 쉽다.
+handle은 protocol의 기능이 아니라, tool 결과와 인자로 주고받는 평범한 문자열이다([9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)).
 
 **수명은 tool 설명에 적는다**
 
@@ -241,12 +228,13 @@ token은 유효하고 scope도 충분하므로 `401`이나 `403`이 아니다.
 요청은 tool까지 가서 실행되었고, 거절은 HTTP `200` 안의 `isError: true`인 tool 결과로 온다.
 명세는 이런 오류를 JSON-RPC 오류가 아니라 tool 결과로 알리게 한다.
 모델은 이 문장을 읽고 새 장바구니를 만들어 이어 갈 수 있다.
-web agent에서는 Spring AI의 `SyncMcpToolCallback`이 이 결과를 예외로 바꾸고, 모델은 이 문장이 든 예외 메시지 `Error calling tool: [TextContent[…]]`를 tool 결과로 받는다.
+web agent의 모델도 이 문장이 든 메시지를 tool 결과로 받는다([practice README의 직접 확인할 것](../mcp-stateless-handle/README.md#직접-확인할-것)).
 
 **handle은 추측할 수 없어야 한다**
 
-다른 사용자가 쓰는 것은 `<sub>:<handle>` key가 막지만, handle 자체도 추측할 수 없게 만든다.
+다른 사용자가 쓰는 것은 `<sub>:<handle>` key가 막지만, handle 자체도 불투명하고 추측할 수 없게 만든다.
 `SecureRandom`의 128bit 무작위 값을 base64url 22자로 적고, 앞에 `bsk_`를 붙인다.
+`cart_user42_2026-03-11`처럼 안의 구조가 보이는 값은 client가 쪼개 읽거나, 모델이 비슷한 값을 지어내기 쉽다.
 순서대로 매긴 번호라면 남의 handle을 짐작할 수 있고, 사용자 확인에 빈틈이 하나만 생겨도 곧바로 남의 장바구니를 쓰게 된다.
 SEP-2567은 인증이 없는 서버라면 handle이 곧 bearer token이 되므로 128bit 이상의 무작위 값을 쓰라고 권한다.
 
@@ -313,6 +301,7 @@ web agent에서 handle을 다음 tool 호출에 넘기는 것은 모델이다.
 turn은 사용자 질문 하나와 그 답까지다.
 사용자가 `휴대용 SSD도 두 개 담아 줘`라고 하면, 모델은 앞 turn의 `createBasket` 결과에서 `basketId`를 찾아 `addItem`에 넣어야 한다.
 그러려면 다음 turn의 prompt에 앞 turn의 tool 결과가 들어 있어야 한다.
+ChatGPT도 tool 결과의 `content`와 `structuredContent`를 대화 기록에 남기고([OpenAI 문서](https://developers.openai.com/plugins/reference)), claude.ai도 tool 결과를 대화 기록에 저장한다([claude.ai 문서](https://claude.com/docs/connectors/building/mcp-apps/instance-supersession)).
 
 **기본 배치에서는 tool 결과가 기억에 남지 않는다**
 
@@ -371,7 +360,6 @@ loop의 단계마다 대화 기억 advisor를 지나므로, 질문(2), tool 호�
 내부 history를 끈 `ToolCallingAdvisor`는 다음 단계에 system prompt와 마지막 메시지(tool 결과)만 넘긴다.
 대화 기억 advisor가 loop 밖에 있으면, 그 단계의 모델은 질문도 앞 turn도 없이 tool 결과만 받는다.
 대화 기억 advisor가 loop 안에 있어야 (9)에서 질문과 앞 turn을 다시 붙여 준다.
-반대로 대화 기억 advisor만 안쪽에 두고 내부 history를 켜 두면, 한 turn의 history를 `ToolCallingAdvisor`와 대화 기억이 따로 가진다.
 두 설정을 함께 두면 history는 대화 기억 한 곳에만 있고, 모델이 받는 prompt도 늘 대화 기억에서 만들어진다.
 
 **대화 기억은 사용자마다 따로 둔다**
@@ -404,22 +392,14 @@ turn이 진행되는 중에 기억을 지우면, 그 turn은 지운 뒤에도 �
 **이 practice의 한계**
 
 SEP-2567은 대화를 줄일 때 handle이 든 tool 결과를 지키는 일을 client가 맡는다고 본다.
-이 practice의 대화 기억에는 다음 한계가 있다.
-
-- 기억은 최근 메시지 20개다. 넘치면 `MessageWindowChatMemory`는 오래된 메시지를 다음 사용자 질문 앞까지 한꺼번에 지운다. 그래서 한 turn에서 tool을 10번쯤 넘게 부르면 그 turn이 통째로 기억에서 빠질 수 있다.
-- 마지막 답은 stream이 끝나야 저장된다. browser가 도중에 끊으면 기억에는 tool 호출과 결과만 남고 답은 없다.
-- step-up이 아닌 오류나 tool 실행 중의 연결 끊김으로 turn이 끝나면 되돌리지 않는다. 그래서 결과 없는 tool 호출이 "새 대화"까지 기억에 남을 수 있다.
-- 모델은 Ollama의 `qwen3:8b`이고, 결과 없는 tool 호출이 섞인 history도 받는다. Claude API는 tool 호출 바로 뒤에 그 결과가 오지 않는 history를 받지 않으므로([Claude API 문서](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)), provider를 바꾸면 이 경우를 따로 다뤄야 한다.
-- 같은 사용자가 browser tab 두 개에서 채팅하면, 두 tab이 대화 하나를 lock 없이 같이 쓴다.
-
-ChatGPT도 tool 결과의 `content`와 `structuredContent`를 대화 기록에 남기고([OpenAI 문서](https://developers.openai.com/plugins/reference)), claude.ai도 tool 결과를 대화 기록에 저장한다([claude.ai 문서](https://claude.com/docs/connectors/building/mcp-apps/instance-supersession)).
+이 practice의 대화 기억에는 메시지 수 상한, 도중에 끊긴 답, 결과 없는 tool 호출, 여러 browser tab에서 생기는 한계가 있고, 목록은 [practice README의 대화 기억과 끊긴 turn](../mcp-stateless-handle/README.md#대화-기억과-끊긴-turn)에 있다.
 
 ## 11.8 사용자 기기의 앱: 코드가 handle을 들고 다닌다
 
 사용자 기기의 앱 `local-client`는 대화 없이 정해 둔 순서로 tool을 부르므로, handle을 기억하는 것은 모델이 아니라 코드의 변수다.
 `local-client`는 한 번 실행하는 동안 `createBasket`이 준 handle을 뒤의 모든 호출에 넘긴다.
 아래는 browser 대신 curl이 login과 consent를 한 `docs/superpowers/captures/stateless-local-client-run.sh`의 출력이다.
-10장과 같은 discovery와 login(`[1]`\~`[4]`), `[5]`의 `initialize`와 tool 목록은 뺐고, `addItem(p9, 2)`의 결과는 줄였다.
+10장과 같은 discovery와 login(`[1]`\~`[4]`), `[5]`의 `initialize`와 tool 목록, step-up의 주소와 `[3]`·`[4]` 줄은 뺐고, `addItem(p9, 2)`의 결과는 줄였다.
 
 ```text
 [5] MCP 호출
@@ -436,9 +416,6 @@ ChatGPT도 tool 결과의 `content`와 `structuredContent`를 대화 기록에 �
     getBasket(모르는 ID): [오류] 찾을 수 없는 장바구니입니다(bsk_AAAAAAAAAAAAAAAAAAAAAA). createBasket으로 새 장바구니를 만드세요.
     403 insufficient_scope — 필요한 scope: orders:write
 [6] step-up: products:read orders:write로 다시 authorization을 받는다
-    http://localhost:9040/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A61964%2Fcallback&scope=products%3Aread+orders%3Awrite&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8151%2Fmcp
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:61964/callback
-[4] client_secret 없이 access token을 받았다(299초 뒤 만료, scope: products:read orders:write)
 [7] 새 token으로 같은 요청을 새로 보낸다
     checkout: 주문을 접수했습니다. 주문 번호는 ord-1001입니다.
 ```
@@ -487,20 +464,13 @@ public WebMvcStatelessServerTransport webMvcStatelessServerTransport(
 
 tool이 사용자를 `McpTransportContext` 인자로 받으면 사용자를 쓴다는 것이 메서드 선언에 보이고, 테스트도 security context 없이 이 인자만 넘겨 tool을 부를 수 있다.
 또 thread에 묶인 값에 기대지 않아도 된다.
-지금의 stateless WebMVC sync 서버는 요청 thread에서 tool을 부르므로 `SecurityContextHolder`도 쓸 수 있고, authz에서 온 `ProductTools`는 로그에 남길 사용자만 거기서 읽는다.
 
 **`TransportErrorResponseFilter`: 오류 본문에서 내부 정보를 뺀다**
 
-transport는 읽을 수 없는 본문을 받으면 SDK의 `McpError` 객체를 그대로 JSON으로 만들어 답하고, 그 안에는 Java stack trace가 들어 있다.
-token이 있는 사용자라면 누구나 서버 안의 class 이름과 줄 번호를 볼 수 있는 셈이다.
-그래서 `McpTransportConfig`는 transport의 router(`webMvcStatelessServerRouterFunction`)도 직접 등록하고, `TransportErrorResponseFilter`를 끼운다.
-이 filter는 `McpError` 응답을 같은 상태 코드의 JSON-RPC 오류로 바꾸고, `code`와 `message`만 남긴다.
-
-이 practice의 `ToolScopeFilter`는 10장의 것보다 한 가지를 더 본다.
-`tools/call`의 `params`가 object가 아니거나 `name`이 배열·object면, transport는 `500`과 stack trace로 답한다.
-`name`이 숫자면 filter와 SDK가 tool 이름을 다르게 읽을 수도 있다(10장의 parser differential).
-그래서 `params`가 object가 아니거나, `name`이 없거나 문자열이 아니거나, `arguments`·`_meta`가 object가 아닌 `tools/call`은 filter가 transport에 넘기지 않는다.
-이런 호출은 `400`과 JSON-RPC 오류 `-32602`(Invalid params)로 끝내고, tool 호출 횟수에도 세지 않는다.
+transport는 읽을 수 없는 본문에 SDK의 `McpError`를 그대로 JSON으로 만들어 답하고, 그 안에는 서버의 class 이름과 줄 번호가 든 stack trace가 있다.
+그래서 `McpTransportConfig`는 transport의 router도 직접 등록해 `TransportErrorResponseFilter`를 끼우고, 이 filter는 `code`와 `message`만 남긴다.
+`ToolScopeFilter`는 `params`·`name`·`arguments`·`_meta`의 형식이 틀린 `tools/call`을 transport에 넘기지 않고 `400`과 `-32602`로 끝내며, tool 호출 횟수에도 세지 않는다.
+그런 호출은 transport에서 stack trace가 든 `500`이 되거나, filter와 SDK가 tool 이름을 다르게 읽게 하기 때문이다(10장의 parser differential).
 
 **`McpCaller`: token의 사용자**
 
@@ -581,7 +551,6 @@ public CallToolResult checkout(McpTransportContext context, /* basketId 인자 *
 }
 ```
 
-`@RequiredScope("orders:write")`는 10장의 `ToolScopeFilter`가 읽으므로, 조회 token의 `checkout`은 이 메서드에 닿기 전에 `403`으로 끝난다.
 Spring AI는 tool이 문자열을 돌려주면 text 하나인 결과로 만들므로, 이 tool은 `structuredContent`와 `isError`를 정하려고 `CallToolResult`를 직접 만든다.
 장바구니 문제(`BasketException`), 재고 부족(`IllegalStateException`), 0 이하의 주문 수량(`IllegalArgumentException`)은 `error`가 `isError: true`인 결과로 바꾼다.
 
@@ -636,7 +605,6 @@ public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSessi
 
 - 2026-07-28의 요청 형식: `initialize` 대신 요청마다 `_meta`에 버전과 capability를 넣는 방식, `server/discover`, `Mcp-Name` header, GET을 대신하는 `subscriptions/listen`, SSE 재개(`Last-Event-ID`)가 빠진 것은 SDK가 2026-07-28을 지원한 뒤의 practice에서 다룬다.
 - 영속 저장과 서버 여러 대: 장바구니와 대화 기억은 메모리에 있어서 다시 띄우면 사라지고, MCP Server는 한 대로만 돈다. 여러 대로 늘리려면 Redis 같은 공유 저장소에 `<sub>:<handle>` key로 두고, 한 번만 되는 주문도 그 저장소의 원자적 갱신으로 지킨다.
-- 사용자별 tool 목록: 지금 token의 scope가 아니라 사용자의 역할로 tool 목록을 거르는 서버는 [12장](12-tool-visibility.md)에서 다룬다.
 - 장바구니를 지우는 tool과 목록 tool: SEP-2567은 `destroy_*`·`list_*` tool을 두면 좋다고 하지만 꼭 두라고 하지는 않는다. 이 practice의 장바구니는 만료로만 사라진다.
 
 ## 11.12 직접 해 보기

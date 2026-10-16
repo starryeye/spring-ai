@@ -40,7 +40,6 @@ scope로 거르는 방식은 필요한 scope를 처음부터 모두 받는 clien
 점원은 재고를 바꿀 수 있고 손님은 바꿀 수 없다는 정보는 서비스의 사용자 데이터에 있으므로, MCP Server가 안다.
 scope는 사용자가 이 client에게 맡긴 범위이고, token에 들어 있다([10장 최소 권한의 필요성](10-scope-and-step-up.md#101-최소-권한의-필요성)).
 client가 사용자 대신 실제로 할 수 있는 일은 권한과 scope가 겹치는 부분이다.
-권한 밖의 tool은 숨기고, 권한 안이지만 scope 밖의 tool은 보여 준 뒤 step-up한다.
 이 practice의 목록은 요청에 붙은 token의 `sub`만으로 정해지므로, 연결이 아니라 authorization에 따라 달라진다는 명세의 조건에 맞는다.
 쓸 수 없는 tool을 숨길지, 보여 주고 부를 때 거절할지는 명세가 정하지 않았다.
 
@@ -104,8 +103,7 @@ Authorization: Bearer eyJraWQiOiJmNzc5MDY0...
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
 ```
 
-두 요청 모두 `200`을 받지만, 본문의 크기는 `user`가 `Content-Length: 5010`, `user2`가 `Content-Length: 4269`로 다르다.
-응답의 `result.tools`에서 tool 이름만 순서대로 뽑으면 다음과 같다(첫 줄이 `user`, 둘째 줄이 `user2`).
+두 요청 모두 `200`이고, 응답의 `result.tools`에서 tool 이름만 순서대로 뽑으면 다음과 같다(첫 줄이 `user`, 둘째 줄이 `user2`).
 
 ```text
 names(7개): getStock,searchProducts,updateStock,addItem,checkout,createBasket,getBasket
@@ -259,9 +257,7 @@ token은 누구인지(`sub`)만 알려 주고, 그 사람이 점원인지는 MCP
 
 **GitHub의 두 연결 방식**
 
-[10장](10-scope-and-step-up.md#101-최소-권한의-필요성)에서 본 GitHub의 원격 MCP Server는 연결 방식에 따라 tool 목록을 다르게 다룬다.
-classic PAT로 연결하면 scope가 처음부터 정해져 있어서, 쓸 수 없는 tool을 목록에서 숨긴다.
-OAuth로 연결하면 tool이 아직 허락받지 않은 scope를 필요로 할 때 그 자리에서 허락을 받는다([GitHub changelog](https://github.blog/changelog/2026-01-28-github-mcp-server-new-projects-tools-oauth-scope-filtering-and-new-features/)).
+[10장](10-scope-and-step-up.md#101-최소-권한의-필요성)에서 본 GitHub의 원격 MCP Server는 classic PAT로 연결하면 쓸 수 없는 tool을 목록에서 숨기고, OAuth로 연결하면 tool을 보여 준 뒤 필요한 scope를 그 자리에서 허락받는다([GitHub changelog](https://github.blog/changelog/2026-01-28-github-mcp-server-new-projects-tools-oauth-scope-filtering-and-new-features/)).
 이 장의 기준으로 보면, PAT는 scope를 더 받을 수 없으니 숨기고 OAuth는 더 받을 수 있으니 보여 주는 것이다.
 
 **client 등록으로 정해지는 경우**
@@ -325,11 +321,6 @@ scope로 목록을 거르는 서버라면 step-up 전후의 목록이 달라서,
 token key는 그런 서버에도 맞고, step-up으로 token이 바뀌면 저절로 목록을 다시 받는다.
 key를 token 값 대신 SHA-256 hex로 두는 것은, cache를 로그에 찍거나 heap dump를 볼 때 token이 그대로 보이지 않게 하려는 것이다.
 
-**이 practice의 한계**
-
-- agent는 SSE stream을 시작하기 전에 요청 thread에서 목록을 꺼낸다. 그래서 목록을 새로 받다가 실패하면 화면에는 `오류: HTTP 500`만 나오고, 원인은 `logs/shop-agent.log`에 있다.
-- 목록이 바뀌었다는 알림은 받지 않는다. stateless MCP Server는 GET stream에 `405`로 답하므로([11장 1단계](11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답)), agent는 TTL이 지났을 때, token이 바뀌었을 때, "모르는 tool" 오류가 왔을 때만 다시 받는다.
-
 ## 12.8 web agent: 목록에 없는 tool을 모델이 부를 때
 
 모델은 그 질문에 넣은 목록의 tool을 부른다.
@@ -341,10 +332,8 @@ agent는 목록을 한동안 그대로 쓰므로, 그사이 MCP Server의 목록
 `McpTransportConfig`의 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면, agent에 남은 점원의 목록에는 `updateStock`이 그대로 있다.
 모델이 이 tool을 부르면 MCP Server는 12.4의 "모르는 tool" 오류로 답한다.
 
-Spring AI 2.0.1의 `SyncMcpToolCallback`은 이 JSON-RPC 오류(`McpError`)를 감싸지 않고 그대로 던진다.
-tool loop는 `ToolExecutionException`만 잡으므로, 그대로 두면 채팅 stream이 오류로 끝난다.
-그래서 agent는 목록의 callback마다 `UnknownToolAwareToolCallback`으로 감싼다.
-이 callback은 "모르는 tool" 오류를 받으면 그 token의 목록을 버리고, 오류를 `ToolExecutionException`으로 바꿔 던진다.
+Spring AI 2.0.1에서는 이 JSON-RPC 오류가 tool loop를 그대로 빠져나가, 그대로 두면 채팅 stream이 오류로 끝난다.
+그래서 agent는 목록의 callback마다 `UnknownToolAwareToolCallback`으로 감싸, "모르는 tool" 오류가 오면 그 token의 목록을 버리고 오류를 tool 결과로 돌려준다(12.11).
 그러면 모델은 `Unknown tool: invalid_tool_name`을 tool 결과로 받고 turn은 이어진다.
 그 turn은 받아 둔 목록을 계속 쓰고, 다음 질문에서 목록을 새로 받는다.
 2025-11-25 server/tools는 client가 이런 protocol error를 모델에게 넘겨도 된다고 하고, 2026-07-28 Caching은 이때 TTL 전에 목록을 다시 받아도 된다고 한다.
@@ -361,12 +350,10 @@ tool loop는 `ToolExecutionException`만 잡으므로, 그대로 두면 채팅 s
 
 **browser로 본 것**
 
-손님으로 `p1 재고를 10개로 바꿔 줘`를 보낸 browser 확인에서는, 모델이 보이는 tool인 `getStock`만 불렀다.
-답은 `재고 수량 변경은 현재 제공된 도구로는 지원되지 않습니다. 상품 p1의 재고가 7개인 상태에서 추가 구매하시려면 장바구니에 담아 주문해 주세요.`였다.
-consent 카드는 뜨지 않았고, 모델이 `updateStock`을 부르지 않았으므로 `tool-unavailable` 안내도 나오지 않았다.
+손님으로 `p1 재고를 10개로 바꿔 줘`를 보낸 browser 확인에서는, 모델이 보이는 tool인 `getStock`만 부르고 재고 변경은 지원하지 않는다고 답했다.
+consent 카드도 `tool-unavailable` 안내도 나오지 않았다.
 모델이 목록에 없는 tool을 부를지는 모델에 달려 있어서, 두 경로는 매번 볼 수 있는 것이 아니다.
-낡은 목록의 경로는 점원이 질문한 뒤 agent가 그 token의 목록을 아직 쓰는 동안(12.7), 위처럼 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면 볼 수 있다.
-MCP Server만 다시 띄우는 명령은 12.13에 있다.
+낡은 목록의 경로를 일부러 만드는 순서와 명령은 12.13에 있다.
 
 ## 12.9 사용자 기기의 앱
 
@@ -396,7 +383,6 @@ discovery와 login(`[1]`\~`[4]`), 장바구니 줄, step-up의 주소와 `[3]`·
 | `403`부터 `[7]`까지 | step-up은 `checkout`의 `orders:write` 한 번뿐이다. 손님도 받을 수 있는 scope라서 `checkout`은 숨기지 않았다 |
 | 마지막 `tools:` | step-up으로 token이 바뀌어 목록을 다시 받았다. 역할로만 거르므로 처음 목록과 같다 |
 
-주문 번호가 `ord-1002`인 것은 같은 서버에서 `user`로 먼저 돌린 실행이 `ord-1001`을 받았기 때문이다.
 목록은 요청의 authorization에 따라 달라도 되므로, `local-client`는 token이 바뀌면 옛 목록이 맞는다고 가정하지 않고 다시 받는다.
 
 ## 12.10 서버 코드에서 보기
@@ -412,12 +398,9 @@ public boolean hidden(String subject, String tool) {
 }
 ```
 
-`ToolVisibility`는 역할마다 받을 수 있는 scope(12.3의 표)를 `GRANTABLE`로 두고, `roleOf`는 표에 없거나 `null`인 사용자를 손님으로 본다.
 `hidden`은 등록된 tool만 본다.
-그 tool의 scope(10장의 `ToolScopeRegistry`가 `@RequiredScope`에서 모은 값)를 이 역할이 받을 수 없으면 숨긴다.
+그 tool의 scope(10장의 `ToolScopeRegistry`가 `@RequiredScope`에서 모은 값)를 사용자의 역할(`roleOf`)이 받을 수 없으면 숨긴다.
 등록되지 않은 이름은 숨긴 tool이 아니고, SDK가 "모르는 tool"로 답한다.
-`visible`은 SDK가 준 목록에서 `hidden`인 tool만 빼고 순서는 그대로 둔다.
-역할 표는 `McpTransportConfig`가 `new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF))`로 만든다.
 
 **`ToolVisibilityTransport`: SDK handler를 감싼다**
 
@@ -464,9 +447,7 @@ tool을 감싸 막으면 인자가 틀린 숨긴 tool 호출은 인자 오류를
 `toolName`도 SDK와 같은 JSON mapper(`McpJsonDefaults.getMapper()`)로 `params`를 읽는다.
 더 너그러운 mapper라면, SDK가 다른 오류로 답할 요청에 숨긴 tool만 "모르는 tool"로 답해 차이가 생긴다.
 
-`McpTransportConfig`는 감싼 transport를 `@Primary` bean으로 둔다.
-Spring AI의 자동 구성에서 SDK server는 transport를 `McpStatelessServerTransport` interface 타입으로 받으므로, `@Primary`인 이 bean이 server에 간다.
-HTTP 경로를 만드는 router(`McpTransportConfig`가 등록한다, 11장)는 구체 타입 `WebMvcStatelessServerTransport`로 받으므로, 요청은 원래 transport로 들어와 감싼 handler를 거친다.
+감싼 transport는 `@Primary` bean이라 SDK server에 가고, HTTP 경로는 원래 transport로 들어와 감싼 handler를 거친다.
 
 **`ToolScopeFilter`: 보이는 tool인지 먼저**
 
@@ -507,7 +488,6 @@ agent의 클래스는 `practice/mcp-tool-visibility/shop-agent/src/main/java/dev
 `application.yml`의 `spring.ai.mcp.client.toolcallback.enabled: false`는 자동 구성의 tool provider를 끈다.
 MCP client bean(`mcpSyncClients`)은 그대로 남는다.
 `ChatClientConfig`는 기본 tool을 넣지 않고, `ToolCatalogConfig`는 이 MCP client로 `UserToolCatalog` bean을 만든다.
-목록을 어느 연결에서 받을지 정해야 하므로, MCP 연결이 정확히 하나가 아니면 앱이 뜨지 않는다.
 cache key의 access token은 MCP 요청에 token을 붙이는 customizer와 같은 `OAuth2AuthorizedClientManager.authorize(...)`로 얻는다.
 token이 만료되었으면 이 호출이 refresh하므로, key의 token과 실제로 붙는 token이 같다.
 
@@ -529,12 +509,12 @@ public List<ToolCallback> callbacks(Authentication user) {
 ```
 
 `loader`는 `client.listTools()`로 받은 tool마다 `SyncMcpToolCallback`을 만들고 `UnknownToolAwareToolCallback`으로 감싼다.
-callback의 이름은 `prefixedToolName(tool.name())`으로 서버가 준 이름과 같게 둔다.
 `loader`에 넘기는 `() -> invalidate(key)`는 목록을 받을 때의 key를 기억한다.
 그래서 "모르는 tool" 오류가 tool loop의 다른 thread에서 와도, 그 목록을 받은 token의 항목을 정확히 버린다.
 
 **agent: `UnknownToolAwareToolCallback`**
 
+Spring AI 2.0.1의 `SyncMcpToolCallback`은 JSON-RPC 오류(`McpError`)를 감싸지 않고 그대로 던지고, tool loop는 `ToolExecutionException`만 tool 결과로 바꾼다.
 `call`은 감싼 `SyncMcpToolCallback`이 던진 `McpError` 가운데 "모르는 tool"만 잡는다.
 잡으면 `onUnknownTool`로 목록을 버리고 `new ToolExecutionException(getToolDefinition(), ex)`를 던지며, 다른 `McpError`는 그대로 던진다.
 `-32602`는 인자 오류에도 쓰이므로, `isUnknownTool`은 `code`와 함께 `message`가 `Unknown tool: invalid_tool_name`인지 본다.
@@ -575,7 +555,7 @@ Spring AI 2.0.1에는 이 경우를 위한 예외 타입이 따로 없어서 메
 
 ## 12.12 다루지 않는 것
 
-- 2026-07-28의 `ttlMs`·`cacheScope` field와 목록 변경 알림: 서버가 준 값으로 TTL을 정하고, `subscriptions/listen`으로 받은 알림으로 cache를 무효로 하는 일은 SDK가 2026-07-28을 지원한 뒤의 practice에서 다룬다.
+- 2026-07-28의 `ttlMs`·`cacheScope` field와 목록 변경 알림: 서버가 준 값으로 TTL을 정하고, `subscriptions/listen`으로 받은 알림으로 cache를 무효로 하는 일은 SDK가 2026-07-28을 지원한 뒤의 practice에서 다룬다. 지금의 stateless MCP Server는 GET stream에 `405`로 답하므로([11장 1단계](11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답)), agent는 목록 변경 알림을 받지 않는다.
 - tool별 scope를 client에게 알리는 표준: tool 정의에 필요한 scope를 적는 SEP-1488과 ChatGPT의 `securitySchemes`는 [10장 다루지 않는 것](10-scope-and-step-up.md#1011-다루지-않는-것)에서 본 대로 아직 표준이 아니다.
 - 역할의 영속 저장과 변경: 역할 표는 `McpTransportConfig`의 코드에 있고, 실행 중에 역할을 바꾸는 화면도 없다.
 - `resources`·`prompts` 목록: 이 practice는 tool 목록만 거른다. 사용자마다 다른 resource나 prompt 목록도 같은 기준으로 거르고 `"private"`으로 cache한다.
@@ -588,8 +568,7 @@ practice/mcp-tool-visibility/run.sh
 ```
 
 **web agent**: 보통 browser 창으로 `http://localhost:8160`을 열고 `user2`/`password`로 login한 뒤, consent 화면에서 `products:read`를 체크한다.
-점원 `user`는 시크릿 창에서 login한다.
-보통 창들은 cookie를 함께 쓰고 agent 화면에는 logout이 없어서, 서버를 다시 띄우지 않고는 보통 창에서 다른 계정으로 login할 수 없기 때문이다.
+점원 `user`는 시크릿 창에서 login한다([practice README의 실행](../mcp-tool-visibility/README.md#실행)).
 아래 순서대로 보내고, `practice/mcp-tool-visibility/logs/`의 `shop-mcp-server.log`와 `shop-agent.log`를 본다.
 
 | 계정과 질문 | 볼 것 |
@@ -632,13 +611,6 @@ docs/superpowers/captures/mcp-visibility-walkthrough.sh > /tmp/visibility-walkth
 
 **local-client**: `JAVA_HOME`을 Java 21로 맞춘 뒤 `practice/mcp-tool-visibility/local-client`에서 `./gradlew run`을 실행한다([practice README의 실행](../mcp-tool-visibility/README.md#실행)).
 처음 열린 browser에서 `user`나 `user2`로 login하고, step-up의 consent 화면에서는 `products:read`와 `orders:write`를 모두 체크한다.
-browser 대신 curl로 두 계정을 차례로 돌리려면 저장소 최상위 폴더에서 다음을 실행한다.
-
-```bash
-# ./gradlew run을 부르므로 JAVA_HOME이 Java 21을 가리켜야 한다
-docs/superpowers/captures/visibility-local-client-run.sh user > /tmp/visibility-local-client-user.txt
-docs/superpowers/captures/visibility-local-client-run.sh user2 > /tmp/visibility-local-client-user2.txt
-```
 
 ## 12.14 정리
 

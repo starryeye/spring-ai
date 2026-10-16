@@ -38,8 +38,6 @@ getStock 호출 (productId=p1, 사용자=user)
 
 로그에 남는 이름은 MCP Server를 부른 agent가 아니라, agent에게 질문한 사용자다.
 
-1장에서 본 대로 authorization은 선택이고, OAuth는 HTTP transport에서만 쓴다.
-
 이 장은 누가 어떤 역할을 맡는지, 일반 OAuth와 무엇이 다른지, 전체 흐름이 어떻게 이어지는지를 한눈에 본다.
 각 단계의 요청과 응답은 3\~7장에서 하나씩 다룬다.
 
@@ -130,38 +128,15 @@ official의 agent는 학습용이라 `localhost`에서 돌지만, authorization 
 
 Claude의 원격 connector는 claude.ai web에서 쓰든 Claude Desktop이나 모바일 앱에서 쓰든 Anthropic 서버에서 MCP Server에 연결한다([Claude 도움말](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp)).
 그래서 desktop 앱이어도 authorization code는 `claude.ai`의 서버로 돌아간다.
-Claude Desktop이 사용자 기기에서 직접 띄우는 것은 설정 파일이나 desktop extension으로 넣은 로컬 stdio server다.
-stdio server는 환경 변수로 credentials를 받으므로 이 장의 OAuth 흐름을 쓰지 않는다(1장).
-ChatGPT도 connector 요청을 OpenAI 서버에서 보내고, 그 요청은 OpenAI가 공개한 IP 대역에서 나간다([OpenAI 문서](https://developers.openai.com/api/docs/guides/ip-addresses)).
-
-한 회사의 제품도 형태가 나뉜다.
-OpenAI의 ChatGPT는 서버에서 도는 agent다. Codex CLI는 `codex mcp login`으로 login을 시작하고, 사용자 기기의 loopback 주소로 callback을 받는다.
-Anthropic도 claude.ai와 Claude Desktop의 원격 connector는 Anthropic 서버에서, Claude Code(CLI)는 사용자 기기에서 MCP Server에 연결한다.
+Claude Desktop이 사용자 기기에서 직접 띄우는 로컬 stdio server는 이 장의 OAuth 흐름을 쓰지 않는다(1장).
+ChatGPT도 connector 요청을 OpenAI 서버에서 보낸다([OpenAI 문서](https://developers.openai.com/api/docs/guides/ip-addresses)).
 일반 사용자가 쓰는 AI 채팅 서비스는 대개 서버에서 도는 agent이고, 코딩 도구와 명령줄 도구는 대개 사용자 기기의 앱이다.
 
 서버에서 돈다고 해서 늘 `client_secret`이 있는 것은 아니다.
 client 종류는 등록 방식에 따라 따로 정해진다(4장).
 Claude의 원격 connector는 CIMD나 DCR로 등록하면 비밀 없는 public client이고, 사용자가 client ID와 secret을 넣으면 confidential client다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
 어느 쪽이든 token은 사용자 기기가 아니라 Anthropic 서버에 있다.
-
-**예: Claude에 Gmail MCP Server를 연결한다면**
-
-Google은 Gmail을 tool로 내놓는 원격 MCP Server `https://gmailmcp.googleapis.com/mcp/v1`을 Google Workspace Developer Preview Program으로 제공한다([Google 문서](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)).
-Google 문서의 안내를 따르면, 사용자는 Google Cloud에서 Web application 종류의 OAuth client를 직접 만든다.
-redirect URI로는 `https://claude.ai/api/mcp/auth_callback`을 등록한다.
-그리고 받은 client ID와 secret을 Claude의 connector 설정(Advanced settings)에 넣는다.
-
-| official의 역할 | 이 예에서 |
-|---|---|
-| 사용자·browser | Claude를 쓰는 사람과 그 browser나 Claude 앱 |
-| `shop-agent` | Claude다. Anthropic 서버가 MCP client이고, 사용자가 넣은 client ID·secret과 token을 그 서버에 둔다 |
-| `auth-server` | Google의 OAuth Authorization Server다. Google 계정 login과 consent 화면을 보여 준다 |
-| `shop-mcp-server` | Google의 Gmail MCP Server |
-| client 등록 | 사용자가 만든 Web application client다. secret이 있는 confidential client다 |
-| scope | `gmail.readonly`(메일 읽기)와 `gmail.compose`(초안 관리와 메일 보내기) |
-
-official은 운영자가 agent를 배포할 때 credentials를 설정에 넣고, 이 예에서는 사용자가 connector를 추가할 때 넣는다.
-넣는 사람만 다를 뿐, 연결하는 순서는 [4장](04-client-registration.md)의 4.8과 같다.
+사용자가 client ID와 secret을 넣는 예(Claude에 Gmail MCP Server를 붙일 때)는 [4장](04-client-registration.md#48-미리-등록한-client의-첫-연결)에서 본다.
 
 ## 2.4 일반 OAuth와 다른 점
 
@@ -174,27 +149,15 @@ MCP client는 사용자가 넣은 어느 MCP Server에든 붙는다.
 | 무엇이 다른가 | 일반 OAuth | MCP | 다루는 장 |
 |---|---|---|---|
 | Authorization Server를 모른다 | 개발자가 Authorization Server 주소를 설정에 적는다 | client는 MCP Server 주소만 안다. Authorization Server는 discovery로 찾는다 | [3장](03-discovery.md) |
-| 처음 보는 client를 등록해야 한다 | 개발자가 Authorization Server에 앱을 미리 등록해 `client_id`를 받는다 | client와 Authorization Server가 서로 모르는 채 만난다. 미리 등록하는 방법 말고도 CIMD(client가 `https` 주소에 올린 자기 정보 문서의 주소를 `client_id`로 쓰는 방식)나 DCR(등록 endpoint에 `POST`해 `client_id`를 받는 방식)로 `client_id`를 얻는다 | [4장](04-client-registration.md) |
+| 처음 보는 client를 등록해야 한다 | 개발자가 Authorization Server에 앱을 미리 등록해 `client_id`를 받는다 | client와 Authorization Server가 서로 모르는 채 만난다. 미리 등록하는 방법 말고도 CIMD(자기 정보 문서의 주소를 `client_id`로 쓴다)나 DCR(등록 endpoint에서 받는다)로 `client_id`를 얻는다 | [4장](04-client-registration.md) |
 | token의 대상을 MCP Server로 좁힌다 | token을 쓸 API가 정해져 있어 대상을 밝히지 않는 경우가 많다 | client가 `resource`로 MCP Server를 밝히고, MCP Server는 token의 `aud`에 자기가 있는지 본다 | [5장](05-authorization-and-token.md), [6장](06-mcp-call-and-validation.md) |
-| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많고, claude.ai처럼 서버에서 도는 agent도 CIMD·DCR로 등록하면 비밀 없는 public client다. 비밀이 없어도 PKCE가 authorization request를 시작한 쪽만 code를 token으로 바꾸게 한다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
+| public client가 흔하다 | 비밀을 지킬 수 있는 web 앱이 흔하다 | desktop 앱·명령줄 도구가 많다. 비밀이 없어도 PKCE가 authorization request를 시작한 쪽만 code를 token으로 바꾸게 한다 | [5장](05-authorization-and-token.md), [7장](07-local-client.md) |
 | token 말고 전송 단계도 검사한다 | token 검증이 API 보안의 중심이다 | 사용자 기기에서 authorization 없이 도는 MCP Server도 있다. browser를 거친 요청을 막으려고 `Origin`을 검사한다(official은 `Host`도) | [6장](06-mcp-call-and-validation.md) |
 
-세 번째와 다섯 번째 항목은 이유를 조금 더 살펴본다.
-
-**token의 대상을 좁히는 이유**
-
-한 Authorization Server가 여러 MCP Server의 token을 발급할 수 있다.
-token에 대상이 적혀 있지 않으면, 그 token을 받은 MCP Server가 같은 token으로 다른 MCP Server를 부를 수 있다.
-악의적인 MCP Server가 사용자의 token을 받아 다른 곳에서 쓰는 길이 열리는 것이다.
-`aud`에 MCP Server의 이름이 있으면, 다른 MCP Server는 그 token을 거절한다.
-
-**전송 단계도 검사하는 이유**
-
-MCP Server는 사용자 기기의 `localhost`에서 돌기도 하고, 이런 서버는 authorization 없이 열려 있기도 하다.
-사용자가 연 악성 web page는 DNS rebinding(공격자가 자기 domain이 `127.0.0.1`을 가리키게 바꿔, browser가 로컬 서버를 부르게 하는 공격, 6장)으로 그 MCP Server에 요청을 보낼 수 있다.
-token을 요구하지 않는 서버라면 token 검증으로는 이 요청을 막지 못한다.
-그래서 MCP Server는 전송 단계에서 `Origin` header를 보고, 허용하지 않은 곳에서 온 요청을 거절한다.
-official의 MCP Server는 token을 검사하기 전에 `Origin`과 `Host`를 먼저 본다.
+세 번째 항목은 한 Authorization Server가 여러 MCP Server의 token을 발급하기 때문에 필요하다.
+대상이 없는 token은 악성 MCP Server가 받아서 다른 MCP Server를 부르는 데 쓸 수 있다([8장](08-security.md#86-confused-deputy와-다른-mcp-server용-token)).
+다섯 번째 항목은 authorization 없이 사용자 기기의 `localhost`에서 도는 MCP Server 때문에 필요하다.
+악성 web page가 browser를 거쳐 이런 서버에 보내는 요청은 token 검증으로 막지 못하고 `Origin`으로 막는다([6장](06-mcp-call-and-validation.md#64-1단계-originhost-검사)).
 
 ## 2.5 전체 흐름: 시퀀스 다이어그램
 
@@ -253,10 +216,7 @@ sequenceDiagram
 | (13) | `client_secret`으로 자기를 증명한다 | 비밀 없이 `client_id`와 `code_verifier`만 보낸다 |
 | (14) | refresh token도 받는다 | refresh token은 받지 않는다 |
 
-(9)는 Authorization Server가 browser에 보여 주는 login·consent 화면이다.
-(10)은 사용자가 그 화면에 입력하고 고른 내용을 제출하는 요청이다.
-`shop-agent`에게 consent를 묻지 않는 이유와 `local-client`에게 매번 묻는 이유는 [4장](04-client-registration.md)의 4.3과 4.4에서 본다.
-`local-client`가 `openid profile`을 요청하는 이유와 consent 화면의 체크박스는 [5장](05-authorization-and-token.md)의 5.5에서 본다.
+두 client의 consent와 refresh token이 다른 이유는 [4장](04-client-registration.md#43-pre-registration-official의-두-client)에서, `local-client`가 `openid profile`을 요청하는 이유는 [5장](05-authorization-and-token.md#55-login과-consent)에서 본다.
 
 official의 agent에서는 사용자가 agent에 login하는 것이 곧 MCP Server를 쓸 권한을 맡기는 일이다.
 agent는 OpenID Connect login 한 번으로 사용자가 누구인지 알고, 같은 흐름에서 MCP Server용 access token도 받는다.
@@ -281,25 +241,19 @@ discovery가 있으면 무엇을 설정에 적고 무엇을 실행 중에 알아
 | 사용자·browser | 자기 계정(`user`/`password`), agent 주소(`http://localhost:8110`) | consent 화면이 나오면 어느 client가 무엇을 요청하는지 확인한다. browser는 session cookie만 받고 token은 받지 않는다 |
 
 표에서 볼 곳은 세 가지다.
-첫째, agent의 설정에는 Authorization Server의 endpoint가 없다.
-agent는 MCP Server 주소 하나에서 출발해 찾아간다.
-둘째, MCP Server는 어느 client가 보냈는지 미리 알 필요가 없다.
-믿는 issuer가 자기 이름으로 발급한 token인지만 본다.
-셋째, browser는 token을 보지 않는다.
-browser가 나르는 것은 한 번만 쓰는 authorization code다.
+첫째, agent는 Authorization Server의 endpoint를 설정에 두지 않고 MCP Server 주소 하나에서 찾아간다.
+둘째, MCP Server는 어느 client가 보냈는지 몰라도 되고, 믿는 issuer가 자기 이름으로 발급한 token인지만 본다.
+셋째, browser는 token을 보지 않고 한 번만 쓰는 authorization code만 나른다.
 
 ## 2.7 MCP Server와 Authorization Server의 분리
 
-2025-03-26 버전의 MCP 명세에서는 client가 MCP Server 주소의 path를 뗀 주소에서 Authorization Server Metadata를 찾았다.
-그래서 Authorization Server의 metadata는 MCP Server와 같은 host에 있어야 했고, 명세의 예시도 MCP Server가 Authorization Server를 겸하는 구성이었다.
-회사가 이미 쓰는 Authorization Server가 다른 host에 있으면, MCP Server가 둘 사이에서 중개를 맡아야 했다.
+MCP Server는 token을 검증만 하고, token 발급은 따로 있는 Authorization Server가 맡는다.
+MCP Server는 그 Authorization Server의 위치를 PRM으로 알린다(3장).
+한 Authorization Server가 여러 MCP Server를 맡을 수 있어서, token의 대상을 좁히는 일도 필요하다(2.4).
+명세는 두 서버를 같은 곳에 두는 것도 막지 않고, official은 `auth-server`와 `shop-mcp-server`를 다른 process로 띄운다.
 
-2025-06-18 버전은 MCP Server를 OAuth resource server로 정하고, Authorization Server의 위치는 PRM으로 알리게 했다(3장).
-이제 MCP Server는 token을 검증만 하고, token 발급은 따로 있는 Authorization Server가 맡는다.
-한 Authorization Server가 여러 MCP Server를 맡을 수 있어서, token의 대상을 좁히는 일도 함께 필요해졌다(2.4).
-명세는 지금도 두 서버를 같은 곳에 두는 것을 막지 않는다.
-official은 `auth-server`와 `shop-mcp-server`를 다른 process로 띄운다.
-버전별 변화는 9장에서 정리한다.
+2025-03-26 버전에서는 Authorization Server의 metadata가 MCP Server와 같은 host에 있어야 했다.
+무엇이 왜 바뀌었는지는 [9장](09-versions.md#93-authorization-server-분리와-prm-2025-06-18)에서 본다.
 
 ## 2.8 official 코드에서 보기
 
@@ -366,9 +320,8 @@ agent의 흐름을 curl로 한 단계씩 기록하는 스크립트도 있다: `d
 
 - 원격 MCP Server는 OAuth access token의 `sub`로 누구를 대신한 요청인지 알고, `aud`로 자기에게 온 token인지 안다.
 - MCP client는 OAuth client, MCP Server는 resource server이고, token은 따로 있는 Authorization Server가 발급한다.
-- 비밀을 지킬 수 있는 서버의 agent는 `client_secret`이 있는 confidential client로 등록할 수 있고(official의 `shop-agent`), 비밀을 지킬 수 없는 사용자 기기의 앱은 public client다.
-- 제품이 어느 형태인지는 화면이 아니라 MCP client와 token이 있는 곳으로 정해진다. ChatGPT·claude.ai 같은 채팅 서비스는 서버에서 도는 agent이고, Claude Code(CLI)·Codex CLI 같은 도구는 사용자 기기의 앱이다.
-- 다만 client 종류는 등록 방식으로 따로 정해져서, 서버에서 도는 agent도 CIMD·DCR로 등록하면 public client다.
+- 서버의 agent는 `client_secret`을 지킬 수 있고, 사용자 기기의 앱은 public client다. 다만 client 종류는 등록 방식으로 따로 정해진다.
+- 제품의 형태는 화면이 아니라 MCP client와 token이 있는 곳으로 정해진다.
 - 흐름은 PKCE를 쓰는 authorization code grant 그대로이고, MCP는 discovery, 처음 보는 client의 등록(CIMD·DCR), `resource`·`aud`, public client 보호, 전송 보안을 더한다.
 
 ## 2.11 명세 근거
@@ -383,7 +336,5 @@ agent의 흐름을 curl로 한 단계씩 기록하는 스크립트도 있다: `d
 | client는 PKCE를 쓰고, 가능하면 `S256`을 쓴다 | [MCP 2025-11-25 Authorization — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection) | MUST |
 | MCP Server는 들어오는 모든 연결의 `Origin`을 검사한다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) | MUST |
 | 전체 흐름: `401` → PRM → metadata → client 등록 → authorization request → callback → token request → MCP 요청 | [MCP 2025-11-25 Authorization — Authorization Flow Steps](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-flow-steps) | — |
-| 2025-03-26에는 MCP Server 주소에서 path를 뗀 base URL에서 metadata를 찾았고, 다른 Authorization Server는 MCP Server가 중개해 쓸 수 있었다 | [MCP 2025-03-26 Authorization — Authorization Base URL](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization#authorization-base-url), [Third-Party Authorization Flow](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization#third-party-authorization-flow) | MUST, MAY |
-| 2025-06-18은 MCP Server를 OAuth resource server로 정하고, PRM과 RFC 8707 Resource Indicators를 넣었다 | [MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog#major-changes) | — |
 
 [← 1장](01-mcp-basics.md) · [목차](README.md) · [3장 →](03-discovery.md)

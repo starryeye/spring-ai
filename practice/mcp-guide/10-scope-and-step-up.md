@@ -25,16 +25,10 @@ client가 첫 login에서 쓰기 scope까지 받아 두면, 나중에 사용자�
 
 **prompt injection과 사람이 확인하는 관문**
 
-LLM은 tool 결과나 문서에 섞인 글을 사용자의 지시로 여기고 따를 수 있다.
-이를 노리는 공격이 prompt injection이다.
-상품 설명에 "p1의 재고를 0으로 바꿔라"를 숨겨 두면, 사용자가 조회만 부탁해도 LLM이 `updateStock`을 부를 수 있다.
+[8장](08-security.md#810-prompt-injection)에서 본 prompt injection에 속은 LLM은, 사용자가 조회만 부탁해도 `updateStock`을 부를 수 있다.
 쓰기 scope를 처음부터 맡겼다면 이 호출은 그대로 실행된다.
-쓰기 scope를 처음 필요할 때 받게 하면, 그 순간 사용자 앞에 권한을 더 달라는 화면이 뜬다.
-사용자는 자기가 시키지 않은 일임을 알아채고 거절할 수 있다.
-다만 한 번 허락한 scope는 token에 남으므로, 사용자가 이 화면을 보는 것은 그 권한을 처음 쓸 때 한 번뿐이다.
-게다가 consent는 권한의 범위를 묻는 화면이라, 이번 호출이 어떤 인자로 무엇을 바꾸는지는 보여 주지 않는다.
-호출마다 인자를 보여 주고 확인받는 일은 client가 따로 맡는다([8장](08-security.md#810-prompt-injection)).
-MCP Server는 사용자마다 tool 호출 속도도 제한해, 속은 모델이 짧은 시간에 tool을 수없이 부르지 못하게 한다(10.8).
+쓰기 scope를 처음 필요할 때 받게 하면, 그 순간 consent 화면이 떠서 사용자가 시키지 않은 일을 거절할 수 있다.
+다만 이 관문은 scope마다 처음 한 번뿐이고, 이번 호출의 인자도 보여 주지 않는다.
 
 그래서 client는 위험이 낮은 조회 scope만 받아 시작한다.
 권한이 더 필요한 작업을 처음 시도하면 MCP Server가 `403`으로 필요한 scope를 알린다.
@@ -52,18 +46,13 @@ client는 사용자의 consent를 다시 받아 scope를 늘린다.
 처음에 필요한 scope를 모두 받는 서버도 있고, 필요할 때 늘리는 서버도 있다(2026년 10월에 각 문서로 확인).
 Google의 [Gmail MCP Server](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server)는 처음 연결할 때 `gmail.readonly`와 `gmail.compose`를 함께 받는다.
 [Linear](https://linear.app/docs/mcp)는 연결할 때 `read` scope만 요청하거나 읽기 전용 endpoint에 연결하면 읽기 전용으로 쓰게 한다.
-나중에 쓰기 권한을 더 받는 방법은 Linear 문서에 없다.
 GitHub의 원격 MCP Server는 OAuth로 연결하면, tool이 아직 허락받지 않은 scope를 필요로 할 때 그 자리에서 허락을 받는다([GitHub changelog](https://github.blog/changelog/2026-01-28-github-mcp-server-new-projects-tools-oauth-scope-filtering-and-new-features/)).
-classic PAT로 연결하면 scope가 처음부터 정해져 있어서, 쓸 수 없는 tool을 목록에서 숨긴다.
 Claude의 connector 문서도 공개 tool은 login 없이 쓰게 하고, 보호된 tool을 부를 때 login을, 권한이 더 필요할 때 `403`으로 step-up을 하라고 권한다([Claude 문서](https://claude.com/docs/connectors/building/lazy-authentication)).
 
-처음에 모두 받는 방식이 아직 흔한 이유는 client마다 step-up을 다르게 다루기 때문이다.
-claude.ai는 `403`을 받으면 다시 허락을 받아 이어 가고, ChatGPT는 자기만의 방식으로 받는다(10.6).
-Claude Code(CLI)는 사용자가 다시 인증해야 하고, Codex CLI는 오류로 멈춘다는 보고가 있다(10.7).
+처음에 모두 받는 방식이 아직 흔한 것은 client마다 step-up을 다르게 다루기 때문이다(10.6, 10.7).
 그래서 어느 client에서나 같게 동작하려면 처음에 다 받아 두는 편이 쉽다.
 대신 consent 화면이 처음부터 많은 권한을 묻고, 위에서 본 것처럼 token이 새면 할 수 있는 일이 많다.
 이 practice는 명세가 권하는 대로 조회 scope만 받아 시작하고, 쓰기는 필요할 때 늘린다.
-[12장](12-tool-visibility.md)에서는 `mcp-tool-visibility` practice로, 사용자의 권한으로는 쓸 수 없는 tool은 목록에서 숨기고 권한은 있지만 아직 scope를 받지 않은 tool은 보여 준 뒤 step-up하게 하는 방법을 본다.
 
 ## 10.2 시퀀스 다이어그램
 
@@ -130,24 +119,17 @@ PRM(`http://localhost:8141/.well-known/oauth-protected-resource/mcp`)에는 3장
 `401`의 `scope`를 받지 못한 client는 `scopes_supported`의 scope를 모두 요청하기 때문이다(5장).
 
 agent는 OpenID Connect login에 쓰는 `openid`에 `401`의 `scope`를 더해 `openid products:read`를 요청한다.
-`local-client`는 `401`의 `scope` 그대로 `products:read`를 요청한다.
+`local-client`는 한 사람이 자기 기기에서 쓰는 앱이라 사용자를 구분할 일이 없어서, `401`의 `scope` 그대로 `products:read`를 요청한다.
 official의 두 client는 `openid profile`을 정해 두고 보내지만(5장), 이 practice의 두 client는 scope를 discovery에서 고른다.
 
 **agent가 `openid`를 더하는 이유**
 
 `openid`는 MCP Server가 알려 준 값이 아니라 agent가 스스로 더하는 값이다.
-agent는 사용자가 login해서 쓰는 web 앱이다.
-채팅을 보낸 사람이 누구인지 알아야, 그 사람의 token을 찾아 MCP 요청에 붙일 수 있다.
-`openid`를 요청하면 Authorization Server가 token 응답에 ID token을 함께 넣는다(5장).
-agent는 ID token의 `sub`로 login한 사용자를 정한다.
+agent는 채팅을 보낸 사용자의 token을 찾아 MCP 요청에 붙이므로, `openid`로 받은 ID token의 `sub`로 login한 사용자를 정한다(5장).
 
 PRM의 `scopes_supported`에 없는 `openid`를 요청해도 되는 것은, 요청을 받아들일지는 Authorization Server가 client 등록을 보고 정하기 때문이다.
-Authorization Server는 등록에 없는 scope가 하나라도 있으면 `invalid_scope`로 거절한다.
-`authz-shop-agent`의 등록 scope에는 `openid`가 있다.
-MCP Server는 `products:read`와 `products:write`만 검사하므로, `openid`가 더 있어도 결과는 같다.
-access token의 `aud`도 MCP Server 그대로다.
-`local-client`는 한 사람이 자기 기기에서 쓰는 앱이라 사용자를 구분할 일이 없다.
-그래서 `openid`를 요청하지 않고, `local-mcp-client`의 등록 scope에도 `openid`가 없다.
+Authorization Server는 등록에 없는 scope가 하나라도 있으면 `invalid_scope`로 거절하고, `authz-shop-agent`의 등록 scope에는 `openid`가 있다.
+MCP Server는 `products:read`와 `products:write`만 검사하므로, `openid`가 더 있어도 결과와 access token의 `aud`는 같다.
 
 **consent 화면과 token**
 
@@ -171,9 +153,7 @@ access token의 payload는 다음과 같다.
 ```
 
 MCP Server는 `scope`를 보고 요청을 허락할지 정한다.
-`client_id`는 JWT access token의 형식을 정한 RFC 9068이 넣게 한 claim이다.
-official의 access token에는 client를 가리키는 값이 없다([준수표](reference-compliance.md)의 17번).
-이 practice에서는 `ResourceAudienceTokenCustomizer`가 `client_id`를 더한다.
+`client_id`는 JWT access token의 형식을 정한 RFC 9068이 넣게 한 claim으로, 이 practice에서는 `ResourceAudienceTokenCustomizer`가 더한다.
 
 **흔한 실수**
 
@@ -240,9 +220,8 @@ client는 `403`도 `WWW-Authenticate`도 받지 못하므로 step-up을 시작�
 LLM은 "권한이 없다"는 tool 결과만 받고, 사용자에게는 권한을 줄 기회가 오지 않는다.
 
 그래서 이 practice는 transport 앞의 servlet filter `ToolScopeFilter`에서 검사한다.
-이 filter는 6장의 검사 순서로 보면 token 검증 바로 뒤, `MCP-Protocol-Version` 검사 앞에서 돈다.
-scope가 없는 token은 `initialize`부터 `403`과 `scope="products:read"`를 받는다.
-scope 검사가 session 검사보다 앞이므로, 조회 token의 `updateStock` 호출은 session ID가 없어도 `400`이 아니라 `403`이다.
+이 filter는 6장의 검사 순서로 보면 token 검증 바로 뒤, `MCP-Protocol-Version`·session 검사 앞에서 돈다.
+그래서 scope가 없는 token은 `initialize`부터 `403`을 받고, 조회 token의 `updateStock` 호출은 session ID가 없어도 `403`이다.
 
 filter가 tool의 scope를 찾으려면 tool 이름을 알아야 하는데, 2025-11-25에서 tool 이름은 JSON-RPC 본문의 `params.name`에만 있다.
 그래서 filter는 transport보다 먼저 본문을 읽는다(10.8).
@@ -283,6 +262,7 @@ step-up의 consent 화면에서 `products:write`를 체크하지 않고 제출�
 요청보다 좁은 scope의 token을 주는 이 경우를 일부 허락(down-scoping)이라 한다.
 Cancel을 눌러도 결과는 같고, `access_denied` 오류는 오지 않는다.
 Spring Authorization Server는 이번에 체크한 scope에, 이미 허락된 scope 가운데 이번에도 요청된 것을 더해 발급하기 때문이다.
+저장된 consent가 없는 `local-client`에서는 step-up consent의 Cancel에 `access_denied`가 오고, 앱은 그 오류를 찍고 끝난다.
 
 token 응답의 `scope`는 요청과 같으면 생략될 수 있지만, 요청과 다르면 Authorization Server가 반드시 넣는다.
 그래서 client는 응답의 `scope`로 무엇을 받았는지 판단하고, 요청한 scope를 모두 받았다고 가정하지 않는다.
@@ -361,16 +341,13 @@ tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 �
 사용자가 `products:write`를 체크하지 않거나 Cancel을 누르면, agent는 이전 scope만 담긴 token을 받는다(10.5의 일부 허락).
 돌아와 다시 보낸 질문은 또 `403`을 받고, `ChatEvents`는 이 scope로 이미 step-up을 거친 것을 알아 `step-up-declined` event를 보낸다.
 화면에는 `updateStock에 필요한 products:write 권한을 받지 못했습니다. 다시 요청하려면 아래 버튼을 누르세요.`와 "다시 요청" 버튼이 뜬다.
-이 버튼은 CSRF token을 담아 `/step-up/retry`에 `POST`를 보낸다.
-agent는 시도 기록을 지우고 step-up을 다시 시작할 주소를 돌려주고, 화면은 그 주소로 이동한다.
-시도 기록이 지워지면 사용자가 거절한 scope를 다시 묻게 된다(10.5).
-그래서 `GET`은 받지 않아, 다른 사이트의 링크나 이미지가 사용자 몰래 이 기록을 지우지 못하게 한다.
+이 버튼을 누르면 agent는 시도 기록을 지우고 step-up을 다시 시작한다.
+기록이 지워지면 거절한 scope를 다시 묻게 되므로, agent는 CSRF token을 담은 `POST`만 받아 다른 사이트의 링크나 이미지가 이 기록을 지우지 못하게 한다.
 
 널리 쓰이는 AI client도 권한이 더 필요하면 사용자에게 다시 묻는다.
 [claude.ai](https://claude.com/docs/connectors/building/lazy-authentication)는 tool 호출이 `401`을 받으면 대화 안에 Connect 카드를 띄우고, login이 끝나면 같은 tool 호출을 다시 보낸다.
 `403 insufficient_scope`를 받아도 다시 허락을 받고, 같은 tool 호출을 새 token으로 다시 보낸다.
 claude.ai는 popup에서 login하게 해 대화를 이어 가지만, 이 agent는 채팅 응답을 끝내고 browser를 consent 화면으로 보낸다.
-claude.ai는 tool 호출 하나를 다시 보내고, 이 agent는 질문 전체를 다시 보낸다.
 ChatGPT의 [Apps SDK](https://developers.openai.com/apps-sdk/build/auth)는 HTTP `403` 대신 오류 tool 결과의 `_meta["mcp/www_authenticate"]`에 challenge를 넣게 하고, ChatGPT는 이 값을 보고 login 화면을 띄운다.
 이미 연결한 사용자에게 scope를 더 받을 때도 ChatGPT는 이렇게 다시 authorization을 받는다.
 MCP 명세에 없는 방식이다.
@@ -424,22 +401,9 @@ step-up은 5장과 7장의 authorization code 흐름을, 합친 scope로 한 번
 `local-mcp-client`는 public client라서 Authorization Server가 consent를 저장하지 않는다(5장).
 그래서 step-up의 consent 화면은 agent와 달리 `products:read`와 `products:write`를 모두 묻는다.
 
-**요청 도중에 browser를 열 때의 시간 제한**
-
-`StepUp`은 MCP Java SDK의 authorization error handler다.
-SDK는 `tools/call`의 응답이 `403`이면 그 호출을 끝내기 전에 이 handler를 부른다.
-`StepUp`은 handler 안에서 browser를 열고 login을 기다린다.
-그동안 `tools/call`은 아직 끝나지 않은 요청이다.
-보통의 요청 시간 제한(20초)만 두면 사용자가 login하는 사이에 요청이 시간 초과로 끝난다.
+`StepUp`은 SDK의 authorization error handler라서, `tools/call`이 아직 끝나지 않은 사이에 browser를 열고 login을 기다린다.
 그래서 `local-client`는 MCP 요청과 `initialize`의 시간 제한을 login 제한(5분)에 20초를 더한 값으로 둔다.
-
-**새 token으로 다시 보내는 방법**
-
-handler가 `true`를 돌려주면 SDK는 같은 요청을 다시 보내는데, 다시 보내는 것은 이미 만들어 둔 요청 그대로다.
-`Authorization` header를 붙이는 customizer가 다시 불리지 않아서, 옛 token이 붙은 채로 가고 또 `403`을 받는다.
-그래서 `StepUp`은 새 token을 `TokenHolder`에 넣은 뒤, `true` 대신 `StepUpCompletedException`을 던진다.
-`McpCalls`는 이 예외를 받으면 같은 tool 호출을 처음부터 다시 부르고, 요청을 새로 만들 때 customizer가 새 token을 붙인다.
-출력의 `[7]`이 이 두 번째 호출이다.
+새 token을 받으면 같은 tool 호출을 새 요청으로 다시 보낸다(10.9).
 
 ## 10.8 서버 코드에서 보기
 
@@ -469,11 +433,8 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
     }
     HttpServletRequest forwarded = request;
     if (HttpMethod.POST.matches(request.getMethod())) {                      // GET·DELETE는 기본 scope만 본다
-        CachedBodyHttpServletRequest cached;
-        /* cached = new CachedBodyHttpServletRequest(request, this.maxBodyBytes). 상한을 넘으면 413으로 끝낸다 */
-        forwarded = cached;
-        JsonNode message;
-        /* message = parseAsTransportWill(cached). JSON object가 아니면 400으로 끝낸다 */
+        /* forwarded = 본문을 읽어 둔 CachedBodyHttpServletRequest. 상한을 넘으면 413으로 끝낸다 */
+        /* message = parseAsTransportWill(forwarded). JSON object가 아니면 400으로 끝낸다 */
         String tool = toolName(message);                                     // tools/call이면 params.name
         String missing = (tool != null && !granted.contains(this.registry.scopeFor(tool)))
                 ? this.registry.scopeFor(tool) : null;
@@ -481,14 +442,7 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
             insufficientScope(response, token, tool, missing, granted);      // 403 insufficient_scope
             return;
         }
-        if (isToolCall(message)) {                                           // scope 검사를 지난 tools/call만 센다
-            String subject = Objects.toString(token.getToken().getSubject(), "");
-            Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(subject);
-            if (retryAfter.isPresent()) {
-                tooManyToolCalls(response, subject, retryAfter.get());       // 429와 Retry-After
-                return;
-            }
-        }
+        /* scope 검사를 지난 tools/call만 rateLimiter로 세고, 상한을 넘으면 429와 Retry-After */
     }
     chain.doFilter(forwarded, response);
 }
@@ -512,23 +466,19 @@ filter가 바이트를 JSON parser에 바로 넘긴다면 다음 일이 생긴�
 3. 읽지 못한 본문을 `tools/call`이 아닌 것으로 보는 filter라면, scope 검사를 건너뛰고 요청을 transport로 넘긴다.
 4. transport는 그 바이트를 대체 문자로 바꿔 올바른 JSON으로 읽고, `updateStock`을 실행한다.
 
-`charset=IBM037`(EBCDIC)처럼 UTF-8이 아닌 charset을 적은 본문도, 같은 바이트를 filter와 transport가 다르게 읽는 같은 틈이 된다.
 그래서 `parseAsTransportWill`은 transport와 같은 규칙으로 본문을 문자열로 바꾼다.
 `Content-Type`의 charset(없으면 UTF-8)으로 `new String(request.body(), charset)`을 만들고, 그 문자열을 parse한다.
 그 결과가 JSON object 하나가 아니면, filter는 transport에 넘기지 않고 `400`과 JSON-RPC 오류로 답한다.
 구문 오류, 배열, Java가 모르는 charset 이름이 여기에 해당한다.
-filter와 transport가 다르게 읽을 여지가 있는 본문은 아예 넘기지 않는다.
 2026-07-28이 `Mcp-Name` header와 본문의 값이 다르면 거절하게 한 것도, gateway와 서버가 서로 다른 값을 보고 움직이지 않게 하려는 것이다.
 
 **`CachedBodyHttpServletRequest`와 `ScopeChallengeEntryPoint`**
 
 servlet 요청의 본문은 stream이라서 한 번만 읽을 수 있고, filter가 먼저 읽으면 transport는 빈 본문을 받는다.
 `CachedBodyHttpServletRequest`는 생성될 때 본문을 바이트 배열로 읽어 두고, `getInputStream()`이 불릴 때마다 처음부터 읽는 새 stream을 준다.
-Spring의 `ContentCachingRequestWrapper`는 누군가 본문을 읽은 뒤에야 내용을 모으므로, transport보다 먼저 읽어야 하는 이 자리에는 맞지 않는다.
 
 본문을 메모리에 모두 읽어 두므로, 아주 큰 본문 하나로 서버 메모리를 채울 수 있다.
 그래서 본문은 `mcp.limits.max-request-body`(기본 1MB)까지만 읽고, 넘으면 transport에 넘기지 않고 `413`으로 답한다.
-`Content-Length`가 상한을 넘으면 본문을 읽지 않고, 길이를 모르면 상한보다 1 byte 더 읽어 본다.
 
 Spring Security의 `BearerTokenAuthenticationEntryPoint`는 token이 없는 요청의 `401` challenge에 `scope`를 넣지 않는다.
 `ScopeChallengeEntryPoint`는 그 결과 header 끝에 `scope="products:read"`를 붙인다.
@@ -565,15 +515,13 @@ public Publisher<Boolean> handle(HttpRequestSnapshot requestSnapshot, HttpRespon
 ```
 
 SDK는 `401`·`403`을 받으면 이 handler를 부른다.
-handler가 `false`를 돌려주면 SDK는 원래 오류를 호출한 쪽에 전한다(`true`의 동작은 10.7).
+handler가 `false`를 돌려주면 SDK는 원래 오류를 호출한 쪽에 전한다(`true`의 동작은 아래 `StepUp`에서 본다).
 web agent는 이 자리에서 새 token을 받을 수 없으므로, 다시 보내지 않고 필요한 scope를 담은 예외를 던진다.
 
 `StepUpToolExecutionExceptionProcessor#process`는 이 예외를 원인 사슬에서 찾는다.
 MCP SDK와 Spring AI가 예외를 한두 겹 감싸기 때문이다.
 찾으면 tool 이름을 붙여 다시 던지고, 나머지 예외는 Spring AI의 기본 처리에 맡긴다.
 `McpSecurityConfig`는 handler를 MCP client의 transport에, processor를 `ToolExecutionExceptionProcessor` bean으로 연결한다.
-`spring.ai.tools.throw-exception-on-error`가 `true`면 이 processor는 step-up이 아닌 tool 예외도 LLM에게 넘기지 않고 다시 던진다.
-기본값 `false`에서는 Spring AI처럼 예외 메시지를 tool 결과로 LLM에게 넘긴다.
 
 **agent: `StepUpAuthorizationRequestResolver`**
 
@@ -610,40 +558,24 @@ public boolean handle(HttpRequestSnapshot requestSnapshot, HttpResponse.Response
 
 `missing`이 비었으면 서버가 이미 가진 scope를 모자라다고 한 것이고, `attempted`와 겹치면 이미 한 번 요청했는데도 받지 못한 것이다.
 두 경우 모두 다시 시도해도 달라지지 않으므로 멈춘다.
+
+handler가 `true`를 돌려주면 SDK는 이미 만들어 둔 요청을 그대로 다시 보낸다.
+`Authorization` header를 붙이는 customizer가 다시 불리지 않아서, 옛 token이 붙은 채로 가고 또 `403`을 받는다.
+그래서 `StepUp`은 새 token을 `TokenHolder`에 넣은 뒤, `true` 대신 `StepUpCompletedException`을 던진다.
 `McpCalls#callOnce`는 원인 사슬에서 `StepUpCompletedException`을 찾으면 `[7]`을 찍고 같은 호출을 한 번만 다시 부른다.
 official의 `local-client`는 transport의 기본 요청에 `Authorization` header를 한 번 넣는다(7장).
 이 practice에서는 token이 실행 도중에 바뀌므로, `McpCalls`의 customizer가 요청을 만들 때마다 `TokenHolder`에서 지금 token을 읽는다.
 
-## 10.10 요청과 scope 한눈에 보기
+## 10.10 시점별 scope 한눈에 보기
 
-10.3\~10.7에서 단계마다 본 요청을, 여기서는 access token의 scope가 언제 바뀌는지로 모은다.
+10.3\~10.7에서 본 access token의 scope를 시점별로 모으면 다음과 같다.
 scope의 순서에는 뜻이 없다.
-
-**서버가 token 없이 알려 주는 것**
-
-두 client 모두 이 세 요청으로 Authorization Server와 처음 요청할 scope를 알아낸다.
-agent는 기동한 뒤 처음 login을 시작할 때 한 번 보내고, 그 결과를 계속 쓴다.
-`local-client`는 실행할 때마다 보낸다.
-
-| 요청 | 응답에서 쓰는 값 |
-|---|---|
-| `POST http://localhost:8141/mcp` (token 없음) | `401`의 `resource_metadata`와 `scope="products:read"` |
-| `GET http://localhost:8141/.well-known/oauth-protected-resource/mcp` | `resource: "http://localhost:8141/mcp"`, `authorization_servers: ["http://localhost:9030"]`, `scopes_supported: ["products:read"]` |
-| `GET http://localhost:9030/.well-known/oauth-authorization-server` | `issuer`와 `code_challenge_methods_supported`의 `S256`을 확인한다. `authorization_endpoint`는 `http://localhost:9030/oauth2/authorize`, `token_endpoint`는 `http://localhost:9030/oauth2/token`, `jwks_uri`는 `http://localhost:9030/oauth2/jwks`다 |
-
-**시점별 access token의 scope**
 
 | 시점 | web agent | `local-client` |
 |---|---|---|
 | 처음 login | `openid products:read` | `products:read` |
 | step-up에서 `products:write`를 빼고 제출 | `openid products:read` 그대로다. 다음 `403`에는 거절 안내가 간다 | 새 token은 `products:read`다. 앱은 `실패: products:write 권한을 받지 못했다`를 찍고 끝난다 |
 | step-up을 허락 | `openid products:read products:write` | `products:read products:write` |
-
-`local-client`의 step-up consent에서 Cancel을 누르면, 저장된 consent가 없어서 `access_denied`가 오고 앱은 그 오류를 찍고 끝난다.
-
-모든 access token의 `iss`는 `http://localhost:9030`이고 `aud`는 `http://localhost:8141/mcp`다.
-`client_id` claim에는 `authz-shop-agent`나 `local-mcp-client`가 들어간다.
-scope가 모자라 거절한 요청을 로그에 남길 때 MCP Server는 이 값도 적는다(10.4).
 
 ## 10.11 다루지 않는 것
 
@@ -682,13 +614,9 @@ curl http://localhost:8141/.well-known/oauth-protected-resource/mcp
 로컬 모델이라 답 하나에 1분 넘게 걸리기도 한다.
 해 볼 것과 기대 결과의 전체 목록은 [practice README의 직접 확인할 것](../mcp-security-authz/README.md#직접-확인할-것)에 있다.
 
-`practice/mcp-security-authz/logs/shop-agent.log`에는 tool 호출이 `403`을 받을 때마다 `SyncMcpToolCallback`의 `Exception while tool calling:` 한 줄과 `MessageAggregator`의 `Aggregation Error` 두 줄이 `ERROR`로 남는다.
-Spring AI가 tool 예외를 채팅 응답까지 전하면서 남기는 줄이라서, step-up이 정상으로 진행될 때도 남는다.
-
 **token이 필요한 요청**: 캡처 스크립트 `docs/superpowers/captures/mcp-authz-walkthrough.sh`로 본다.
 스크립트를 통째로 돌리면 1\~3단계와 일부 허락이 한 번에 기록된다(출력의 JWT는 앞 20자만 남는다).
-저장된 consent가 없어야 consent 화면이 나오므로, 스크립트는 `./stop.sh`와 `./run.sh`로 다시 띄운 직후에 돌린다.
-스크립트가 `products:write`까지 consent한 기록을 남기므로, web agent는 스크립트보다 먼저 해 보거나 다시 띄운 뒤에 해 본다.
+스크립트와 web agent는 같은 client의 consent를 남기므로, 한쪽을 해 본 뒤 다른 쪽을 보려면 `./stop.sh`와 `./run.sh`로 다시 띄운다.
 아래 명령을 직접 보내려면 `READ_TOKEN`에 `products:read`만 담긴 access token을 넣는다.
 이 token은 스크립트 안의 login부터 token request까지의 curl 명령을 차례로 실행해 받는다.
 token은 5분 뒤 만료된다.
@@ -707,8 +635,6 @@ head -c 1100000 /dev/zero | tr '\0' ' ' | curl -i -X POST http://localhost:8141/
   -H "Authorization: Bearer $READ_TOKEN" --data-binary @-
 ```
 
-마지막 명령의 응답은 `HTTP/1.1 413`이고, 본문은 `{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"요청 본문이 상한 1048576바이트를 넘습니다."}}`다.
-
 **local-client**: `JAVA_HOME`을 Java 21로 맞춘 뒤([practice README의 실행](../mcp-security-authz/README.md#실행)) 실행한다.
 
 ```bash
@@ -724,8 +650,8 @@ browser가 두 번 열린다.
 
 - agent의 권한은 사용자가 그 client에 맡긴 범위이고, token의 `scope`가 상한이다. 쓰기 scope를 처음 쓸 때 묻는 consent는 prompt injection에 속은 호출을 사람이 막을 첫 기회가 되지만, 그 뒤의 호출과 인자까지 확인하지는 않는다.
 - MCP Server는 `401`의 `scope`와 PRM의 `scopes_supported`에 조회 scope만 알리고, client는 그 값만 요청해 시작한다.
-- 권한이 모자라면 MCP Server는 transport 앞의 filter에서 `403 insufficient_scope`로 알린다. 이 filter는 transport와 같은 규칙으로 본문을 읽고, 다르게 읽힐 수 있는 본문은 `400`으로 거절한다.
-- MCP Server는 사용자마다 tool 호출 속도를 제한한다. 이 practice는 scope 검사를 지난 `tools/call`을 1분 단위로 세어, 넘으면 `429`로 답한다.
+- 권한이 모자라면 MCP Server는 transport 앞의 filter에서 `403 insufficient_scope`로 알린다. 이 filter는 transport와 같은 규칙으로 본문을 읽는다.
+- MCP Server는 사용자마다 tool 호출 속도를 제한한다.
 - client는 가진 scope와 challenge의 scope를 합쳐 다시 authorization을 받는다. 사용자는 일부만 허락할 수 있고, client는 거절된 scope로 step-up을 되풀이하지 않는다.
 - web agent는 `403`을 채팅의 consent 카드로 전하고, 사용자 기기의 앱은 그 자리에서 browser를 연다. 어느 쪽이든 새 token은 새로 만든 요청에 붙는다.
 

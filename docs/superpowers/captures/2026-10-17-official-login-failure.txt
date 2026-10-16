@@ -1,0 +1,28 @@
+# login 실패 관측 — 2026-10-17 (mcp-login-failure.sh)
+
+
+===== L1. 조작한 iss로 agent callback (code를 교환하지 않고 거절) =====
+HTTP/1.1 401 
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Content-Type: text/plain;charset=UTF-8
+Content-Length: 81
+
+로그인 실패: invalid_request
+자세한 이유는 agent 로그에 남겼다.
+
+
+===== L2. iss 없이 agent callback (Authorization Server가 iss 지원을 알렸으므로 거절) =====
+HTTP/1.1 401 
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Content-Type: text/plain;charset=UTF-8
+Content-Length: 81
+
+로그인 실패: invalid_request
+자세한 이유는 agent 로그에 남겼다.
+
+
+===== L3. agent 로그 — 응답에 쓰지 않은 자세한 이유 =====
+로그인 실패: iss mismatch: expected http://localhost:9010 but got http://evil.example
+로그인 실패: iss is missing although the authorization server advertises it
