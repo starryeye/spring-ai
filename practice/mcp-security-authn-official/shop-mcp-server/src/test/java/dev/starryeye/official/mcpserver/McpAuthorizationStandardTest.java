@@ -322,8 +322,9 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
-				// docs/superpowers/captures/2026-09-12-official.txt 15번 단계 본문과 바이트 단위로 같다 —
-				// 오류 응답을 문자열 연결에서 Jackson 직렬화로 바꾼 뒤에도 정상 값의 출력은 그대로다.
+				// 오류 본문을 바이트 단위로 고정한다. docs/superpowers/captures/2026-09-12-official.txt의
+				// "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
+				// filter가 본문을 Jackson tree로 직렬화하므로, field 순서나 공백이 바뀌면 이 단정이 실패한다.
 				.andExpect(content().string(
 						"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
 								+ "\"message\":\"Unsupported MCP-Protocol-Version: 1999-01-01\"}}"));

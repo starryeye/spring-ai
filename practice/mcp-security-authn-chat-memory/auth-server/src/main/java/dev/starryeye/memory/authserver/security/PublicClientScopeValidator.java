@@ -11,16 +11,18 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
 import java.util.function.Consumer;
 
 /**
- * public client 가 consent 할 scope 없이 오면 인가 요청을 거부한다.
+ * public client가 consent할 scope 없이 오면 authorization request를 거부한다.
  *
- * <p>OAuth 2.1 §7.3.1 — 신원을 확인할 수 없는 client 의 요청은 이전 consent 가 있어도 처음처럼
- * 처리하고, consent 화면 없이 자동으로 처리하지 않는다(SHOULD NOT). Spring 은 요청 scope 가
- * {@code openid} 하나면 consent 를 건너뛰고, 사용자가 고른 scope 가 없으면 {@code openid} 도 붙이지
- * 않고 {@code access_denied} 로 끝낸다. 그래서 consent 를 강제하는 대신 consent 할 scope 가 없는
- * 요청을 consent 판정 전에 거부한다.
+ * <p>OAuth 2.1 §7.3.1에 따라, 신원을 확인할 수 없는 client의 요청은
+ * 전에 consent가 있어도 처음처럼 처리한다.
+ * consent 화면 없이 자동으로 처리하지 않는다(SHOULD NOT).
+ * Spring은 요청한 scope가 {@code openid} 하나면 consent를 건너뛴다.
+ * 사용자가 고른 scope가 없으면 {@code openid}도 붙이지 않고 {@code access_denied}로 끝낸다.
+ * 그래서 consent를 강제하는 대신, consent할 scope가 없는 요청을 consent 판정 전에 거부한다.
  *
- * <p>scope 를 생략한 요청은 RFC 6749 §3.3 에 따라 {@code invalid_scope} 다(기본값으로 처리하거나
- * 거부 — MUST). {@code openid} 하나뿐인 요청도 같은 오류로 거부한다.
+ * <p>scope를 생략한 요청은 {@code invalid_scope}다.
+ * RFC 6749 §3.3은 scope 없는 요청을 기본값으로 처리하거나 거부하게 한다(MUST).
+ * {@code openid} 하나뿐인 요청도 같은 오류로 거부한다.
  */
 public class PublicClientScopeValidator implements Consumer<OAuth2AuthorizationCodeRequestAuthenticationContext> {
 

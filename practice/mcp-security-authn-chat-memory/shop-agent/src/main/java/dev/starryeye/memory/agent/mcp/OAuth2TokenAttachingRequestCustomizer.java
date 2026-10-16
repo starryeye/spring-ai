@@ -14,17 +14,18 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 
 /**
- * 이 MCP client 의 주인(로그인한 사용자)의 access token 을 MCP 로 나가는 모든 HTTP 요청에 붙인다.
+ * 이 MCP client 주인(login한 사용자)의 access token을 MCP로 나가는 모든 HTTP 요청에 붙인다.
  *
- * <p>token 은 agent 의 것이 아니라 사용자의 것이다. {@code authorization_code} 로 발급되어 {@code sub} 가
- * 로그인한 사람이다.
+ * <p>token은 <b>agent의 것이 아니라 사용자의 것</b>이다.
+ * {@code authorization_code} grant로 발급되어 {@code sub}가 login한 사람이다.
  *
- * <p>주인은 client 를 만들 때 정해지고({@link UserMcpClients}) 요청의 SecurityContext 를 보지 않는다. 그래서
- * 요청 thread 밖에서 도는 tool 호출과, transport context 없이 나가는 session 종료 {@code DELETE} 에도 같은
- * 사용자의 token 이 실린다.
+ * <p>주인은 client를 만들 때 정해진다({@link UserMcpClients}).
+ * 이 customizer는 요청의 SecurityContext를 보지 않는다.
+ * 그래서 요청 thread 밖에서 도는 tool 호출에도, transport context 없이 나가는 session 종료 {@code DELETE}에도
+ * 같은 사용자의 token이 붙는다.
  *
- * <p>{@code authorize(...)} 가 던지는 예외(token endpoint 장애 등)는 잡지 않고 그대로 올린다 — token 없이
- * 요청을 보내 401 로 뭉개지 않기 위해서다.
+ * <p>{@code authorize(...)}가 던지는 예외(token endpoint 장애 등)는 잡지 않고 그대로 올린다.
+ * token 없이 요청을 보내 원인이 401에 묻히지 않게 하기 위해서다.
  */
 public class OAuth2TokenAttachingRequestCustomizer implements McpSyncHttpClientRequestCustomizer {
 

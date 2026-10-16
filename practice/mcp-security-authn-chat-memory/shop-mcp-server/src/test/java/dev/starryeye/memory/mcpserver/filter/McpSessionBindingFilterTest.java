@@ -27,7 +27,7 @@ class McpSessionBindingFilterTest {
 
 	McpSessionBindingFilter filter = new McpSessionBindingFilter(this.clock, IDLE);
 
-	/** filter 뒤의 transport가 불린 횟수. */
+	/** filter 뒤의 transport가 불린 횟수다. */
 	AtomicInteger transportCalls = new AtomicInteger();
 
 	@AfterEach

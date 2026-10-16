@@ -43,7 +43,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 채팅 요청의 배선: 사용자의 conversationId 로 기억하고, 그 사용자의 MCP tool 을 넘기고, 로그아웃이 client 를 닫는다. */
+/** 채팅 요청의 연결을 확인한다. 사용자의 conversationId로 기억하고, 그 사용자의 MCP tool을 넘기고, logout하면 client를 닫는다. */
 @SpringBootTest
 @AutoConfigureMockMvc
 class ChatControllerTest {
@@ -77,16 +77,17 @@ class ChatControllerTest {
 		ToolCallbackProvider noTools = () -> new ToolCallback[0];
 		given(this.lease.tools()).willReturn(noTools);
 		given(this.userMcpClients.acquire(any())).willReturn(this.lease);
-		// ChatClient 가 Prompt 를 만들며 chatModel.getOptions() 를 부른다 — 기본 답변은 null 이라 NPE 가 난다.
+		// ChatClient가 Prompt를 만들며 chatModel.getOptions()를 부른다. mock의 기본 답은 null이라 NPE가 난다.
 		given(this.chatModel.getOptions()).willReturn(ChatOptions.builder().build());
 		given(this.chatModel.stream(any(Prompt.class))).willReturn(
 				Flux.just(new ChatResponse(List.of(new Generation(new AssistantMessage("재고는 3개입니다"))))));
 	}
 
 	/**
-	 * index.html 의 흐름: 페이지가 준 {@code XSRF-TOKEN} 쿠키를 되돌려 보내고 그 값을 {@code X-XSRF-TOKEN}
-	 * 헤더에 싣는다. spring-security-test 의 {@code csrf()} 는 context 의 {@code CsrfFilter} 저장소를 바꿔
-	 * 같은 context 를 쓰는 다른 테스트에 번지므로 쓰지 않는다.
+	 * index.html의 흐름을 따른다. 페이지가 준 {@code XSRF-TOKEN} cookie를 되돌려 보내고,
+	 * 그 값을 {@code X-XSRF-TOKEN} header에 넣는다.
+	 * spring-security-test의 {@code csrf()}는 context의 {@code CsrfFilter} 저장소를 바꾼다.
+	 * 그 변경이 같은 context를 쓰는 다른 테스트에 번지므로 쓰지 않는다.
 	 */
 	RequestPostProcessor 페이지의_CSRF_토큰() throws Exception {
 		Cookie token = this.mockMvc.perform(get("/index.html"))
@@ -127,7 +128,7 @@ class ChatControllerTest {
 		then(this.userMcpClients).should().acquire(argThat(user -> "alice".equals(user.getName())));
 	}
 
-	/** stream 이 끝나야 client 를 돌려준다. 돌려주지 않으면 logout 해도 그 client 는 닫히지 않는다. */
+	/** stream이 끝나야 client를 돌려준다. 돌려주지 않으면 logout해도 그 client는 닫히지 않는다. */
 	@Test
 	@WithMockUser(username = "alice")
 	void 채팅_stream_이_끝나면_빌린_MCP_client_를_돌려준다() throws Exception {
@@ -140,7 +141,7 @@ class ChatControllerTest {
 		then(this.lease).should().close();
 	}
 
-	/** {@code /api/chat} 도 CSRF 예외가 없다. 토큰 없이 보내면 controller 까지 가지 않는다. */
+	/** {@code /api/chat}도 CSRF 예외가 없다. CSRF token 없이 보내면 controller까지 가지 않는다. */
 	@Test
 	@WithMockUser(username = "alice")
 	void CSRF_토큰_없이_채팅하면_403() throws Exception {

@@ -22,24 +22,24 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepo
 import org.springframework.web.client.RestClient;
 
 /**
- * 발견과 토큰 요청 배선.
+ * discovery와 token request에 필요한 bean을 등록한다.
  *
- * <p>토큰을 MCP 요청에 붙이는 일은 모듈 자동설정
- * ({@code HttpClientStreamableHttpTransportAutoConfiguration})이 계속 맡는다.
- * 그 자동설정은 등록이 정확히 하나일 때만 동작하므로 {@code registration} 설정은 남겨 둔다.
- * 다만 인가 서버의 주소는 설정이 아니라 발견에서 온다.
+ * <p>token을 MCP 요청에 붙이는 일은 module 자동 구성
+ * ({@code HttpClientStreamableHttpTransportAutoConfiguration})이 그대로 맡는다.
+ * 그 자동 구성은 client 등록이 정확히 하나일 때만 동작하므로 {@code registration} 설정은 남겨 둔다.
+ * 다만 Authorization Server의 endpoint는 설정이 아니라 discovery에서 온다.
  *
- * <p>{@code OAuth2ClientProperties} 를 여기서 다시 켤 필요는 없다 — 모듈의
- * {@code McpOAuth2ClientAutoConfiguration} 이 이미 {@code @EnableConfigurationProperties}
- * 로 등록해 두고, 그 등록은 우리가 {@link ClientRegistrationRepository} 빈을 정의해도
- * 조건에 걸리지 않는다(물러나는 것은 그 자동설정이 만드는 {@code mcpClientRegistrationRepository}
- * 빈뿐이다).
+ * <p>{@code OAuth2ClientProperties}를 여기서 다시 켤 필요는 없다.
+ * module의 {@code McpOAuth2ClientAutoConfiguration}이 이미 {@code @EnableConfigurationProperties}로
+ * 등록해 두었고, 그 등록은 이 practice가 {@link ClientRegistrationRepository} bean을 정의해도
+ * 조건에 걸리지 않는다(빠지는 것은 그 자동 구성이 만드는 {@code mcpClientRegistrationRepository}
+ * bean뿐이다).
  */
 @Configuration
 @EnableConfigurationProperties(McpAuthorizationProperties.class)
 public class McpSecurityConfig {
 
-    /** application.yml 의 registration 키와 같아야 한다. */
+    /** application.yml의 registration key와 같아야 한다. */
     public static final String REGISTRATION_ID = "authserver";
 
     /**
@@ -52,7 +52,7 @@ public class McpSecurityConfig {
                 .requestFactory(McpAuthorizationDiscovery.requestFactory(McpAuthorizationDiscovery.CONNECT_TIMEOUT,
                         McpAuthorizationDiscovery.READ_TIMEOUT))
                 .build();
-        // 학습 환경은 localhost HTTP 다. 운영에서는 기본값(HTTPS 만 허용)을 쓴다.
+        // 학습 환경은 localhost HTTP다. 운영에서는 기본값(HTTPS만 허용)을 쓴다.
         return new McpAuthorizationDiscovery(
                 new McpMetadataDiscoveryService(restClient, new DefaultUrlValidator(true)), restClient);
     }
@@ -82,15 +82,14 @@ public class McpSecurityConfig {
     }
 
     /**
-     * 모듈의 요청 커스터마이저는 서블릿 요청을 함께 넘기므로 이 매니저를 쓴다.
-     * 기본 구성 대신 갱신 클라이언트를 지정해 resource 가 실리게 한다.
+     * module의 요청 customizer는 servlet 요청을 함께 넘기므로 이 manager를 쓴다.
+     * 기본 구성 대신 refresh client를 지정해 resource가 들어가게 한다.
      *
-     * <p>정적 헬퍼({@link #buildAuthorizedClientManager})와 이름을 같게 두면, 이 빈
+     * <p>static helper({@link #buildAuthorizedClientManager})와 이름을 같게 두면, 이 bean
      * 메서드가 구체 타입({@code RestClientRefreshTokenTokenResponseClient})을 받는
-     * 시그니처가 더 구체적으로 뽑혀 스스로를 다시 호출하는 무한 재귀가 된다 —
-     * 테스트({@code McpSecurityConfig.authorizedClientManager(...)} 를 외부 정적
-     * 컨텍스트에서 호출)도 그 경우 "non-static method" 컴파일 오류가 난다. 이름을
-     * 분리해 둔다.
+     * 시그니처가 더 구체적인 것으로 골라져 자기 자신을 다시 부르는 무한 재귀가 된다.
+     * 그 경우 테스트({@code McpSecurityConfig.authorizedClientManager(...)}를 바깥의 static
+     * context에서 부른다)도 "non-static method" 컴파일 오류가 난다. 그래서 이름을 나눠 둔다.
      */
     @Bean
     public OAuth2AuthorizedClientManager authorizedClientManager(ClientRegistrationRepository registrations,

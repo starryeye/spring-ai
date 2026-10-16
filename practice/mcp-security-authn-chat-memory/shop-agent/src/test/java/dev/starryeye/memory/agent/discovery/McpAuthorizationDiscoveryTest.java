@@ -23,8 +23,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest;
 
 /**
- * MCP 2025-11-25 인가 §2.3 의 발견 순서를 검증한다.
- * 401 챌린지 → 보호 리소스 메타데이터 → 인가 서버 메타데이터.
+ * MCP 2025-11-25 Authorization의 discovery 순서를 검증한다.
+ * 401 challenge → Protected Resource Metadata → Authorization Server Metadata 순서다.
  */
 class McpAuthorizationDiscoveryTest {
 
@@ -101,7 +101,7 @@ class McpAuthorizationDiscoveryTest {
                 {"resource":"http://localhost:8131","authorization_servers":["http://localhost:9020"]}""");
         응답("http://localhost:9020/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-        // 루트형이면 resource 는 서버 루트다. 클라이언트는 서버가 선언한 값을 그대로 쓴다.
+        // 루트형이면 resource는 서버 루트다. client는 서버가 선언한 값을 그대로 쓴다.
         assertThat(this.discovery.discover(RESOURCE, ISSUER).resource()).isEqualTo("http://localhost:8131");
         this.server.verify();
     }
@@ -173,9 +173,9 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다() {
-        // PRM 이 가리키는 주소로 곧장 GET 하면 공격자가 고른 주소로 요청이 나간다(SSRF).
-        // 자격증명이 묶인 issuer 가 아니면 그 metadata 도 요청하지 않는다 — 기대하지 않은 요청이
-        // 나가면 MockRestServiceServer 가 AssertionError 를 던져 이 테스트가 실패한다.
+        // PRM이 가리키는 주소로 곧장 GET하면 공격자가 고른 주소로 요청이 나간다(SSRF).
+        // credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다. 기대하지 않은 요청이
+        // 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
         챌린지("Bearer resource_metadata=\"http://localhost:8131/.well-known/oauth-protected-resource/mcp\"");
         응답("http://localhost:8131/.well-known/oauth-protected-resource/mcp", """
                 {"resource":"http://localhost:8131/mcp","authorization_servers":["http://evil.example"]}""");
@@ -202,7 +202,7 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void authorization_endpoint_가_http_URL_이_아니면_진행하지_않는다() {
-        // MCP Security Best Practices — client 는 authorization URL 을 열기 전에 스킴을 확인한다(MUST).
+        // MCP Security Best Practices — client는 authorization URL을 열기 전에 scheme을 확인한다(MUST).
         챌린지("Bearer resource_metadata=\"http://localhost:8131/.well-known/oauth-protected-resource/mcp\"");
         응답("http://localhost:8131/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
         응답("http://localhost:9020/.well-known/oauth-authorization-server",
@@ -227,7 +227,7 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void authorization_endpoint_가_loopback_이_아닌_http_URL_이면_진행하지_않는다() {
-        // MCP Security Best Practices — http 는 loopback 주소에만 허용된다(MUST). 스킴만 보는 검사로는 막을 수 없는 URL 이다.
+        // MCP Security Best Practices — http는 loopback 주소에만 허용된다(MUST). scheme만 보는 검사로는 막을 수 없는 URL이다.
         챌린지("Bearer resource_metadata=\"http://localhost:8131/.well-known/oauth-protected-resource/mcp\"");
         응답("http://localhost:8131/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
         응답("http://localhost:9020/.well-known/oauth-authorization-server",
@@ -252,7 +252,7 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void 응답을_읽지_못하면_원인을_담아_실패한다() {
-        // 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
+        // 연결 실패·시간 초과·깨진 본문은 RestClientException으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
         String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
         챌린지("Bearer resource_metadata=\"" + prm + "\"");
         응답(prm, "{");
