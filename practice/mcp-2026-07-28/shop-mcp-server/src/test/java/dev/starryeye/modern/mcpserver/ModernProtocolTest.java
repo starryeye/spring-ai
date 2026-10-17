@@ -327,6 +327,31 @@ class ModernProtocolTest {
 	}
 
 	/**
+	 * scope filter는 {@code Mcp-Method}가 {@code tools/call}일 때만 tool scope를 본다.
+	 * 그래서 이 header를 {@code tools/list}로 적거나 빼면, 본문이 쓰기 tool 호출이어도 filter는 기본 scope만 보고 넘긴다.
+	 * 이 호출을 막는 것은 SDK transport의 {@code Mcp-Method} 대조뿐이다.
+	 * SDK가 이 대조를 느슨하게 바꾸면 조회 token으로 재고를 바꿀 수 있으므로, 그때 이 시험이 실패해야 한다.
+	 */
+	@Test
+	void Mcp_Method가_본문과_다르거나_없으면_400이고_재고가_바뀌지_않는다() {
+		String body = ModernTestClient.body("tools/call",
+				params("updateStock", Map.of("productId", "p1", "quantity", 0)));
+		Map<String, String> listMethod = ModernTestClient.headers("tools/list", "updateStock");
+		Map<String, String> noMethod = ModernTestClient.headers("tools/call", "updateStock");
+		noMethod.remove("Mcp-Method");
+
+		for (Map<String, String> headers : List.of(listMethod, noMethod)) {
+			Response response = client().post(점원(), headers, body);
+
+			assertThat(response.status()).as("%s", headers).isEqualTo(400);
+			assertThat(response.json().get("error").get("code").asInt()).as("%s", headers).isEqualTo(-32020);
+		}
+		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
+		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
+				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+	}
+
+	/**
 	 * SDK 2.2.0-M1은 {@code =?base64?=}를 풀다 예외를 던져 {@code 500}으로 답한다.
 	 * 그래서 풀 수 없는 {@code Mcp-Name}은 scope filter가 SDK에 넘기지 않고 끝낸다.
 	 */
