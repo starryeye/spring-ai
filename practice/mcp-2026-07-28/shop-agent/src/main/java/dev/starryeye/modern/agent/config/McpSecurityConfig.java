@@ -5,24 +5,13 @@ import dev.starryeye.modern.agent.cimd.ClientMetadataProperties;
 import dev.starryeye.modern.agent.cimd.ClientSigningKey;
 import dev.starryeye.modern.agent.discovery.DiscoveredClientRegistrationRepository;
 import dev.starryeye.modern.agent.discovery.McpAuthorizationDiscovery;
-import dev.starryeye.modern.agent.mcp.OAuth2TokenAttachingRequestCustomizer;
-import dev.starryeye.modern.agent.mcp.SecurityMcpTransportContextProvider;
-import dev.starryeye.modern.agent.mcp.StepUpAuthorizationErrorHandler;
-import dev.starryeye.modern.agent.mcp.StepUpToolExecutionExceptionProcessor;
 import dev.starryeye.modern.agent.security.ResourceIndicators;
 import dev.starryeye.modern.agent.security.SingleFlightAuthorizedClientManager;
 
-import io.modelcontextprotocol.client.McpClient;
-import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
-import org.springframework.ai.mcp.customizer.McpClientCustomizer;
-import org.springframework.ai.model.tool.autoconfigure.ToolCallingProperties;
-import org.springframework.ai.tool.execution.DefaultToolExecutionExceptionProcessor;
-import org.springframework.ai.tool.execution.ToolExecutionExceptionProcessor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.ClientAuthorizationException;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -165,37 +154,5 @@ public class McpSecurityConfig {
                 .refreshToken(refreshToken -> refreshToken.accessTokenResponseClient(refreshTokenTokenResponseClient))
                 .build());
         return new SingleFlightAuthorizedClientManager(manager);
-    }
-
-    /** 모든 MCP sync client에 인증을 전달하는 transport context provider를 넣는다. */
-    @Bean
-    public McpClientCustomizer<McpClient.SyncSpec> mcpAuthenticationCustomizer() {
-        return (name, spec) -> spec.transportContextProvider(new SecurityMcpTransportContextProvider());
-    }
-
-    /** 모든 Streamable HTTP transport에 token을 붙이고, 403 insufficient_scope를 step-up 예외로 올린다. */
-    @Bean
-    public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder> mcpTokenAttachingCustomizer(
-            OAuth2AuthorizedClientManager authorizedClientManager) {
-        return (name, transport) -> transport
-                .httpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID))
-                .authorizationErrorHandler(new StepUpAuthorizationErrorHandler());
-    }
-
-    /**
-     * step-up 예외는 채팅까지 올리고, 나머지는 Spring AI 기본 처리와 같게 둔다.
-     * 기본 처리는 Spring Security의 {@code ClientAuthorizationException}을 다시 던지고, 그 밖의 예외는 LLM에게 줄 문장으로 바꾼다.
-     * {@code spring.ai.tools.throw-exception-on-error}를 켜면 그 밖의 예외도 다시 던진다.
-     *
-     * <p>이 bean이 있으면 Spring AI 자동 구성의 같은 bean은 만들어지지 않는다.
-     * 그래서 자동 구성이 하던 대로 {@link ToolCallingProperties}의 설정을 여기서도 넘긴다.
-     * 넘기지 않으면 그 설정이 조용히 무시된다.
-     */
-    @Bean
-    public ToolExecutionExceptionProcessor toolExecutionExceptionProcessor(ToolCallingProperties toolCallingProperties) {
-        return new StepUpToolExecutionExceptionProcessor(DefaultToolExecutionExceptionProcessor.builder()
-                .alwaysThrow(toolCallingProperties.isThrowExceptionOnError())
-                .rethrowExceptions(List.of(ClientAuthorizationException.class))
-                .build());
     }
 }

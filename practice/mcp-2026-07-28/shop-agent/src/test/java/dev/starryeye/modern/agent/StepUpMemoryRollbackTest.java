@@ -3,10 +3,13 @@ package dev.starryeye.modern.agent;
 import dev.starryeye.modern.agent.controller.ChatController;
 import dev.starryeye.modern.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.modern.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.modern.agent.mcp.ModernMcpClient;
+import dev.starryeye.modern.agent.mcp.ModernToolCallback;
 import dev.starryeye.modern.agent.mcp.UserToolCatalog;
 import dev.starryeye.modern.agent.security.StepUpRequiredException;
 import dev.starryeye.modern.agent.security.StepUpState;
 
+import io.modelcontextprotocol.modern.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -18,10 +21,6 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
-import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.definition.DefaultToolDefinition;
-import org.springframework.ai.tool.definition.ToolDefinition;
-import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.codec.ServerSentEvent;
@@ -32,9 +31,12 @@ import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 /**
@@ -44,23 +46,9 @@ import static org.mockito.BDDMockito.given;
 @SpringBootTest
 class StepUpMemoryRollbackTest {
 
-	static final ToolDefinition CHECKOUT = DefaultToolDefinition.builder()
-			.name("checkout").description("주문한다").inputSchema("{\"type\":\"object\"}").build();
-
-	/** MCP Server가 403 insufficient_scope를 준 것처럼 던진다. */
-	static final ToolCallback 권한이_모자란_checkout = new ToolCallback() {
-
-		@Override
-		public ToolDefinition getToolDefinition() {
-			return CHECKOUT;
-		}
-
-		@Override
-		public String call(String toolInput) {
-			throw new ToolExecutionException(CHECKOUT, new RuntimeException("MCP SDK가 감쌈",
-					new StepUpRequiredException(List.of("orders:write"), null)));
-		}
-	};
+	static final McpSchema.Tool CHECKOUT = McpSchema.Tool.builder("checkout", Map.of("type", "object"))
+			.description("주문한다")
+			.build();
 
 	@MockitoBean
 	McpAuthorizationDiscovery discovery;
@@ -70,6 +58,10 @@ class StepUpMemoryRollbackTest {
 
 	@MockitoBean
 	UserToolCatalog toolCatalog;
+
+	/** MCP Server가 checkout에 403 insufficient_scope를 준 것처럼 던진다. */
+	@MockitoBean
+	ModernMcpClient mcpClient;
 
 	@Autowired
 	ChatController chatController;
@@ -81,7 +73,12 @@ class StepUpMemoryRollbackTest {
 	void setUp() {
 		given(this.discovery.discover(DiscoveryFixtures.RESOURCE, DiscoveryFixtures.AUTH_METHOD))
 				.willReturn(DiscoveryFixtures.discovered());
-		given(this.toolCatalog.callbacks(any())).willReturn(List.of(권한이_모자란_checkout));
+		given(this.mcpClient.callTool(anyString(), anyString(), anyMap()))
+				.willThrow(new StepUpRequiredException(List.of("orders:write"), "checkout"));
+		// 운영과 같은 callback이 이 client로 tool을 부른다.
+		given(this.toolCatalog.callbacks(any())).willReturn(List.of(new ModernToolCallback(CHECKOUT, this.mcpClient,
+				() -> "token", () -> {
+				})));
 		given(this.chatModel.getOptions()).willReturn(ToolCallingChatOptions.builder().build());
 		AssistantMessage toolCall = AssistantMessage.builder()
 				.toolCalls(List.of(new AssistantMessage.ToolCall("call-9", "function", "checkout",

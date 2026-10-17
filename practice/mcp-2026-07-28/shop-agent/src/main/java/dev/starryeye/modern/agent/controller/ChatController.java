@@ -1,6 +1,5 @@
 package dev.starryeye.modern.agent.controller;
 
-import dev.starryeye.modern.agent.mcp.SecurityMcpTransportContextProvider;
 import dev.starryeye.modern.agent.mcp.UserToolCatalog;
 import dev.starryeye.modern.agent.security.StepUpState;
 
@@ -37,10 +36,8 @@ public class ChatController {
 
     /**
      * MCP tool 호출은 요청 thread 밖, reactor의 thread에서 돈다.
-     * {@code spring.reactor.context-propagation: auto}(application.yml)가 켠 reactor의 자동 context 전파는
-     * Spring Security의 {@code ThreadLocalAccessor}로 SecurityContext를 그 thread에 옮긴다.
-     * {@link SecurityMcpTransportContextProvider}는 거기서 사용자를 읽는다.
-     * community practice는 같은 일을 {@code ChatController}의 {@code .contextWrite(...)}로 한다.
+     * 그래서 tool은 thread-local인 SecurityContext에서 사용자를 찾지 않는다.
+     * {@link UserToolCatalog}가 여기서 넘긴 {@code authentication}을 tool마다 묶어 두고, 부를 때마다 그 사용자의 token을 꺼낸다.
      * 답은 SSE event로 보낸다.
      * tool이 step-up을 요구하면 consent 카드 event로 끝난다.
      * 모델이 이 사용자의 목록에 없는 tool을 부르면 안내 event로 끝난다({@link ChatEvents}).
@@ -55,7 +52,7 @@ public class ChatController {
         // 모델이 이 사용자의 목록에 없는 tool을 불러 끊길 때도 같은 이유로 기억을 되돌린다.
         // 그래서 turn을 시작하기 전 기억을 복사해 두고, 두 경우 모두 그대로 되돌린다.
         List<Message> before = List.copyOf(this.chatMemory.get(conversationId));
-        // 이 사용자의 tool 목록이다. 요청 thread에서 꺼내야 목록을 새로 받을 때 이 사용자의 token이 붙는다.
+        // 이 사용자의 tool 목록이다. 목록을 새로 받을 때와 tool을 부를 때 모두 이 사용자의 token을 쓴다.
         List<ToolCallback> tools = this.toolCatalog.callbacks(authentication);
         Flux<String> content = this.chatClient.prompt()
                 .user(message)

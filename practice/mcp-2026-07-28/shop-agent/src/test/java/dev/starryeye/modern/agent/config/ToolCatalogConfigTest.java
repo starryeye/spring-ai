@@ -1,6 +1,7 @@
 package dev.starryeye.modern.agent.config;
 
-import io.modelcontextprotocol.client.McpSyncClient;
+import dev.starryeye.modern.agent.cimd.ClientType;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -12,11 +13,12 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -24,8 +26,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * cache key가 되는 token은 MCP 요청에 token을 붙이는 customizer와 같은 호출로 얻어야 한다.
- * 그래야 만료로 갱신된 token도 key와 실제로 붙는 값이 같다.
+ * MCP client는 설정의 resource 주소로, redirect 없이 보낸다.
+ * cache key가 되는 token과 tool을 부를 때 보내는 token은 같은 호출로 얻는다.
+ * 그래야 만료로 갱신된 token도 key와 실제로 보내는 값이 같다.
  */
 class ToolCatalogConfigTest {
 
@@ -60,18 +63,19 @@ class ToolCatalogConfigTest {
 	}
 
 	@Test
-	void MCP_연결이_하나면_그_client로_목록을_받는다() {
-		McpSyncClient client = mock(McpSyncClient.class);
+	void MCP_client는_resource_주소로_보낸다() {
+		var properties = new McpAuthorizationProperties("http://localhost:8181/mcp", ClientType.CHATGPT);
 
-		assertThat(ToolCatalogConfig.onlyClient(List.of(client))).isSameAs(client);
+		assertThat(new ToolCatalogConfig().modernMcpClient(properties).endpoint())
+				.isEqualTo(URI.create("http://localhost:8181/mcp"));
 	}
 
 	@Test
-	void MCP_연결이_하나가_아니면_첫_것을_고르지_않고_멈춘다() {
-		// 목록을 받는 서버와 tool을 부르는 서버가 달라지지 않게, 연결이 여럿이면 기동을 멈춘다.
-		assertThatIllegalStateException().isThrownBy(() -> ToolCatalogConfig.onlyClient(List.of()));
-		assertThatIllegalStateException().isThrownBy(() -> ToolCatalogConfig.onlyClient(
-				List.of(mock(McpSyncClient.class), mock(McpSyncClient.class))));
+	void MCP_client는_redirect를_따라가지_않고_연결을_2초만_기다린다() {
+		HttpClient http = ToolCatalogConfig.httpClient();
+
+		assertThat(http.followRedirects()).isEqualTo(HttpClient.Redirect.NEVER);
+		assertThat(http.connectTimeout()).contains(Duration.ofSeconds(2));
 	}
 
 	@Test

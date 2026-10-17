@@ -39,25 +39,6 @@ spring:
         model: qwen3:8b
         temperature: 0.1
         think: low
-    mcp:
-      client:
-        enabled: true
-        # SYNC로 고정한다. McpSecurityConfig의 mcpAuthenticationCustomizer는
-        # McpClientCustomizer<McpClient.SyncSpec> 타입이라, ASYNC로 바꾸면 오류는 나지 않지만 이 customizer가 적용되지 않는다.
-        # 그러면 transport context가 늘 비어 token이 붙지 않는다.
-        type: SYNC
-        # 기동할 때는 대신할 사용자가 없어 token도 없다. MCP Server는 token 없는 요청에 모두 401을 준다.
-        # 기동 중에 initialize를 보내면 실패해 application context가 뜨지 못하므로, 첫 요청으로 미룬다.
-        initialized: false
-        # 자동 구성의 tool 목록 provider를 끈다.
-        # 그 provider는 처음 받은 목록 하나를 모든 사용자에게 같이 쓰는데, 이 서버는 사용자마다 다른 목록을 준다.
-        # MCP client(List<McpSyncClient> bean "mcpSyncClients")는 그대로 남는다.
-        toolcallback:
-          enabled: false
-        streamable-http:
-          connections:
-            shop:
-              url: "http://localhost:8181"
   # client 등록(spring.security.oauth2.client.registration)은 없다.
   # client_id는 아래 client-metadata의 문서 주소이고, endpoint는 discovery로 찾는다(DiscoveredClientRegistrationRepository).
   ssl:
@@ -74,6 +55,7 @@ spring:
 mcp:
   authorization:
     # discovery의 출발점이다. 이 URL 하나만 알면 Authorization Server는 discovery로 찾는다.
+    # MCP 요청(ModernMcpClient)도 이 주소로 보낸다.
     resource-url: http://localhost:8181/mcp
     # 어느 제품처럼 붙을지 고른다. chatgpt면 private_key_jwt, claude면 none(public client)이다.
     # run.sh의 첫 인자로 바꿀 수 있다(./run.sh claude).

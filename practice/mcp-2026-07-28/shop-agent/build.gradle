@@ -25,10 +25,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-	// HttpClient 기반 MCP 클라이언트. MCP 표준 SDK 를 전이 의존으로 끌어온다 —
-	// io.modelcontextprotocol.sdk 의 클래스를 import 하는 데 별도 선언이 필요 없다.
-	implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+	// MCP 2026-07-28의 JSON 타입(io.modelcontextprotocol.modern)과 Jackson 3 mapper다.
+	// SDK에는 아직 2026-07-28 client가 없어서, HTTP 요청과 응답 해석은 ModernMcpClient가 직접 한다.
+	// pre-release라 버전을 고정한다.
+	implementation 'io.modelcontextprotocol.sdk:mcp-core:2.2.0-M1'
+	implementation 'io.modelcontextprotocol.sdk:mcp-json-jackson3:2.2.0-M1'
 	// 리액터 컨텍스트 자동 전파용. Spring Security 가 ThreadLocalAccessor 를
 	// ServiceLoader 로 등록해 두었고, 이 라이브러리가 그것을 읽는다.
 	implementation 'io.micrometer:context-propagation'
@@ -41,8 +43,6 @@ dependencies {
 dependencyManagement {
 	imports {
 		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-		// Spring AI 2.0.1은 MCP Java SDK 2.0.0에 맞춰 나왔다. stateless 서버 수정이 들어간 2.0.1로 올린다(나중 import가 이긴다).
-		mavenBom "io.modelcontextprotocol.sdk:mcp-bom:2.0.1"
 	}
 }
 

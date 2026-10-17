@@ -3,6 +3,7 @@ package dev.starryeye.modern.agent;
 import dev.starryeye.modern.agent.controller.ChatController;
 import dev.starryeye.modern.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.modern.agent.discovery.McpAuthorizationDiscovery;
+import dev.starryeye.modern.agent.mcp.ModernMcpClient;
 import dev.starryeye.modern.agent.mcp.UserToolCatalog;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,10 @@ class UserToolsPerRequestTest {
 
 	@MockitoBean
 	UserToolCatalog toolCatalog;
+
+	/** tool 목록은 위의 mock이 준다. 실제 MCP 요청은 나가지 않는다. */
+	@MockitoBean
+	ModernMcpClient mcpClient;
 
 	@Autowired
 	ChatController chatController;
