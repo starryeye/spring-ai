@@ -12,7 +12,7 @@ import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthen
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * MCP Server는 OAuth 2.1 resource server다(MCP 2025-11-25 Authorization — Roles, 안내서 2장).
+ * MCP Server는 OAuth 2.1 resource server다(MCP 2026-07-28 Authorization — Roles, 안내서 2장).
  *
  * <p>여기서 켜는 것은 네 가지다.
  * <ul>

@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 사용자(token의 {@code sub})마다 {@code tools/call} 횟수를 제한한다.
- * MCP 2025-11-25 Tools — Security Considerations는 서버가 tool 호출 속도를 제한하라고 한다("Servers MUST: ... Rate limit tool invocations").
+ * MCP 2026-07-28 Tools — Security Considerations는 서버가 tool 호출 속도를 제한하라고 한다("Servers MUST: ... Rate limit tool invocations").
  *
  * <p>사용자마다 최근 {@code window} 동안 받아들인 호출 시각을 기억한다.
  * window 안의 호출이 상한에 닿으면 거절하고, 가장 오래된 호출이 window를 벗어날 때까지 기다릴 시간을 알려 준다.

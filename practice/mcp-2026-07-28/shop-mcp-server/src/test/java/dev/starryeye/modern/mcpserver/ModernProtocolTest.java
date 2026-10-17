@@ -1,11 +1,15 @@
 package dev.starryeye.modern.mcpserver;
 
 import dev.starryeye.modern.mcpserver.ModernTestClient.Response;
+import dev.starryeye.modern.mcpserver.filter.McpTransportSecurityFilter;
+import dev.starryeye.modern.mcpserver.filter.ToolScopeFilter;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.web.servlet.DelegatingFilterProxyRegistrationBean;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -57,6 +61,15 @@ class ModernProtocolTest {
 
 	@Autowired
 	MockMvc mockMvc;
+
+	@Autowired
+	FilterRegistrationBean<McpTransportSecurityFilter> transportSecurityFilter;
+
+	@Autowired
+	DelegatingFilterProxyRegistrationBean securityFilterChain;
+
+	@Autowired
+	FilterRegistrationBean<ToolScopeFilter> toolScopeFilter;
 
 	ModernTestClient client() {
 		return new ModernTestClient(this.port);
@@ -266,6 +279,101 @@ class ModernProtocolTest {
 		}
 	}
 
+	// ---- header로 하는 scope 검사 ----
+
+	@Test
+	void 조회_token으로_updateStock을_부르면_403과_products_write를_알린다() {
+		Response response = client().callTool(점원(), "updateStock", Map.of("productId", "p1", "quantity", 7));
+
+		assertThat(response.status()).isEqualTo(403);
+		assertThat(response.header("WWW-Authenticate")).isEqualTo("Bearer error=\"insufficient_scope\", "
+				+ "scope=\"products:write\", resource_metadata=\"" + resourceMetadata() + "\"");
+	}
+
+	@Test
+	void 쓰기_scope가_있으면_updateStock이_실행된다() {
+		String token = TestTokens.token("user", resource(), "products:read", "products:write");
+
+		// 재고를 처음 값과 같은 7로 바꿔, 다른 시험이 보는 재고는 그대로 둔다.
+		Response response = client().callTool(token, "updateStock", Map.of("productId", "p1", "quantity", 7));
+
+		assertThat(response.status()).isEqualTo(200);
+		JsonNode result = response.json().get("result");
+		assertThat(result.get("isError").asBoolean()).isFalse();
+		assertThat(result.get("content").get(0).get("text").asString())
+				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 재고를 7개로 바꿨습니다.");
+	}
+
+	/**
+	 * scope filter는 header의 {@code searchProducts}만 보고 조회 scope로 넘긴다.
+	 * 본문은 {@code updateStock}이지만 SDK transport가 header와 본문을 맞춰 보고 막으므로 실행되지 않는다.
+	 */
+	@Test
+	void header와_본문의_tool_이름이_다르면_400이다() {
+		Response response = client().post(점원(), ModernTestClient.headers("tools/call", "searchProducts"),
+				ModernTestClient.body("tools/call", params("updateStock", Map.of("productId", "p1", "quantity", 0))));
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+	}
+
+	@Test
+	void Mcp_Name이_없으면_400이다() {
+		Response response = client().post(점원(), ModernTestClient.headers("tools/call", null),
+				ModernTestClient.body("tools/call", params("searchProducts", Map.of())));
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+	}
+
+	/**
+	 * SDK 2.2.0-M1은 {@code =?base64?=}를 풀다 예외를 던져 {@code 500}으로 답한다.
+	 * 그래서 풀 수 없는 {@code Mcp-Name}은 scope filter가 SDK에 넘기지 않고 끝낸다.
+	 */
+	@Test
+	void 잘못된_base64_Mcp_Name은_filter가_400으로_끝낸다() {
+		for (String mcpName : List.of("=?base64?=", "=?base64?!!!?=")) {
+			Response response = client().post(점원(), ModernTestClient.headers("tools/call", mcpName),
+					ModernTestClient.body("tools/call", params("checkout", Map.of("basketId", "b1"))));
+
+			assertThat(response.status()).as(mcpName).isEqualTo(400);
+			assertThat(response.body()).as(mcpName).isEqualTo("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32020,"
+					+ "\"message\":\"Mcp-Name header has a malformed Base64 value\"}}");
+		}
+	}
+
+	@Test
+	void 버전_header가_meta와_다르면_400이다() {
+		Map<String, String> headers = ModernTestClient.headers("tools/list", null);
+		headers.put("MCP-Protocol-Version", "2025-11-25");
+
+		Response response = client().post(점원(), headers, ModernTestClient.body("tools/list", Map.of()));
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+	}
+
+	@Test
+	void 본문이_상한을_넘으면_413이다() {
+		// 설정한 상한(1MB)을 넘기려고 쓰지 않는 params field를 길게 채운다.
+		String body = ModernTestClient.body("tools/list", Map.of("padding", "x".repeat(1024 * 1024)));
+
+		Response response = client().post(점원(), ModernTestClient.headers("tools/list", null), body);
+
+		assertThat(response.status()).isEqualTo(413);
+	}
+
+	/**
+	 * Spring Security 앞에서 {@code Origin}·{@code Host}를 보고, 인증 뒤에 scope를 본다.
+	 * scope filter가 인증보다 먼저 돌면 token의 scope를 읽지 못한다.
+	 */
+	@Test
+	void filter는_Origin_Host_검사_인증_scope_검사_순서로_돈다() {
+		assertThat(this.transportSecurityFilter.getOrder()).isLessThan(this.securityFilterChain.getOrder());
+		assertThat(this.securityFilterChain.getOrder()).isLessThan(this.toolScopeFilter.getOrder());
+		assertThat(this.toolScopeFilter.getUrlPatterns()).containsExactly("/mcp");
+	}
+
 	@Test
 	void 옛_initialize는_400이다() {
 		// 2025-11-25 client가 보내는 그대로다. _meta도 2026-07-28 header도 없다.
@@ -412,5 +520,43 @@ class ModernProtocolTest {
 		this.mockMvc.perform(post("/mcp").header("Host", "evil.example:" + this.port))
 				.andExpect(status().is(421))
 				.andExpect(header().doesNotExist("WWW-Authenticate"));
+	}
+
+	// ---- 사용자별 tool 호출 속도 제한 ----
+
+	/**
+	 * 다른 시험의 호출과 섞이지 않도록, 상한을 2로 둔 서버를 따로 띄운다.
+	 * 이 서버도 비어 있는 다른 port에 띄워야 {@code Host} 검사를 지난다.
+	 */
+	@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
+			properties = "mcp.limits.tool-calls-per-minute=2")
+	@Import(TestTokens.StubAuthorizationServer.class)
+	static class 상한을_2로_둔_서버 {
+
+		@DynamicPropertySource
+		static void 빈_port에_띄운다(DynamicPropertyRegistry registry) {
+			ModernTestClient.listenOnFreePort(registry);
+		}
+
+		@LocalServerPort
+		int port;
+
+		@Test
+		void 한_사용자가_1분에_상한을_넘게_부르면_429다() {
+			ModernTestClient client = new ModernTestClient(this.port);
+			String resource = "http://localhost:" + this.port + "/mcp";
+			String 점원 = TestTokens.token("user", resource, "products:read");
+			String 손님 = TestTokens.token("user2", resource, "products:read");
+
+			assertThat(client.callTool(점원, "searchProducts", Map.of()).status()).isEqualTo(200);
+			assertThat(client.callTool(점원, "searchProducts", Map.of()).status()).isEqualTo(200);
+			Response limited = client.callTool(점원, "searchProducts", Map.of());
+
+			assertThat(limited.status()).isEqualTo(429);
+			assertThat(Integer.parseInt(limited.header("Retry-After"))).isBetween(1, 60);
+			assertThat(limited.json().get("error").get("code").asInt()).isEqualTo(-32000);
+			// 상한은 사용자마다 따로 센다.
+			assertThat(client.callTool(손님, "searchProducts", Map.of()).status()).isEqualTo(200);
+		}
 	}
 }
