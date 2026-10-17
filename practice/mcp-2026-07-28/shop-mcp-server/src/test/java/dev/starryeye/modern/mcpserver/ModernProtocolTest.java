@@ -19,6 +19,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -149,6 +151,84 @@ class ModernProtocolTest {
 		assertThat(hiddenError.get("code").asInt()).isEqualTo(missingError.get("code").asInt());
 		assertThat(hiddenError.get("message").asString()).isEqualTo("Unknown tool: updateStock");
 		assertThat(missingError.get("message").asString()).isEqualTo("Unknown tool: nope");
+		tool_이름_말고는_같다(hidden, missing);
+	}
+
+	/*
+	 * 숨김은 SDK가 입력 검증보다 tool 저장소의 find를 먼저 부르는 데 기댄다.
+	 * 순서가 바뀌면 숨긴 tool만 "Invalid arguments"로 답해, 그런 tool이 있다는 것이 알려진다.
+	 * 그래서 인자나 params의 모양이 틀린 호출에도 숨긴 tool과 없는 tool이 같은 응답을 받는지 본다.
+	 */
+
+	@Test
+	void 숨긴_tool은_인자가_틀려도_없는_tool과_같은_응답이다() {
+		Map<String, Object> wrongType = Map.of("productId", "p1", "quantity", "abc");
+
+		Response hidden = client().callTool(손님(), "updateStock", wrongType);
+		Response missing = client().callTool(손님(), "nope", wrongType);
+
+		tool_이름_말고는_같다(hidden, missing);
+		assertThat(hidden.json().get("error").get("message").asString()).isEqualTo("Unknown tool: updateStock");
+	}
+
+	@Test
+	void arguments가_빈_문자열이어도_숨긴_tool과_없는_tool의_응답이_같다() {
+		Response hidden = 손님이_부른다("updateStock", name -> ModernTestClient.body("tools/call", params(name, "")));
+		Response missing = 손님이_부른다("nope", name -> ModernTestClient.body("tools/call", params(name, "")));
+
+		assertThat(hidden.json().has("error")).isTrue();
+		tool_이름_말고는_같다(hidden, missing);
+	}
+
+	@Test
+	void _meta가_빈_문자열이어도_숨긴_tool과_없는_tool의_응답이_같다() {
+		Function<String, String> emptyMeta = name -> {
+			Map<String, Object> params = params(name, Map.of("productId", "p1", "quantity", 3));
+			params.put("_meta", "");
+			Map<String, Object> request = new LinkedHashMap<>();
+			request.put("jsonrpc", "2.0");
+			request.put("id", 1);
+			request.put("method", "tools/call");
+			request.put("params", params);
+			return ModernTestClient.JSON.writeValueAsString(request);
+		};
+
+		Response hidden = 손님이_부른다("updateStock", emptyMeta);
+		Response missing = 손님이_부른다("nope", emptyMeta);
+
+		assertThat(hidden.json().has("error")).isTrue();
+		tool_이름_말고는_같다(hidden, missing);
+	}
+
+	static Map<String, Object> params(String name, Object arguments) {
+		Map<String, Object> params = new LinkedHashMap<>();
+		params.put("name", name);
+		params.put("arguments", arguments);
+		return params;
+	}
+
+	/** 손님 token과 2026-07-28 header를 붙여, tool 이름으로 만든 본문을 보낸다. */
+	Response 손님이_부른다(String name, Function<String, String> body) {
+		return client().post(손님(), ModernTestClient.headers("tools/call", name), body.apply(name));
+	}
+
+	/**
+	 * 숨긴 tool({@code updateStock})과 없는 tool({@code nope})의 응답이 tool 이름 말고는 같은지 본다.
+	 * 상태 코드, header, 이름을 지운 본문 전체를 비교한다.
+	 * header에서는 보낸 시각인 {@code Date}와, 이름 길이로 달라지는 {@code Content-Length}만 뺀다.
+	 */
+	static void tool_이름_말고는_같다(Response hidden, Response missing) {
+		assertThat(hidden.status()).isEqualTo(missing.status());
+		assertThat(비교할_header(hidden)).isEqualTo(비교할_header(missing)).doesNotContainKey("WWW-Authenticate");
+		assertThat(hidden.body().replace("updateStock", "NAME")).isEqualTo(missing.body().replace("nope", "NAME"));
+	}
+
+	static Map<String, List<String>> 비교할_header(Response response) {
+		Map<String, List<String>> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+		headers.putAll(response.headers());
+		headers.remove("Date");
+		headers.remove("Content-Length");
+		return headers;
 	}
 
 	@Test
