@@ -1,6 +1,10 @@
 package dev.starryeye.modern.mcpserver.filter;
 
+import dev.starryeye.modern.mcpserver.basket.BasketStore;
+import dev.starryeye.modern.mcpserver.repository.ProductRepository;
+import dev.starryeye.modern.mcpserver.tool.BasketTools;
 import dev.starryeye.modern.mcpserver.tool.ProductTools;
+import dev.starryeye.modern.mcpserver.tool.ShopTools;
 import dev.starryeye.modern.mcpserver.tool.ToolScopeRegistry;
 import dev.starryeye.modern.mcpserver.tool.ToolVisibility;
 
@@ -50,7 +54,8 @@ class ToolScopeFilterTest {
 
 	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
 	static ToolScopeFilter filter(int maxBodyBytes, int toolCallsPerMinute) {
-		ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class);
+		ToolScopeRegistry registry = ToolScopeRegistry.of(ShopTools.all(new ProductTools(new ProductRepository()),
+				new BasketTools(new BasketStore(Clock.systemUTC()), new ProductRepository())));
 		return new ToolScopeFilter(registry, new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)),
 				JsonMapper.builder().build(), METADATA, maxBodyBytes,
 				new ToolCallRateLimiter(toolCallsPerMinute, Duration.ofMinutes(1), FIXED_CLOCK));

@@ -17,28 +17,18 @@ repositories {
 	mavenCentral()
 }
 
-ext {
-	set('springAiVersion', "2.0.1")
-}
-
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	// 공식 리소스 서버. community 버전의 mcp-server-security-spring-boot 를 대체한다.
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-	implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+	// MCP 2026-07-28 서버(io.modelcontextprotocol.modern)와 Jackson 3 mapper가 들어 있다.
+	// pre-release라 버전을 고정한다. Spring AI는 아직 이 서버를 감싸지 않아 쓰지 않는다.
+	implementation 'io.modelcontextprotocol.sdk:mcp:2.2.0-M1'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-dependencyManagement {
-	imports {
-		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-		// Spring AI 2.0.1은 MCP Java SDK 2.0.0에 맞춰 나왔다. stateless 서버 수정이 들어간 2.0.1로 올린다(나중 import가 이긴다).
-		mavenBom "io.modelcontextprotocol.sdk:mcp-bom:2.0.1"
-	}
 }
 
 tasks.named('test') {

@@ -1,7 +1,11 @@
 package dev.starryeye.modern.mcpserver.tool;
 
+import dev.starryeye.modern.mcpserver.basket.BasketStore;
+import dev.starryeye.modern.mcpserver.repository.ProductRepository;
+
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -14,7 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ToolVisibilityTest {
 
-	ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class, BasketTools.class);
+	ToolScopeRegistry registry = ToolScopeRegistry.of(ShopTools.all(new ProductTools(new ProductRepository()),
+			new BasketTools(new BasketStore(Clock.systemUTC()), new ProductRepository())));
 
 	ToolVisibility visibility = new ToolVisibility(this.registry, Map.of("user", ToolVisibility.Role.STAFF));
 

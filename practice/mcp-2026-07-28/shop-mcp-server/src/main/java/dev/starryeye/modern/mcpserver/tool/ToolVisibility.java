@@ -1,8 +1,5 @@
 package dev.starryeye.modern.mcpserver.tool;
 
-import io.modelcontextprotocol.spec.McpSchema;
-
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,6 +12,7 @@ import java.util.Set;
  *
  * <p>권한은 MCP Server가 자기 표로 판단한다. token은 누구인지({@code sub})만 알려 준다.
  * tool별 scope는 {@link ToolScopeRegistry}의 것을 그대로 쓴다.
+ * 목록을 거르고 숨긴 tool을 없는 tool처럼 다루는 일은 {@link ShopToolRepository}가 이 판단으로 한다.
  */
 public final class ToolVisibility {
 
@@ -53,10 +51,5 @@ public final class ToolVisibility {
 	public boolean hidden(String subject, String tool) {
 		return this.registry.all().containsKey(tool)
 				&& !grantable(roleOf(subject)).contains(this.registry.scopeFor(tool));
-	}
-
-	/** client cache와 모델의 prompt cache가 맞도록, 순서는 SDK가 준 순서 그대로 둔다. */
-	public List<McpSchema.Tool> visible(String subject, List<McpSchema.Tool> tools) {
-		return tools.stream().filter(tool -> !hidden(subject, tool.name())).toList();
 	}
 }

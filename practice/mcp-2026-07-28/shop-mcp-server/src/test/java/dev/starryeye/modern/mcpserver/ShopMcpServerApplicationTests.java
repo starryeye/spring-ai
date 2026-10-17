@@ -1,8 +1,9 @@
 package dev.starryeye.modern.mcpserver;
 
-import io.modelcontextprotocol.server.McpStatelessServerFeatures;
+import dev.starryeye.modern.mcpserver.tool.ShopTool;
+import dev.starryeye.modern.mcpserver.tool.ToolScopeRegistry;
+
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -22,7 +23,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ShopMcpServerApplicationTests {
 
 	@Autowired
-	ObjectProvider<List<McpStatelessServerFeatures.SyncToolSpecification>> toolSpecificationLists;
+	List<ShopTool> shopTools;
+
+	@Autowired
+	ToolScopeRegistry registry;
 
 	@Autowired
 	MockMvc mockMvc;
@@ -56,17 +60,15 @@ class ShopMcpServerApplicationTests {
 	}
 
 	/**
-	 * SYNC 서버는 리액티브 반환 타입을 조용히 걸러낸다.
-	 * ProductTools 의 반환을 Mono<String> 으로 바꾸면 이 테스트만 깨진다.
+	 * 서버가 내놓는 tool 정의와 scope 표가 같은 목록에서 나오는지 본다.
+	 * 표에서 빠진 쓰기 tool은 기본 scope만 요구하게 되므로(fail-open) 둘이 어긋나면 안 된다.
 	 */
 	@Test
-	void MCP_툴이_실제로_등록된다() {
-		List<String> toolNames = toolSpecificationLists.orderedStream()
-				.flatMap(List::stream)
-				.map(spec -> spec.tool().name())
-				.toList();
+	void tool_7개가_등록되고_scope_표와_같다() {
+		List<String> toolNames = this.shopTools.stream().map(tool -> tool.tool().name()).toList();
 
 		assertThat(toolNames).containsExactlyInAnyOrder("searchProducts", "getStock", "updateStock",
 				"createBasket", "addItem", "getBasket", "checkout");
+		assertThat(this.registry.all().keySet()).containsExactlyInAnyOrderElementsOf(toolNames);
 	}
 }

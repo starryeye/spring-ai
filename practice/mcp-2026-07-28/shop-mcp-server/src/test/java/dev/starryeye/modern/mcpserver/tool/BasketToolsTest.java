@@ -2,10 +2,10 @@ package dev.starryeye.modern.mcpserver.tool;
 
 import dev.starryeye.modern.mcpserver.basket.BasketStore;
 import dev.starryeye.modern.mcpserver.repository.ProductRepository;
+import dev.starryeye.modern.mcpserver.security.McpCaller;
 
-import io.modelcontextprotocol.common.McpTransportContext;
-import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
-import io.modelcontextprotocol.spec.McpSchema.TextContent;
+import io.modelcontextprotocol.modern.McpSchema.CallToolResult;
+import io.modelcontextprotocol.modern.McpSchema.TextContent;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -19,8 +19,8 @@ class BasketToolsTest {
 
 	BasketTools tools = new BasketTools(new BasketStore(Clock.systemUTC()), this.products);
 
-	static McpTransportContext 사용자(String subject) {
-		return McpTransportContext.create(Map.of("sub", subject, "client_id", "test-client"));
+	static McpCaller 사용자(String subject) {
+		return new McpCaller(subject, "test-client");
 	}
 
 	static String 글(CallToolResult result) {

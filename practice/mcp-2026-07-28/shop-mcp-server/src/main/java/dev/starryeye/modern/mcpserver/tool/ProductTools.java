@@ -1,20 +1,24 @@
 package dev.starryeye.modern.mcpserver.tool;
 
 import dev.starryeye.modern.mcpserver.repository.ProductRepository;
+import dev.starryeye.modern.mcpserver.security.McpCaller;
 
+import io.modelcontextprotocol.modern.McpSchema.CallToolResult;
+import io.modelcontextprotocol.modern.McpSchema.TextContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.mcp.annotation.McpTool;
-import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 import java.util.stream.Collectors;
 
 /**
- * SYNC 서버라서 반환 타입은 평문 {@code String}이다.
- * {@code Mono<String>}으로 바꾸면 오류 없이 tool 등록에서 빠진다.
- * {@code ShopMcpServerApplicationTests}의 등록 테스트가 그 실수를 잡는다.
+ * 상품 검색과 재고 조회·변경 tool의 본문이다.
+ *
+ * <p>tool의 이름·설명·입력 schema·scope는 {@link ShopTools}가 정하고, 이 메서드들은 거기서 불린다.
+ * 결과는 글 한 덩어리다. 찾지 못했거나 값이 틀린 경우도 tool 오류가 아니라 글로 알린다.
+ *
+ * <p>log의 {@code 사용자}는 token의 {@code sub}다.
+ * 그래서 agent가 아니라 <em>사용자</em>가 찍히는 것을 이 practice에서 확인할 수 있다(안내서 6장).
  */
 @Component
 public class ProductTools {
@@ -27,22 +31,8 @@ public class ProductTools {
         this.productRepository = productRepository;
     }
 
-    @McpTool(
-            name = "searchProducts",
-            description = "판매 중인 상품을 검색한다. "
-                    + "각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. "
-                    + "키워드는 상품명과 카테고리명에만 부분일치로 적용된다. "
-                    + "따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 "
-                    + "(예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 "
-                    + "그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다."
-    )
-    @RequiredScope("products:read")
-    public String searchProducts(
-            @McpToolParam(description = "상품명 또는 카테고리명의 일부. "
-                    + "가격·재고 같은 조건이나 문장을 넣으면 안 된다. "
-                    + "특정 상품을 지목하지 않는 질문이면 생략한다.", required = false)
-            String keyword) {
-        log.info("searchProducts 호출 (keyword={}, 사용자={})", keyword, currentUser());
+    public CallToolResult searchProducts(McpCaller caller, String keyword) {
+        log.info("searchProducts 호출 (keyword={}, 사용자={})", keyword, caller.subject());
 
         String joined = productRepository.findByKeyword(keyword).stream()
                 .map(product -> "- [%s] %s (%s) / %,d원 / 재고 %d개"
@@ -50,63 +40,40 @@ public class ProductTools {
                                 product.price(), product.stock()))
                 .collect(Collectors.joining("\n"));
 
-        return joined.isBlank()
+        return text(joined.isBlank()
                 ? "'%s' 에 해당하는 상품이 없습니다.".formatted(keyword)
-                : joined;
+                : joined);
     }
 
-    @McpTool(
-            name = "getStock",
-            description = "상품 ID로 현재 재고 수량을 조회한다. "
-                    + "사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. "
-                    + "상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다."
-    )
-    @RequiredScope("products:read")
-    public String getStock(
-            @McpToolParam(description = "상품 ID. 예: p1", required = true)
-            String productId) {
-        log.info("getStock 호출 (productId={}, 사용자={})", productId, currentUser());
+    public CallToolResult getStock(McpCaller caller, String productId) {
+        log.info("getStock 호출 (productId={}, 사용자={})", productId, caller.subject());
 
-        return productRepository.findById(productId)
+        return text(productRepository.findById(productId)
                 .map(product -> product.stock() == 0
                         ? "상품 %s (%s) 는 현재 품절입니다. (재고 0개)"
                                 .formatted(productId, product.name())
                         : "상품 %s (%s) 의 현재 재고는 %d개입니다."
                                 .formatted(productId, product.name(), product.stock()))
-                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId));
+                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId)));
     }
 
-    @McpTool(
-            name = "updateStock",
-            description = "상품 ID의 재고 수량을 quantity로 바꾼다. "
-                    + "사용자가 재고를 바꿔 달라고 분명히 요청할 때만 사용한다. "
-                    + "바뀐 뒤의 재고를 반환한다."
-                    + " 처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다."
-    )
-    @RequiredScope("products:write")
-    public String updateStock(
-            @McpToolParam(description = "상품 ID. 예: p1", required = true)
-            String productId,
-            @McpToolParam(description = "바꿀 재고 수량. 0 이상의 정수", required = true)
-            int quantity) {
-        log.info("updateStock 호출 (productId={}, quantity={}, 사용자={})", productId, quantity, currentUser());
+    public CallToolResult updateStock(McpCaller caller, String productId, int quantity) {
+        log.info("updateStock 호출 (productId={}, quantity={}, 사용자={})", productId, quantity, caller.subject());
 
         if (quantity < 0) {
-            return "재고 수량은 0 이상이어야 합니다. (받은 값: %d)".formatted(quantity);
+            return text("재고 수량은 0 이상이어야 합니다. (받은 값: %d)".formatted(quantity));
         }
-        return productRepository.updateStock(productId, quantity)
+        return text(productRepository.updateStock(productId, quantity)
                 .map(product -> "상품 %s (%s) 의 재고를 %d개로 바꿨습니다."
                         .formatted(productId, product.name(), product.stock()))
-                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId));
+                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId)));
     }
 
     /**
-     * 누가 이 tool을 불렀는지 로그에 남긴다. 안내서 6장과 README의 "직접 확인할 것"이 이 값을 본다.
-     * token의 {@code sub}가 그대로 principal 이름이 된다.
-     * 그래서 agent가 아니라 <em>사용자</em>가 찍히는 것을 이 practice에서 확인할 수 있다.
+     * 글 하나를 담은 성공 결과다.
+     * {@code isError}를 비워 두면 응답에서 빠지므로, 성공이라는 것을 {@code false}로 적는다.
      */
-    private String currentUser() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication == null ? "(인증정보 없음)" : authentication.getName();
+    private static CallToolResult text(String text) {
+        return CallToolResult.builder().addContent(TextContent.builder(text).build()).isError(false).build();
     }
 }
