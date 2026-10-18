@@ -317,13 +317,21 @@ class ModernProtocolTest {
 		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
 	}
 
+	/**
+	 * {@code Mcp-Name}이 없으면 scope filter는 tool을 몰라 기본 scope만 보고 넘긴다.
+	 * 그래서 조회 token으로 쓰기 tool을 부르는 본문도 filter를 지난다.
+	 * 이 호출을 막는 것은 SDK transport의 "Missing required header" 검사와 {@code ShopToolRepository}의 이름 대조다.
+	 */
 	@Test
-	void Mcp_Name이_없으면_400이다() {
+	void Mcp_Name이_없으면_400이고_재고가_바뀌지_않는다() {
 		Response response = client().post(점원(), ModernTestClient.headers("tools/call", null),
-				ModernTestClient.body("tools/call", params("searchProducts", Map.of())));
+				ModernTestClient.body("tools/call", params("updateStock", Map.of("productId", "p1", "quantity", 0))));
 
 		assertThat(response.status()).isEqualTo(400);
 		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
+		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
+				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
 	}
 
 	/**
