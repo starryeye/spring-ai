@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # mcp-2026-07-28 practice에서 2026-07-28 형식의 MCP 요청과 응답을 curl로 한 단계씩 기록한다(M 번호).
-# initialize 없이 요청마다 header와 params._meta로 버전·client 정보를 밝힌다. MCP Server는 token의 scope와 header·본문의 일치를 요청마다 본다.
-# 조회 token은 ChatGPT형(private_key_jwt)으로, 쓰기 token은 Claude형(none)으로 받는다. 둘 다 CIMD 문서가 client_id다.
-# 이 스크립트가 agent 대신 authorization request, token request, MCP 요청을 보낸다. ChatGPT형의 client assertion은 openssl로 서명한다.
-# 기대한 HTTP 상태와 다르면 그 단계에 [기대와 다름]을 남기고 끝까지 간다. 결과를 맞추려고 요청을 바꾸지 않는다.
+# initialize 없이 요청마다 header와 params._meta로 버전·client 정보를 밝힌다.
+# MCP Server는 token의 scope와 header·본문의 일치를 요청마다 본다.
+# 조회 token은 ChatGPT형(private_key_jwt)으로, 쓰기 token은 Claude형(none)으로 받는다.
+# 둘 다 CIMD 문서가 client_id다.
+# 이 스크립트가 agent 대신 authorization request, token request, MCP 요청을 보낸다.
+# ChatGPT형의 client assertion은 openssl로 서명한다.
+# 기대한 HTTP 상태와 다르면 그 단계에 [기대와 다름]을 남기고 끝까지 간다.
+# 결과를 맞추려고 요청을 바꾸지 않는다.
+# 기대를 미리 알 수 없는 요청은 기대 자리에 "기록만"을 적고 받은 응답을 그대로 남긴다.
 # 사용: 저장소 최상위 폴더에서 practice/mcp-2026-07-28/run.sh로 세 서버를 새로 띄운 직후에 실행한다(저장된 consent가 없어야 한다).
 #   docs/superpowers/captures/mcp-2026-07-28-walkthrough.sh > 결과.txt
 # 출력의 token은 줄인다 — JWT는 앞 20자, refresh_token과 authorization code는 앞 12자 뒤에 "...".
@@ -19,7 +24,6 @@ CLAUDE="$DOCS/oauth/public-client.json"
 REDIRECT_URI=${REDIRECT_URI:-http://localhost:8180/login/oauth2/code/authserver}
 LOGIN_PASSWORD=${LOGIN_PASSWORD:-password}
 PROTOCOL_VERSION=2026-07-28
-LEGACY_PROTOCOL_VERSION=2025-11-25
 ASSERTION_TYPE=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
 
 # RFC 7636 부록 B의 예시 값이다.
@@ -67,7 +71,8 @@ location_of() { printf '%s' "$1" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p'; }
 
 json_field() { python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"; }
 
-# login 화면을 열어 CSRF token을 읽고 login한다. JAR에 session cookie가 남는다.
+# login 화면을 열어 CSRF token을 읽고 login한다.
+# JAR에 session cookie가 남는다.
 login() {
   local username="$1" form csrf
   form=$(curl -s -c "$JAR" -b "$JAR" "$AS/login")
@@ -111,7 +116,8 @@ EOF
   esac
 }
 
-# $1 client_id, 나머지는 체크할 scope. consent를 제출하고 CODE를 채운다.
+# $1 client_id, 나머지는 체크할 scope.
+# consent를 제출하고 CODE를 채운다.
 consent() {
   local client_id="$1" headers
   shift
@@ -123,7 +129,8 @@ consent() {
   CODE=$(location_of "$headers" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 }
 
-# $1 서명 key(PEM), $2 aud(없으면 issuer). ChatGPT형의 client assertion(RFC 7523)을 만든다.
+# $1 서명 key(PEM), $2 aud(없으면 issuer).
+# ChatGPT형의 client assertion(RFC 7523)을 만든다.
 # iss·sub는 client_id, aud는 RFC 7523bis대로 Authorization Server의 issuer 하나, kid는 agent가 올린 JWKS의 값이다.
 # typ은 7523bis가 권하는 client-authentication+jwt다.
 assertion() {
@@ -136,7 +143,9 @@ assertion() {
   printf '%s.%s.%s' "$header" "$body" "$signature"
 }
 
-# $1 기대하는 HTTP 상태, 나머지는 name=value. form을 한 줄에 하나씩 보여 주고 token endpoint로 보낸다. 응답 본문은 BODY에 둔다.
+# $1 기대하는 HTTP 상태, 나머지는 name=value.
+# form을 한 줄에 하나씩 보여 주고 token endpoint로 보낸다.
+# 응답 본문은 BODY에 둔다.
 token_request() {
   local expected="$1" pair response status
   shift
@@ -162,7 +171,8 @@ access_token_payload() {
   payload "$(printf '%s' "$TOKEN" | cut -d. -f2)"
 }
 
-# 2026-07-28 형식의 JSON-RPC 요청 본문을 한 줄로 만든다. $1 id, $2 method, $3 params(JSON object, 생략하면 비어 있다).
+# 2026-07-28 형식의 JSON-RPC 요청 본문을 한 줄로 만든다.
+# $1 id, $2 method, $3 params(JSON object, 생략하면 비어 있다).
 # params._meta에는 agent가 쓰는 버전·client capability·client 정보를 넣는다.
 rpc_body() {
   local params="${3:-}"
@@ -191,7 +201,9 @@ except ValueError:
 '
 }
 
-# 응답 본문을 보여 준다. BODY_VIEW=tools면 tools/list 결과에서 tool 정의는 이름만 남기고 나머지 필드는 그대로 둔다.
+# 응답 본문을 보여 준다.
+# BODY_VIEW=tools면 tools/list 결과에서 updateStock 정의만 모두 보이고 다른 tool은 이름만 남긴다.
+# result의 나머지 필드는 그대로 둔다.
 render_body() {
   python3 - "$1" "${BODY_VIEW:-full}" <<'EOF'
 import json, sys
@@ -206,17 +218,23 @@ except ValueError:
     sys.exit()
 if sys.argv[2] == 'tools':
     result = doc.get('result', {})
-    names = [tool.get('name') for tool in result.get('tools', [])]
-    shown = {key: value for key, value in result.items() if key != 'tools'}
+    tools = result.get('tools', [])
+    names = [tool.get('name') for tool in tools]
+    # updateStock의 정의만 그대로 두고 다른 tool은 이름만 남긴다.
+    shown_tools = [tool if tool.get('name') == 'updateStock' else '%s (정의 생략)' % tool.get('name') for tool in tools]
+    shown = {key: (shown_tools if key == 'tools' else value) for key, value in result.items()}
     print(json.dumps({**{k: v for k, v in doc.items() if k != 'result'}, 'result': shown},
                      ensure_ascii=False, indent=2))
-    print("tool %d개 (정의는 이름만 보인다): %s" % (len(names), ', '.join(names)))
+    print("tool %d개: %s" % (len(names), ', '.join(names)))
+    print("(updateStock의 정의만 모두 보이고, 나머지는 이름만 보인다)")
 else:
     print(json.dumps(doc, ensure_ascii=False, indent=2))
 EOF
 }
 
-# MCP Server의 출력은 gradle을 거쳐 파일에 닿아서 응답보다 조금 늦을 수 있다. $1 grep 패턴. 가장 마지막으로 맞는 줄의 메시지만 보여 준다.
+# MCP Server의 출력은 gradle을 거쳐 파일에 닿아서 응답보다 조금 늦을 수 있다.
+# $1 grep 패턴.
+# 가장 마지막으로 맞는 줄의 메시지만 보여 준다.
 server_log_line() {
   local line=""
   [ -f "$MCP_LOG" ] || { echo "(로그 파일이 없다: $MCP_LOG)"; return; }
@@ -232,16 +250,22 @@ server_log_line() {
   fi
 }
 
-# $1 기대하는 HTTP 상태, $2 token(비우면 Authorization을 붙이지 않는다), $3 Mcp-Method header(비우면 붙이지 않는다),
-# $4 Mcp-Name header(비우면 붙이지 않는다), $5 MCP-Protocol-Version header, $6 본문.
-# 보내는 요청과 받은 응답을 그대로 보여 주고, 기대와 다른 상태면 그 사실을 남긴 채 계속 간다. 응답은 STATUS, BODY, HEADERS에 둔다.
+# $1 기대하는 HTTP 상태("기록만"이면 비교하지 않는다), $2 token(비우면 Authorization을 붙이지 않는다),
+# $3 Mcp-Method header(비우면 붙이지 않는다), $4 Mcp-Name header(비우면 붙이지 않는다),
+# $5 MCP-Protocol-Version header(비우면 붙이지 않는다), $6 본문.
+# 보내는 요청과 받은 응답을 그대로 보여 준다.
+# 기대와 다른 상태면 그 사실을 남긴 채 계속 간다.
+# 응답은 STATUS, BODY, HEADERS에 둔다.
 mcp_request() {
   local expected="$1" token="$2" method="$3" name="$4" version="$5" body="$6"
-  local args=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H "MCP-Protocol-Version: $version")
+  local args=(-H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream')
   echo "POST $MCP"
   echo "Content-Type: application/json"
   echo "Accept: application/json, text/event-stream"
-  echo "MCP-Protocol-Version: $version"
+  if [ -n "$version" ]; then
+    args+=(-H "MCP-Protocol-Version: $version")
+    echo "MCP-Protocol-Version: $version"
+  fi
   if [ -n "$method" ]; then
     args+=(-H "Mcp-Method: $method")
     echo "Mcp-Method: $method"
@@ -263,7 +287,9 @@ mcp_request() {
   echo "→ HTTP $STATUS"
   printf '%s\n' "$HEADERS" | grep -iE '^(www-authenticate|content-type|retry-after):' | tidy
   render_body "$WORK/body"
-  if [ "$STATUS" != "$expected" ]; then
+  if [ "$expected" = "기록만" ]; then
+    echo "(기대한 상태가 없다: 받은 응답을 그대로 기록한다)"
+  elif [ "$STATUS" != "$expected" ]; then
     echo "[기대와 다름] 기대한 HTTP $expected, 받은 HTTP $STATUS"
     MISMATCH=1
   fi
@@ -280,7 +306,8 @@ curl -s -D "$WORK/headers" -o "$WORK/body" -w '→ HTTP %{http_code}\n' "$PRM_UR
 grep -iE '^content-type:' "$WORK/headers" | tidy
 render_body "$WORK/body"
 
-# agent가 올린 JWKS에서 kid를 읽고, agent의 서명 key를 PEM으로 꺼낸다. OpenSSL 3에서 옛 PKCS12면 -legacy가 필요할 수 있다.
+# agent가 올린 JWKS에서 kid를 읽고, agent의 서명 key를 PEM으로 꺼낸다.
+# OpenSSL 3에서 옛 PKCS12면 -legacy가 필요할 수 있다.
 KID=$(curl -s --cacert "$CERTS/client-metadata.crt" "$DOCS/oauth/jwks.json" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["keys"][0]["kid"])')
 [ -n "$KID" ] || fail "JWKS에서 kid를 읽지 못했다"
@@ -305,7 +332,7 @@ READ_TOKEN=$TOKEN
 step "M2. ChatGPT형 조회 token으로 server/discover → 200, 서버가 지원하는 버전과 정보"
 mcp_request 200 "$READ_TOKEN" server/discover "" "$PROTOCOL_VERSION" "$(rpc_body 2 server/discover)"
 
-step "M3. ChatGPT형 조회 token으로 tools/list → 200, ttlMs와 cacheScope"
+step "M3. ChatGPT형 조회 token으로 tools/list → 200, ttlMs와 cacheScope, updateStock의 정의"
 BODY_VIEW=tools
 mcp_request 200 "$READ_TOKEN" tools/list "" "$PROTOCOL_VERSION" "$(rpc_body 3 tools/list)"
 BODY_VIEW=full
@@ -327,11 +354,20 @@ step "M7. 실패: 본문의 name이 문자열이 아니라 숫자 1 → 400"
 mcp_request 400 "$READ_TOKEN" tools/call searchProducts "$PROTOCOL_VERSION" \
   "$(rpc_body 7 tools/call '{"name":1,"arguments":{"keyword":"노트북"}}')"
 
-step "M8. 실패: 옛 형식의 initialize(2025-11-25) → 400"
-mcp_request 400 "$READ_TOKEN" "" "" "$LEGACY_PROTOCOL_VERSION" \
+step "M8. 실패: 옛 형식 client(2025-11-25)의 initialize는 2026-07-28 header가 없어서 → 400, 2026-07-28 형식의 initialize는 어떻게 답하는지도 기록한다"
+echo "--- 옛 형식 client가 보내는 initialize: MCP-Protocol-Version은 initialize를 마친 뒤에 붙이므로 없고, Mcp-Method도 없다"
+CURRENT="M8 첫 번째 요청"
+mcp_request 400 "$READ_TOKEN" "" "" "" \
   '{"jsonrpc":"2.0","id":8,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"modern-shop-agent","version":"0.0.1"}}}'
+echo
+echo "--- 같은 initialize method를 2026-07-28 header와 _meta로 보낸다. 서버가 method 자체를 어떻게 답하는지 본다"
+CURRENT="M8 두 번째 요청"
+mcp_request 기록만 "$READ_TOKEN" initialize "" "$PROTOCOL_VERSION" "$(rpc_body 8 initialize)"
 
-step "준비 2. Claude형으로 쓰기 token을 받는다 — M5의 403이 알린 products:write를 이미 가진 products:read와 합쳐 authorization request → consent → none"
+step "준비 2. Claude형으로 products:read와 products:write를 함께 요청해 쓰기 token을 받는다 — Claude형은 ChatGPT형과 다른 client라서 consent를 새로 받는다"
+echo "M5의 403은 products:write가 모자라다고 알렸다."
+echo "모든 MCP 요청에 products:read도 필요하므로 둘을 함께 요청한다."
+echo "Claude형의 client_id는 ChatGPT형과 달라서 consent 화면에 두 scope가 모두 새 항목으로 나온다."
 login user
 authorize "$CLAUDE" "openid products:read products:write"
 [ -n "$PAGE_STATE" ] || fail "Claude형인데 consent 화면이 나오지 않았다"
@@ -346,13 +382,18 @@ step "M9. Claude형 쓰기 token으로 updateStock → 200, 재고를 바꿨다"
 mcp_request 200 "$WRITE_TOKEN" tools/call updateStock "$PROTOCOL_VERSION" \
   "$(rpc_body 9 tools/call '{"name":"updateStock","arguments":{"productId":"p1","quantity":10}}')"
 server_log_line 'updateStock 호출'
-# M5~M8은 tool까지 가지 못했으므로, 이 서버를 새로 띄운 뒤의 호출 줄은 M9의 하나뿐이어야 한다.
-echo "MCP Server 로그에서 updateStock 호출 줄 수: $(grep -c 'updateStock 호출' "$MCP_LOG" 2> /dev/null || true)"
+# M5~M8은 tool까지 가지 못했다.
+# 그러므로 서버를 새로 띄운 뒤의 호출 줄은 M9의 하나뿐이어야 한다.
+if [ -f "$MCP_LOG" ]; then
+  echo "MCP Server 로그에서 updateStock 호출 줄 수: $(grep -c 'updateStock 호출' "$MCP_LOG" || true)"
+else
+  echo "MCP Server 로그 파일을 찾지 못했다($MCP_LOG): updateStock 호출 줄 수를 세지 못했다"
+fi
 
 step "요약. 단계마다 기대한 HTTP 상태와 받은 상태"
 for row in "${RESULTS[@]}"; do
   IFS='|' read -r label expected actual <<< "$row"
-  if [ "$expected" = "$actual" ]; then mark=""; else mark="  [기대와 다름]"; fi
+  if [ "$expected" = "$actual" ] || [ "$expected" = "기록만" ]; then mark=""; else mark="  [기대와 다름]"; fi
   printf '%s: 기대 %s, 실제 %s%s\n' "$label" "$expected" "$actual" "$mark"
 done
 exit "$MISMATCH"

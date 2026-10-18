@@ -48,7 +48,7 @@ Content-Type: application/json
 ===== 준비 1. ChatGPT형으로 조회 token을 받는다 — user login → authorization request(products:read) → consent → private_key_jwt =====
 POST /login → HTTP 302
 HTTP/1.1 302 
-Location: http://localhost:9070/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8182/oauth/client.json&state=Jpve6A_7r5x9ZXptrLlJtjEl-sNLF2xpnkFJ7z9Dp60%3D
+Location: http://localhost:9070/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8182/oauth/client.json&state=Qk1BuBXLgchbgzTpRTM3m2alrHbiWxXwBBZAGXleN08%3D
 consent 화면(GET /oauth2/consent)의 핵심 줄:
 <h1>권한 요청: Shop Agent (ChatGPT형)</h1>
 <p>client 문서: <code>localhost:8182</code>
@@ -57,10 +57,10 @@ consent 화면(GET /oauth2/consent)의 핵심 줄:
 <input type="checkbox" name="scope" value="products:read" id="products:read"> products:read</label>
 체크한 scope: products:read
 HTTP/1.1 302 
-Location: http://localhost:8180/login/oauth2/code/authserver?code=FguM3-TnF0OD...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9070
+Location: http://localhost:8180/login/oauth2/code/authserver?code=LrdO74YWwWFm...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9070
 POST /oauth2/token
   grant_type=authorization_code
-  code=FguM3-TnF0OD...
+  code=LrdO74YWwWFm...
   redirect_uri=http://localhost:8180/login/oauth2/code/authserver
   code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
   resource=http://localhost:8181/mcp
@@ -68,9 +68,9 @@ POST /oauth2/token
   client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
   client_assertion=eyJhbGciOiJSUzI1NiIs...
 → HTTP 200
-{"access_token":"eyJraWQiOiJhZjVjMzJm...","refresh_token":"vONaHRA8uKV3...","scope":"products:read openid","id_token":"eyJraWQiOiJhZjVjMzJm...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI5YWQzNWE3...","refresh_token":"4E8bjTMWKodQ...","scope":"products:read openid","id_token":"eyJraWQiOiI5YWQzNWE3...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8181/mcp","nbf":1792299542,"scope":["products:read","openid"],"iss":"http://localhost:9070","exp":1792299842,"iat":1792299542,"jti":"c607d8be-259b-4711-adde-573d605acf45","client_id":"https://localhost:8182/oauth/client.json"}
+{"sub":"user","aud":"http://localhost:8181/mcp","nbf":1792300271,"scope":["products:read","openid"],"iss":"http://localhost:9070","exp":1792300571,"iat":1792300271,"jti":"4fec0c0c-65b1-42df-abc5-4deab5fcd02f","client_id":"https://localhost:8182/oauth/client.json"}
 
 
 ===== M2. ChatGPT형 조회 token으로 server/discover → 200, 서버가 지원하는 버전과 정보 =====
@@ -79,7 +79,7 @@ Content-Type: application/json
 Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: server/discover
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -124,13 +124,13 @@ Content-Type: application/json;charset=UTF-8
 }
 
 
-===== M3. ChatGPT형 조회 token으로 tools/list → 200, ttlMs와 cacheScope =====
+===== M3. ChatGPT형 조회 token으로 tools/list → 200, ttlMs와 cacheScope, updateStock의 정의 =====
 POST http://localhost:8181/mcp
 Content-Type: application/json
 Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/list
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -154,6 +154,37 @@ Content-Type: application/json;charset=UTF-8
   "jsonrpc": "2.0",
   "id": 3,
   "result": {
+    "tools": [
+      "searchProducts (정의 생략)",
+      "getStock (정의 생략)",
+      {
+        "name": "updateStock",
+        "description": "상품 ID의 재고 수량을 quantity로 바꾼다. 사용자가 재고를 바꿔 달라고 분명히 요청할 때만 사용한다. 바뀐 뒤의 재고를 반환한다. 처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다.",
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "productId": {
+              "type": "string",
+              "description": "상품 ID. 예: p1"
+            },
+            "quantity": {
+              "type": "integer",
+              "format": "int32",
+              "description": "바꿀 재고 수량. 0 이상의 정수"
+            }
+          },
+          "required": [
+            "productId",
+            "quantity"
+          ]
+        }
+      },
+      "createBasket (정의 생략)",
+      "addItem (정의 생략)",
+      "getBasket (정의 생략)",
+      "checkout (정의 생략)"
+    ],
     "ttlMs": 60000,
     "cacheScope": "private",
     "resultType": "complete",
@@ -165,7 +196,8 @@ Content-Type: application/json;charset=UTF-8
     }
   }
 }
-tool 7개 (정의는 이름만 보인다): searchProducts, getStock, updateStock, createBasket, addItem, getBasket, checkout
+tool 7개: searchProducts, getStock, updateStock, createBasket, addItem, getBasket, checkout
+(updateStock의 정의만 모두 보이고, 나머지는 이름만 보인다)
 
 
 ===== M4. ChatGPT형 조회 token으로 tools/call searchProducts → 200, 검색 결과 =====
@@ -175,7 +207,7 @@ Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: searchProducts
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -228,7 +260,7 @@ Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: updateStock
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -264,7 +296,7 @@ Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: searchProducts
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -306,7 +338,7 @@ Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: searchProducts
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -340,12 +372,12 @@ Content-Type: application/json;charset=UTF-8
 }
 
 
-===== M8. 실패: 옛 형식의 initialize(2025-11-25) → 400 =====
+===== M8. 실패: 옛 형식 client(2025-11-25)의 initialize는 2026-07-28 header가 없어서 → 400, 2026-07-28 형식의 initialize는 어떻게 답하는지도 기록한다 =====
+--- 옛 형식 client가 보내는 initialize: MCP-Protocol-Version은 initialize를 마친 뒤에 붙이므로 없고, Mcp-Method도 없다
 POST http://localhost:8181/mcp
 Content-Type: application/json
 Accept: application/json, text/event-stream
-MCP-Protocol-Version: 2025-11-25
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -372,11 +404,50 @@ Content-Type: application/json;charset=UTF-8
   }
 }
 
+--- 같은 initialize method를 2026-07-28 header와 _meta로 보낸다. 서버가 method 자체를 어떻게 답하는지 본다
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: initialize
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
-===== 준비 2. Claude형으로 쓰기 token을 받는다 — M5의 403이 알린 products:write를 이미 가진 products:read와 합쳐 authorization request → consent → none =====
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "initialize",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 404
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "error": {
+    "code": -32601,
+    "message": "Method not found: initialize"
+  }
+}
+(기대한 상태가 없다: 받은 응답을 그대로 기록한다)
+
+
+===== 준비 2. Claude형으로 products:read와 products:write를 함께 요청해 쓰기 token을 받는다 — Claude형은 ChatGPT형과 다른 client라서 consent를 새로 받는다 =====
+M5의 403은 products:write가 모자라다고 알렸다.
+모든 MCP 요청에 products:read도 필요하므로 둘을 함께 요청한다.
+Claude형의 client_id는 ChatGPT형과 달라서 consent 화면에 두 scope가 모두 새 항목으로 나온다.
 POST /login → HTTP 302
 HTTP/1.1 302 
-Location: http://localhost:9070/oauth2/consent?scope=openid%20products:read%20products:write&client_id=https://localhost:8182/oauth/public-client.json&state=kYzbPmxhVTcbZBdltVynWOTXzbZNSBC-Y8JSUMA1YLY%3D
+Location: http://localhost:9070/oauth2/consent?scope=openid%20products:read%20products:write&client_id=https://localhost:8182/oauth/public-client.json&state=OeYzUchSKMGQObsDVcBv-Bwq6APBLiisVglOY2ZuD-I%3D
 consent 화면(GET /oauth2/consent)의 핵심 줄:
 <h1>권한 요청: Shop Agent (Claude형)</h1>
 <p>client 문서: <code>localhost:8182</code>
@@ -386,18 +457,18 @@ consent 화면(GET /oauth2/consent)의 핵심 줄:
 <input type="checkbox" name="scope" value="products:write" id="products:write"> products:write</label>
 체크한 scope: products:read products:write
 HTTP/1.1 302 
-Location: http://localhost:8180/login/oauth2/code/authserver?code=pQteJ086-5Ud...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9070
+Location: http://localhost:8180/login/oauth2/code/authserver?code=sNoSCUK2uVfG...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9070
 POST /oauth2/token
   grant_type=authorization_code
-  code=pQteJ086-5Ud...
+  code=sNoSCUK2uVfG...
   redirect_uri=http://localhost:8180/login/oauth2/code/authserver
   code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
   resource=http://localhost:8181/mcp
   client_id=https://localhost:8182/oauth/public-client.json
 → HTTP 200
-{"access_token":"eyJraWQiOiJhZjVjMzJm...","refresh_token":"JogrW5lncF-0...","scope":"products:read openid products:write","id_token":"eyJraWQiOiJhZjVjMzJm...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiI5YWQzNWE3...","refresh_token":"CcduTChVfNnB...","scope":"products:read openid products:write","id_token":"eyJraWQiOiI5YWQzNWE3...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8181/mcp","nbf":1792299544,"scope":["products:read","openid","products:write"],"iss":"http://localhost:9070","exp":1792299844,"iat":1792299544,"jti":"b05da540-f17c-4c32-a718-8e2e816cbbd8","client_id":"https://localhost:8182/oauth/public-client.json"}
+{"sub":"user","aud":"http://localhost:8181/mcp","nbf":1792300272,"scope":["products:read","openid","products:write"],"iss":"http://localhost:9070","exp":1792300572,"iat":1792300272,"jti":"238b66e9-d599-4631-b6b0-1a7914700dae","client_id":"https://localhost:8182/oauth/public-client.json"}
 
 
 ===== M9. Claude형 쓰기 token으로 updateStock → 200, 재고를 바꿨다 =====
@@ -407,7 +478,7 @@ Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
 Mcp-Method: tools/call
 Mcp-Name: updateStock
-Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
 
 {
   "jsonrpc": "2.0",
@@ -464,5 +535,6 @@ M4: 기대 200, 실제 200
 M5: 기대 403, 실제 403
 M6: 기대 400, 실제 400
 M7: 기대 400, 실제 400
-M8: 기대 400, 실제 400
+M8 첫 번째 요청: 기대 400, 실제 400
+M8 두 번째 요청: 기대 기록만, 실제 404
 M9: 기대 200, 실제 200
