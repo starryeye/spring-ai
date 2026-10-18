@@ -29,8 +29,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest;
 
 /**
- * MCP 2025-11-25 인가 §2.3 의 발견 순서를 검증한다.
- * 401 챌린지 → 보호 리소스 메타데이터 → 인가 서버 메타데이터.
+ * MCP 2026-07-28 Authorization Server Discovery의 발견 순서를 검증한다.
+ * 401 challenge → Protected Resource Metadata → Authorization Server Metadata 순서다.
  */
 class McpAuthorizationDiscoveryTest {
 

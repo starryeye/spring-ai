@@ -22,7 +22,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Authorization Server를 찾는다(MCP 2025-11-25 Authorization — Authorization Server Discovery, 안내서 3장).
+ * Authorization Server를 찾는다(MCP 2026-07-28 Authorization — Authorization Server Discovery, 안내서 3장).
  *
  * <p>순서는 명세가 정해 두었다.
  * <ol>
@@ -141,7 +141,7 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * MCP 2025-11-25 Authorization — Scope Selection Strategy.
+	 * MCP 2026-07-28 Authorization — Scope Selection Strategy.
 	 * {@code 401}의 {@code scope}가 있으면 그 값, 없으면 PRM의 {@code scopes_supported} 전부,
 	 * 둘 다 없으면 scope를 요청하지 않는다.
 	 * 범용 client는 서버마다 어떤 scope가 필요한지 모르므로, 서버가 알려 준 값을 쓴다.
@@ -272,7 +272,8 @@ public class McpAuthorizationDiscovery {
 				throw new McpDiscoveryException("메타데이터의 issuer(%s) 가 요청한 인가 서버(%s) 와 다르다"
 						.formatted(metadata.get("issuer"), issuer));
 			}
-			// MCP 2025-11-25 Authorization: client는 S256 지원을 확인하고, 지원하지 않으면 진행하지 않는다.
+			// MCP 2026-07-28 Authorization Security Considerations — Authorization Code Protection:
+			// client는 PKCE 지원을 metadata로 확인하고, S256이 없으면 진행하지 않는다.
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
 				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
