@@ -78,6 +78,11 @@ public class ModernMcpClient {
 
 	private static final String TEXT_EVENT_STREAM = "text/event-stream";
 
+	/** {@code Mcp-Name}의 base64 표기는 이 앞뒤 글자로 감싼다. 대소문자까지 이대로 쓴다. */
+	private static final String BASE64_PREFIX = "=?base64?";
+
+	private static final String BASE64_SUFFIX = "?=";
+
 	private final URI endpoint;
 
 	private final HttpClient http;
@@ -146,16 +151,24 @@ public class ModernMcpClient {
 
 	/**
 	 * {@code Mcp-Name} header 값이다.
-	 * header에는 출력 가능한 ASCII(0x20~0x7E)만 그대로 쓸 수 있다.
-	 * 그 밖의 글자가 하나라도 있으면 UTF-8 byte를 base64로 바꿔 {@code =?base64?...?=}로 적는다.
-	 * MCP Server는 같은 규칙으로 풀어 본문의 이름과 맞춰 본다.
+	 *
+	 * <p>MCP Server는 이 header를 풀어 본문의 이름과 맞춰 보므로, header를 지나도 이름이 글자 그대로 남아야 한다.
+	 * 그래서 다음 이름은 UTF-8 byte를 base64로 바꿔 {@code =?base64?...?=}로 적는다(MCP 2026-07-28 Streamable HTTP — Value Encoding).
+	 * <ul>
+	 *   <li>출력 가능한 ASCII(0x20~0x7E) 밖의 글자가 있다. header에는 ASCII 글자만 그대로 쓸 수 있다.</li>
+	 *   <li>앞이나 뒤에 공백이 있다. HTTP는 header 값 앞뒤의 공백을 지워도 되므로, 서버가 다른 이름을 받을 수 있다.</li>
+	 *   <li>{@code =?base64?}로 시작하고 {@code ?=}로 끝난다. 그대로 보내면 서버는 이 이름을 base64 표기로 보고 풀어 버린다.</li>
+	 * </ul>
+	 * 나머지 이름은 가운데 공백까지 그대로 적는다.
 	 */
 	static String mcpName(String name) {
 		boolean printableAscii = name.chars().allMatch(c -> c >= 0x20 && c <= 0x7E);
-		if (printableAscii) {
+		boolean edgeSpace = !name.isEmpty() && (name.charAt(0) == ' ' || name.charAt(name.length() - 1) == ' ');
+		boolean looksEncoded = name.startsWith(BASE64_PREFIX) && name.endsWith(BASE64_SUFFIX);
+		if (printableAscii && !edgeSpace && !looksEncoded) {
 			return name;
 		}
-		return "=?base64?" + Base64.getEncoder().encodeToString(name.getBytes(StandardCharsets.UTF_8)) + "?=";
+		return BASE64_PREFIX + Base64.getEncoder().encodeToString(name.getBytes(StandardCharsets.UTF_8)) + BASE64_SUFFIX;
 	}
 
 	private <T extends McpSchema.Result> T send(String accessToken, String method, String name, Object params,

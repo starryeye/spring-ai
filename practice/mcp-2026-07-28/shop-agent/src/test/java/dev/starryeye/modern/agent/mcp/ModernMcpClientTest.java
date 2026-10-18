@@ -194,15 +194,23 @@ class ModernMcpClientTest {
 	}
 
 	@Test
-	void ASCII가_아닌_tool_이름은_base64로_적는다() {
+	void header에_그대로_쓸_수_없는_tool_이름은_base64로_적는다() {
 		this.client.callTool("token-a", "재고변경", Map.of());
 
 		assertThat(this.received.get(0).headers().getFirst("Mcp-Name")).isEqualTo("=?base64?7J6s6rOg67OA6rK9?=");
 		// 본문의 이름은 그대로다. 서버는 header를 풀어 본문과 맞춰 본다.
 		assertThat(this.received.get(0).json().get("params").get("name").asString()).isEqualTo("재고변경");
-		// 출력 가능한 ASCII는 공백까지 그대로 두고, 제어 문자가 있으면 base64로 적는다.
+		// 출력 가능한 ASCII는 가운데 공백까지 그대로 두고, 제어 문자가 있으면 base64로 적는다.
 		assertThat(ModernMcpClient.mcpName("get stock")).isEqualTo("get stock");
+		assertThat(ModernMcpClient.mcpName("a b")).isEqualTo("a b");
 		assertThat(ModernMcpClient.mcpName("a\tb")).isEqualTo("=?base64?YQli?=");
+		// 앞뒤 공백은 header를 지나며 지워질 수 있으므로 base64로 적는다.
+		assertThat(ModernMcpClient.mcpName(" a")).isEqualTo("=?base64?IGE=?=");
+		assertThat(ModernMcpClient.mcpName("a ")).isEqualTo("=?base64?YSA=?=");
+		// base64 표기와 모양이 같은 이름은 서버가 풀어 버리지 않도록 그 글자 그대로를 base64로 적는다.
+		assertThat(ModernMcpClient.mcpName("=?base64?abc?=")).isEqualTo("=?base64?PT9iYXNlNjQ/YWJjPz0=?=");
+		// 끝이 ?=가 아니면 base64 표기로 읽히지 않으므로 그대로 둔다.
+		assertThat(ModernMcpClient.mcpName("=?base64?abc")).isEqualTo("=?base64?abc");
 	}
 
 	@Test
