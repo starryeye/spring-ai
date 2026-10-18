@@ -802,4 +802,4 @@ docs/superpowers/captures/mcp-cimd-walkthrough.sh > /tmp/cimd-walkthrough.txt
 | 미리 등록했거나 DCR로 받은 credentials는 발급한 Authorization Server의 `issuer`에 묶는다. CIMD `client_id`는 Authorization Server가 그때그때 가져오는 주소라서 어느 서버에서나 쓰고, 서버가 바뀌어도 다시 등록하지 않는다 | [MCP 2026-07-28 Client Registration — Authorization Server Binding](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#authorization-server-binding) | MUST(미리 등록·DCR), —(CIMD) |
 | Authorization Server는 DPoP proof가 와도 DPoP에 묶이지 않은 access token을 줄 수 있고, 그때 `token_type`은 `Bearer`다 | [RFC 9449 §5](https://www.rfc-editor.org/rfc/rfc9449#section-5) | MAY |
 
-[← 12장](12-tool-visibility.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)
+[← 12장](12-tool-visibility.md) · [목차](README.md) · [14장 →](14-modern-protocol.md)

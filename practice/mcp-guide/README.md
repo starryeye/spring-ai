@@ -9,6 +9,7 @@ OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP�
 11장의 예시는 authz의 MCP Server를 session 없이 돌리고 장바구니 tool을 더한 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)를 실제로 띄워 받은 것이다.
 12장의 예시는 stateless에 사용자 역할을 더해 사용자마다 다른 tool 목록을 주는 [mcp-tool-visibility practice](../mcp-tool-visibility/README.md)를 실제로 띄워 받은 것이다.
 13장의 예시는 미리 등록하지 않은 client를 CIMD 문서로 받는 [mcp-cimd practice](../mcp-cimd/README.md)를 실제로 띄워 받은 것이다.
+14장의 예시는 cimd의 MCP 요청 형식을 2026-07-28로 올린 [mcp-2026-07-28 practice](../mcp-2026-07-28/README.md)를 실제로 띄워 받은 것이다.
 official 밖의 서버를 가정한 예시는 명세의 예시이거나 설명을 위해 만든 값이다.
 3장의 issuer `auth.example.com/tenant1`, 4장에서 `app.example.com`에 올린 client 정보 문서, 8장에서 공격자가 넣는 내부망 주소 `169.254.169.254`가 그런 예다.
 장마다 그 단계가 왜 있는지를 먼저 보고, 실제 요청·응답과 official 코드를 본 뒤, 직접 해 본다.
@@ -22,10 +23,10 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 
 ## 읽는 순서
 
-1장부터 13장까지 차례로 읽는다.
+1장부터 14장까지 차례로 읽는다.
 뒤 장은 앞 장에서 본 요청과 용어를 다시 설명하지 않는다.
 10장은 5\~7장에서 본 흐름에 scope와 step-up을 더하므로, 7장 다음에 읽어도 된다.
-11\~13장은 앞 장의 practice를 이어받으므로 10장 다음에 차례로 읽는다.
+11\~14장은 앞 장의 practice를 이어받으므로 10장 다음에 차례로 읽는다.
 
 시간이 없으면 2·3·5·6장만 읽는다.
 2장에서 전체 흐름을 보고, 3장의 discovery, 5장의 token 발급, 6장의 token 검증으로 흐름의 중심을 따라간다.
@@ -36,7 +37,7 @@ MCP 명세가 전제하는 구조에서는 client 하나가 사용자 한 명의
 
 장마다 있는 "직접 해 보기" 절의 명령은 official practice를 띄운 상태에서 보낸다.
 official을 띄우는 방법과 필요한 도구는 [official README의 실행](../mcp-security-authn-official/README.md#실행)에 있다.
-10\~13장의 명령은 official 대신 각 장의 practice([authz](../mcp-security-authz/README.md#실행)·[stateless-handle](../mcp-stateless-handle/README.md#실행)·[tool-visibility](../mcp-tool-visibility/README.md#실행)·[cimd](../mcp-cimd/README.md#실행))를 띄운 상태에서 보낸다.
+10\~14장의 명령은 official 대신 각 장의 practice([authz](../mcp-security-authz/README.md#실행)·[stateless-handle](../mcp-stateless-handle/README.md#실행)·[tool-visibility](../mcp-tool-visibility/README.md#실행)·[cimd](../mcp-cimd/README.md#실행)·[mcp-2026-07-28](../mcp-2026-07-28/README.md#실행))를 띄운 상태에서 보낸다.
 
 다이어그램은 mermaid로 그렸다.
 GitHub와 IntelliJ는 mermaid를 그림으로 보여 준다.
@@ -59,18 +60,19 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [11. stateless와 handle](11-stateless-and-handle.md) | session 없이 요청마다 token으로 사용자를 구별하는 MCP Server, 호출 사이의 상태를 가리키는 handle과 그 handle을 사용자에게 묶는 방법, web agent의 모델과 사용자 기기의 앱이 handle을 다음 호출로 넘기는 방법 | web agent에서 장바구니에 상품을 담고 결제하기, `user2`가 남의 handle로 받는 결과 보기 |
 | [12. tool 목록과 권한](12-tool-visibility.md) | 사용자의 권한 밖의 tool은 숨기고 권한 안이지만 scope 밖의 tool은 step-up하는 MCP Server, 숨긴 tool의 호출에 없는 tool과 같은 오류로 답하는 이유, web agent가 사용자별 목록을 token마다 따로 cache하는 방법 | 손님 `user2`와 점원 `user`의 `tools/list` 비교하기, 숨긴 tool과 없는 tool의 응답 비교하기 |
 | [13. CIMD](13-cimd.md) | 미리 등록하지 않은 client가 `https` 문서의 주소를 `client_id`로 쓰는 방식, Authorization Server가 문서를 가져와 믿기까지의 검사, `private_key_jwt`와 `none` 두 인증 방식, public client의 refresh rotation | ChatGPT형과 Claude형으로 login해 consent 화면의 두 host 보기, 옛 refresh token이 거절되는 것 보기 |
+| [14. MCP 2026-07-28](14-modern-protocol.md) | `initialize` 없이 요청마다 `_meta`와 header 세 개를 보내는 2026-07-28 요청, header로 하는 scope 검사와 SDK가 남긴 틈, 한 challenge에 모은 scope, 서버가 정하는 목록 cache, 옛 client가 붙지 못하는 이유 | token 없는 `server/discover`로 `401` 받기, header와 본문이 다른 요청의 `400` 보기, browser로 step-up 해 보기 |
 
 ## 부록
 
 | 부록 | 내용 |
 |---|---|
 | [API 레퍼런스](reference-api.md) | endpoint마다 명세가 정한 parameter·header·field를 모두 모은 사전이다. 요구 수준과 official의 동작을 함께 적는다 |
-| [명세 준수표](reference-compliance.md) | official·chat-memory·community 세 practice가 명세 항목을 어디까지 지키는지 판정한 표다. 구현 위치 지도, 남은 위반, mcp-security-authz·mcp-stateless-handle·mcp-tool-visibility·mcp-cimd에서 달라지는 행도 있다 |
+| [명세 준수표](reference-compliance.md) | official·chat-memory·community 세 practice가 명세 항목을 어디까지 지키는지 판정한 표다. 구현 위치 지도, 남은 위반, mcp-security-authz·mcp-stateless-handle·mcp-tool-visibility·mcp-cimd·mcp-2026-07-28에서 달라지는 행도 있다 |
 
 ## 다른 practice
 
 - [mcp-security-authn-chat-memory](../mcp-security-authn-chat-memory/README.md): official에 사용자별 대화 기억을 더하고, MCP session을 사용자에 묶는다.
 - [mcp-security-authn-community](../mcp-security-authn-community/README.md): 같은 흐름을 spring-ai-community의 MCP 보안 module 자동 설정으로 만든다.
-- [mcp-security-authz](../mcp-security-authz/README.md), [mcp-stateless-handle](../mcp-stateless-handle/README.md), [mcp-tool-visibility](../mcp-tool-visibility/README.md), [mcp-cimd](../mcp-cimd/README.md): 10\~13장이 차례로 쓰는 practice다. 각 practice가 더하는 것은 이 문서의 맨 위에 있다.
+- [mcp-security-authz](../mcp-security-authz/README.md), [mcp-stateless-handle](../mcp-stateless-handle/README.md), [mcp-tool-visibility](../mcp-tool-visibility/README.md), [mcp-cimd](../mcp-cimd/README.md), [mcp-2026-07-28](../mcp-2026-07-28/README.md): 10\~14장이 차례로 쓰는 practice다. 각 practice가 더하는 것은 이 문서의 맨 위에 있다.
 - [agent-mcp](../agent-mcp/README.md)와 [agent-mcps](../agent-mcps/README.md): authorization 없이 MCP Server와 agent만 다룬다.
   1장의 내용을 더 작은 예제로 볼 수 있다.
