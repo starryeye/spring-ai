@@ -23,9 +23,6 @@ Authorization Server, ChatGPT형·Claude형 두 client type, discovery, login과
 | scope 부족 로그 | `필요한 scope=products:write` | `모자란 scope=products:write`다. 모자란 scope가 둘이면 공백으로 이어 적는다 | [14장 5단계](../mcp-guide/14-modern-protocol.md#147-5단계-scope가-모자라면-한-challenge에-모은다) |
 | 옛 형식 client | 받는다 | 받지 않는다. 2025-11-25의 `initialize`는 `400`이다 | [14장 옛 client](../mcp-guide/14-modern-protocol.md#149-옛-client는-붙지-못한다) |
 
-[코드 지도](#코드-지도)에 없는 클래스는 cimd와 같다.
-그 클래스들은 package 이름(`dev.starryeye.modern.*`)과 포트·cookie 같은 설정 값만 다르다.
-`auth-server`는 이름·포트·package·cookie 이름(`MODERNAUTHSESSIONID`)만 다르다.
 login 계정, scope, tool 7개, 역할 표, step-up 흐름, 사용자별 tool 목록, handle은 cimd와 같다.
 
 cimd에 있던 다음 클래스는 이 practice에 없다.
@@ -83,9 +80,9 @@ browser에서는 `127.0.0.1`이 아니라 `http://localhost:8180`을 연다.
 
 ## 코드 지도
 
-cimd와 같은 클래스는 [cimd README의 코드 지도](../mcp-cimd/README.md#코드-지도)에 있다.
 아래는 이 practice에만 있거나 cimd와 다른 클래스다.
-`auth-server`는 이름·포트 같은 설정 값만 달라서 표에 없다.
+표에 없는 클래스는 [cimd README의 코드 지도](../mcp-cimd/README.md#코드-지도)에 있고, package 이름(`dev.starryeye.modern.*`)과 포트·cookie 같은 설정 값만 다르다.
+`auth-server`는 이름·포트·package·cookie 이름(`MODERNAUTHSESSIONID`)만 달라서 표에 없다.
 클래스는 `<module>/src/main/java/dev/starryeye/modern/<package>/` 아래에 있다.
 package는 `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`다.
 표에서는 클래스 이름 앞에 그 아래의 package(`config`, `tool`, `filter`, `security`, `mcp`, `discovery`)를 붙였다.

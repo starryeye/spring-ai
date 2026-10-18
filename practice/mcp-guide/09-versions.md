@@ -214,6 +214,7 @@ official의 tool은 상태를 두지 않아 handle이 필요 없고, 이 방식�
 
 modern 오류란 `UnsupportedProtocolVersionError`처럼 2026-07-28이 정한 JSON-RPC 오류다.
 modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답하고, `Mcp-Session-Id`는 무시한다.
+MCP Java SDK 2.2로 요청 형식을 2026-07-28로 올린 practice는 [14장](14-modern-protocol.md)에서 본다.
 
 ## 9.8 official이 따르는 기준
 
@@ -316,7 +317,5 @@ Content-Type: application/json;charset=UTF-8
 | 2026-07-28은 session을 없애고, 상태는 tool 인자의 handle로 다룬다. modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답한다 | [SEP-2567](https://modelcontextprotocol.io/seps/2567-sessionless-mcp), [Streamable HTTP — Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions) | SHOULD |
 | 2026-07-28은 GET stream과 `resources/subscribe`를 `subscriptions/listen`으로, 서버가 client에게 보내는 요청을 MRTR로, `logging/setLevel`을 요청마다의 `_meta` log level로 바꾼다. client는 요청마다 `clientInfo`를, 서버는 결과마다 `serverInfo`를 `_meta`에 넣는다 | [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog#major-changes), [Multi Round-Trip Requests](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr) | SHOULD, MUST NOT |
 | dual-era client는 modern 요청을 먼저 보내고, `400`의 본문이 modern 오류가 아니면 `initialize`로 돌아간다 | [MCP 2026-07-28 Streamable HTTP — Backward Compatibility](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#backward-compatibility) | MAY, SHOULD |
-
-MCP Java SDK 2.2로 요청 형식을 2026-07-28로 올린 practice는 [14장](14-modern-protocol.md)에서 본다.
 
 [← 8장](08-security.md) · [목차](README.md) · [10장 →](10-scope-and-step-up.md)

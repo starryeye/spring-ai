@@ -123,8 +123,8 @@ header는 load balancer나 gateway처럼 본문을 읽지 않는 곳이 요청�
 
 `401`과 PRM은 13장과 같고 주소만 다르다.
 Spring Security가 본문을 읽기 전에 `401`로 답하므로, MCP Server의 SDK는 이 요청을 보지 않는다.
-그래도 agent가 올바른 2026-07-28 요청을 보내는 것은, 본문부터 읽는 서버가 `401` 대신 형식 오류로 답하지 않게 하려는 것이다.
-그러면 `401`의 이유는 token이 없다는 것 하나뿐이다.
+그래도 agent는 올바른 2026-07-28 요청을 보낸다.
+요청이 올바르면, 서버가 무엇을 먼저 보든 실패할 이유는 token이 없다는 것 하나뿐이다.
 
 ```json
 {
@@ -172,7 +172,7 @@ Content-Type: application/json;charset=UTF-8
 서버가 모르는 버전이면 어느 요청에든 `400`과 `UnsupportedProtocolVersionError`(`-32022`)에 지원 버전 목록을 담아 답하기 때문이다.
 agent가 먼저 묻는 것은, 모델이 tool을 고른 뒤가 아니라 질문을 처리하기 전에 분명한 이유로 멈추려는 것이다.
 한 번 성공하면 agent process가 떠 있는 동안 다시 묻지 않고, 실패하면 다음 질문 때 다시 묻는다.
-어느 버전을 말하는지는 서버의 성질이라 요청마다 바뀌지 않으므로, 결과의 `ttlMs`가 `0`이어도 이 사실만은 기억한다.
+서버가 받는 버전은 요청마다 바뀌는 값이 아니므로, 결과의 `ttlMs`가 `0`이어도 2026-07-28을 받는다는 사실만은 기억한다.
 
 `server/discover`도 MCP 요청이라 기본 scope `products:read`가 있는 token이어야 한다(14.7).
 
@@ -216,9 +216,9 @@ MCP Server 로그에는 `tools/list — 사용자=user, 역할=STAFF, 보인 too
 [12장](12-tool-visibility.md#127-web-agent-사용자별-tool-목록-cache)의 MCP Server는 2025-11-25라서 `ttlMs`와 `cacheScope`를 보내지 않았다.
 그래서 agent가 TTL을 5분으로 스스로 정했다.
 이 practice의 MCP Server는 목록에 두 값을 넣는다.
+목록을 얼마나 오래, 누구와 같이 써도 되는지는 목록을 만든 쪽이 가장 잘 안다.
 목록이 사용자의 역할로 달라지므로 `cacheScope`는 다른 access token과 나누면 안 되는 `private`이다.
-역할 표는 서버가 떠 있는 동안 바뀌지 않으므로 `ttlMs`는 1분(`60000`)이다.
-목록을 얼마나 오래, 누구와 같이 써도 되는지는 목록을 만든 쪽이 가장 잘 알기 때문이다.
+역할 표는 서버가 떠 있는 동안 바뀌지 않아 목록을 잠시 cache해도 되므로, 이 서버는 `ttlMs`를 1분(`60000`)으로 정한다.
 
 agent의 `UserToolCatalog`는 받은 값대로 목록을 둔다.
 
@@ -278,11 +278,14 @@ Content-Type: application/json;charset=UTF-8
 
 `Mcp-Name`은 본문 `params.name`의 값을 header로 옮긴 것이다.
 tool을 부르는 `tools/call`에만 붙고, `server/discover`와 `tools/list`에는 없다.
-header 값에는 ASCII 글자만 그대로 쓸 수 있다.
-그래서 agent는 모든 글자가 출력할 수 있는 ASCII(0x20\~0x7E)인 이름만 그대로 적는다.
-그 밖의 글자가 하나라도 있으면 UTF-8의 Base64로 바꿔 `=?base64?…?=`로 적는다.
+서버는 이 header를 풀어 본문의 이름과 맞춰 보므로, 이름은 header를 지나도 글자 그대로 남아야 한다.
+그런데 header 값에는 출력할 수 있는 ASCII만 그대로 쓸 수 있고, HTTP는 header 값 앞뒤의 공백을 지울 수 있다.
+그래서 ASCII 밖의 글자나 제어 문자가 있는 이름, 앞이나 뒤에 공백이 있는 이름은 UTF-8의 Base64로 바꿔 `=?base64?…?=`로 적는다.
+`=?base64?`로 시작하고 `?=`로 끝나는 ASCII 이름도 Base64로 적는다.
+그대로 보내면 서버가 그 이름을 Base64 표기로 보고 풀어 버리기 때문이다.
+agent는 이 규칙을 그대로 따르고, 나머지 이름은 가운데 공백까지 그대로 적는다.
 예를 들어 이름이 `재고조회`인 tool이라면 `Mcp-Name: =?base64?7J6s6rOg7KGw7ZqM?=`다.
-이 practice의 tool 이름은 모두 영문이라 그대로 간다.
+이 practice의 tool 이름은 모두 평범한 영문이라 그대로 간다.
 
 응답에는 `Mcp-Session-Id`가 없다.
 `Authorization` header는 전처럼 요청마다 붙이고, 서버가 사용자를 아는 방법은 token뿐이다([11장](11-stateless-and-handle.md#111-stateless의-필요성)).
@@ -373,7 +376,7 @@ header와 본문의 대조, `_meta`와 버전 검사, 본문 상한은 SDK trans
 **header와 본문이 다르면 실행하지 않는다**
 
 scope는 header로 보고, tool은 본문으로 실행한다.
-둘이 다르면 header에는 조회 tool을, 본문에는 쓰기 tool을 적어 조회 token으로 쓰기 tool을 실행할 수 있다.
+아무도 둘을 맞춰 보지 않으면, header에는 조회 tool을, 본문에는 쓰기 tool을 적어 조회 token으로 쓰기 tool을 실행할 수 있다.
 조회 token으로 `Mcp-Name: searchProducts`와 본문 `"name": "updateStock"`을 함께 보내면 다음과 같다.
 
 ```http
@@ -395,7 +398,7 @@ filter는 `searchProducts`를 보고 `products:read`면 충분하다고 넘겼�
 둘이 바이트를 다르게 읽으면 filter가 검사한 이름과 transport가 실행하는 이름이 달라지므로, filter는 transport와 같은 charset 규칙으로 본문을 읽어야 했다.
 이 practice의 filter는 본문을 아예 읽지 않는다.
 본문을 읽는 곳은 SDK transport 하나이고, 그 transport가 header와 다른 본문을 거절한다.
-scope를 정하는 값과 실행하는 값을 서로 다른 parser가 만들 일이 구조로 줄어든 것이다.
+scope를 정하는 값과 실행하는 값을 서로 다른 parser가 만들 일이 구조상 줄어든다.
 본문을 메모리에 담아 두던 `CachedBodyHttpServletRequest`도 필요 없고, 본문 상한(1MB)은 transport의 `maxRequestSize`가 `413`으로 지킨다.
 
 **그래도 남는 틈: 문자열이 아닌 tool 이름**
@@ -432,7 +435,7 @@ SDK 2.2.0-M1은 `=?base64?=` 같은 값을 풀다 예외를 던져 `500`으로 �
 **버전 header를 filter가 따로 보지 않는 이유**
 
 2026-07-28은 header로 정책을 정하는 gateway에게, `MCP-Protocol-Version`이 header와 본문을 맞춰 보는 버전인지 먼저 확인하게 한다.
-옛 버전의 요청이라면 아무도 header를 본문과 맞춰 보지 않았기 때문이다.
+옛 버전의 요청은 서버가 header를 본문과 맞춰 본다는 보장이 없기 때문이다.
 이 서버의 SDK는 2026-07-28 요청만 받고, 버전과 header를 모두 맞춰 본 뒤에야 실행한다.
 filter가 넘긴 요청이라도 SDK의 검사를 지나지 못하면 실행되지 않으므로, filter는 버전을 따로 보지 않는다.
 
@@ -441,7 +444,7 @@ filter가 넘긴 요청이라도 SDK의 검사를 지나지 못하면 실행되�
 SDK 2.2.0-M1은 JSON-RPC 오류 code에 따라 HTTP 상태를 정한다.
 `-32602`(Invalid params), `-32020`, `-32021`, `-32022`는 `400`이고, `-32601`(Method not found)은 `404`다.
 그래서 숨긴 tool과 없는 tool의 호출은 [12장](12-tool-visibility.md#124-2단계-숨긴-tool을-부르면)에서는 HTTP `200`이었지만 이 practice에서는 `400`이다.
-숨긴 tool은 `ShopToolRepository.find`가 `null`을 돌려주므로, 지금도 없는 tool과 같은 `Unknown tool: <이름>`을 받는다.
+숨긴 tool은 `ShopToolRepository.find`가 `null`을 돌려주므로, 이 practice에서도 없는 tool과 같은 `Unknown tool: <이름>`을 받는다.
 오류 본문에는 `code`와 `message`만 있고, tool이 던진 예외는 `-32603` `Internal error`가 되며 자세한 내용은 로그에만 남는다.
 
 | 확인 | 어기면 생기는 일 |
@@ -457,10 +460,10 @@ SDK 2.2.0-M1은 JSON-RPC 오류 code에 따라 HTTP 상태를 정한다.
 
 2025-11-25 client도 이 MCP Server의 discovery는 그대로 따라간다.
 token 없는 첫 요청은 형식과 상관없이 Spring Security가 `401`로 답하고, authorization 단계는 MCP 메시지의 버전을 읽지 않기 때문이다([9장](09-versions.md#98-official이-따르는-기준)).
-그래서 token까지 받은 client라도, 실패는 token을 붙인 첫 MCP 요청에서 난다.
+그래서 옛 client는 token까지 받은 뒤, token을 붙인 첫 MCP 요청에서 실패한다.
 
-2025-11-25 client는 `MCP-Protocol-Version`을 `initialize`를 마친 뒤에 붙이고, `Mcp-Method`는 모른다.
-그래서 첫 `initialize`에는 두 header가 모두 없다.
+2025-11-25 client는 `Mcp-Method`를 모르고, 명세대로라면 `MCP-Protocol-Version`도 `initialize`를 마친 뒤에야 붙인다.
+이 서버는 `Mcp-Method`부터 보므로, 버전 header가 있든 없든 답은 같다.
 
 ```http
 POST /mcp HTTP/1.1
@@ -540,9 +543,9 @@ tool 저장소는 `ctx.transportContext()`로 이 값을 꺼낸다.
 
 SDK의 2026-07-28 서버는 annotation으로 tool을 찾지 않는다.
 그래서 `ShopTools`가 tool 7개의 이름·설명·입력 schema·필요한 scope·handler를 `ShopTool` record로 적는다.
+13장의 `@McpTool`과 `@RequiredScope`가 하던 일이다.
 값은 13장의 tool과 같다.
 scope 표(`ToolScopeRegistry`)도 같은 목록에서 만드므로, 서버가 내놓는 tool이 scope 표에서 빠질 수 없다.
-13장의 `@McpTool`과 `@RequiredScope`가 하던 일이다.
 
 **`ShopToolRepository`: 목록, 숨김, 실행할 이름**
 
@@ -582,7 +585,9 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
         /* 400, -32020, "Mcp-Name header has a malformed Base64 value" */
         return;
     }
-    Set<String> granted = /* JWT의 scope. JWT 인증이 아니면 빈 집합 */;
+    JwtAuthenticationToken token = /* 인증이 JwtAuthenticationToken이면 그것, 아니면 null */;
+    String subject = (token != null) ? token.getToken().getSubject() : null;
+    Set<String> granted = /* token의 scope. token이 null이면 빈 집합 */;
     boolean toolCall = "tools/call".equals(request.getHeader("Mcp-Method"));
     if (!toolCall) {
         tool = null;                                            // tools/call이 아니면 기본 scope만
@@ -599,15 +604,9 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
 ```
 
 10장의 filter가 하던 본문 읽기, charset 맞추기, 형식 검사가 모두 빠졌다.
-13장 practice에 있던 다음 클래스도 이 practice에는 없다.
-
-| 클래스 | 없는 이유 |
-|---|---|
-| `McpProtocolVersionFilter` | 2025-11-25까지의 버전만 받아서, 남겨 두면 2026-07-28 요청을 모두 막는다. 버전 검사는 SDK가 한다 |
-| `CachedBodyHttpServletRequest` | filter가 본문을 읽지 않는다 |
-| `TransportErrorResponseFilter` | SDK가 오류 본문에 `code`와 `message`만 넣는다 |
-| `ToolVisibilityTransport` | 목록 거르기와 숨긴 tool 처리는 `ShopToolRepository`가 한다 |
-| `RequiredScope` | scope는 `ShopTool`의 field다 |
+13장 practice의 `McpProtocolVersionFilter`는 2025-11-25까지의 버전만 받아서, 남겨 두면 2026-07-28 요청을 모두 막는다.
+그래서 이 practice에는 없고, 버전 검사는 SDK가 한다.
+없어진 다른 클래스와 그 이유는 [practice README의 mcp-cimd와 다른 점](../mcp-2026-07-28/README.md#mcp-cimd와-다른-점)에 있다.
 
 ## 14.11 agent 코드에서 보기
 
@@ -625,7 +624,7 @@ private HttpRequest request(String accessToken, String method, String name, Json
             .header("Mcp-Method", method)
             .POST(HttpRequest.BodyPublishers.ofByteArray(write(body)));  // params._meta에 META
     if (name != null) {
-        builder.header("Mcp-Name", mcpName(name));              // tools/call만. ASCII가 아니면 Base64 표기
+        builder.header("Mcp-Name", mcpName(name));              // tools/call만. header에 그대로 못 쓰는 이름은 Base64 표기
     }
     if (accessToken != null) {
         builder.header("Authorization", "Bearer " + accessToken);
@@ -688,14 +687,13 @@ token 없는 첫 요청의 본문과 header만 1단계의 `server/discover`로 �
 
 `ToolCatalogConfig`는 `ModernMcpClient`와 `UserToolCatalog` 두 bean을 만들고, 다른 클래스는 이 둘에만 기댄다.
 SDK에 2026-07-28 client가 생기면 이 두 클래스만 바꾸면 된다.
-13장 agent의 `OAuth2TokenAttachingRequestCustomizer`, `SecurityMcpTransportContextProvider`, `StepUpAuthorizationErrorHandler`, `StepUpToolExecutionExceptionProcessor`, `UnknownToolAwareToolCallback`은 이 practice에 없다.
-Spring AI의 MCP client starter도 쓰지 않는다.
+13장 agent에서 MCP 요청에 token을 붙이고 step-up 예외를 올리던 클래스들과 Spring AI의 MCP client starter는 이 practice에 없다([practice README](../mcp-2026-07-28/README.md#mcp-cimd와-다른-점)).
 
 ## 14.12 다루지 않는 것
 
 - MRTR(`input_required`): 서버가 client에게 입력을 되묻는 2026-07-28의 방식이다. agent는 client capability를 선언하지 않는다.
 - `subscriptions/listen`: 목록 변경 같은 알림을 받는 stream이다. 서버는 `listChanged: false`를 알린다.
-- `x-mcp-header`(`Mcp-Param-*`): tool 인자를 header로 옮기는 방식이다. 이 practice의 tool 정의에는 없고, agent도 처리하지 않는다.
+- `x-mcp-header`(`Mcp-Param-*`): tool 인자를 header로 옮기는 방식이다. 이 practice의 tool 정의에는 없고, agent도 처리하지 않는다. 명세는 tool 정의에 이 표시가 있으면 client가 그 header를 붙이게 하므로, 이 확장을 쓰는 MCP Server에 붙으려면 agent가 이 표시를 읽어 header를 붙여야 한다.
 - tasks와 그 밖의 확장.
 - 2025-11-25와 2026-07-28을 함께 받는 dual-era 서버.
 - 실제 제품을 이 MCP Server에 붙이는 것: Claude Code(CLI)처럼 사용자 기기에서 도는 client를 붙이려면 Authorization Server가 공인 인증서를 믿고 `localhost` redirect의 포트를 무시해 비교해야 한다.
@@ -755,13 +753,14 @@ header와 본문이 다른 요청, 숫자 tool 이름, 옛 형식과 2026-07-28 
 |---|---|---|
 | client는 모든 POST 요청에 `MCP-Protocol-Version` header를 넣고, 값은 `_meta`의 `io.modelcontextprotocol/protocolVersion`과 같다. 다르면 서버는 `400`과 `HeaderMismatch`로 거절한다 | [MCP 2026-07-28 Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata) | MUST |
 | 모든 요청에 `Mcp-Method`를, `tools/call`·`resources/read`·`prompts/get`에는 `Mcp-Name`을 붙인다 | [Streamable HTTP — Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers) | REQUIRED |
-| header에 그대로 쓸 수 없는 `Mcp-Name`은 UTF-8의 Base64를 `=?base64?…?=`로 적는다. 서버는 풀어서 본문과 비교한다 | [Streamable HTTP — Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding) | MUST |
+| `Mcp-Name`에 ASCII 밖의 글자나 제어 문자, 앞뒤 공백이 있거나 `=?base64?…?=` 모양이면 UTF-8의 Base64를 `=?base64?…?=`로 적는다. 서버는 풀어서 본문과 비교한다 | [Streamable HTTP — Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding) | MUST |
+| client는 tool 정의의 인자에 `x-mcp-header`가 있으면 그 값을 `Mcp-Param-{Name}` header로 붙인다 | [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http), [Tools — x-mcp-header](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header) | MUST |
 | 본문을 처리하는 서버는 header 값이 본문과 다르거나, 필요한 header가 없거나 잘못되었으면 `400`과 `-32020`(`HeaderMismatch`)으로 거절한다 | [Streamable HTTP — Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation) | MUST |
 | header로 정책을 정하는 중개자는 `MCP-Protocol-Version`이 header와 본문을 맞춰 보는 버전인지 확인하고, 아니면 요청을 거절한다 | [Streamable HTTP — Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation) | SHOULD |
 | 서버는 요청한 버전을 구현하지 않으면 `400`과 `UnsupportedProtocolVersionError`에 지원 버전을 담아 답하고, 구현하지 않은 method에는 `404`와 `-32601`로 답한다 | [Streamable HTTP — Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Versioning — Protocol Version Negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation) | MUST |
 | 서버는 `server/discover`를 구현한다. client는 다른 요청 전에 불러 지원 버전을 알아도 되고, 부르지 않아도 된다 | [Versioning — Protocol Version Negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) | MUST, MAY |
 | 서버는 `_meta`에 `serverInfo`를 넣는다. client는 이 값으로 동작을 바꾸거나 보안 판단을 하지 않는다 | [Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) | SHOULD, SHOULD NOT |
-| 2026-07-28만 받는 서버는 `initialize`에 돌려주는 오류에 지원 버전을 적는다. legacy client의 HTTP 요청은 필요한 header가 없어 `400`으로 거절되고, legacy client에게는 새 버전으로 넘어갈 방법이 없다 | [Versioning — Backward Compatibility with Initialization-Based Versions](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#backward-compatibility-with-initialization-based-versions) | SHOULD |
+| 2026-07-28만 받는 서버는 `initialize`에 돌려주는 오류에 지원 버전을 적는다. 옛 client의 HTTP 요청은 필요한 header가 없어 `400`으로 거절되고, 옛 client에게는 새 버전으로 넘어갈 방법이 없다 | [Versioning — Backward Compatibility with Initialization-Based Versions](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#backward-compatibility-with-initialization-based-versions) | SHOULD |
 | client는 요청마다 새 `POST`를 보내고 `Accept`에 `application/json`과 `text/event-stream`을 넣으며, 서버의 JSON 응답과 SSE 응답을 모두 처리한다 | [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST |
 | `Authorization` header는 client가 서버로 보내는 모든 HTTP 요청에 넣는다 | [MCP 2026-07-28 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#token-requirements) | MUST |
 | scope가 모자란 요청에 서버는 `403`과 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답한다. 이번 동작에 필요한 scope는 한 challenge에 모두 넣고, 이미 허락된 scope는 넣지 않아도 된다 | [Authorization — Runtime Insufficient Scope Errors](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#runtime-insufficient-scope-errors), [Scope Challenge Handling](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling) | SHOULD |
