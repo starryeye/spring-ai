@@ -3,7 +3,6 @@ package dev.starryeye.modern.agent.security;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,18 +21,5 @@ class StepUpRequiredExceptionTest {
                 () -> StepUpRequiredException.find(a));
 
         assertThat(found).isEmpty();
-    }
-
-    @Test
-    void withTool은_원래_예외를_cause로_남긴다() {
-        StepUpRequiredException original = new StepUpRequiredException(List.of("products:write"), null);
-
-        StepUpRequiredException named = original.withTool("updateStock");
-
-        assertThat(named.getCause()).isSameAs(original);
-        assertThat(named.tool()).isEqualTo("updateStock");
-        assertThat(named.scopes()).containsExactly("products:write");
-        // 사슬 맨 앞의, tool 이름이 있는 쪽을 찾는다.
-        assertThat(StepUpRequiredException.find(named)).containsSame(named);
     }
 }

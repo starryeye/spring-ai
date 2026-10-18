@@ -24,12 +24,6 @@ public class StepUpRequiredException extends RuntimeException {
         this.tool = tool;
     }
 
-    public StepUpRequiredException(List<String> scopes, String tool, Throwable cause) {
-        super(message(scopes, tool), cause);
-        this.scopes = List.copyOf(scopes);
-        this.tool = tool;
-    }
-
     private static String message(List<String> scopes, String tool) {
         return "추가 권한이 필요하다: " + String.join(" ", scopes) + ((tool == null) ? "" : " (tool=" + tool + ")");
     }
@@ -38,18 +32,18 @@ public class StepUpRequiredException extends RuntimeException {
         return this.scopes;
     }
 
-    /** 권한이 모자랐던 tool 이름이다. transport 단계에서는 알 수 없어 {@code null}일 수 있다. */
+    /**
+     * 권한이 모자랐던 tool 이름이다.
+     * {@code tools/call}이 아닌 요청({@code tools/list}, {@code server/discover})의 {@code 403}이면 {@code null}이다.
+     */
     public String tool() {
         return this.tool;
     }
 
-    /** 원래 예외를 cause로 남긴다. transport에서 던진 자리의 stack trace를 잃지 않기 위해서다. */
-    public StepUpRequiredException withTool(String tool) {
-        return new StepUpRequiredException(this.scopes, tool, this);
-    }
-
     /**
-     * 원인 사슬에서 이 예외를 찾는다. MCP SDK와 Spring AI가 예외를 감쌀 수 있어서다.
+     * 원인 사슬에서 이 예외를 찾는다.
+     * 이 예외는 Spring AI의 tool loop와 Reactor를 지나 채팅 응답까지 올라온다.
+     * 그 사이에 다른 예외에 감싸여도 찾도록 원인 사슬을 따라간다.
      * {@code initCause}는 자기 자신만 막으므로 A → B → A 같은 고리가 생길 수 있다.
      * 한 번 본 예외를 다시 만나면 멈춘다.
      */
