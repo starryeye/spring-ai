@@ -1,0 +1,468 @@
+
+
+===== M1. 실패: token 없는 server/discover → 401과 WWW-Authenticate의 resource_metadata =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: server/discover
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 401
+WWW-Authenticate: Bearer resource_metadata="http://localhost:8181/.well-known/oauth-protected-resource/mcp", scope="products:read"
+(본문 없음)
+
+--- GET http://localhost:8181/.well-known/oauth-protected-resource/mcp (challenge가 알려 준 Protected Resource Metadata)
+→ HTTP 200
+Content-Type: application/json
+{
+  "resource": "http://localhost:8181/mcp",
+  "bearer_methods_supported": [
+    "header"
+  ],
+  "tls_client_certificate_bound_access_tokens": false,
+  "authorization_servers": [
+    "http://localhost:9070"
+  ],
+  "scopes_supported": [
+    "products:read"
+  ]
+}
+
+
+===== 준비 1. ChatGPT형으로 조회 token을 받는다 — user login → authorization request(products:read) → consent → private_key_jwt =====
+POST /login → HTTP 302
+HTTP/1.1 302 
+Location: http://localhost:9070/oauth2/consent?scope=openid%20products:read&client_id=https://localhost:8182/oauth/client.json&state=Jpve6A_7r5x9ZXptrLlJtjEl-sNLF2xpnkFJ7z9Dp60%3D
+consent 화면(GET /oauth2/consent)의 핵심 줄:
+<h1>권한 요청: Shop Agent (ChatGPT형)</h1>
+<p>client 문서: <code>localhost:8182</code>
+<p>허락하면 돌아갈 주소: <code>localhost:8180</code>
+<strong>이 client는 이 기기의 주소(localhost)로만 돌아갑니다. 같은 기기의 다른 프로그램도 이 client의 이름을 댈 수 있으니, 직접 시작한 요청인지 확인하세요.</strong>
+<input type="checkbox" name="scope" value="products:read" id="products:read"> products:read</label>
+체크한 scope: products:read
+HTTP/1.1 302 
+Location: http://localhost:8180/login/oauth2/code/authserver?code=FguM3-TnF0OD...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9070
+POST /oauth2/token
+  grant_type=authorization_code
+  code=FguM3-TnF0OD...
+  redirect_uri=http://localhost:8180/login/oauth2/code/authserver
+  code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+  resource=http://localhost:8181/mcp
+  client_id=https://localhost:8182/oauth/client.json
+  client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+  client_assertion=eyJhbGciOiJSUzI1NiIs...
+→ HTTP 200
+{"access_token":"eyJraWQiOiJhZjVjMzJm...","refresh_token":"vONaHRA8uKV3...","scope":"products:read openid","id_token":"eyJraWQiOiJhZjVjMzJm...","token_type":"Bearer","expires_in":299}
+access token payload:
+{"sub":"user","aud":"http://localhost:8181/mcp","nbf":1792299542,"scope":["products:read","openid"],"iss":"http://localhost:9070","exp":1792299842,"iat":1792299542,"jti":"c607d8be-259b-4711-adde-573d605acf45","client_id":"https://localhost:8182/oauth/client.json"}
+
+
+===== M2. ChatGPT형 조회 token으로 server/discover → 200, 서버가 지원하는 버전과 정보 =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: server/discover
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "server/discover",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 200
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "supportedVersions": [
+      "2026-07-28"
+    ],
+    "capabilities": {
+      "tools": {
+        "listChanged": false
+      }
+    },
+    "ttlMs": 0,
+    "cacheScope": "private",
+    "resultType": "complete",
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "modern-shop-mcp-server",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+
+===== M3. ChatGPT형 조회 token으로 tools/list → 200, ttlMs와 cacheScope =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/list
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/list",
+  "params": {
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 200
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "ttlMs": 60000,
+    "cacheScope": "private",
+    "resultType": "complete",
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "modern-shop-mcp-server",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+tool 7개 (정의는 이름만 보인다): searchProducts, getStock, updateStock, createBasket, addItem, getBasket, checkout
+
+
+===== M4. ChatGPT형 조회 token으로 tools/call searchProducts → 200, 검색 결과 =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: searchProducts
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "searchProducts",
+    "arguments": {
+      "keyword": "노트북"
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 200
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "- [p1] 게이밍 노트북 15인치 (노트북) / 1,890,000원 / 재고 7개\n- [p2] 사무용 노트북 14인치 (노트북) / 990,000원 / 재고 23개"
+      }
+    ],
+    "isError": false,
+    "resultType": "complete",
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "modern-shop-mcp-server",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+
+===== M5. 실패: 조회 token으로 updateStock → 403, challenge의 scope="products:write" =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: updateStock
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "updateStock",
+    "arguments": {
+      "productId": "p1",
+      "quantity": 10
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 403
+WWW-Authenticate: Bearer error="insufficient_scope", scope="products:write", resource_metadata="http://localhost:8181/.well-known/oauth-protected-resource/mcp"
+(본문 없음)
+MCP Server 로그: scope 부족 — 사용자=user, client_id=https://localhost:8182/oauth/client.json, tool=updateStock, 모자란 scope=products:write, 가진 scope=[openid, products:read]
+
+
+===== M6. 실패: Mcp-Name은 searchProducts인데 본문의 name은 updateStock → 400 =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: searchProducts
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "method": "tools/call",
+  "params": {
+    "name": "updateStock",
+    "arguments": {
+      "productId": "p1",
+      "quantity": 10
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 400
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 6,
+  "error": {
+    "code": -32020,
+    "message": "Mcp-Name header does not match request name/uri"
+  }
+}
+
+
+===== M7. 실패: 본문의 name이 문자열이 아니라 숫자 1 → 400 =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: searchProducts
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "method": "tools/call",
+  "params": {
+    "name": 1,
+    "arguments": {
+      "keyword": "노트북"
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 400
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 7,
+  "error": {
+    "code": -32602,
+    "message": "Unknown tool: 1"
+  }
+}
+
+
+===== M8. 실패: 옛 형식의 initialize(2025-11-25) → 400 =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2025-11-25
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2025-11-25",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "modern-shop-agent",
+      "version": "0.0.1"
+    }
+  }
+}
+
+→ HTTP 400
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 8,
+  "error": {
+    "code": -32020,
+    "message": "Missing required header: Mcp-Method"
+  }
+}
+
+
+===== 준비 2. Claude형으로 쓰기 token을 받는다 — M5의 403이 알린 products:write를 이미 가진 products:read와 합쳐 authorization request → consent → none =====
+POST /login → HTTP 302
+HTTP/1.1 302 
+Location: http://localhost:9070/oauth2/consent?scope=openid%20products:read%20products:write&client_id=https://localhost:8182/oauth/public-client.json&state=kYzbPmxhVTcbZBdltVynWOTXzbZNSBC-Y8JSUMA1YLY%3D
+consent 화면(GET /oauth2/consent)의 핵심 줄:
+<h1>권한 요청: Shop Agent (Claude형)</h1>
+<p>client 문서: <code>localhost:8182</code>
+<p>허락하면 돌아갈 주소: <code>localhost:8180</code>
+<strong>이 client는 이 기기의 주소(localhost)로만 돌아갑니다. 같은 기기의 다른 프로그램도 이 client의 이름을 댈 수 있으니, 직접 시작한 요청인지 확인하세요.</strong>
+<input type="checkbox" name="scope" value="products:read" id="products:read"> products:read</label>
+<input type="checkbox" name="scope" value="products:write" id="products:write"> products:write</label>
+체크한 scope: products:read products:write
+HTTP/1.1 302 
+Location: http://localhost:8180/login/oauth2/code/authserver?code=pQteJ086-5Ud...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9070
+POST /oauth2/token
+  grant_type=authorization_code
+  code=pQteJ086-5Ud...
+  redirect_uri=http://localhost:8180/login/oauth2/code/authserver
+  code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+  resource=http://localhost:8181/mcp
+  client_id=https://localhost:8182/oauth/public-client.json
+→ HTTP 200
+{"access_token":"eyJraWQiOiJhZjVjMzJm...","refresh_token":"JogrW5lncF-0...","scope":"products:read openid products:write","id_token":"eyJraWQiOiJhZjVjMzJm...","token_type":"Bearer","expires_in":299}
+access token payload:
+{"sub":"user","aud":"http://localhost:8181/mcp","nbf":1792299544,"scope":["products:read","openid","products:write"],"iss":"http://localhost:9070","exp":1792299844,"iat":1792299544,"jti":"b05da540-f17c-4c32-a718-8e2e816cbbd8","client_id":"https://localhost:8182/oauth/public-client.json"}
+
+
+===== M9. Claude형 쓰기 token으로 updateStock → 200, 재고를 바꿨다 =====
+POST http://localhost:8181/mcp
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: updateStock
+Authorization: Bearer eyJraWQiOiJhZjVjMzJm...
+
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "tools/call",
+  "params": {
+    "name": "updateStock",
+    "arguments": {
+      "productId": "p1",
+      "quantity": 10
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+      "io.modelcontextprotocol/clientInfo": {
+        "name": "modern-shop-agent",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+
+→ HTTP 200
+Content-Type: application/json;charset=UTF-8
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다."
+      }
+    ],
+    "isError": false,
+    "resultType": "complete",
+    "_meta": {
+      "io.modelcontextprotocol/serverInfo": {
+        "name": "modern-shop-mcp-server",
+        "version": "0.0.1"
+      }
+    }
+  }
+}
+MCP Server 로그: updateStock 호출 (productId=p1, quantity=10, 사용자=user)
+MCP Server 로그에서 updateStock 호출 줄 수: 1
+
+
+===== 요약. 단계마다 기대한 HTTP 상태와 받은 상태 =====
+M1: 기대 401, 실제 401
+M2: 기대 200, 실제 200
+M3: 기대 200, 실제 200
+M4: 기대 200, 실제 200
+M5: 기대 403, 실제 403
+M6: 기대 400, 실제 400
+M7: 기대 400, 실제 400
+M8: 기대 400, 실제 400
+M9: 기대 200, 실제 200
