@@ -4,6 +4,7 @@ import com.jayway.jsonpath.JsonPath;
 import dev.starryeye.modern.agent.cimd.ClientMetadataServer;
 import dev.starryeye.modern.agent.cimd.TestTls;
 import dev.starryeye.modern.agent.config.McpSecurityConfig;
+import dev.starryeye.modern.agent.config.ToolCatalogConfig;
 import dev.starryeye.modern.agent.discovery.DiscoveryFixtures;
 import dev.starryeye.modern.agent.discovery.McpAuthorizationDiscovery;
 import dev.starryeye.modern.agent.mcp.ModernMcpClient;
@@ -75,9 +76,6 @@ class ShopAgentApplicationTests {
 
     @Autowired
     OAuth2AuthorizedClientService authorizedClientService;
-
-    @Autowired
-    UserToolCatalog toolCatalog;
 
     @Autowired
     ClientMetadataServer clientMetadataServer;
@@ -198,22 +196,37 @@ class ShopAgentApplicationTests {
      * bean이 있는지가 아니라, 운영과 같은 연결로 받은 목록 요청에 login한 사용자의 token이 실제로 가는지 본다.
      * token은 {@code OAuth2AuthorizedClientManager}가 그 사용자의 authorized client에서 꺼낸다.
      * 이 연결이 끊기면 오류 없이 token만 빠져 MCP Server가 401을 준다(6장 "조용히 401").
+     *
+     * <p>context의 catalog bean은 같은 context를 쓰는 다른 테스트가 먼저 불렀을 수 있다.
+     * 그러면 {@code server/discover}를 이미 마쳤고 목록도 cache에 있어서, 두 요청이 나가지 않는다.
+     * 그래서 bean을 만드는 메서드로 새 catalog를 만들어, 테스트 순서와 상관없이 같은 결과를 보게 한다.
      */
     @Test
     void 로그인한_사용자의_token으로_tool_목록을_받는다() {
-        Authentication alice = UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of());
-        Instant now = Instant.now();
-        this.authorizedClientService.saveAuthorizedClient(new OAuth2AuthorizedClient(
-                this.clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID), "alice",
-                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "alice-access-token", now,
-                        now.plusSeconds(300))), alice);
+        Authentication alice = 로그인한_사용자("alice");
         given(this.mcpClient.listTools(any(), any()))
                 .willReturn(McpSchema.ListToolsResult.builder(List.of()).ttlMs(60_000).build());
 
-        this.toolCatalog.callbacks(alice);
+        새_catalog().callbacks(alice);
 
         verify(this.mcpClient).discover("alice-access-token");
         verify(this.mcpClient).listTools("alice-access-token", null);
+    }
+
+    /** 운영과 같은 연결(이 context의 {@code OAuth2AuthorizedClientManager})로 만든 새 catalog다. */
+    UserToolCatalog 새_catalog() {
+        return new ToolCatalogConfig().userToolCatalog(this.mcpClient, this.authorizedClientManager);
+    }
+
+    /** {@code <name>-access-token}을 가진 authorized client를 저장하고, 그 사용자의 인증 정보를 돌려준다. */
+    Authentication 로그인한_사용자(String name) {
+        Authentication user = UsernamePasswordAuthenticationToken.authenticated(name, null, List.of());
+        Instant now = Instant.now();
+        this.authorizedClientService.saveAuthorizedClient(new OAuth2AuthorizedClient(
+                this.clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID), name,
+                new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, name + "-access-token", now,
+                        now.plusSeconds(300))), user);
+        return user;
     }
 
     /**
