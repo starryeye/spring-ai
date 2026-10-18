@@ -18,20 +18,31 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.Authenticator;
 import java.net.ConnectException;
+import java.net.CookieHandler;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ProxySelector;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -397,6 +408,96 @@ class ModernMcpClientTest {
 					assertThat(error.getMessage()).contains("연결하지 못했다");
 				})
 				.hasCauseInstanceOf(ConnectException.class);
+	}
+
+	/**
+	 * 연결 제한 시간이 지나도 JDK는 {@code HttpTimeoutException}의 하위 type을 던진다.
+	 * 이때 "답하지 않았다"와 응답 제한 시간을 말하면 원인과 시간을 모두 잘못 알린다.
+	 * 연결이 늦어지는 주소는 환경마다 달라서, 연결 제한 시간이 지난 것처럼 실패하는 client로 본다.
+	 */
+	@Test
+	void 연결_제한_시간이_지나면_그_시간_안에_연결하지_못했다고_알린다() {
+		ModernMcpClient slowToConnect = new ModernMcpClient(URI.create(origin() + "/mcp"),
+				new ConnectTimingOut(Duration.ofSeconds(2)), MCP_JSON);
+
+		assertThatThrownBy(() -> slowToConnect.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class, error -> {
+					assertThat(error.httpStatus()).isZero();
+					assertThat(error.getMessage()).isEqualTo("MCP Server에 2초 안에 연결하지 못했다");
+				})
+				.hasCauseInstanceOf(HttpConnectTimeoutException.class);
+	}
+
+	/** {@code send}가 연결 제한 시간이 지난 것처럼 실패하는 client다. 나머지 메서드는 이 시험에서 쓰지 않는다. */
+	static final class ConnectTimingOut extends HttpClient {
+
+		private final Duration connectTimeout;
+
+		ConnectTimingOut(Duration connectTimeout) {
+			this.connectTimeout = connectTimeout;
+		}
+
+		@Override
+		public Optional<Duration> connectTimeout() {
+			return Optional.of(this.connectTimeout);
+		}
+
+		@Override
+		public Redirect followRedirects() {
+			return Redirect.NEVER;
+		}
+
+		@Override
+		public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> handler) throws IOException {
+			throw new HttpConnectTimeoutException("HTTP connect timed out");
+		}
+
+		@Override
+		public Optional<CookieHandler> cookieHandler() {
+			return Optional.empty();
+		}
+
+		@Override
+		public Optional<ProxySelector> proxy() {
+			return Optional.empty();
+		}
+
+		@Override
+		public SSLContext sslContext() {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public SSLParameters sslParameters() {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public Optional<Authenticator> authenticator() {
+			return Optional.empty();
+		}
+
+		@Override
+		public Version version() {
+			return Version.HTTP_1_1;
+		}
+
+		@Override
+		public Optional<Executor> executor() {
+			return Optional.empty();
+		}
+
+		@Override
+		public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request,
+				HttpResponse.BodyHandler<T> handler) {
+			throw new UnsupportedOperationException();
+		}
+
+		@Override
+		public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request,
+				HttpResponse.BodyHandler<T> handler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
+			throw new UnsupportedOperationException();
+		}
 	}
 
 	@Test

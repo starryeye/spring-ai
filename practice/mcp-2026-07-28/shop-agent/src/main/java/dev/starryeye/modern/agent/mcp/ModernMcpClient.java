@@ -16,6 +16,7 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpConnectTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
@@ -215,6 +216,11 @@ public class ModernMcpClient {
 		try {
 			return this.http.send(request, HttpResponse.BodyHandlers.ofInputStream());
 		}
+		catch (HttpConnectTimeoutException ex) {
+			// 늦은 것은 응답이 아니라 연결이다.
+			// HttpTimeoutException의 하위 type이라 그보다 먼저 잡는다.
+			throw transportFailure("MCP Server에 " + describe(connectLimit()) + " 안에 연결하지 못했다", ex);
+		}
 		catch (HttpTimeoutException ex) {
 			throw transportFailure("MCP Server가 " + describe(this.requestTimeout) + " 안에 답하지 않았다", ex);
 		}
@@ -235,6 +241,17 @@ public class ModernMcpClient {
 	private McpTransportException transportFailure(String message, Exception cause) {
 		log.warn("{} ({}): {}", message, this.endpoint, cause.toString());
 		return new McpTransportException(message, cause);
+	}
+
+	/**
+	 * 연결을 기다린 시간의 상한이다.
+	 * 연결 제한 시간과 요청 제한 시간 중 짧은 쪽이 먼저 지난다.
+	 * {@link HttpClient}에 연결 제한 시간이 없으면 요청 제한 시간이 연결까지 덮는다.
+	 */
+	private Duration connectLimit() {
+		return this.http.connectTimeout()
+				.filter(connectTimeout -> connectTimeout.compareTo(this.requestTimeout) < 0)
+				.orElse(this.requestTimeout);
 	}
 
 	private static String describe(Duration duration) {
