@@ -31,9 +31,6 @@ dependencies {
 	// pre-release라 버전을 고정한다.
 	implementation 'io.modelcontextprotocol.sdk:mcp-core:2.2.0-M1'
 	implementation 'io.modelcontextprotocol.sdk:mcp-json-jackson3:2.2.0-M1'
-	// 리액터 컨텍스트 자동 전파용. Spring Security 가 ThreadLocalAccessor 를
-	// ServiceLoader 로 등록해 두었고, 이 라이브러리가 그것을 읽는다.
-	implementation 'io.micrometer:context-propagation'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 	testImplementation 'org.springframework.security:spring-security-test'

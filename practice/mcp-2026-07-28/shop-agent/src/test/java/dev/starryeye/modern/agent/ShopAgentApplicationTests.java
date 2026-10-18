@@ -13,6 +13,7 @@ import dev.starryeye.modern.agent.security.SingleFlightAuthorizedClientManager;
 import io.modelcontextprotocol.modern.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -43,6 +44,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -164,32 +167,29 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * {@code spring.reactor.context-propagation: auto}가 테스트 context에서도 켜져 reactor의 다른 thread에 SecurityContext가 이어지는지 본다.
-     * 이 전파는 {@code main()}이 아니라 설정으로 켜므로 테스트 context에서도 켜져 있어야 한다.
-     * MCP 호출은 이 전파에 기대지 않는다.
-     * {@code UserToolCatalog}가 요청 thread에서 받은 사용자를 tool마다 묶어 두기 때문이다.
+     * 채팅의 tool 호출은 요청 thread 밖, reactor의 thread에서 돈다.
+     * 그 thread의 {@code SecurityContextHolder}는 비어 있으므로, callback은 묶어 둔 사용자로 token을 꺼내야 한다.
+     * token을 꺼내는 manager도 servlet 요청이나 SecurityContext 없이 그 사용자의 authorized client를 찾는다.
+     * 그래서 이 agent는 SecurityContext를 reactor의 thread로 옮기는 설정을 두지 않는다.
      */
     @Test
-    void reactor_의_다른_thread_에서도_SecurityContext_가_이어진다() {
-        SecurityContextHolder.getContext().setAuthentication(
-                UsernamePasswordAuthenticationToken.authenticated("alice", null, List.of()));
-        try {
-            String user = Mono.just("tool call")
-                    .publishOn(Schedulers.boundedElastic())
-                    .map(ignored -> currentUser())
-                    .contextCapture()
-                    .block(Duration.ofSeconds(5));
+    void SecurityContext가_빈_다른_thread에서도_묶인_사용자의_token으로_tool을_부른다() {
+        Authentication bob = 로그인한_사용자("bob");
+        given(this.mcpClient.listTools(any(), any())).willReturn(McpSchema.ListToolsResult.builder(List.of(
+                McpSchema.Tool.builder("getStock", Map.of("type", "object")).description("재고 조회").build())).build());
+        given(this.mcpClient.callTool(any(), any(), any())).willReturn(McpSchema.CallToolResult.builder().build());
+        ToolCallback getStock = 새_catalog().callbacks(bob).get(0);
+        AtomicReference<Authentication> seen = new AtomicReference<>();
 
-            assertThat(user).isEqualTo("alice");
-        }
-        finally {
-            SecurityContextHolder.clearContext();
-        }
-    }
+        Mono.fromRunnable(() -> {
+                    seen.set(SecurityContextHolder.getContext().getAuthentication());
+                    getStock.call("{}");
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                .block(Duration.ofSeconds(5));
 
-    private static String currentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return (authentication != null) ? authentication.getName() : "(없음)";
+        assertThat(seen.get()).isNull();
+        verify(this.mcpClient).callTool("bob-access-token", "getStock", Map.of());
     }
 
     /**
