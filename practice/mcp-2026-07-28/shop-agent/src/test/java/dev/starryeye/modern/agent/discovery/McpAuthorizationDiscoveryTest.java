@@ -4,16 +4,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.time.Duration;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -49,9 +54,22 @@ class McpAuthorizationDiscoveryTest {
 			{"resource":"http://localhost:8181/mcp","authorization_servers":["http://localhost:9070"],\
 			"scopes_supported":["products:read","products:write"]}""";
 
+	static final JsonMapper JSON = JsonMapper.builder().build();
+
+	/** 가짜 서버가 token 없는 첫 요청으로 받은 header와 본문이다. */
+	record Probe(HttpHeaders headers, String body) {
+
+		JsonNode json() {
+			return JSON.readTree(this.body);
+		}
+	}
+
 	MockRestServiceServer server;
 
 	McpAuthorizationDiscovery discovery;
+
+	/** 가장 마지막에 {@link #챌린지}가 받은 요청이다. */
+	Probe probe;
 
 	@BeforeEach
 	void setUp() {
@@ -62,6 +80,8 @@ class McpAuthorizationDiscoveryTest {
 
 	void 챌린지(String wwwAuthenticate) {
 		this.server.expect(requestTo(RESOURCE)).andExpect(method(HttpMethod.POST))
+				.andExpect(request -> this.probe = new Probe(request.getHeaders(),
+						((MockClientHttpRequest) request).getBodyAsString()))
 				.andRespond(withUnauthorizedRequest().header("WWW-Authenticate", wwwAuthenticate));
 	}
 
@@ -88,6 +108,35 @@ class McpAuthorizationDiscoveryTest {
 		assertThat(discovered.tokenEndpoint()).isEqualTo(ISSUER + "/oauth2/token");
 		assertThat(discovered.jwksUri()).isEqualTo(ISSUER + "/oauth2/jwks");
 		assertThat(discovered.issParameterSupported()).isTrue();
+		this.server.verify();
+	}
+
+	@Test
+	void probe는_2026_07_28_형식의_server_discover다() {
+		챌린지("Bearer resource_metadata=\"http://localhost:8181/.well-known/oauth-protected-resource/mcp\"");
+		응답("http://localhost:8181/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
+		응답("http://localhost:9070/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
+
+		this.discovery.discover(RESOURCE, METHOD);
+
+		HttpHeaders headers = this.probe.headers();
+		assertThat(headers.getFirst("MCP-Protocol-Version")).isEqualTo("2026-07-28");
+		assertThat(headers.getFirst("Mcp-Method")).isEqualTo("server/discover");
+		assertThat(headers.getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+		assertThat(headers.getAccept()).containsExactly(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM);
+		// token이 없는 요청이고, tools/call이 아니라서 Mcp-Name도 없다.
+		assertThat(headers.containsHeader("Authorization")).isFalse();
+		assertThat(headers.containsHeader("Mcp-Name")).isFalse();
+
+		JsonNode body = this.probe.json();
+		assertThat(body.get("jsonrpc").asString()).isEqualTo("2.0");
+		assertThat(body.get("id").asInt()).isEqualTo(1);
+		assertThat(body.get("method").asString()).isEqualTo("server/discover");
+		JsonNode meta = body.get("params").get("_meta");
+		assertThat(meta.get("io.modelcontextprotocol/protocolVersion").asString()).isEqualTo("2026-07-28");
+		assertThat(meta.get("io.modelcontextprotocol/clientCapabilities").toString()).isEqualTo("{}");
+		assertThat(meta.get("io.modelcontextprotocol/clientInfo"))
+				.isEqualTo(JSON.valueToTree(Map.of("name", "modern-shop-agent", "version", "0.0.1")));
 		this.server.verify();
 	}
 

@@ -1,5 +1,8 @@
 package dev.starryeye.modern.agent.discovery;
 
+import dev.starryeye.modern.agent.mcp.ModernMcpClient;
+
+import io.modelcontextprotocol.modern.McpSchema;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,7 +26,7 @@ import java.util.regex.Pattern;
  *
  * <p>순서는 명세가 정해 두었다.
  * <ol>
- *   <li>token 없이 MCP Server를 불러 401과 {@code WWW-Authenticate}를 받는다</li>
+ *   <li>token 없이 MCP Server를 {@code server/discover}로 불러 401과 {@code WWW-Authenticate}를 받는다</li>
  *   <li>header의 {@code resource_metadata}를 따라간다. MCP Server와 origin이 다르면 따라가지 않고 멈춘다.
  *       없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
  *   <li>{@code 401}의 {@code scope}와 PRM의 {@code scopes_supported}로 처음 요청할 scope를 고른다</li>
@@ -69,10 +72,19 @@ public class McpAuthorizationDiscovery {
 			new ParameterizedTypeReference<>() {
 			};
 
-	/** discovery용 probe 요청이다. 서버는 이 본문을 읽기 전에 401을 준다. */
-	private static final String INITIALIZE = """
-			{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",\
-			"capabilities":{},"clientInfo":{"name":"discovery-probe","version":"1.0.0"}}}""";
+	/**
+	 * discovery용 probe 요청의 본문이다.
+	 * MCP Server는 2026-07-28 형식만 받으므로 probe도 같은 형식의 {@code server/discover}로 보낸다.
+	 * Spring Security가 token 없는 요청에 401을 먼저 주어서 MCP Server는 이 본문을 읽지 않는다.
+	 * 그래도 올바른 요청으로 보내 두면, 본문을 먼저 읽는 서버가 401 대신 400을 주는 일이 없다.
+	 * 그러면 401의 이유는 token이 없다는 것 하나뿐이다.
+	 */
+	private static final String SERVER_DISCOVER = """
+			{"jsonrpc":"2.0","id":1,"method":"%s","params":{"_meta":{\
+			"io.modelcontextprotocol/protocolVersion":"%s",\
+			"io.modelcontextprotocol/clientCapabilities":{},\
+			"io.modelcontextprotocol/clientInfo":{"name":"modern-shop-agent","version":"0.0.1"}}}}"""
+			.formatted(McpSchema.METHOD_SERVER_DISCOVER, ModernMcpClient.PROTOCOL_VERSION);
 
 	/** MCP Server나 Authorization Server가 연결을 받아 주기까지 기다리는 시간이다. */
 	public static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
@@ -192,7 +204,9 @@ public class McpAuthorizationDiscovery {
 					.uri(resourceUrl)
 					.contentType(MediaType.APPLICATION_JSON)
 					.accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
-					.body(INITIALIZE)
+					.header("MCP-Protocol-Version", ModernMcpClient.PROTOCOL_VERSION)
+					.header("Mcp-Method", McpSchema.METHOD_SERVER_DISCOVER)
+					.body(SERVER_DISCOVER)
 					.exchange((request, response) -> {
 						if (response.getStatusCode().value() != 401) {
 							throw new McpDiscoveryException("토큰 없는 요청에 401 이 아니라 %s 가 왔다: %s"
