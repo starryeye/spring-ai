@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
  * Spring AI는 {@link ToolExecutionException}만 잡으므로, 이 예외는 tool loop를 지나 채팅 응답까지 올라가 consent 카드가 된다.
  * 모델에게 오류 문장으로 넘기면 모델은 "권한이 없습니다" 같은 답을 지어낼 뿐, 사용자는 권한을 줄 기회를 얻지 못한다.
  * MCP Server의 다른 오류({@link ModernMcpException})는 {@link ToolExecutionException}으로 바꾼다.
+ * 응답을 받지 못한 경우({@link McpTransportException})도 같다.
  * 그러면 Spring AI 기본 처리가 오류 문장을 모델에게 tool 결과로 주고 turn이 이어진다.
  * {@code spring.ai.tools.throw-exception-on-error}를 켜면 기본 처리가 대신 다시 던진다.
  * 모르는 tool 오류면 그 전에 {@code onUnknownTool}을 불러 낡은 목록을 버린다.

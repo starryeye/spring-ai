@@ -18,9 +18,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpTimeoutException;
@@ -362,10 +363,32 @@ class ModernMcpClientTest {
 				.followRedirects(HttpClient.Redirect.NEVER)
 				.build(), MCP_JSON, Duration.ofMillis(200));
 
-		assertThatThrownBy(() -> impatient.listTools("token-a", null))
-				.isInstanceOf(UncheckedIOException.class)
+		// 응답이 없으므로 HTTP status는 0이다. tool 호출이면 이 문장이 모델에게 tool 결과로 간다.
+		assertThatThrownBy(() -> impatient.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class, error -> {
+					assertThat(error.httpStatus()).isZero();
+					assertThat(error.jsonRpcCode()).isNull();
+					assertThat(error.getMessage()).contains("답하지 않았다");
+				})
 				.hasCauseInstanceOf(HttpTimeoutException.class);
 		assertThat(ModernMcpClient.REQUEST_TIMEOUT).isEqualTo(Duration.ofSeconds(20));
+	}
+
+	@Test
+	void MCP_Server에_연결하지_못하면_McpTransportException이다() throws IOException {
+		int closedPort;
+		try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+			closedPort = socket.getLocalPort();
+		}
+		ModernMcpClient unreachable = new ModernMcpClient(URI.create("http://127.0.0.1:" + closedPort + "/mcp"),
+				HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build(), MCP_JSON);
+
+		assertThatThrownBy(() -> unreachable.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class, error -> {
+					assertThat(error.httpStatus()).isZero();
+					assertThat(error.getMessage()).contains("연결하지 못했다");
+				})
+				.hasCauseInstanceOf(ConnectException.class);
 	}
 
 	@Test

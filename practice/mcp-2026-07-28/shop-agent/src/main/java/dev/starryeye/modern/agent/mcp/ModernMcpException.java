@@ -7,7 +7,7 @@ package dev.starryeye.modern.agent.mcp;
  * 같은 {@code -32602}도 모르는 tool일 때와 인자가 틀렸을 때 모두 쓰이므로, 둘 다 남겨 둔다.
  * filter와 SDK가 만든 오류 본문에는 {@code id}가 없을 수 있어서, 요청과 맞춰 보지 않고 이 두 값으로만 가른다.
  * 자주 만나는 경우는 하위 class로 나눈다({@link UnknownToolException}, {@link ToolRateLimitedException},
- * {@link McpProtocolMismatchException}).
+ * {@link McpProtocolMismatchException}, {@link McpTransportException}).
  */
 public class ModernMcpException extends RuntimeException {
 
@@ -23,6 +23,13 @@ public class ModernMcpException extends RuntimeException {
 	 */
 	public ModernMcpException(int httpStatus, Integer jsonRpcCode, String message) {
 		super(message);
+		this.httpStatus = httpStatus;
+		this.jsonRpcCode = jsonRpcCode;
+	}
+
+	/** 응답을 받지 못한 경우처럼 원인 예외가 있을 때 쓴다. 원인은 log에서 볼 수 있게 남긴다. */
+	protected ModernMcpException(int httpStatus, Integer jsonRpcCode, String message, Throwable cause) {
+		super(message, cause);
 		this.httpStatus = httpStatus;
 		this.jsonRpcCode = jsonRpcCode;
 	}

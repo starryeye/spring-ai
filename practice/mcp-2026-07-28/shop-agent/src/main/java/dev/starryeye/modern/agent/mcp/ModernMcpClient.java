@@ -18,6 +18,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
@@ -43,6 +44,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>오류는 HTTP status와 JSON-RPC {@code error.code}로 가른다.
  * filter와 SDK가 만든 오류 본문에는 {@code id}가 없을 수 있어서, 오류는 요청의 {@code id}와 맞춰 보지 않는다.
  * 결과는 요청의 {@code id}와 같은 것만 받는다.
+ * 응답을 받지 못한 경우(연결 거절, 시간 초과, 중단)도 {@link McpTransportException}으로 알린다.
+ * 그래서 이 client가 던지는 MCP 쪽 실패는 모두 {@link ModernMcpException}이거나 step-up 예외다.
  */
 public class ModernMcpClient {
 
@@ -165,7 +168,7 @@ public class ModernMcpClient {
 			return result(response, rpc, id, name, type);
 		}
 		catch (IOException ex) {
-			throw new UncheckedIOException("MCP 응답을 읽지 못했다(" + method + ")", ex);
+			throw transportFailure("MCP Server의 응답을 읽다 연결이 끊겼다", ex);
 		}
 	}
 
@@ -199,13 +202,30 @@ public class ModernMcpClient {
 		try {
 			return this.http.send(request, HttpResponse.BodyHandlers.ofInputStream());
 		}
+		catch (HttpTimeoutException ex) {
+			throw transportFailure("MCP Server가 " + describe(this.requestTimeout) + " 안에 답하지 않았다", ex);
+		}
 		catch (IOException ex) {
-			throw new UncheckedIOException("MCP Server에 요청을 보내지 못했다(" + this.endpoint + ")", ex);
+			throw transportFailure("MCP Server에 연결하지 못했다", ex);
 		}
 		catch (InterruptedException ex) {
+			// 기다리던 thread를 멈추라는 요청이므로, 예외로 바꾸더라도 interrupt 표시는 되돌려 둔다.
 			Thread.currentThread().interrupt();
-			throw new IllegalStateException("MCP 요청을 기다리다 중단되었다", ex);
+			throw transportFailure("MCP Server의 응답을 기다리다 중단되었다", ex);
 		}
+	}
+
+	/**
+	 * 모델에게 갈 수 있는 문장이라 내부 주소는 message에 넣지 않고 log에만 남긴다.
+	 * 원인 예외는 cause로 둔다.
+	 */
+	private McpTransportException transportFailure(String message, Exception cause) {
+		log.warn("{} ({}): {}", message, this.endpoint, cause.toString());
+		return new McpTransportException(message, cause);
+	}
+
+	private static String describe(Duration duration) {
+		return (duration.toMillis() % 1000 == 0) ? duration.toSeconds() + "초" : duration.toMillis() + "ms";
 	}
 
 	/**

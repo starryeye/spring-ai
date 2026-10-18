@@ -8,6 +8,7 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.execution.ToolExecutionException;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.net.ConnectException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -128,6 +129,18 @@ class ModernToolCallbackTest {
 		assertThatThrownBy(() -> this.callback.call("{}"))
 				.isInstanceOf(ToolExecutionException.class)
 				.hasMessage("Invalid arguments for tool updateStock");
+		assertThat(this.forgotten).hasValue(0);
+	}
+
+	@Test
+	void MCP_Server에_닿지_못하면_목록을_두고_ToolExecutionException이다() {
+		// 예외가 tool loop 밖으로 나가면 채팅이 오류로 끊기고, 답 없는 tool 호출이 대화 기억에 남는다.
+		given(this.client.callTool(anyString(), anyString(), anyMap()))
+				.willThrow(new McpTransportException("MCP Server에 연결하지 못했다", new ConnectException()));
+
+		assertThatThrownBy(() -> this.callback.call("{}"))
+				.isInstanceOf(ToolExecutionException.class)
+				.hasMessage("MCP Server에 연결하지 못했다");
 		assertThat(this.forgotten).hasValue(0);
 	}
 
