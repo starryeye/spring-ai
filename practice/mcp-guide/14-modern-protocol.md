@@ -283,7 +283,7 @@ tool을 부르는 `tools/call`에만 붙고, `server/discover`와 `tools/list`�
 그래서 ASCII 밖의 글자나 제어 문자가 있는 이름, 앞이나 뒤에 공백이 있는 이름은 UTF-8의 Base64로 바꿔 `=?base64?…?=`로 적는다.
 `=?base64?`로 시작하고 `?=`로 끝나는 ASCII 이름도 Base64로 적는다.
 그대로 보내면 서버가 그 이름을 Base64 표기로 보고 풀어 버리기 때문이다.
-agent는 이 규칙을 그대로 따르고, 나머지 이름은 가운데 공백까지 그대로 적는다.
+agent는 이 규칙을 따르고, 나머지 이름은 가운데 공백까지 바꾸지 않고 적는다.
 예를 들어 이름이 `재고조회`인 tool이라면 `Mcp-Name: =?base64?7J6s6rOg7KGw7ZqM?=`다.
 이 practice의 tool 이름은 모두 평범한 영문이라 그대로 간다.
 
@@ -436,13 +436,15 @@ SDK 2.2.0-M1은 `=?base64?=` 같은 값을 풀다 예외를 던져 `500`으로 �
 
 2026-07-28은 header로 정책을 정하는 gateway에게, `MCP-Protocol-Version`이 header와 본문을 맞춰 보는 버전인지 먼저 확인하게 한다.
 옛 버전의 요청은 서버가 header를 본문과 맞춰 본다는 보장이 없기 때문이다.
-이 서버의 SDK는 2026-07-28 요청만 받고, 버전과 header를 모두 맞춰 본 뒤에야 실행한다.
-filter가 넘긴 요청이라도 SDK의 검사를 지나지 못하면 실행되지 않으므로, filter는 버전을 따로 보지 않는다.
+이 서버의 SDK는 2026-07-28 요청만 받고, 실행하기 전에 버전과 header를 본문과 맞춰 본다.
+SDK가 맞춰 보지 못하는 문자열이 아닌 이름은 앞에서 본 대로 `ShopToolRepository`가 막는다.
+filter가 넘긴 요청이라도 이 두 검사를 지나지 못하면 실행되지 않으므로, filter는 버전을 따로 보지 않는다.
 
 **오류의 HTTP 상태**
 
 SDK 2.2.0-M1은 JSON-RPC 오류 code에 따라 HTTP 상태를 정한다.
 `-32602`(Invalid params), `-32020`, `-32021`, `-32022`는 `400`이고, `-32601`(Method not found)은 `404`다.
+그 밖의 code는 HTTP `200`이다.
 그래서 숨긴 tool과 없는 tool의 호출은 [12장](12-tool-visibility.md#124-2단계-숨긴-tool을-부르면)에서는 HTTP `200`이었지만 이 practice에서는 `400`이다.
 숨긴 tool은 `ShopToolRepository.find`가 `null`을 돌려주므로, 이 practice에서도 없는 tool과 같은 `Unknown tool: <이름>`을 받는다.
 오류 본문에는 `code`와 `message`만 있고, tool이 던진 예외는 `-32603` `Internal error`가 되며 자세한 내용은 로그에만 남는다.
@@ -646,7 +648,7 @@ redirect를 따라가는 `HttpClient`는 받지 않는다.
 | `403`과 `error="insufficient_scope"` | `StepUpRequiredException`(challenge의 scope) | 채팅까지 올라가 consent 카드가 된다 |
 | `429` | `ToolRateLimitedException`(`Retry-After`) | 모델에게 tool 오류 문장으로 간다 |
 | `-32602`이고 message가 `Unknown tool: `로 시작 | `UnknownToolException` | 그 token의 목록을 버리고, 모델에게 tool 오류 문장으로 간다 |
-| `-32020`·`-32021`·`-32022` | `McpProtocolMismatchException` | client가 요청을 잘못 만든 것이라 다시 보내도 결과가 같다 |
+| `-32020`·`-32021`·`-32022` | `McpProtocolMismatchException` | client가 요청을 잘못 만든 것이라 다시 보내도 결과가 같다. 로그에 WARN을 남기고, 모델에게 tool 오류 문장으로 간다 |
 | 응답 없음(연결 거절, 시간 초과) | `McpTransportException` | 모델에게 tool 오류 문장으로 간다 |
 | `resultType`이 `complete`가 아님 | `ModernMcpException` | 이 agent는 서버가 입력을 되묻는 흐름을 다루지 않는다 |
 
@@ -669,8 +671,9 @@ public List<ToolCallback> callbacks(Authentication user) {
 
 `ChatController`는 요청 thread에서 login한 사용자(`Authentication`)를 꺼내 이 메서드에 넘긴다.
 tool 호출은 reactor의 thread에서 돌지만, callback이 사용자를 들고 있으므로 thread-local인 `SecurityContextHolder`에서 사용자를 찾지 않는다.
+token을 꺼내는 `OAuth2AuthorizedClientManager`도 SecurityContext 없이, 넘겨받은 사용자로 authorized client를 찾는다.
 13장의 agent는 reactor thread로 옮겨 온 SecurityContext에서 사용자를 읽어 MCP 요청에 token을 붙였다.
-`application.yml`에는 `spring.reactor.context-propagation: auto`가 그대로 있지만, MCP 호출은 이 설정에 기대지 않는다.
+이 agent에는 그럴 일이 없으므로, SecurityContext를 reactor thread로 옮기는 `spring.reactor.context-propagation: auto` 설정을 두지 않는다.
 
 `ModernToolCallback`은 SDK의 `Tool`로 Spring AI의 `ToolDefinition`을 만들고, 호출을 `ModernMcpClient.callTool`에 넘긴다.
 결과 content의 text를 이어 붙여 돌려주고, tool이 실패한 결과(`isError`)도 같은 방식으로 돌려준다.
@@ -691,9 +694,13 @@ SDK에 2026-07-28 client가 생기면 이 두 클래스만 바꾸면 된다.
 
 ## 14.12 다루지 않는 것
 
-- MRTR(`input_required`): 서버가 client에게 입력을 되묻는 2026-07-28의 방식이다. agent는 client capability를 선언하지 않는다.
-- `subscriptions/listen`: 목록 변경 같은 알림을 받는 stream이다. 서버는 `listChanged: false`를 알린다.
-- `x-mcp-header`(`Mcp-Param-*`): tool 인자를 header로 옮기는 방식이다. 이 practice의 tool 정의에는 없고, agent도 처리하지 않는다. 명세는 tool 정의에 이 표시가 있으면 client가 그 header를 붙이게 하므로, 이 확장을 쓰는 MCP Server에 붙으려면 agent가 이 표시를 읽어 header를 붙여야 한다.
+- MRTR(`input_required`): 서버가 client에게 입력을 되묻는 2026-07-28의 방식이다.
+  agent는 client capability를 선언하지 않는다.
+- `subscriptions/listen`: 목록 변경 같은 알림을 받는 stream이다.
+  서버는 `listChanged: false`를 알린다.
+- `x-mcp-header`(`Mcp-Param-*`): tool 인자를 header로 옮기는 방식이다.
+  이 practice의 tool 정의에는 없고, agent도 처리하지 않는다.
+  명세는 tool 정의에 이 표시가 있으면 client가 그 header를 붙이게 하므로, 이 확장을 쓰는 MCP Server에 붙으려면 agent가 이 표시를 읽어 header를 붙여야 한다.
 - tasks와 그 밖의 확장.
 - 2025-11-25와 2026-07-28을 함께 받는 dual-era 서버.
 - 실제 제품을 이 MCP Server에 붙이는 것: Claude Code(CLI)처럼 사용자 기기에서 도는 client를 붙이려면 Authorization Server가 공인 인증서를 믿고 `localhost` redirect의 포트를 무시해 비교해야 한다.

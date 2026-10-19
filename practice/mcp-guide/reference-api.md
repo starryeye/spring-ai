@@ -418,6 +418,7 @@ Content-Length: 0
 - MCP 2026-07-28 Streamable HTTP: [Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers), [Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding), [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation), [Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions)
 - MCP 2026-07-28: [Overview — `_meta`](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#_meta), [Versioning — Protocol Version Negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)
 - MCP 2026-07-28 Caching·Authorization: [Cacheable Results](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cacheable-results), [Scope Challenge Handling](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling)
+- MCP 2026-07-28 Tools: [x-mcp-header](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header), [Error Handling](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#error-handling), [Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#security-considerations)
 
 **요청 header**
 
@@ -425,7 +426,7 @@ Content-Length: 0
 |---|---|---|---|
 | `MCP-Protocol-Version` | MUST — 모든 POST 요청, 값은 `_meta`의 `io.modelcontextprotocol/protocolVersion`과 같다 ([Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)) | 다르면 `400`과 `HeaderMismatch`, 구현하지 않은 버전이면 `400`과 `UnsupportedProtocolVersionError`로 답한다(둘 다 MUST) | agent는 `2026-07-28`을 보낸다. `_meta`와 다르면 SDK가 `400`, `-32020`으로 답한다(`ModernProtocolTest`) |
 | `Mcp-Method` | REQUIRED — 모든 요청 ([Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers)) | 본문의 `method`를 옮긴다. 없거나 본문과 다르면 `400`과 `-32020`이다(MUST, [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation)) | agent는 모든 요청에 붙인다. 이 header가 없는 옛 `initialize`는 `400`, `Missing required header: Mcp-Method`다(M8) |
-| `Mcp-Name` | REQUIRED — `tools/call`·`resources/read`·`prompts/get` | 본문의 `params.name`이나 `params.uri`를 옮긴다. ASCII 밖의 글자·제어 문자·앞뒤 공백이 있는 값과 `=?base64?…?=` 모양의 ASCII 값은 UTF-8의 Base64를 `=?base64?…?=`로 적는다(MUST, [Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding)) | agent는 `tools/call`에만 붙이고, 왼쪽 칸의 네 경우를 모두 Base64로 적는다(`ModernMcpClientTest`). 본문과 다르면 `400`, `-32020`, `Mcp-Name header does not match request name/uri`다(M6) |
+| `Mcp-Name` | REQUIRED — `tools/call`·`resources/read`·`prompts/get` | 본문의 `params.name`이나 `params.uri`를 옮긴다. ASCII 밖의 글자·제어 문자·앞뒤 공백이 있는 값과 `=?base64?…?=` 모양의 ASCII 값은 UTF-8의 Base64를 `=?base64?…?=`로 적는다(MUST, [Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding)) | agent는 `tools/call`에만 붙이고, ASCII 밖의 글자·제어 문자·앞뒤 공백이 있는 이름과 `=?base64?…?=` 모양의 ASCII 이름을 Base64로 적는다(`ModernMcpClientTest`). 본문과 다르면 `400`, `-32020`, `Mcp-Name header does not match request name/uri`다(M6) |
 | `Mcp-Param-{Name}` | client는 지원 MUST, 서버가 tool 인자에 `x-mcp-header`를 다는 것은 MAY ([Tools — x-mcp-header](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header)) | `x-mcp-header`를 단 tool 인자의 값을 header로 옮긴다 | 다루지 않음 — tool 정의에 `x-mcp-header`가 없고, agent도 이 확장을 읽지 않는다 |
 | `Mcp-Session-Id` | 이 revision에 없다 · 옛 client가 보내면 무시하고 새로 만들지 않는다 SHOULD ([Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions)) | | 응답에 없다(M2\~M9) |
 
@@ -460,6 +461,7 @@ Content-Length: 0
 
 HTTP 상태는 SDK 2.2.0-M1이 JSON-RPC `code`로 정한다.
 `-32700`·`-32600`·`-32602`·`-32020`·`-32021`·`-32022`는 `400`, `-32601`은 `404`다.
+그 밖의 code는 `200`이다.
 
 | 상황 | 응답 | 근거 |
 |---|---|---|
@@ -473,7 +475,7 @@ HTTP 상태는 SDK 2.2.0-M1이 JSON-RPC `code`로 정한다.
 | scope 부족 | `403`, `error="insufficient_scope"`, 모자란 scope를 모두 담은 `scope`, `resource_metadata` SHOULD — M5의 `scope="products:write"`. 기본 scope와 tool scope가 모두 모자라면 `scope="products:read orders:write"`처럼 함께 적는다(`ToolScopeFilterTest`) | [2026-07-28 Scope Challenge Handling](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling) |
 | 본문이 상한(`mcp.limits.max-request-body`, 1MB)을 넘음 | `413` — SDK transport의 `maxRequestSize`가 막는다(`ModernProtocolTest`) | 명세 범위 밖 — 서버의 자원 보호 |
 | 한 사용자의 `tools/call`이 1분에 상한을 넘음 | `429`, `Retry-After`, `id` 없는 `-32000` — cimd와 같다 | 속도 제한 MUST ([MCP 2026-07-28 Tools — Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#security-considerations)) · `-32000`\~`-32019`는 새 구현이 쓰지 않는 범위 SHOULD NOT ([Overview](https://modelcontextprotocol.io/specification/2026-07-28/basic/index)) |
-| tool이 예외를 던짐 | `-32603`, `Internal error`이고 자세한 내용은 로그에만 남는다(`ModernProtocolTest`) | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| tool이 예외를 던짐 | HTTP `200`, `-32603`, `Internal error`이고 자세한 내용은 로그에만 남는다(`ModernProtocolTest`). SDK가 상태를 정해 둔 code가 아니라서 `200`이다 | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 
 **예시** (M4)
 
