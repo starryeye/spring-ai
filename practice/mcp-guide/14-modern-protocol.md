@@ -444,8 +444,8 @@ filter가 넘긴 요청이라도 이 두 검사를 지나지 못하면 실행되
 
 SDK 2.2.0-M1은 JSON-RPC 오류 code에 따라 HTTP 상태를 정한다.
 `-32602`(Invalid params), `-32020`, `-32021`, `-32022`는 `400`이고, `-32601`(Method not found)은 `404`다.
+그래서 `-32602`로 끝나는 숨긴 tool과 없는 tool의 호출은 [12장](12-tool-visibility.md#124-2단계-숨긴-tool을-부르면)에서는 HTTP `200`이었지만 이 practice에서는 `400`이다.
 그 밖의 code는 HTTP `200`이다.
-그래서 숨긴 tool과 없는 tool의 호출은 [12장](12-tool-visibility.md#124-2단계-숨긴-tool을-부르면)에서는 HTTP `200`이었지만 이 practice에서는 `400`이다.
 숨긴 tool은 `ShopToolRepository.find`가 `null`을 돌려주므로, 이 practice에서도 없는 tool과 같은 `Unknown tool: <이름>`을 받는다.
 오류 본문에는 `code`와 `message`만 있고, tool이 던진 예외는 `-32603` `Internal error`가 되며 자세한 내용은 로그에만 남는다.
 
