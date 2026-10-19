@@ -88,7 +88,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private static final String MCP_NAME = "Mcp-Name";
 
-	/** {@code Mcp-Name}을 풀 수 없을 때의 오류 문구다. SDK가 같은 경우에 쓰는 문구를 그대로 쓴다. */
+	/**
+	 * {@code Mcp-Name}을 풀 수 없을 때의 오류 문구다.
+	 * SDK가 같은 경우에 쓰는 문구를 그대로 쓴다.
+	 */
 	private static final String MALFORMED_MCP_NAME = "Mcp-Name header has a malformed Base64 value";
 
 	private final ToolScopeRegistry registry;
@@ -138,7 +141,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			return;
 		}
 
-		// SDK로 넘길 tool 호출만 센다. Mcp-Name이 없거나 모르는 tool의 호출도 SDK가 처리하므로 센다.
+		// SDK로 넘길 tool 호출만 센다.
+		// Mcp-Name이 없거나 모르는 tool의 호출도 SDK가 처리하므로 센다.
 		if (toolCall) {
 			String caller = Objects.toString(subject, "");
 			Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(caller);
@@ -151,7 +155,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * 이 요청에 필요한 scope다. 기본 scope가 먼저 오고, 그 뒤에 tool scope가 온다.
+	 * 이 요청에 필요한 scope다.
+	 * 기본 scope가 먼저 오고, 그 뒤에 tool scope가 온다.
 	 * tool 이름을 모르거나({@code null}) 이 사용자에게 숨긴 tool이면 기본 scope만 필요하다.
 	 */
 	private Set<String> required(String subject, String tool) {
@@ -185,7 +190,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * 사용자의 tool 호출이 상한을 넘었다. SDK로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
+	 * 사용자의 tool 호출이 상한을 넘었다.
+	 * SDK로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
 	 * {@code Retry-After}는 다시 시도할 수 있을 때까지 남은 시간을 초 단위로 올림한 값이다.
 	 */
 	private void tooManyToolCalls(HttpServletResponse response, String subject, Duration retryAfter)
@@ -206,7 +212,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			throws IOException {
 		response.setStatus(status);
 		response.setContentType("application/json");
-		// getWriter()는 charset을 정하지 않으면 ISO-8859-1로 쓴다. 한국어 문구가 있으므로 UTF-8로 정한다.
+		// getWriter()는 charset을 정하지 않으면 ISO-8859-1로 쓴다.
+		// 한국어 문구가 있으므로 UTF-8로 정한다.
 		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 		response.getWriter().write(McpJsonDefaults.getMapper()
 				.writeValueAsString(JSONRPCResponse.error(null, new JSONRPCError(code, message))));

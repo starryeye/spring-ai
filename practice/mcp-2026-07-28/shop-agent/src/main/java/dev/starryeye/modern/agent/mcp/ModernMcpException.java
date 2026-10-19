@@ -27,7 +27,10 @@ public class ModernMcpException extends RuntimeException {
 		this.jsonRpcCode = jsonRpcCode;
 	}
 
-	/** 응답을 받지 못한 경우처럼 원인 예외가 있을 때 쓴다. 원인은 log에서 볼 수 있게 남긴다. */
+	/**
+	 * 응답을 받지 못한 경우처럼 원인 예외가 있을 때 쓴다.
+	 * 원인은 log에서 볼 수 있게 남긴다.
+	 */
 	protected ModernMcpException(int httpStatus, Integer jsonRpcCode, String message, Throwable cause) {
 		super(message, cause);
 		this.httpStatus = httpStatus;

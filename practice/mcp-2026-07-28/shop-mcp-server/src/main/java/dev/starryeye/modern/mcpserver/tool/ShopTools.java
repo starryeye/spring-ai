@@ -19,7 +19,8 @@ import java.util.function.IntFunction;
  *
  * <p>SDK의 2026-07-28 서버는 annotation으로 tool을 찾지 않는다.
  * 그래서 이름·설명·입력 schema·필요한 scope를 여기에 data로 적고, 본문은 {@link ProductTools}·{@link BasketTools}의 메서드를 부른다.
- * 값은 mcp-cimd practice의 tool과 같다. 입력 schema도 그때 Spring AI가 만들던 모양 그대로다.
+ * 값은 mcp-cimd practice의 tool과 같다.
+ * 입력 schema도 그때 Spring AI가 만들던 모양 그대로다.
  *
  * <p>SDK는 {@code tools/call}의 {@code arguments}를 입력 schema로 먼저 검증한다.
  * 그래서 handler에 오는 값은 schema가 정한 type이다.
@@ -128,7 +129,10 @@ public final class ShopTools {
 		return property;
 	}
 
-	/** 문자열 인자다. 생략한 선택 인자는 {@code null}이다. */
+	/**
+	 * 문자열 인자다.
+	 * 생략한 선택 인자는 {@code null}이다.
+	 */
 	private static String text(Map<String, Object> arguments, String name) {
 		return (arguments.get(name) instanceof String value) ? value : null;
 	}

@@ -209,7 +209,8 @@ class ModernMcpClientTest {
 		this.client.callTool("token-a", "재고변경", Map.of());
 
 		assertThat(this.received.get(0).headers().getFirst("Mcp-Name")).isEqualTo("=?base64?7J6s6rOg67OA6rK9?=");
-		// 본문의 이름은 그대로다. 서버는 header를 풀어 본문과 맞춰 본다.
+		// 본문의 이름은 그대로다.
+		// 서버는 header를 풀어 본문과 맞춰 본다.
 		assertThat(this.received.get(0).json().get("params").get("name").asString()).isEqualTo("재고변경");
 		// 출력 가능한 ASCII는 가운데 공백까지 그대로 두고, 제어 문자가 있으면 base64로 적는다.
 		assertThat(ModernMcpClient.mcpName("get stock")).isEqualTo("get stock");
@@ -382,7 +383,8 @@ class ModernMcpClientTest {
 				.followRedirects(HttpClient.Redirect.NEVER)
 				.build(), MCP_JSON, Duration.ofMillis(200));
 
-		// 응답이 없으므로 HTTP status는 0이다. tool 호출이면 이 문장이 모델에게 tool 결과로 간다.
+		// 응답이 없으므로 HTTP status는 0이다.
+		// tool 호출이면 이 문장이 모델에게 tool 결과로 간다.
 		assertThatThrownBy(() -> impatient.callTool("token-a", "getStock", Map.of()))
 				.isInstanceOfSatisfying(McpTransportException.class, error -> {
 					assertThat(error.httpStatus()).isZero();
@@ -428,7 +430,10 @@ class ModernMcpClientTest {
 				.hasCauseInstanceOf(HttpConnectTimeoutException.class);
 	}
 
-	/** {@code send}가 연결 제한 시간이 지난 것처럼 실패하는 client다. 나머지 메서드는 이 시험에서 쓰지 않는다. */
+	/**
+	 * {@code send}가 연결 제한 시간이 지난 것처럼 실패하는 client다.
+	 * 나머지 메서드는 이 시험에서 쓰지 않는다.
+	 */
 	static final class ConnectTimingOut extends HttpClient {
 
 		private final Duration connectTimeout;

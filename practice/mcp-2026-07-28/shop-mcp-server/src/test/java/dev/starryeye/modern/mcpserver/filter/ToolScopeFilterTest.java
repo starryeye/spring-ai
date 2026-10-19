@@ -44,7 +44,10 @@ class ToolScopeFilterTest {
 	/** 속도 제한의 {@code Retry-After}가 실행 속도에 따라 흔들리지 않도록 시간을 멈춘다. */
 	static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-10-01T00:00:00Z"), ZoneOffset.UTC);
 
-	/** 속도 제한은 따로 시험한다. 다른 시험이 걸리지 않도록 넉넉하게 둔다. */
+	/**
+	 * 속도 제한은 따로 시험한다.
+	 * 다른 시험이 걸리지 않도록 넉넉하게 둔다.
+	 */
 	ToolScopeFilter filter = filter(1000);
 
 	/** {@code user}는 점원이고, 그 밖의 사용자는 손님이다. */
@@ -70,7 +73,10 @@ class ToolScopeFilterTest {
 		로그인("user", scopes);
 	}
 
-	/** 2026-07-28 header만 붙인 요청이다. {@code mcpName}이 {@code null}이면 {@code Mcp-Name}을 붙이지 않는다. */
+	/**
+	 * 2026-07-28 header만 붙인 요청이다.
+	 * {@code mcpName}이 {@code null}이면 {@code Mcp-Name}을 붙이지 않는다.
+	 */
 	static HttpServletRequest 요청(String method, String mcpName) {
 		MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mcp");
 		request.addHeader("MCP-Protocol-Version", "2026-07-28");
@@ -89,7 +95,10 @@ class ToolScopeFilterTest {
 		return "Bearer error=\"insufficient_scope\", scope=\"" + scope + "\", resource_metadata=\"" + METADATA + "\"";
 	}
 
-	/** 본문을 읽으면 실패한다. filter가 header만 본다는 것을 증명하는 데 쓴다. */
+	/**
+	 * 본문을 읽으면 실패한다.
+	 * filter가 header만 본다는 것을 증명하는 데 쓴다.
+	 */
 	static final class 본문_읽기_금지 extends HttpServletRequestWrapper {
 
 		본문_읽기_금지(HttpServletRequest request) {
@@ -178,7 +187,8 @@ class ToolScopeFilterTest {
 		점원("products:read");
 		MockFilterChain chain = new MockFilterChain();
 
-		// Mcp-Name은 tools/call에만 쓰는 header다. 다른 method에 붙어 있어도 tool scope를 보지 않는다.
+		// Mcp-Name은 tools/call에만 쓰는 header다.
+		// 다른 method에 붙어 있어도 tool scope를 보지 않는다.
 		this.filter.doFilter(요청("tools/list", "updateStock"), new MockHttpServletResponse(), chain);
 
 		assertThat(chain.getRequest()).isNotNull();
@@ -203,7 +213,8 @@ class ToolScopeFilterTest {
 
 	@Test
 	void Mcp_Name이_없는_tools_call은_기본_scope만_보고_넘긴다() throws Exception {
-		// tool 이름을 모르니 tool scope를 정할 수 없다. 넘기면 SDK가 400으로 끝낸다.
+		// tool 이름을 모르니 tool scope를 정할 수 없다.
+		// 넘기면 SDK가 400으로 끝낸다.
 		점원("products:read");
 		MockFilterChain chain = new MockFilterChain();
 

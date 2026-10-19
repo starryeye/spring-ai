@@ -15,7 +15,8 @@ import java.util.stream.Collectors;
  * 상품 검색과 재고 조회·변경 tool의 본문이다.
  *
  * <p>tool의 이름·설명·입력 schema·scope는 {@link ShopTools}가 정하고, 이 메서드들은 거기서 불린다.
- * 결과는 글 한 덩어리다. 찾지 못했거나 값이 틀린 경우도 tool 오류가 아니라 글로 알린다.
+ * 결과는 글 한 덩어리다.
+ * 찾지 못했거나 값이 틀린 경우도 tool 오류가 아니라 글로 알린다.
  *
  * <p>log의 {@code 사용자}는 token의 {@code sub}다.
  * 그래서 agent가 아니라 <em>사용자</em>가 찍히는 것을 이 practice에서 확인할 수 있다(안내서 6장).

@@ -9,7 +9,8 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
- * tool 하나의 정의다. client에게 보여 줄 {@link Tool}, 부르는 데 필요한 scope, 실행할 handler를 함께 둔다.
+ * tool 하나의 정의다.
+ * client에게 보여 줄 {@link Tool}, 부르는 데 필요한 scope, 실행할 handler를 함께 둔다.
  *
  * <p>MCP 명세에는 tool 정의에 필요한 scope를 적는 표준 field가 없다.
  * 그래서 scope는 {@link Tool} 밖의 field로 두고, client에게는 권한이 모자랄 때 {@code 403}의 {@code WWW-Authenticate}로 알린다.

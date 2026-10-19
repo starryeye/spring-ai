@@ -46,7 +46,10 @@ class ToolScopeRegistryTest {
 		assertThat(this.registry.scopeFor("nope")).isEqualTo(ToolScopeRegistry.BASE_SCOPE);
 	}
 
-	/** 표는 서버가 내놓는 tool 정의 목록 하나에서 만든다. 그래서 내놓는 tool이 표에서 빠질 수 없다. */
+	/**
+	 * 표는 서버가 내놓는 tool 정의 목록 하나에서 만든다.
+	 * 그래서 내놓는 tool이 표에서 빠질 수 없다.
+	 */
 	@Test
 	void tool_정의의_scope를_모두_모은다() {
 		assertThat(this.registry.all()).containsOnlyKeys("searchProducts", "getStock", "updateStock", "createBasket",

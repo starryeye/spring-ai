@@ -43,13 +43,19 @@ public class UserToolCatalog {
 
 	private static final Logger log = LoggerFactory.getLogger(UserToolCatalog.class);
 
-	/** {@code public} 목록의 key다. token의 key는 64자리 hex라서 겹치지 않는다. */
+	/**
+	 * {@code public} 목록의 key다.
+	 * token의 key는 64자리 hex라서 겹치지 않는다.
+	 */
 	static final String PUBLIC = "public";
 
 	private record Entry(List<McpSchema.Tool> tools, Instant expiresAt) {
 	}
 
-	/** 쪽을 모두 합친 목록이다. 여러 쪽이면 가장 짧은 {@code ttlMs}와 가장 좁은 {@code cacheScope}를 따른다. */
+	/**
+	 * 쪽을 모두 합친 목록이다.
+	 * 여러 쪽이면 가장 짧은 {@code ttlMs}와 가장 좁은 {@code cacheScope}를 따른다.
+	 */
 	private record Listing(List<McpSchema.Tool> tools, long ttlMs, boolean shared) {
 	}
 
@@ -97,7 +103,8 @@ public class UserToolCatalog {
 	}
 
 	/**
-	 * 이 token으로 받은 목록을 버린다. 다음 질문 때 다시 받는다.
+	 * 이 token으로 받은 목록을 버린다.
+	 * 다음 질문 때 다시 받는다.
 	 * 이 token이 같이 쓰던 {@code public} 목록도 낡았을 수 있으므로 함께 버린다.
 	 */
 	public void forget(String accessToken) {
@@ -135,7 +142,10 @@ public class UserToolCatalog {
 		return listing.tools();
 	}
 
-	/** {@code nextCursor}가 없을 때까지 따라가 합친다. 같은 cursor가 다시 오면 끝나지 않으므로 멈춘다. */
+	/**
+	 * {@code nextCursor}가 없을 때까지 따라가 합친다.
+	 * 같은 cursor가 다시 오면 끝나지 않으므로 멈춘다.
+	 */
 	private Listing listAll(String token) {
 		List<McpSchema.Tool> tools = new ArrayList<>();
 		Set<String> seen = new HashSet<>();

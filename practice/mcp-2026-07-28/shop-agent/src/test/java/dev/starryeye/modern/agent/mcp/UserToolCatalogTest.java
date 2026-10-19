@@ -67,7 +67,10 @@ class UserToolCatalogTest {
 
 	ModernMcpClient client = mock(ModernMcpClient.class);
 
-	/** 사용자 이름 → 지금 그 사용자의 access token이다. step-up과 refresh는 값을 바꿔 흉내 낸다. */
+	/**
+	 * 사용자 이름 → 지금 그 사용자의 access token이다.
+	 * step-up과 refresh는 값을 바꿔 흉내 낸다.
+	 */
 	Map<String, String> tokens = new HashMap<>(Map.of("a", "token-a", "b", "token-b"));
 
 	UserToolCatalog catalog = new UserToolCatalog(this.client, user -> this.tokens.get(user.getName()), this.clock);
@@ -139,7 +142,8 @@ class UserToolCatalogTest {
 
 	@Test
 	void ttlMs가_없거나_0이면_cache하지_않는다() throws IOException {
-		// SDK는 ttlMs가 빠진 결과를 0으로 읽는다. 실제 응답 본문에서 읽어 그 값을 그대로 쓴다.
+		// SDK는 ttlMs가 빠진 결과를 0으로 읽는다.
+		// 실제 응답 본문에서 읽어 그 값을 그대로 쓴다.
 		McpSchema.ListToolsResult withoutTtl = new JacksonMcpJsonMapper(JsonMapper.builder().build()).readValue("""
 				{"tools":[{"name":"getStock","inputSchema":{"type":"object"}}],"cacheScope":"private"}""",
 				McpSchema.ListToolsResult.class);

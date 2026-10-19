@@ -106,7 +106,10 @@ class McpCallerTest {
 		assertThat(McpCaller.mcpName(McpTransportContext.EMPTY)).isNull();
 	}
 
-	/** SDK transport가 {@code Mcp-Name}을 푸는 규칙과 같다. 다르면 header로 본 이름과 SDK가 대조한 이름이 어긋난다. */
+	/**
+	 * SDK transport가 {@code Mcp-Name}을 푸는 규칙과 같다.
+	 * 다르면 header로 본 이름과 SDK가 대조한 이름이 어긋난다.
+	 */
 	@Test
 	void decodeMcpName은_base64_표기만_UTF_8로_푼다() {
 		assertThat(McpCaller.decodeMcpName("searchProducts")).isEqualTo("searchProducts");

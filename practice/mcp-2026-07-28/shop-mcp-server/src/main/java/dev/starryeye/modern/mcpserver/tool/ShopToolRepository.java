@@ -28,7 +28,8 @@ import java.util.Map;
  *
  * <ul>
  *   <li>{@code list}는 역할로 받을 수 없는 scope의 tool을 빼고, cache 기간({@code ttlMs})과 공유 범위({@code cacheScope})를 단다.</li>
- *   <li>{@code find}는 숨긴 tool에 {@code null}을 준다. 그러면 SDK가 없는 tool과 같은 {@code Unknown tool} 오류로 답한다.</li>
+ *   <li>{@code find}는 숨긴 tool에 {@code null}을 준다.
+ *       그러면 SDK가 없는 tool과 같은 {@code Unknown tool} 오류로 답한다.</li>
  *   <li>{@code call}은 실행할 이름이 {@code Mcp-Name} header와 같을 때만 handler를 부른다.</li>
  * </ul>
  */
@@ -49,9 +50,11 @@ public class ShopToolRepository implements McpSyncToolRepository {
 	}
 
 	/**
-	 * 이 사용자에게 보이는 tool이다. 순서는 정의한 순서 그대로다.
+	 * 이 사용자에게 보이는 tool이다.
+	 * 순서는 정의한 순서 그대로다.
 	 *
-	 * <p>목록은 역할마다 달라서 다른 access token과 cache를 나누면 안 된다. 그래서 {@code cacheScope}는 {@code private}이다.
+	 * <p>목록은 역할마다 달라서 다른 access token과 cache를 나누면 안 된다.
+	 * 그래서 {@code cacheScope}는 {@code private}이다.
 	 * 목록 하나로 끝나므로 {@code nextCursor}는 없다.
 	 */
 	@Override
@@ -69,7 +72,8 @@ public class ShopToolRepository implements McpSyncToolRepository {
 	/**
 	 * 이 사용자에게 보이는 tool이면 그 정의를, 아니면 {@code null}을 준다.
 	 * 숨긴 tool은 scope를 늘려도 쓸 수 없으므로 step-up을 시작하지 않고, 그런 tool이 있다는 사실도 알리지 않는다.
-	 * SDK는 입력 검증보다 먼저 이 메서드를 부른다. 그래서 인자가 틀린 호출에도 숨긴 tool과 없는 tool이 같은 답을 받는다.
+	 * SDK는 입력 검증보다 먼저 이 메서드를 부른다.
+	 * 그래서 인자가 틀린 호출에도 숨긴 tool과 없는 tool이 같은 답을 받는다.
 	 */
 	@Override
 	public Tool find(McpRequestContext ctx, String name) {

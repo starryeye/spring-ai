@@ -38,7 +38,10 @@ import java.util.Map;
 @EnableConfigurationProperties(McpLimitProperties.class)
 public class ModernMcpConfig {
 
-	/** MCP endpoint의 경로다. servlet mapping과 filter의 URL pattern이 같은 값을 쓴다. */
+	/**
+	 * MCP endpoint의 경로다.
+	 * servlet mapping과 filter의 URL pattern이 같은 값을 쓴다.
+	 */
 	public static final String ENDPOINT = "/mcp";
 
 	/**
@@ -47,7 +50,10 @@ public class ModernMcpConfig {
 	 */
 	static final Duration TOOL_LIST_TTL = Duration.ofMinutes(1);
 
-	/** 서버가 내놓는 tool 정의다. scope 표와 tool 저장소가 모두 이 목록 하나에서 만들어진다. */
+	/**
+	 * 서버가 내놓는 tool 정의다.
+	 * scope 표와 tool 저장소가 모두 이 목록 하나에서 만들어진다.
+	 */
 	@Bean
 	public List<ShopTool> shopTools(ProductTools products, BasketTools baskets) {
 		return ShopTools.all(products, baskets);
@@ -92,8 +98,10 @@ public class ModernMcpConfig {
 	 *
 	 * <ul>
 	 *   <li>{@code contextExtractor}는 요청마다 token의 사용자와 {@code Mcp-Name}을 transport context에 넣는다({@link McpCaller}).</li>
-	 *   <li>{@code maxRequestSize}는 메모리에 올리는 본문의 상한이다. 넘으면 transport가 {@code 413}으로 답한다.</li>
-	 *   <li>transport의 header 검사는 SDK 기본값이다. {@code Origin}이 있으면 거절한다.
+	 *   <li>{@code maxRequestSize}는 메모리에 올리는 본문의 상한이다.
+	 *       넘으면 transport가 {@code 413}으로 답한다.</li>
+	 *   <li>transport의 header 검사는 SDK 기본값이다.
+	 *       {@code Origin}이 있으면 거절한다.
 	 *       {@code Host}는 Spring Security 앞의 {@code McpTransportSecurityFilter}가 먼저 본다.</li>
 	 *   <li>{@code subscriptions/listen}은 응답을 async로 보내므로 servlet이 async를 지원해야 한다.
 	 *       이 서버는 그 method를 등록하지 않지만, SDK가 요구하는 대로 켜 둔다.</li>

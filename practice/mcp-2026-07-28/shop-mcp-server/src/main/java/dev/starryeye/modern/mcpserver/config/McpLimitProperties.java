@@ -23,7 +23,8 @@ public record McpLimitProperties(DataSize maxRequestBody, Integer toolCallsPerMi
 
 	public McpLimitProperties {
 		maxRequestBody = (maxRequestBody == null) ? DataSize.ofMegabytes(1) : maxRequestBody;
-		// transport의 maxRequestSize는 int다. 읽은 바이트 수도 int로 세므로 int 최댓값보다 작게 둔다.
+		// transport의 maxRequestSize는 int다.
+		// 읽은 바이트 수도 int로 세므로 int 최댓값보다 작게 둔다.
 		Assert.isTrue(maxRequestBody.toBytes() > 0 && maxRequestBody.toBytes() < Integer.MAX_VALUE,
 				"mcp.limits.max-request-body는 0보다 크고 2GB보다 작아야 한다: " + maxRequestBody);
 		toolCallsPerMinute = (toolCallsPerMinute == null) ? 60 : toolCallsPerMinute;

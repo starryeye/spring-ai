@@ -10,7 +10,8 @@ import java.util.Map;
  * <p>scope 검사는 {@code ToolScopeFilter}가 HTTP 단계에서 한다.
  * filter는 tool 코드를 모르므로, 기동할 때 tool 정의({@link ShopTool})의 scope로 이 표를 만든다.
  *
- * <p>표에 없는 tool은 기본 scope만 요구한다. 그래서 서버가 내놓는 tool이 표에서 빠지면 그 tool의 scope가 조용히 무시된다(fail-open).
+ * <p>표에 없는 tool은 기본 scope만 요구한다.
+ * 그래서 서버가 내놓는 tool이 표에서 빠지면 그 tool의 scope가 조용히 무시된다(fail-open).
  * 이 표는 서버가 {@code tools/list}로 내놓는 정의 목록과 같은 목록에서 만들므로 그런 일이 생기지 않는다.
  */
 public final class ToolScopeRegistry {
@@ -35,7 +36,10 @@ public final class ToolScopeRegistry {
 		return new ToolScopeRegistry(scopes);
 	}
 
-	/** 모르는 tool이면 기본 scope만 요구한다. 없는 tool은 SDK가 JSON-RPC 오류로 답한다. */
+	/**
+	 * 모르는 tool이면 기본 scope만 요구한다.
+	 * 없는 tool은 SDK가 JSON-RPC 오류로 답한다.
+	 */
 	public String scopeFor(String toolName) {
 		return this.scopeByTool.getOrDefault(toolName, BASE_SCOPE);
 	}

@@ -9,7 +9,10 @@ package dev.starryeye.modern.agent.mcp;
  */
 public class UnknownToolException extends ModernMcpException {
 
-	/** MCP Java SDK 2.2.0-M1이 모르는 tool에 주는 message의 앞부분이다. 뒤에 tool 이름이 온다. */
+	/**
+	 * MCP Java SDK 2.2.0-M1이 모르는 tool에 주는 message의 앞부분이다.
+	 * 뒤에 tool 이름이 온다.
+	 */
 	public static final String MESSAGE_PREFIX = "Unknown tool: ";
 
 	/** 모르는 tool은 JSON-RPC {@code -32602}(Invalid params)로 온다. */

@@ -64,13 +64,19 @@ public record McpCaller(String subject, String clientId) {
 		return new McpCaller(subject, Objects.toString(context.get(CLIENT_ID), ""));
 	}
 
-	/** transport가 넣어 둔 token의 sub다. 인증이 없으면 비어 있다. */
+	/**
+	 * transport가 넣어 둔 token의 sub다.
+	 * 인증이 없으면 비어 있다.
+	 */
 	public static Optional<String> subject(McpTransportContext context) {
 		return (context.get(SUBJECT) instanceof String subject && !subject.isBlank())
 				? Optional.of(subject) : Optional.empty();
 	}
 
-	/** transport가 넣어 둔 {@code Mcp-Name}이다. header가 없었거나 풀 수 없었으면 {@code null}이다. */
+	/**
+	 * transport가 넣어 둔 {@code Mcp-Name}이다.
+	 * header가 없었거나 풀 수 없었으면 {@code null}이다.
+	 */
 	public static String mcpName(McpTransportContext context) {
 		return (context.get(MCP_NAME) instanceof String name) ? name : null;
 	}
@@ -81,7 +87,8 @@ public record McpCaller(String subject, String clientId) {
 	 * <p>header에는 출력할 수 있는 ASCII만 넣을 수 있어서, client는 그 밖의 글자가 든 이름을 {@code =?base64?…?=}로 적는다.
 	 * 그 표기면 안쪽을 base64로 풀어 UTF-8로 읽고, 아니면 값 그대로 쓴다.
 	 * 풀 수 없는 base64면 {@code null}이다.
-	 * 규칙은 SDK transport가 header와 본문을 맞춰 볼 때와 같다. 다르면 header로 본 이름과 SDK가 대조한 이름이 어긋난다.
+	 * 규칙은 SDK transport가 header와 본문을 맞춰 볼 때와 같다.
+	 * 다르면 header로 본 이름과 SDK가 대조한 이름이 어긋난다.
 	 */
 	public static String decodeMcpName(String header) {
 		if (header == null) {
@@ -90,7 +97,8 @@ public record McpCaller(String subject, String clientId) {
 		if (!header.startsWith(BASE64_PREFIX) || !header.endsWith(BASE64_SUFFIX)) {
 			return header;
 		}
-		// "=?base64?="처럼 앞뒤 표기가 겹치면 안쪽 값이 없다. 잘라 내다 예외가 나지 않게 먼저 거른다.
+		// "=?base64?="처럼 앞뒤 표기가 겹치면 안쪽 값이 없다.
+		// 잘라 내다 예외가 나지 않게 먼저 거른다.
 		if (header.length() < BASE64_PREFIX.length() + BASE64_SUFFIX.length()) {
 			return null;
 		}

@@ -81,12 +81,18 @@ final class ModernTestClient {
 		return post(token, headers("tools/call", name), body("tools/call", params));
 	}
 
-	/** {@code tools/call}이 아닌 method를 보낸다. {@code Mcp-Name}은 붙이지 않는다. */
+	/**
+	 * {@code tools/call}이 아닌 method를 보낸다.
+	 * {@code Mcp-Name}은 붙이지 않는다.
+	 */
 	Response send(String token, String method, Map<String, Object> params) {
 		return post(token, headers(method, null), body(method, params));
 	}
 
-	/** 2026-07-28 client가 붙이는 header다. {@code mcpName}이 {@code null}이면 {@code Mcp-Name}을 붙이지 않는다. */
+	/**
+	 * 2026-07-28 client가 붙이는 header다.
+	 * {@code mcpName}이 {@code null}이면 {@code Mcp-Name}을 붙이지 않는다.
+	 */
 	static Map<String, String> headers(String method, String mcpName) {
 		Map<String, String> headers = new LinkedHashMap<>();
 		headers.put("MCP-Protocol-Version", PROTOCOL_VERSION);
@@ -97,7 +103,10 @@ final class ModernTestClient {
 		return headers;
 	}
 
-	/** {@code params}에 {@code _meta}를 더한 JSON-RPC 요청 본문이다. {@code params}의 값은 그대로 직렬화한다. */
+	/**
+	 * {@code params}에 {@code _meta}를 더한 JSON-RPC 요청 본문이다.
+	 * {@code params}의 값은 그대로 직렬화한다.
+	 */
 	static String body(String method, Map<String, Object> params) {
 		Map<String, Object> withMeta = new LinkedHashMap<>(params);
 		withMeta.put("_meta", Map.of(
@@ -112,7 +121,10 @@ final class ModernTestClient {
 		return JSON.writeValueAsString(request);
 	}
 
-	/** header와 본문을 그대로 보낸다. {@code token}이 {@code null}이면 {@code Authorization}을 붙이지 않는다. */
+	/**
+	 * header와 본문을 그대로 보낸다.
+	 * {@code token}이 {@code null}이면 {@code Authorization}을 붙이지 않는다.
+	 */
 	Response post(String token, Map<String, String> headers, String body) {
 		HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(this.origin + "/mcp"))
 				.header("Content-Type", "application/json")
@@ -149,7 +161,10 @@ final class ModernTestClient {
 			return JSON.readTree(this.body);
 		}
 
-		/** 이름이 같은 첫 header 값이다. 없으면 {@code null}이다. */
+		/**
+		 * 이름이 같은 첫 header 값이다.
+		 * 없으면 {@code null}이다.
+		 */
 		String header(String name) {
 			return this.headers.entrySet().stream()
 					.filter(entry -> entry.getKey().equalsIgnoreCase(name))

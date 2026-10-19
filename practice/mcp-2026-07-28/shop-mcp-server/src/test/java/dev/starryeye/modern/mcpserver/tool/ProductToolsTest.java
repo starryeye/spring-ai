@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 조회·재고 tool은 결과를 글 한 덩어리로 돌려준다. 찾지 못한 경우도 tool 오류가 아니라 글로 알린다.
+ * 조회·재고 tool은 결과를 글 한 덩어리로 돌려준다.
+ * 찾지 못한 경우도 tool 오류가 아니라 글로 알린다.
  */
 class ProductToolsTest {
 

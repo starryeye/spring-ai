@@ -47,7 +47,10 @@ public class McpTransportSecurityFilter extends OncePerRequestFilter {
 		chain.doFilter(request, response);
 	}
 
-	/** servlet 요청의 header를 그대로 읽는다. servlet은 header 이름의 대소문자를 가리지 않는다. */
+	/**
+	 * servlet 요청의 header를 그대로 읽는다.
+	 * servlet은 header 이름의 대소문자를 가리지 않는다.
+	 */
 	private static HeaderAccessor headers(HttpServletRequest request) {
 		return new HeaderAccessor() {
 

@@ -101,7 +101,10 @@ public class ModernToolCallback implements ToolCallback {
 		}
 	}
 
-	/** 모델이 만든 tool 입력(JSON object)이다. 비어 있으면 인자 없이 부른다. */
+	/**
+	 * 모델이 만든 tool 입력(JSON object)이다.
+	 * 비어 있으면 인자 없이 부른다.
+	 */
 	private Map<String, Object> arguments(String toolInput) {
 		if (!StringUtils.hasText(toolInput)) {
 			return Map.of();

@@ -24,9 +24,12 @@ import java.util.List;
  *
  * <p>filter는 이 순서로 돌고, 모두 통과한 요청만 SDK transport servlet에 닿는다.
  * <ol>
- *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다. Spring Security보다 먼저 돈다.</li>
- *   <li>Spring Security — token을 검증한다. 없거나 틀리면 {@code 401}이다.</li>
- *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 header로 본다. 모자라면 {@code 403}이다.</li>
+ *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다.
+ *       Spring Security보다 먼저 돈다.</li>
+ *   <li>Spring Security — token을 검증한다.
+ *       없거나 틀리면 {@code 401}이다.</li>
+ *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 header로 본다.
+ *       모자라면 {@code 403}이다.</li>
  * </ol>
  * MCP 서버와 transport 자체는 {@link ModernMcpConfig}가 만든다.
  */

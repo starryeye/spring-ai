@@ -97,7 +97,10 @@ class StepUpChatStreamTest {
     @Autowired
     OAuth2AuthorizedClientService authorizedClientService;
 
-    /** 테스트마다 다른 사용자다. 대화 기억과 tool 목록 cache가 다른 테스트와 섞이지 않게 한다. */
+    /**
+     * 테스트마다 다른 사용자다.
+     * 대화 기억과 tool 목록 cache가 다른 테스트와 섞이지 않게 한다.
+     */
     Authentication user;
 
     String accessToken;
@@ -171,7 +174,8 @@ class StepUpChatStreamTest {
                 .doOnNext(received::add)
                 .collectList()
                 .block(Duration.ofSeconds(10)))
-                // client가 던진 예외 그대로다. 문장으로 바뀌거나 다른 예외로 바뀌지 않는다.
+                // client가 던진 예외 그대로다.
+                // 문장으로 바뀌거나 다른 예외로 바뀌지 않는다.
                 .satisfies(error -> assertThat(StepUpRequiredException.find(error)).containsSame(this.권한_부족));
         // 예외는 이미 흘려보낸 답변 토막 뒤에 온다.
         assertThat(received).containsExactly("확인해 볼게요");

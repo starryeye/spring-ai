@@ -52,7 +52,10 @@ class UserToolsPerRequestTest {
 	@MockitoBean
 	UserToolCatalog toolCatalog;
 
-	/** tool 목록은 위의 mock이 준다. 실제 MCP 요청은 나가지 않는다. */
+	/**
+	 * tool 목록은 위의 mock이 준다.
+	 * 실제 MCP 요청은 나가지 않는다.
+	 */
 	@MockitoBean
 	ModernMcpClient mcpClient;
 

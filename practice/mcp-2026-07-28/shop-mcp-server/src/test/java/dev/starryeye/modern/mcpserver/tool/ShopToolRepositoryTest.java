@@ -36,7 +36,10 @@ class ShopToolRepositoryTest {
 
 	List<String> 실행한_tool = new CopyOnWriteArrayList<>();
 
-	/** {@code "1"}은 숫자 이름 우회를 재현하려고 둔 쓰기 tool이다. 이 practice의 tool에는 이런 이름이 없다. */
+	/**
+	 * {@code "1"}은 숫자 이름 우회를 재현하려고 둔 쓰기 tool이다.
+	 * 이 practice의 tool에는 이런 이름이 없다.
+	 */
 	List<ShopTool> tools = List.of(
 			시험_tool("searchProducts", "products:read"),
 			시험_tool("updateStock", "products:write"),
@@ -53,7 +56,10 @@ class ShopToolRepositoryTest {
 		});
 	}
 
-	/** transport가 요청마다 만드는 context다. {@code mcpName}이 {@code null}이면 {@code Mcp-Name} header가 없던 요청이다. */
+	/**
+	 * transport가 요청마다 만드는 context다.
+	 * {@code mcpName}이 {@code null}이면 {@code Mcp-Name} header가 없던 요청이다.
+	 */
 	static McpTransportContext 요청한_사용자(String subject, String mcpName) {
 		Map<String, Object> values = new HashMap<>();
 		values.put(McpCaller.SUBJECT, subject);
@@ -113,7 +119,8 @@ class ShopToolRepositoryTest {
 		List<McpRequestContext> rejected = List.of(
 				// 본문 name이 숫자라 primitiveName이 없다.
 				context(요청한_사용자("user", "1"), 1),
-				// header가 다른 tool을 가리킨다. transport가 먼저 막지만 여기서도 막는다.
+				// header가 다른 tool을 가리킨다.
+				// transport가 먼저 막지만 여기서도 막는다.
 				context(요청한_사용자("user", "searchProducts"), "1"),
 				// Mcp-Name header가 없었다.
 				context(요청한_사용자("user", null), "1"));

@@ -64,7 +64,10 @@ class ShopAgentApplicationTests {
     @MockitoBean
     McpAuthorizationDiscovery discovery;
 
-    /** HTTP를 보내는 부분만 바꾼다. 요청 형식은 {@code ModernMcpClientTest}가 가짜 MCP Server로 본다. */
+    /**
+     * HTTP를 보내는 부분만 바꾼다.
+     * 요청 형식은 {@code ModernMcpClientTest}가 가짜 MCP Server로 본다.
+     */
     @MockitoBean
     ModernMcpClient mcpClient;
 

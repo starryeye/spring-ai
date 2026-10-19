@@ -75,7 +75,10 @@ class ModernProtocolTest {
 		return new ModernTestClient(this.port);
 	}
 
-	/** 이 서버가 지키는 resource다. 설정의 {@code audiences}와 같다. */
+	/**
+	 * 이 서버가 지키는 resource다.
+	 * 설정의 {@code audiences}와 같다.
+	 */
 	String resource() {
 		return "http://localhost:" + this.port + "/mcp";
 	}
@@ -409,7 +412,8 @@ class ModernProtocolTest {
 
 	@Test
 	void 옛_initialize는_400이다() {
-		// 2025-11-25 client가 보내는 그대로다. _meta도 2026-07-28 header도 없다.
+		// 2025-11-25 client가 보내는 그대로다.
+		// _meta도 2026-07-28 header도 없다.
 		String initialize = """
 				{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",\
 				"capabilities":{},"clientInfo":{"name":"old-client","version":"1.0.0"}}}""";
@@ -422,7 +426,8 @@ class ModernProtocolTest {
 
 	@Test
 	void 오류_본문에_stack_trace가_없다() {
-		// sub가 없는 token이면 tool이 사용자를 꺼내다 예외를 던진다. 그 예외가 응답 본문에 나가면 안 된다.
+		// sub가 없는 token이면 tool이 사용자를 꺼내다 예외를 던진다.
+		// 그 예외가 응답 본문에 나가면 안 된다.
 		String withoutSubject = TestTokens.token(TestTokens.ISSUER, null, resource(), Instant.now().plusSeconds(300),
 				TestTokens.KEY, "products:read");
 
@@ -462,7 +467,8 @@ class ModernProtocolTest {
 	@Test
 	void iss나_만료나_signature가_틀린_token은_401이다() {
 		Instant later = Instant.now().plusSeconds(300);
-		// Spring의 JwtTimestampValidator는 60초의 clock skew를 둔다. 그보다 오래 지난 token을 쓴다.
+		// Spring의 JwtTimestampValidator는 60초의 clock skew를 둔다.
+		// 그보다 오래 지난 token을 쓴다.
 		Instant expired = Instant.now().minusSeconds(120);
 		List<String> tokens = List.of(
 				TestTokens.token("http://localhost:9999", "user", resource(), later, TestTokens.KEY, "products:read"),
@@ -492,7 +498,8 @@ class ModernProtocolTest {
 				.andExpect(jsonPath("$.resource").value(resource()))
 				.andExpect(jsonPath("$.authorization_servers[0]").value(TestTokens.ISSUER))
 				.andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
-				// 이 서버는 mTLS에 묶인 token을 쓰지 않는다. Spring 기본값이 true라 꺼야 한다.
+				// 이 서버는 mTLS에 묶인 token을 쓰지 않는다.
+				// Spring 기본값이 true라 꺼야 한다.
 				.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false))
 				.andExpect(jsonPath("$.scopes_supported").value(contains("products:read")));
 	}

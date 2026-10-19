@@ -52,7 +52,10 @@ public class ModernMcpClient {
 
 	private static final Logger log = LoggerFactory.getLogger(ModernMcpClient.class);
 
-	/** 이 client가 말하는 MCP 버전이다. header와 {@code _meta}에 같은 값을 넣는다. */
+	/**
+	 * 이 client가 말하는 MCP 버전이다.
+	 * header와 {@code _meta}에 같은 값을 넣는다.
+	 */
 	public static final String PROTOCOL_VERSION = "2026-07-28";
 
 	static final String CLIENT_NAME = "modern-shop-agent";
@@ -79,7 +82,10 @@ public class ModernMcpClient {
 
 	private static final String TEXT_EVENT_STREAM = "text/event-stream";
 
-	/** {@code Mcp-Name}의 base64 표기는 이 앞뒤 글자로 감싼다. 대소문자까지 이대로 쓴다. */
+	/**
+	 * {@code Mcp-Name}의 base64 표기는 이 앞뒤 글자로 감싼다.
+	 * 대소문자까지 이대로 쓴다.
+	 */
 	private static final String BASE64_PREFIX = "=?base64?";
 
 	private static final String BASE64_SUFFIX = "?=";
@@ -132,7 +138,10 @@ public class ModernMcpClient {
 		return result;
 	}
 
-	/** tool 목록의 한 쪽이다. {@code cursor}가 {@code null}이면 첫 쪽이다. */
+	/**
+	 * tool 목록의 한 쪽이다.
+	 * {@code cursor}가 {@code null}이면 첫 쪽이다.
+	 */
 	public McpSchema.ListToolsResult listTools(String accessToken, String cursor) {
 		return send(accessToken, McpSchema.METHOD_TOOLS_LIST, null, new McpSchema.PaginatedRequest(cursor, META),
 				McpSchema.ListToolsResult.class);
@@ -156,9 +165,12 @@ public class ModernMcpClient {
 	 * <p>MCP Server는 이 header를 풀어 본문의 이름과 맞춰 보므로, header를 지나도 이름이 글자 그대로 남아야 한다.
 	 * 그래서 다음 이름은 UTF-8 byte를 base64로 바꿔 {@code =?base64?...?=}로 적는다(MCP 2026-07-28 Streamable HTTP — Value Encoding).
 	 * <ul>
-	 *   <li>출력 가능한 ASCII(0x20~0x7E) 밖의 글자가 있다. header에는 ASCII 글자만 그대로 쓸 수 있다.</li>
-	 *   <li>앞이나 뒤에 공백이 있다. HTTP는 header 값 앞뒤의 공백을 지워도 되므로, 서버가 다른 이름을 받을 수 있다.</li>
-	 *   <li>{@code =?base64?}로 시작하고 {@code ?=}로 끝난다. 그대로 보내면 서버는 이 이름을 base64 표기로 보고 풀어 버린다.</li>
+	 *   <li>출력 가능한 ASCII(0x20~0x7E) 밖의 글자가 있다.
+	 *       header에는 ASCII 글자만 그대로 쓸 수 있다.</li>
+	 *   <li>앞이나 뒤에 공백이 있다.
+	 *       HTTP는 header 값 앞뒤의 공백을 지워도 되므로, 서버가 다른 이름을 받을 수 있다.</li>
+	 *   <li>{@code =?base64?}로 시작하고 {@code ?=}로 끝난다.
+	 *       그대로 보내면 서버는 이 이름을 base64 표기로 보고 풀어 버린다.</li>
 	 * </ul>
 	 * 나머지 이름은 가운데 공백까지 그대로 적는다.
 	 */
@@ -385,7 +397,10 @@ public class ModernMcpClient {
 		}
 	}
 
-	/** {@code Retry-After}의 초다. HTTP-date 같은 다른 형식이면 모르는 것으로 둔다. */
+	/**
+	 * {@code Retry-After}의 초다.
+	 * HTTP-date 같은 다른 형식이면 모르는 것으로 둔다.
+	 */
 	private static Duration retryAfter(HttpResponse<?> response) {
 		return response.headers().firstValue("Retry-After")
 				.filter(value -> value.trim().matches("\\d{1,9}"))

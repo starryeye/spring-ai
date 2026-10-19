@@ -41,7 +41,10 @@ public final class TestTokens {
 	private TestTokens() {
 	}
 
-	/** 새 RSA key다. kid는 {@link #KEY}와 같아서, 서명만 맞지 않는 token을 만들 때 쓴다. */
+	/**
+	 * 새 RSA key다.
+	 * kid는 {@link #KEY}와 같아서, 서명만 맞지 않는 token을 만들 때 쓴다.
+	 */
 	static RSAKey rsaKey() {
 		try {
 			KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
@@ -57,7 +60,10 @@ public final class TestTokens {
 		}
 	}
 
-	/** {@code subject}가 {@code audience}에 쓰라고 받은 token이다. 5분 동안 쓸 수 있다. */
+	/**
+	 * {@code subject}가 {@code audience}에 쓰라고 받은 token이다.
+	 * 5분 동안 쓸 수 있다.
+	 */
 	public static String token(String subject, String audience, String... scopes) {
 		return token(ISSUER, subject, audience, Instant.now().plusSeconds(300), KEY, scopes);
 	}
