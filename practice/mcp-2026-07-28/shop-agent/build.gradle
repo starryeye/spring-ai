@@ -1,0 +1,48 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.starryeye'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	set('springAiVersion', "2.0.1")
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+	// MCP 2026-07-28의 JSON 타입(io.modelcontextprotocol.modern)과 Jackson 3 mapper다.
+	// SDK에는 아직 2026-07-28 client가 없어서, HTTP 요청과 응답 해석은 ModernMcpClient가 직접 한다.
+	// pre-release라 버전을 고정한다.
+	implementation 'io.modelcontextprotocol.sdk:mcp-core:2.2.0-M1'
+	implementation 'io.modelcontextprotocol.sdk:mcp-json-jackson3:2.2.0-M1'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

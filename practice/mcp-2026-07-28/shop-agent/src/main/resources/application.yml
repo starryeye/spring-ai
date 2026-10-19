@@ -1,0 +1,70 @@
+server:
+  # 서버가 연결을 받을 네트워크 주소다. 127.0.0.1이면 이 기기 안에서만 접속할 수 있다.
+  # MCP Transports(2026-07-28 Streamable HTTP)는 로컬에서 도는 서버가 localhost(127.0.0.1)에만 bind하기를 권한다(SHOULD).
+  # 실제 배포에서 container나 reverse proxy 뒤에 둔다면 0.0.0.0(모든 interface)이나
+  # 그 네트워크의 interface 주소를 쓴다. 외부에 무엇을 열지는 proxy와 방화벽이 정한다.
+  address: 127.0.0.1
+  port: 8180
+  servlet:
+    session:
+      cookie:
+        name: MODERNAGENTSESSIONID
+        # 다른 사이트의 페이지가 <img> 같은 subresource로 이 session cookie를 실어 GET을 보내는 것을 막는다.
+        # lax는 최상위 GET 이동(예: Authorization Server의 callback redirect, localhost:9070 → localhost:8180)은
+        # 그대로 허용하므로 login 흐름은 깨지지 않는다.
+        same-site: lax
+
+spring:
+  application:
+    name: modern-shop-agent
+  ai:
+    model:
+      chat: ollama
+      audio:
+        speech: none
+        transcription: none
+      embedding: none
+      image: none
+      moderation: none
+    ollama:
+      chat:
+        model: qwen3:8b
+        temperature: 0.1
+        think: low
+  # client 등록(spring.security.oauth2.client.registration)은 없다.
+  # client_id는 아래 client-metadata의 문서 주소이고, endpoint는 discovery로 찾는다(DiscoveredClientRegistrationRepository).
+  ssl:
+    bundle:
+      jks:
+        # agent가 client 문서를 올리는 https://localhost:8182의 인증서다.
+        # 파일은 run.sh가 처음 실행할 때 keytool로 만든다.
+        client-metadata-tls:
+          keystore:
+            location: file:../certs/client-metadata-tls.p12
+            password: changeit
+            type: PKCS12
+
+mcp:
+  authorization:
+    # discovery의 출발점이다. 이 URL 하나만 알면 Authorization Server는 discovery로 찾는다.
+    # MCP 요청(ModernMcpClient)도 이 주소로 보낸다.
+    resource-url: http://localhost:8181/mcp
+    # 어느 제품처럼 붙을지 고른다. chatgpt면 private_key_jwt, claude면 none(public client)이다.
+    # run.sh의 첫 인자로 바꿀 수 있다(./run.sh claude).
+    client-type: chatgpt
+  client-metadata:
+    # 문서 주소의 앞부분이다. 문서 주소가 곧 client_id다.
+    base-url: https://localhost:8182
+    port: 8182
+    tls-bundle: client-metadata-tls
+    # private_key_jwt에 쓰는 서명 key다. public key만 https://localhost:8182/oauth/jwks.json에 올린다.
+    signing-key-store: file:../certs/client-signing.p12
+    signing-key-store-password: changeit
+    signing-key-alias: client-signing
+    # 문서의 redirect_uris에 올리는 주소다. authorization request도 이 주소를 쓴다.
+    redirect-uri: http://localhost:8180/login/oauth2/code/authserver
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    dev.starryeye.modern.agent: DEBUG

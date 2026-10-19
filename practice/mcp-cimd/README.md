@@ -255,4 +255,4 @@ ChatGPT와 Claude Code(CLI)의 실제 문서를 curl로 받은 기록은 [실제
 - [안내서 12장 tool 목록과 권한](../mcp-guide/12-tool-visibility.md): 이 practice가 그대로 쓰는 역할별 tool 목록, step-up, 사용자별 목록 cache를 설명한다.
 - [부록: 명세 준수표](../mcp-guide/reference-compliance.md#mcp-cimd에서-달라지는-행): CIMD와 loopback 예외처럼, 이 practice에서 새로 생기거나 visibility와 판정이 달라지는 행을 모았다.
 - [mcp-tool-visibility](../mcp-tool-visibility/README.md): 이 practice의 바탕이 된 practice다.
-- 다음 practice에서는 요청 형식을 MCP 2026-07-28로, SDK를 MCP Java SDK 2.2로 올린다.
+- [mcp-2026-07-28](../mcp-2026-07-28/README.md): 이 practice의 MCP 요청 형식을 2026-07-28로, MCP Java SDK를 2.2로 올린 다음 practice다. 설명은 [안내서 14장](../mcp-guide/14-modern-protocol.md)에 있다.

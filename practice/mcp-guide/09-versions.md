@@ -214,6 +214,7 @@ official의 tool은 상태를 두지 않아 handle이 필요 없고, 이 방식�
 
 modern 오류란 `UnsupportedProtocolVersionError`처럼 2026-07-28이 정한 JSON-RPC 오류다.
 modern만 지원하는 서버는 옛 client의 `GET`·`DELETE`에 `405`로 답하고, `Mcp-Session-Id`는 무시한다.
+MCP Java SDK 2.2로 요청 형식을 2026-07-28로 올린 practice는 [14장](14-modern-protocol.md)에서 본다.
 
 ## 9.8 official이 따르는 기준
 

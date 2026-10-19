@@ -10,15 +10,18 @@ scope를 다루는 몇 행에는 [mcp-security-authz practice](../mcp-security-a
 session과 응답 형식을 다루는 몇 행에는 authz를 session 없이 돌리는 [mcp-stateless-handle practice](../mcp-stateless-handle/README.md)(stateless)의 동작도 적는다.
 `tools/list`와 `tools/call` 행에는 stateless에 사용자 역할을 더한 [mcp-tool-visibility practice](../mcp-tool-visibility/README.md)(visibility)의 동작도 적는다.
 client 인증과 CIMD를 다루는 행에는 visibility에 CIMD를 더한 [mcp-cimd practice](../mcp-cimd/README.md)(cimd)의 동작도 적는다.
+2026-07-28 요청 형식은 cimd의 MCP 요청을 2026-07-28로 올린 [mcp-2026-07-28 practice](../mcp-2026-07-28/README.md)(modern)의 동작으로 [따로 한 절](#post-mcp--2026-07-28-요청)에 모은다.
 캡처 번호 `C<n>`·`S<n>`·`P<n>`은 [walkthrough](../../docs/superpowers/captures/2026-09-12-official.txt)·[supplement](../../docs/superpowers/captures/2026-09-16-official-supplement.txt)·[public client](../../docs/superpowers/captures/2026-09-25-official-public-client.txt) 캡처의 단계 번호다.
 캡처 번호 `A<n>`은 [authz 캡처](../../docs/superpowers/captures/2026-09-29-authz-walkthrough.txt)의 단계 번호다.
 `stateless S<n>`은 [stateless 캡처](../../docs/superpowers/captures/2026-10-01-stateless-walkthrough.txt)의 단계 번호이고, supplement 캡처의 `S<n>`과 구별하려고 앞에 stateless를 붙인다.
 캡처 번호 `V<n>`은 [visibility 캡처](../../docs/superpowers/captures/2026-10-05-visibility-walkthrough.txt)의 단계 번호다.
 캡처 번호 `L<n>`은 [login 실패 캡처](../../docs/superpowers/captures/2026-10-17-official-login-failure.txt)의 단계 번호다.
 캡처 번호 `D<n>`은 [cimd 캡처](../../docs/superpowers/captures/2026-10-09-cimd-walkthrough.txt)의 단계 번호이고, 요청은 [`mcp-cimd-walkthrough.sh`](../../docs/superpowers/captures/mcp-cimd-walkthrough.sh)가 curl로 보낸 것이다.
+캡처 번호 `M<n>`은 [2026-07-28 캡처](../../docs/superpowers/captures/2026-10-18-modern-walkthrough.txt)의 단계 번호이고, 요청은 [`mcp-2026-07-28-walkthrough.sh`](../../docs/superpowers/captures/mcp-2026-07-28-walkthrough.sh)가 curl로 보낸 것이다.
 요청 줄과 요청 header는 캡처에 없어서, [`mcp-authorization-walkthrough.sh`](../../docs/superpowers/captures/mcp-authorization-walkthrough.sh)·[`mcp-authorization-supplement.sh`](../../docs/superpowers/captures/mcp-authorization-supplement.sh)·[`mcp-authorization-public-client.sh`](../../docs/superpowers/captures/mcp-authorization-public-client.sh)의 같은 단계 curl 명령으로 적는다.
 JWT는 앞 20자, code와 refresh token은 앞 12자만 적는다.
 기준 버전은 transport·lifecycle이 MCP 2025-11-25, authorization이 2025-11-25에 2026-07-28 추가분(`iss`, issuer binding)을 더한 것이다([9장](09-versions.md)).
+modern의 절만 transport가 2026-07-28이다.
 cimd의 CIMD 규칙은 MCP 2026-07-28 Client Registration과 CIMD draft-00을 따른다.
 
 ## endpoint 목차
@@ -31,6 +34,7 @@ cimd의 CIMD 규칙은 MCP 2026-07-28 Client Registration과 CIMD draft-00을 �
 | MCP Server | [`POST /mcp` — Bearer token](#post-mcp--bearer-token) | [1장](01-mcp-basics.md), [6장](06-mcp-call-and-validation.md), [7장](07-local-client.md), [10장](10-scope-and-step-up.md), [11장](11-stateless-and-handle.md), [12장](12-tool-visibility.md) |
 | MCP Server | [`GET /mcp`](#get-mcp--서버가-보내는-메시지의-sse-stream) | [1장](01-mcp-basics.md), [11장](11-stateless-and-handle.md) |
 | MCP Server | [`DELETE /mcp`](#delete-mcp--session-종료) | [1장](01-mcp-basics.md), [11장](11-stateless-and-handle.md) |
+| MCP Server | [`POST /mcp` — 2026-07-28 요청](#post-mcp--2026-07-28-요청) | [14장](14-modern-protocol.md) |
 | Authorization Server | [`GET /.well-known/oauth-authorization-server`](#get-well-knownoauth-authorization-server--authorization-server-metadata) | [3장](03-discovery.md), [4장](04-client-registration.md), [13장](13-cimd.md) |
 | Authorization Server | [`GET /.well-known/openid-configuration`](#get-well-knownopenid-configuration--openid-provider-metadata) | [3장](03-discovery.md) |
 | Authorization Server | [`GET /oauth2/authorize`](#get-oauth2authorize--authorization-request) | [5장](05-authorization-and-token.md), [4장](04-client-registration.md) |
@@ -58,6 +62,7 @@ MCP endpoint `/mcp`가 받는 모든 요청에 공통인 header다.
 
 `Origin`·`Host`는 `McpTransportSecurityFilter`가 Spring Security보다 먼저 검사한다([6장](06-mcp-call-and-validation.md)).
 2026-07-28이 더한 `Mcp-Method`·`Mcp-Name` header는 official이 쓰지 않는다([9장](09-versions.md)).
+modern의 2026-07-28 header와 `_meta`는 [`POST /mcp` — 2026-07-28 요청](#post-mcp--2026-07-28-요청)에 있다.
 
 ## `POST /mcp` — token 없는 요청
 
@@ -396,6 +401,111 @@ MCP-Protocol-Version: 2025-11-25
 ```http
 HTTP/1.1 200
 Content-Length: 0
+```
+
+## `POST /mcp` — 2026-07-28 요청
+
+[mcp-2026-07-28 practice](../mcp-2026-07-28/README.md)(이하 modern)의 MCP 요청은 2026-07-28 형식이다.
+`initialize`와 session이 없고, client는 요청마다 header와 `params._meta`로 버전·capability·client 정보를 알린다.
+이 절은 2025-11-25 기준인 위의 MCP 절들과 다른 점만 모은다.
+`Origin`·`Host`·`Accept`·`Content-Type`, `Authorization`, token 없는 요청의 `401`과 PRM은 위 절과 같다.
+2026-07-28에는 `GET /mcp` stream과 `DELETE /mcp`가 없고, modern에서 이 두 요청의 응답은 캡처하지 않았다.
+
+설명: [14장](14-modern-protocol.md) · [9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)
+
+근거:
+
+- MCP 2026-07-28 Streamable HTTP: [Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata), [Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers), [Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding), [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation), [Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions)
+- MCP 2026-07-28: [Overview — `_meta`](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#_meta), [Versioning — Protocol Version Negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation), [Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)
+- MCP 2026-07-28 Caching·Authorization: [Cacheable Results](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cacheable-results), [Scope Challenge Handling](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling)
+- MCP 2026-07-28 Tools: [x-mcp-header](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header), [Error Handling](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#error-handling), [Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#security-considerations)
+
+**요청 header**
+
+| 이름 | 요구 수준 | 설명 | modern |
+|---|---|---|---|
+| `MCP-Protocol-Version` | MUST — 모든 POST 요청, 값은 `_meta`의 `io.modelcontextprotocol/protocolVersion`과 같다 ([Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)) | 다르면 `400`과 `HeaderMismatch`, 구현하지 않은 버전이면 `400`과 `UnsupportedProtocolVersionError`로 답한다(둘 다 MUST) | agent는 `2026-07-28`을 보낸다. `_meta`와 다르면 SDK가 `400`, `-32020`으로 답한다(`ModernProtocolTest`) |
+| `Mcp-Method` | REQUIRED — 모든 요청 ([Standard Request Headers](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#standard-request-headers)) | 본문의 `method`를 옮긴다. 없거나 본문과 다르면 `400`과 `-32020`이다(MUST, [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation)) | agent는 모든 요청에 붙인다. 이 header가 없는 옛 `initialize`는 `400`, `Missing required header: Mcp-Method`다(M8) |
+| `Mcp-Name` | REQUIRED — `tools/call`·`resources/read`·`prompts/get` | 본문의 `params.name`이나 `params.uri`를 옮긴다. ASCII 밖의 글자·제어 문자·앞뒤 공백이 있는 값과 `=?base64?…?=` 모양의 ASCII 값은 UTF-8의 Base64를 `=?base64?…?=`로 적는다(MUST, [Value Encoding](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#value-encoding)) | agent는 `tools/call`에만 붙이고, ASCII 밖의 글자·제어 문자·앞뒤 공백이 있는 이름과 `=?base64?…?=` 모양의 ASCII 이름을 Base64로 적는다(`ModernMcpClientTest`). 본문과 다르면 `400`, `-32020`, `Mcp-Name header does not match request name/uri`다(M6) |
+| `Mcp-Param-{Name}` | client는 지원 MUST, 서버가 tool 인자에 `x-mcp-header`를 다는 것은 MAY ([Tools — x-mcp-header](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header)) | `x-mcp-header`를 단 tool 인자의 값을 header로 옮긴다 | 다루지 않음 — tool 정의에 `x-mcp-header`가 없고, agent도 이 확장을 읽지 않는다 |
+| `Mcp-Session-Id` | 이 revision에 없다 · 옛 client가 보내면 무시하고 새로 만들지 않는다 SHOULD ([Earlier Streamable HTTP Revisions](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#earlier-streamable-http-revisions)) | | 응답에 없다(M2\~M9) |
+
+**`params._meta`의 protocol field** ([Overview — `_meta`](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#_meta))
+
+| key | 요구 수준 | 설명 | modern |
+|---|---|---|---|
+| `io.modelcontextprotocol/protocolVersion` | MUST — 필수 field, 빠지면 서버는 `-32602`와 `400`으로 거절한다(MUST) | 이 요청의 버전이다 | `"2026-07-28"` |
+| `io.modelcontextprotocol/clientCapabilities` | MUST — 필수 field · 서버는 선언하지 않은 capability에 기대지 않고, 필요하면 `-32021`(`MissingRequiredClientCapability`)과 `400`으로 답한다(MUST) | 이 요청과 관련된 client capability다 | `{}`. agent는 elicitation·sampling·roots를 쓰지 않는다 |
+| `io.modelcontextprotocol/clientInfo` | SHOULD — 모든 요청 | client의 이름과 버전이다. 받는 쪽은 이 값으로 동작을 바꾸거나 보안 판단을 하지 않는다(SHOULD NOT) | `{"name":"modern-shop-agent","version":"0.0.1"}` |
+| `io.modelcontextprotocol/logLevel` | 선택 field | 서버가 이 요청에 남길 최소 log level이다 | 보내지 않는다 |
+
+**결과의 공통 field**
+
+| 이름 | 요구 수준 | 설명 | modern |
+|---|---|---|---|
+| `resultType` | MUST — 모든 result ([Overview](https://modelcontextprotocol.io/specification/2026-07-28/basic/index)) | `complete`는 끝난 결과, `input_required`는 서버가 입력을 되묻는 MRTR 결과다. client는 모르는 값을 무효로 보고, 없으면 `complete`로 본다(둘 다 MUST) | 모든 결과가 `complete`다(M2\~M4, M9). agent는 `complete`가 아니면 오류로 본다 |
+| `_meta`의 `io.modelcontextprotocol/serverInfo` | SHOULD — 모든 result의 `_meta` ([Overview — `_meta`](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#_meta)) | 서버의 이름과 버전이다. 동작이나 보안 판단에 쓰지 않는다(SHOULD NOT) | `{"name":"modern-shop-mcp-server","version":"0.0.1"}`(M2\~M4, M9). agent는 읽지 않는다 |
+| `ttlMs` | MUST — cache할 수 있는 결과, 0 이상 ([Cacheable Results](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cacheable-results)) | 결과를 새것으로 봐도 되는 시간(ms)이다 | `server/discover`는 `0`(M2), `tools/list`는 `60000`(M3)이다 |
+| `cacheScope` | MUST — 같음 ([Cache Scope Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cache-scope-field)) | `public`은 모두에게 같은 결과, `private`은 authorization context마다 다른 결과다 | 둘 다 `private`이다(M2, M3) |
+
+**메시지**
+
+| 메서드 | 규칙 | 응답 | modern |
+|---|---|---|---|
+| `server/discover` | 서버는 구현한다(MUST). client는 다른 요청 전에 불러도 되고 부르지 않아도 된다(MAY, [Versioning](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation)) | `supportedVersions`, `capabilities`, `_meta`의 `serverInfo`, 선택인 `instructions` ([Discovery](https://modelcontextprotocol.io/specification/2026-07-28/server/discover)) | `200`, `supportedVersions: ["2026-07-28"]`, `capabilities.tools.listChanged: false`다(M2). token이 없으면 `401`(M1)이고, 기본 scope `products:read`가 있어야 한다 |
+| `tools/list` | 목록 규칙은 [`POST /mcp` — Bearer token](#post-mcp--bearer-token)의 `tools/list`와 같다 | `tools`, `nextCursor`, `ttlMs`, `cacheScope` | `200` `application/json`이고, `user`는 tool 7개를 받는다(M3). `nextCursor`는 없다 |
+| `tools/call` | `Mcp-Name`이 본문의 `params.name`과 같아야 한다 | `content`, `isError`, 선택인 `structuredContent` | `200` `application/json`이다(M4, M9). 없는 tool과 숨긴 tool은 `400`, `-32602`, `Unknown tool: <이름>`이다 |
+| `initialize` | 2026-07-28에 없다 · 구현하지 않은 method에는 `404`와 `-32601`(MUST, [Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata)) | | header 없는 옛 `initialize`는 `400`, `-32020`이다. 2026-07-28 형식이면 `404`, `-32601`, `Method not found: initialize`다(M8) |
+
+**오류**
+
+HTTP 상태는 SDK 2.2.0-M1이 JSON-RPC `code`로 정한다.
+`-32700`·`-32600`·`-32602`·`-32020`·`-32021`·`-32022`는 `400`, `-32601`은 `404`다.
+그 밖의 code는 `200`이다.
+
+| 상황 | 응답 | 근거 |
+|---|---|---|
+| header가 본문과 다르거나, 필요한 header가 없거나 잘못됨 | `400`, `-32020`(`HeaderMismatch`) MUST — M6, M8 첫 요청. 풀 수 없는 Base64 `Mcp-Name`은 `ToolScopeFilter`가 `id` 없는 `-32020`, `Mcp-Name header has a malformed Base64 value`로 먼저 끝낸다 | [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation) |
+| 본문의 `name`이 문자열이 아님 | `400`, `-32602`, `Unknown tool: 1`이다(M7). SDK 2.2.0-M1은 문자열이 아닌 이름을 `Mcp-Name`과 맞춰 보지 않으므로 `-32020`이 아니다 | [Server Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-validation) — header와 본문이 다르면 `-32020` MUST |
+| `_meta`의 필수 field가 빠짐 | `400`, `-32602` MUST | [Overview — `_meta`](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#_meta) |
+| 필요한 client capability가 없음 | `400`, `-32021`과 `data.requiredCapabilities` MUST — modern에는 capability가 필요한 기능이 없다 | [Overview — `_meta`](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#_meta) |
+| 구현하지 않은 버전 | `400`, `-32022`와 `data.supported` MUST — modern에서는 캡처하지 않았다 | [Versioning — Protocol Version Negotiation](https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning#protocol-version-negotiation) |
+| 구현하지 않은 method | `404`, `-32601` MUST — M8 두 번째 요청 | [Request Metadata](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#request-metadata) |
+| 없는 tool·숨긴 tool | `400`, `-32602`, `Unknown tool: <이름>`이다. SDK가 본문에서 그대로 꺼낸 이름이 `Mcp-Name`과 다르면 `ShopToolRepository#call`도 같은 오류로 끝낸다 | [MCP 2026-07-28 Tools — Error Handling](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#error-handling) |
+| scope 부족 | `403`, `error="insufficient_scope"`, 모자란 scope를 모두 담은 `scope`, `resource_metadata` SHOULD — M5의 `scope="products:write"`. 기본 scope와 tool scope가 모두 모자라면 `scope="products:read orders:write"`처럼 함께 적는다(`ToolScopeFilterTest`) | [2026-07-28 Scope Challenge Handling](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#scope-challenge-handling) |
+| 본문이 상한(`mcp.limits.max-request-body`, 1MB)을 넘음 | `413` — SDK transport의 `maxRequestSize`가 막는다(`ModernProtocolTest`) | 명세 범위 밖 — 서버의 자원 보호 |
+| 한 사용자의 `tools/call`이 1분에 상한을 넘음 | `429`, `Retry-After`, `id` 없는 `-32000` — cimd와 같다 | 속도 제한 MUST ([MCP 2026-07-28 Tools — Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#security-considerations)) · `-32000`\~`-32019`는 새 구현이 쓰지 않는 범위 SHOULD NOT ([Overview](https://modelcontextprotocol.io/specification/2026-07-28/basic/index)) |
+| tool이 예외를 던짐 | HTTP `200`, `-32603`, `Internal error`이고 자세한 내용은 로그에만 남는다(`ModernProtocolTest`). SDK가 상태를 정해 둔 code가 아니라서 `200`이다 | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+
+**예시** (M4)
+
+```http
+POST /mcp HTTP/1.1
+Host: localhost:8181
+Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
+Content-Type: application/json
+Accept: application/json, text/event-stream
+MCP-Protocol-Version: 2026-07-28
+Mcp-Method: tools/call
+Mcp-Name: searchProducts
+
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"searchProducts","arguments":{"keyword":"노트북"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"modern-shop-agent","version":"0.0.1"}}}}
+```
+
+```http
+HTTP/1.1 200
+Content-Type: application/json;charset=UTF-8
+
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "result": {
+    "content": [{"type": "text", "text": "- [p1] 게이밍 노트북 15인치 (노트북) / 1,890,000원 / 재고 7개\n- [p2] 사무용 노트북 14인치 (노트북) / 990,000원 / 재고 23개"}],
+    "isError": false,
+    "resultType": "complete",
+    "_meta": {"io.modelcontextprotocol/serverInfo": {"name": "modern-shop-mcp-server", "version": "0.0.1"}}
+  }
+}
 ```
 
 ## `GET /.well-known/oauth-authorization-server` — Authorization Server Metadata

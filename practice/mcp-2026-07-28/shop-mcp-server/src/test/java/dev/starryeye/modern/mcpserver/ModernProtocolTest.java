@@ -1,0 +1,602 @@
+package dev.starryeye.modern.mcpserver;
+
+import dev.starryeye.modern.mcpserver.ModernTestClient.Response;
+import dev.starryeye.modern.mcpserver.filter.McpTransportSecurityFilter;
+import dev.starryeye.modern.mcpserver.filter.ToolScopeFilter;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.web.servlet.DelegatingFilterProxyRegistrationBean;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.JsonNode;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Function;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * MCP Server가 2026-07-28 요청을 받고, 지금까지의 인가 장치가 그 앞에서 그대로 도는지 본다.
+ *
+ * <p>SDK transport는 Spring MVC를 거치지 않는 servlet이라, 요청은 실제 HTTP로 보낸다({@link ModernTestClient}).
+ * PRM과 {@code Host}·{@code Origin} 검사는 MockMvc로 보낸다.
+ * 이 시험들은 {@code Host} header를 바꿔야 하는데 JDK HTTP client로는 바꿀 수 없다.
+ * 이 요청들은 servlet filter에서 끝나므로 MockMvc로도 같은 동작을 본다.
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
+@AutoConfigureMockMvc
+@Import(TestTokens.StubAuthorizationServer.class)
+class ModernProtocolTest {
+
+	static final List<String> ALL_TOOLS = List.of("searchProducts", "getStock", "updateStock", "createBasket",
+			"addItem", "getBasket", "checkout");
+
+	@DynamicPropertySource
+	static void 빈_port에_띄운다(DynamicPropertyRegistry registry) {
+		ModernTestClient.listenOnFreePort(registry);
+	}
+
+	@LocalServerPort
+	int port;
+
+	@Autowired
+	MockMvc mockMvc;
+
+	@Autowired
+	FilterRegistrationBean<McpTransportSecurityFilter> transportSecurityFilter;
+
+	@Autowired
+	DelegatingFilterProxyRegistrationBean securityFilterChain;
+
+	@Autowired
+	FilterRegistrationBean<ToolScopeFilter> toolScopeFilter;
+
+	ModernTestClient client() {
+		return new ModernTestClient(this.port);
+	}
+
+	/**
+	 * 이 서버가 지키는 resource다.
+	 * 설정의 {@code audiences}와 같다.
+	 */
+	String resource() {
+		return "http://localhost:" + this.port + "/mcp";
+	}
+
+	String origin() {
+		return "http://localhost:" + this.port;
+	}
+
+	String resourceMetadata() {
+		return origin() + "/.well-known/oauth-protected-resource/mcp";
+	}
+
+	String host() {
+		return "localhost:" + this.port;
+	}
+
+	/** {@code user}는 점원이다. */
+	String 점원() {
+		return TestTokens.token("user", resource(), "products:read");
+	}
+
+	/** {@code user2}는 손님이다. */
+	String 손님() {
+		return TestTokens.token("user2", resource(), "products:read");
+	}
+
+	static List<String> 이름들(JsonNode tools) {
+		List<String> names = new ArrayList<>();
+		tools.forEach(tool -> names.add(tool.get("name").asString()));
+		return names;
+	}
+
+	static List<String> 값들(JsonNode array) {
+		List<String> values = new ArrayList<>();
+		array.forEach(value -> values.add(value.asString()));
+		return values;
+	}
+
+	// ---- 2026-07-28 요청 ----
+
+	@Test
+	void initialize_없이_tools_list를_받는다() {
+		Response response = client().listTools(점원());
+
+		assertThat(response.status()).isEqualTo(200);
+		JsonNode result = response.json().get("result");
+		assertThat(이름들(result.get("tools"))).containsExactlyInAnyOrderElementsOf(ALL_TOOLS);
+		assertThat(result.get("resultType").asString()).isEqualTo("complete");
+		// 목록은 사용자의 역할로 달라지므로 다른 access token과 cache를 나누지 않는다.
+		assertThat(result.get("ttlMs").asLong()).isEqualTo(60000L);
+		assertThat(result.get("cacheScope").asString()).isEqualTo("private");
+		assertThat(response.header("Mcp-Session-Id")).isNull();
+	}
+
+	@Test
+	void server_discover는_2026_07_28을_알린다() {
+		Response response = client().discover(점원());
+
+		assertThat(response.status()).isEqualTo(200);
+		JsonNode result = response.json().get("result");
+		assertThat(값들(result.get("supportedVersions"))).contains("2026-07-28");
+		JsonNode serverInfo = result.get("_meta").get("io.modelcontextprotocol/serverInfo");
+		assertThat(serverInfo.get("name").asString()).isEqualTo("modern-shop-mcp-server");
+		assertThat(serverInfo.get("version").asString()).isEqualTo("0.0.1");
+	}
+
+	@Test
+	void 손님에게는_updateStock이_목록에_없다() {
+		Response response = client().listTools(손님());
+
+		assertThat(response.status()).isEqualTo(200);
+		List<String> names = 이름들(response.json().get("result").get("tools"));
+		assertThat(names).hasSize(6).doesNotContain("updateStock");
+	}
+
+	@Test
+	void 숨긴_tool과_없는_tool의_응답이_같다() {
+		Map<String, Object> arguments = Map.of("productId", "p1", "quantity", 3);
+
+		Response hidden = client().callTool(손님(), "updateStock", arguments);
+		Response missing = client().callTool(손님(), "nope", arguments);
+
+		assertThat(hidden.status()).isEqualTo(missing.status());
+		JsonNode hiddenError = hidden.json().get("error");
+		JsonNode missingError = missing.json().get("error");
+		assertThat(hiddenError.get("code").asInt()).isEqualTo(missingError.get("code").asInt());
+		assertThat(hiddenError.get("message").asString()).isEqualTo("Unknown tool: updateStock");
+		assertThat(missingError.get("message").asString()).isEqualTo("Unknown tool: nope");
+		tool_이름_말고는_같다(hidden, missing);
+	}
+
+	/*
+	 * 숨김은 SDK가 입력 검증보다 tool 저장소의 find를 먼저 부르는 데 기댄다.
+	 * 순서가 바뀌면 숨긴 tool만 "Invalid arguments"로 답해, 그런 tool이 있다는 것이 알려진다.
+	 * 그래서 인자나 params의 모양이 틀린 호출에도 숨긴 tool과 없는 tool이 같은 응답을 받는지 본다.
+	 */
+
+	@Test
+	void 숨긴_tool은_인자가_틀려도_없는_tool과_같은_응답이다() {
+		Map<String, Object> wrongType = Map.of("productId", "p1", "quantity", "abc");
+
+		Response hidden = client().callTool(손님(), "updateStock", wrongType);
+		Response missing = client().callTool(손님(), "nope", wrongType);
+
+		tool_이름_말고는_같다(hidden, missing);
+		assertThat(hidden.json().get("error").get("message").asString()).isEqualTo("Unknown tool: updateStock");
+	}
+
+	@Test
+	void arguments가_빈_문자열이어도_숨긴_tool과_없는_tool의_응답이_같다() {
+		Response hidden = 손님이_부른다("updateStock", name -> ModernTestClient.body("tools/call", params(name, "")));
+		Response missing = 손님이_부른다("nope", name -> ModernTestClient.body("tools/call", params(name, "")));
+
+		assertThat(hidden.json().has("error")).isTrue();
+		tool_이름_말고는_같다(hidden, missing);
+	}
+
+	@Test
+	void _meta가_빈_문자열이어도_숨긴_tool과_없는_tool의_응답이_같다() {
+		Function<String, String> emptyMeta = name -> {
+			Map<String, Object> params = params(name, Map.of("productId", "p1", "quantity", 3));
+			params.put("_meta", "");
+			Map<String, Object> request = new LinkedHashMap<>();
+			request.put("jsonrpc", "2.0");
+			request.put("id", 1);
+			request.put("method", "tools/call");
+			request.put("params", params);
+			return ModernTestClient.JSON.writeValueAsString(request);
+		};
+
+		Response hidden = 손님이_부른다("updateStock", emptyMeta);
+		Response missing = 손님이_부른다("nope", emptyMeta);
+
+		assertThat(hidden.json().has("error")).isTrue();
+		tool_이름_말고는_같다(hidden, missing);
+	}
+
+	static Map<String, Object> params(String name, Object arguments) {
+		Map<String, Object> params = new LinkedHashMap<>();
+		params.put("name", name);
+		params.put("arguments", arguments);
+		return params;
+	}
+
+	/** 손님 token과 2026-07-28 header를 붙여, tool 이름으로 만든 본문을 보낸다. */
+	Response 손님이_부른다(String name, Function<String, String> body) {
+		return client().post(손님(), ModernTestClient.headers("tools/call", name), body.apply(name));
+	}
+
+	/**
+	 * 숨긴 tool({@code updateStock})과 없는 tool({@code nope})의 응답이 tool 이름 말고는 같은지 본다.
+	 * 상태 코드, header, 이름을 지운 본문 전체를 비교한다.
+	 * header에서는 보낸 시각인 {@code Date}와, 이름 길이로 달라지는 {@code Content-Length}만 뺀다.
+	 */
+	static void tool_이름_말고는_같다(Response hidden, Response missing) {
+		assertThat(hidden.status()).isEqualTo(missing.status());
+		assertThat(비교할_header(hidden)).isEqualTo(비교할_header(missing)).doesNotContainKey("WWW-Authenticate");
+		assertThat(hidden.body().replace("updateStock", "NAME")).isEqualTo(missing.body().replace("nope", "NAME"));
+	}
+
+	static Map<String, List<String>> 비교할_header(Response response) {
+		Map<String, List<String>> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+		headers.putAll(response.headers());
+		headers.remove("Date");
+		headers.remove("Content-Length");
+		return headers;
+	}
+
+	@Test
+	void 남의_handle은_찾을_수_없다() {
+		Response created = client().callTool(점원(), "createBasket", Map.of());
+		String basketId = created.json().get("result").get("structuredContent").get("basketId").asString();
+
+		Response result = client().callTool(손님(), "getBasket", Map.of("basketId", basketId));
+
+		assertThat(result.status()).isEqualTo(200);
+		JsonNode body = result.json().get("result");
+		assertThat(body.get("isError").asBoolean()).isTrue();
+		assertThat(body.get("content").get(0).get("text").asString()).contains("찾을 수 없는 장바구니입니다(");
+	}
+
+	/**
+	 * SDK transport는 본문의 tool 이름이 문자열일 때만 {@code Mcp-Name}과 맞춰 본다.
+	 * 숫자나 boolean이면 대조를 건너뛰고, Jackson이 그 값을 문자열로 바꿔 실행하려 한다.
+	 * header만 보는 scope 검사를 지나 다른 tool이 실행되면 안 된다.
+	 */
+	@Test
+	void 숫자나_boolean_tool_이름으로는_실행되지_않는다() {
+		for (Object name : List.of(1, true)) {
+			for (String mcpName : Arrays.asList("searchProducts", null)) {
+				Map<String, Object> params = new LinkedHashMap<>();
+				params.put("name", name);
+				params.put("arguments", Map.of());
+
+				Response response = client().post(점원(), ModernTestClient.headers("tools/call", mcpName),
+						ModernTestClient.body("tools/call", params));
+
+				assertThat(response.status()).as("name=%s, Mcp-Name=%s", name, mcpName).isEqualTo(400);
+				assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32602);
+			}
+		}
+	}
+
+	// ---- header로 하는 scope 검사 ----
+
+	@Test
+	void 조회_token으로_updateStock을_부르면_403과_products_write를_알린다() {
+		Response response = client().callTool(점원(), "updateStock", Map.of("productId", "p1", "quantity", 7));
+
+		assertThat(response.status()).isEqualTo(403);
+		assertThat(response.header("WWW-Authenticate")).isEqualTo("Bearer error=\"insufficient_scope\", "
+				+ "scope=\"products:write\", resource_metadata=\"" + resourceMetadata() + "\"");
+	}
+
+	@Test
+	void 쓰기_scope가_있으면_updateStock이_실행된다() {
+		String token = TestTokens.token("user", resource(), "products:read", "products:write");
+
+		// 재고를 처음 값과 같은 7로 바꿔, 다른 시험이 보는 재고는 그대로 둔다.
+		Response response = client().callTool(token, "updateStock", Map.of("productId", "p1", "quantity", 7));
+
+		assertThat(response.status()).isEqualTo(200);
+		JsonNode result = response.json().get("result");
+		assertThat(result.get("isError").asBoolean()).isFalse();
+		assertThat(result.get("content").get(0).get("text").asString())
+				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 재고를 7개로 바꿨습니다.");
+	}
+
+	/**
+	 * scope filter는 header의 {@code searchProducts}만 보고 조회 scope로 넘긴다.
+	 * 본문은 {@code updateStock}이지만 SDK transport가 header와 본문을 맞춰 보고 막으므로 실행되지 않는다.
+	 */
+	@Test
+	void header와_본문의_tool_이름이_다르면_400이다() {
+		Response response = client().post(점원(), ModernTestClient.headers("tools/call", "searchProducts"),
+				ModernTestClient.body("tools/call", params("updateStock", Map.of("productId", "p1", "quantity", 0))));
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+	}
+
+	/**
+	 * {@code Mcp-Name}이 없으면 scope filter는 tool을 몰라 기본 scope만 보고 넘긴다.
+	 * 그래서 조회 token으로 쓰기 tool을 부르는 본문도 filter를 지난다.
+	 * 이 호출을 막는 것은 SDK transport의 "Missing required header" 검사와 {@code ShopToolRepository}의 이름 대조다.
+	 */
+	@Test
+	void Mcp_Name이_없으면_400이고_재고가_바뀌지_않는다() {
+		Response response = client().post(점원(), ModernTestClient.headers("tools/call", null),
+				ModernTestClient.body("tools/call", params("updateStock", Map.of("productId", "p1", "quantity", 0))));
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
+		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
+				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+	}
+
+	/**
+	 * scope filter는 {@code Mcp-Method}가 {@code tools/call}일 때만 tool scope를 본다.
+	 * 그래서 이 header를 {@code tools/list}로 적거나 빼면, 본문이 쓰기 tool 호출이어도 filter는 기본 scope만 보고 넘긴다.
+	 * 이 호출을 막는 것은 SDK transport의 {@code Mcp-Method} 대조뿐이다.
+	 * SDK가 이 대조를 느슨하게 바꾸면 조회 token으로 재고를 바꿀 수 있으므로, 그때 이 시험이 실패해야 한다.
+	 */
+	@Test
+	void Mcp_Method가_본문과_다르거나_없으면_400이고_재고가_바뀌지_않는다() {
+		String body = ModernTestClient.body("tools/call",
+				params("updateStock", Map.of("productId", "p1", "quantity", 0)));
+		Map<String, String> listMethod = ModernTestClient.headers("tools/list", "updateStock");
+		Map<String, String> noMethod = ModernTestClient.headers("tools/call", "updateStock");
+		noMethod.remove("Mcp-Method");
+
+		for (Map<String, String> headers : List.of(listMethod, noMethod)) {
+			Response response = client().post(점원(), headers, body);
+
+			assertThat(response.status()).as("%s", headers).isEqualTo(400);
+			assertThat(response.json().get("error").get("code").asInt()).as("%s", headers).isEqualTo(-32020);
+		}
+		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
+		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
+				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+	}
+
+	/**
+	 * SDK 2.2.0-M1은 {@code =?base64?=}를 풀다 예외를 던져 {@code 500}으로 답한다.
+	 * 그래서 풀 수 없는 {@code Mcp-Name}은 scope filter가 SDK에 넘기지 않고 끝낸다.
+	 */
+	@Test
+	void 잘못된_base64_Mcp_Name은_filter가_400으로_끝낸다() {
+		for (String mcpName : List.of("=?base64?=", "=?base64?!!!?=")) {
+			Response response = client().post(점원(), ModernTestClient.headers("tools/call", mcpName),
+					ModernTestClient.body("tools/call", params("checkout", Map.of("basketId", "b1"))));
+
+			assertThat(response.status()).as(mcpName).isEqualTo(400);
+			assertThat(response.body()).as(mcpName).isEqualTo("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32020,"
+					+ "\"message\":\"Mcp-Name header has a malformed Base64 value\"}}");
+		}
+	}
+
+	@Test
+	void 버전_header가_meta와_다르면_400이다() {
+		Map<String, String> headers = ModernTestClient.headers("tools/list", null);
+		headers.put("MCP-Protocol-Version", "2025-11-25");
+
+		Response response = client().post(점원(), headers, ModernTestClient.body("tools/list", Map.of()));
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
+	}
+
+	@Test
+	void 본문이_상한을_넘으면_413이다() {
+		// 설정한 상한(1MB)을 넘기려고 쓰지 않는 params field를 길게 채운다.
+		String body = ModernTestClient.body("tools/list", Map.of("padding", "x".repeat(1024 * 1024)));
+
+		Response response = client().post(점원(), ModernTestClient.headers("tools/list", null), body);
+
+		assertThat(response.status()).isEqualTo(413);
+	}
+
+	/**
+	 * Spring Security 앞에서 {@code Origin}·{@code Host}를 보고, 인증 뒤에 scope를 본다.
+	 * scope filter가 인증보다 먼저 돌면 token의 scope를 읽지 못한다.
+	 */
+	@Test
+	void filter는_Origin_Host_검사_인증_scope_검사_순서로_돈다() {
+		assertThat(this.transportSecurityFilter.getOrder()).isLessThan(this.securityFilterChain.getOrder());
+		assertThat(this.securityFilterChain.getOrder()).isLessThan(this.toolScopeFilter.getOrder());
+		assertThat(this.toolScopeFilter.getUrlPatterns()).containsExactly("/mcp");
+	}
+
+	@Test
+	void 옛_initialize는_400이다() {
+		// 2025-11-25 client가 보내는 그대로다.
+		// _meta도 2026-07-28 header도 없다.
+		String initialize = """
+				{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25",\
+				"capabilities":{},"clientInfo":{"name":"old-client","version":"1.0.0"}}}""";
+
+		Response response = client().post(점원(), Map.of(), initialize);
+
+		assertThat(response.status()).isEqualTo(400);
+		assertThat(response.header("Mcp-Session-Id")).isNull();
+	}
+
+	@Test
+	void 오류_본문에_stack_trace가_없다() {
+		// sub가 없는 token이면 tool이 사용자를 꺼내다 예외를 던진다.
+		// 그 예외가 응답 본문에 나가면 안 된다.
+		String withoutSubject = TestTokens.token(TestTokens.ISSUER, null, resource(), Instant.now().plusSeconds(300),
+				TestTokens.KEY, "products:read");
+
+		Response response = client().callTool(withoutSubject, "searchProducts", Map.of());
+
+		assertThat(response.json().get("error").get("message").asString()).isEqualTo("Internal error");
+		assertThat(response.body()).doesNotContain("stackTrace").doesNotContain("Exception")
+				.doesNotContain("dev.starryeye");
+	}
+
+	// ---- token 검증과 PRM ----
+
+	@Test
+	void token_없으면_401과_resource_metadata를_준다() {
+		Response response = client().post(null, ModernTestClient.headers("server/discover", null),
+				ModernTestClient.body("server/discover", Map.of()));
+
+		assertThat(response.status()).isEqualTo(401);
+		assertThat(response.header("WWW-Authenticate"))
+				.contains("resource_metadata=\"" + resourceMetadata() + "\"")
+				.contains("scope=\"products:read\"");
+		Response metadata = client().get("/.well-known/oauth-protected-resource/mcp");
+		assertThat(metadata.json().get("resource").asString()).isEqualTo(resource());
+	}
+
+	@Test
+	void aud가_다른_token은_401이다() {
+		// 같은 Authorization Server가 발급했지만 다른 resource에 쓰라고 받은 token이다.
+		String otherAudience = TestTokens.token("user", "http://localhost:9999/mcp", "products:read");
+
+		Response response = client().listTools(otherAudience);
+
+		assertThat(response.status()).isEqualTo(401);
+		assertThat(response.header("WWW-Authenticate")).contains("error=\"invalid_token\"");
+	}
+
+	@Test
+	void iss나_만료나_signature가_틀린_token은_401이다() {
+		Instant later = Instant.now().plusSeconds(300);
+		// Spring의 JwtTimestampValidator는 60초의 clock skew를 둔다.
+		// 그보다 오래 지난 token을 쓴다.
+		Instant expired = Instant.now().minusSeconds(120);
+		List<String> tokens = List.of(
+				TestTokens.token("http://localhost:9999", "user", resource(), later, TestTokens.KEY, "products:read"),
+				TestTokens.token(TestTokens.ISSUER, "user", resource(), expired, TestTokens.KEY, "products:read"),
+				// kid는 같지만 JWKS의 public key로 signature가 맞지 않는다.
+				TestTokens.token(TestTokens.ISSUER, "user", resource(), later, TestTokens.rsaKey(), "products:read"));
+
+		for (String token : tokens) {
+			Response response = client().listTools(token);
+
+			assertThat(response.status()).isEqualTo(401);
+			assertThat(response.header("WWW-Authenticate")).contains("error=\"invalid_token\"");
+		}
+	}
+
+	/*
+	 * PRM의 resource와 401의 resource_metadata는 요청의 Host가 아니라 설정한 주소(audiences)로 만든다.
+	 * Host로 만들면 Host를 바꾼 요청에 다른 서버 주소를 알리게 된다(reverse proxy 뒤에서는 scheme도 틀린다).
+	 * RFC 9728 §3.3에 따라 PRM의 resource는 그 PRM 주소를 만든 식별자와 같다.
+	 * 그래서 경로 모양은 요청한 PRM 주소를 따르고, scheme·host·port만 설정에서 가져온다.
+	 */
+
+	@Test
+	void 경로형_PRM은_설정한_resource를_알린다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", host()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(resource()))
+				.andExpect(jsonPath("$.authorization_servers[0]").value(TestTokens.ISSUER))
+				.andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
+				// 이 서버는 mTLS에 묶인 token을 쓰지 않는다.
+				// Spring 기본값이 true라 꺼야 한다.
+				.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false))
+				.andExpect(jsonPath("$.scopes_supported").value(contains("products:read")));
+	}
+
+	@Test
+	void Host를_바꿔도_경로형_PRM의_resource는_설정한_주소다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(resource()));
+	}
+
+	@Test
+	void 루트형_PRM의_resource는_설정한_주소의_origin이다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource").header("Host", host()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(origin()));
+	}
+
+	@Test
+	void Host를_바꿔도_루트형_PRM의_resource는_설정한_origin이다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(origin()));
+	}
+
+	@Test
+	void 그_밖의_경로형_PRM은_설정한_origin에_요청한_경로를_붙인다() throws Exception {
+		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/other").header("Host", "evil.example"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.resource").value(origin() + "/other"));
+	}
+
+	@Test
+	void Host를_바꿔도_401의_resource_metadata는_경로형_PRM_주소다() throws Exception {
+		// MCP endpoint 밖의 경로는 Host 검사(McpTransportSecurityFilter)를 거치지 않고 바로 401이 된다.
+		this.mockMvc.perform(get("/").header("Host", "evil.example"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						containsString("resource_metadata=\"" + resourceMetadata() + "\"")));
+		// 허용한 다른 Host로 MCP endpoint를 불러도 같다.
+		this.mockMvc.perform(post("/mcp").header("Host", "127.0.0.1:" + this.port))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						containsString("resource_metadata=\"" + resourceMetadata() + "\"")));
+	}
+
+	// ---- Origin·Host 검사 ----
+
+	@Test
+	void token이_없어도_허용하지_않은_Origin은_인증보다_먼저_403이다() throws Exception {
+		this.mockMvc.perform(post("/mcp").header("Host", host()).header("Origin", "http://evil.example"))
+				.andExpect(status().isForbidden())
+				.andExpect(header().doesNotExist("WWW-Authenticate"));
+	}
+
+	@Test
+	void token이_없어도_허용하지_않은_Host는_인증보다_먼저_421이다() throws Exception {
+		this.mockMvc.perform(post("/mcp").header("Host", "evil.example:" + this.port))
+				.andExpect(status().is(421))
+				.andExpect(header().doesNotExist("WWW-Authenticate"));
+	}
+
+	// ---- 사용자별 tool 호출 속도 제한 ----
+
+	/**
+	 * 다른 시험의 호출과 섞이지 않도록, 상한을 2로 둔 서버를 따로 띄운다.
+	 * 이 서버도 비어 있는 다른 port에 띄워야 {@code Host} 검사를 지난다.
+	 */
+	@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT,
+			properties = "mcp.limits.tool-calls-per-minute=2")
+	@Import(TestTokens.StubAuthorizationServer.class)
+	static class 상한을_2로_둔_서버 {
+
+		@DynamicPropertySource
+		static void 빈_port에_띄운다(DynamicPropertyRegistry registry) {
+			ModernTestClient.listenOnFreePort(registry);
+		}
+
+		@LocalServerPort
+		int port;
+
+		@Test
+		void 한_사용자가_1분에_상한을_넘게_부르면_429다() {
+			ModernTestClient client = new ModernTestClient(this.port);
+			String resource = "http://localhost:" + this.port + "/mcp";
+			String 점원 = TestTokens.token("user", resource, "products:read");
+			String 손님 = TestTokens.token("user2", resource, "products:read");
+
+			assertThat(client.callTool(점원, "searchProducts", Map.of()).status()).isEqualTo(200);
+			assertThat(client.callTool(점원, "searchProducts", Map.of()).status()).isEqualTo(200);
+			Response limited = client.callTool(점원, "searchProducts", Map.of());
+
+			assertThat(limited.status()).isEqualTo(429);
+			assertThat(Integer.parseInt(limited.header("Retry-After"))).isBetween(1, 60);
+			assertThat(limited.json().get("error").get("code").asInt()).isEqualTo(-32000);
+			// 상한은 사용자마다 따로 센다.
+			assertThat(client.callTool(손님, "searchProducts", Map.of()).status()).isEqualTo(200);
+		}
+	}
+}
