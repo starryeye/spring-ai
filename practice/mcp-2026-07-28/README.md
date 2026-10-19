@@ -81,8 +81,6 @@ browser에서는 `127.0.0.1`이 아니라 `http://localhost:8180`을 연다.
 ## 코드 지도
 
 아래는 이 practice에만 있거나 cimd와 다른 클래스다.
-표에 없는 클래스는 [cimd README의 코드 지도](../mcp-cimd/README.md#코드-지도)에 있고, package 이름(`dev.starryeye.modern.*`)과 포트·cookie 같은 설정 값만 다르다.
-`auth-server`는 이름·포트·package·cookie 이름(`MODERNAUTHSESSIONID`)만 달라서 표에 없다.
 클래스는 `<module>/src/main/java/dev/starryeye/modern/<package>/` 아래에 있다.
 package는 `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`다.
 표에서는 클래스 이름 앞에 그 아래의 package(`config`, `tool`, `filter`, `security`, `mcp`, `discovery`)를 붙였다.
@@ -107,6 +105,9 @@ package는 `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`다.
 | | `config.ToolCatalogConfig` | `ModernMcpClient`(redirect 없음, HTTP/1.1, 연결 2초)와 `UserToolCatalog` bean을 만든다. 다른 클래스는 이 두 bean에만 기댄다 | [14장 agent 코드](../mcp-guide/14-modern-protocol.md#1411-agent-코드에서-보기) |
 | | `config.McpSecurityConfig` | MCP client customizer bean이 없다. token request의 assertion 설정과 `SingleFlightAuthorizedClientManager`는 cimd와 같다 | [13장 agent 코드](../mcp-guide/13-cimd.md#1311-agent-코드에서-보기) |
 | | `discovery.McpAuthorizationDiscovery` | token 없는 첫 요청을 2026-07-28 형식의 `server/discover`로 보낸다. 나머지 순서와 검사는 cimd와 같다 | [14장 1단계](../mcp-guide/14-modern-protocol.md#143-1단계-token-없는-첫-요청) |
+
+표에 없는 클래스는 [cimd README의 코드 지도](../mcp-cimd/README.md#코드-지도)에 있고, package 이름(`dev.starryeye.modern.*`)과 포트·cookie 같은 설정 값만 다르다.
+`auth-server`는 이름·포트·package·cookie 이름(`MODERNAUTHSESSIONID`)만 달라서 표에 없다.
 
 ## 직접 확인할 것
 
