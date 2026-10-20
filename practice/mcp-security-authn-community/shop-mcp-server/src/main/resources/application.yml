@@ -22,8 +22,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # 토큰 서명 검증용 JWK 와 iss 검증의 기준이고,
-          # 보호 리소스 메타데이터의 authorization_servers 값이기도 하다.
+          # token signature 검증용 JWK와 iss 검증의 기준이고,
+          # protected resource metadata의 authorization_servers 값이기도 하다.
           issuer-uri: http://localhost:9000
 
 logging:

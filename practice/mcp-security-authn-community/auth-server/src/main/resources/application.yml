@@ -8,11 +8,11 @@ server:
   servlet:
     session:
       cookie:
-        # 쿠키는 호스트명에만 스코프되고 포트를 구분하지 않는다(RFC 6265).
+        # 쿠키는 호스트명에만 scope되고 포트를 구분하지 않는다(RFC 6265).
         # 이 practice 의 세 앱이 모두 localhost 를 공유하므로 기본 이름
-        # (JSESSIONID) 을 그대로 쓰면 서로의 세션 쿠키를 덮어써서 OAuth2
-        # 리다이렉트 왕복 중 저장해 둔 authorization request 를 잃어버린다
-        # (종단 검증에서 로그인이 매번 실패하는 것으로 실제 관측됨).
+        # (JSESSIONID)을 그대로 쓰면 서로의 session 쿠키를 덮어써서 OAuth2
+        # redirect 왕복 중 저장해 둔 authorization request를 잃어버린다
+        # (종단 검증에서 login이 매번 실패하는 것으로 실제 관측됨).
         # 앱마다 다른 쿠키 이름을 준다.
         name: AUTHSERVERSESSIONID
 
@@ -40,13 +40,15 @@ spring:
                 - profile
             # MCP 2025-11-25 는 PKCE(S256)를 MUST 로 요구한다.
             require-proof-key: true
-            # 학습용이므로 동의 화면을 건너뛴다. 켜두면 로그인 후 화면이 하나 더 뜬다.
+            # 학습용이므로 consent 화면을 건너뛴다.
+            # 켜두면 login 후 화면이 하나 더 뜬다.
             require-authorization-consent: false
-          # RFC 6749 §2.1 의 공개 클라이언트 — 비밀을 안전하게 보관할 수 없는
-          # 클라이언트(사용자 기기에서 도는 MCP 클라이언트)다. client-secret 자체를
+          # RFC 6749 §2.1의 public client — 비밀을 안전하게 보관할 수 없는
+          # client(사용자 기기에서 도는 MCP client)다.
+          # client-secret 자체를
           # 두지 않는다. client-authentication-methods 가 none 이면 Boot 의
           # OAuth2AuthorizationServerPropertiesMapper 가 그대로 ClientAuthenticationMethod
-          # 로 만들어 등록한다 — 별도 RegisteredClientRepository 빈이 필요 없다.
+          # 로 만들어 등록한다 — 별도 RegisteredClientRepository bean이 필요 없다.
           local-mcp-client:
             registration:
               client-id: local-mcp-client
@@ -54,34 +56,39 @@ spring:
                 - none
               authorization-grant-types:
                 - authorization_code
-                # 등록은 허용하지만 Spring 은 공개 클라이언트에 refresh_token 을 발급하지 않는다
-                # (OAuth2RefreshTokenGenerator 가 authorization_code + none 이면 null). 발급 여부는 인가 서버
-                # 재량이고(OAuth 2.1 §1.3.2), 공개 클라이언트에 발급한다면 회전이나 sender-constrained 가 MUST 다(§4.3.1).
+                # 등록은 허용하지만 Spring은 public client에 refresh_token을 발급하지 않는다
+                # (OAuth2RefreshTokenGenerator가 authorization_code + none이면 null).
+                # 발급 여부는 Authorization Server
+                # 재량이고(OAuth 2.1 §1.3.2), public client에 발급한다면 회전이나 sender-constrained가 MUST다(§4.3.1).
                 - refresh_token
               redirect-uris:
-                # RFC 8252 §7.3 — 네이티브 앱의 루프백 리다이렉트. 특정 제품 콜백에 매지 않는다.
-                # 루프백이면 인가 서버가 포트를 요청 값으로 바꿔 비교하므로 실행 시점의 임시 포트를 쓸 수 있다.
+                # RFC 8252 §7.3 — 네이티브 앱의 루프백 redirect.
+                # 특정 제품 callback에 매지 않는다.
+                # 루프백이면 Authorization Server가 포트를 요청 값으로 바꿔 비교하므로 실행 시점의 임시 포트를 쓸 수 있다.
                 - http://127.0.0.1:8123/callback
               scopes:
                 - openid
                 - profile
-            # 공개 클라이언트에는 비밀이 없어 code_challenge 가 코드 가로채기를 막는
+            # public client에는 비밀이 없어 code_challenge가 코드 가로채기를 막는
             # 유일한 장치다(RFC 7636, MCP 2025-11-25 MUST).
             require-proof-key: true
             # 비밀이 없어 "자기 자신임"을 증명하지 못하므로, 사용자가 무엇을 허용하는지
-            # 직접 확인하는 단계를 둔다(OAuth 2.1 §7.3). 클라이언트 단위 설정이라
-            # shop-agent 는 영향받지 않는다. PublicClientConsentService 는 이 클라이언트의
-            # 동의를 기록하지 않고, PublicClientScopeValidator 는 동의할 scope 가 없는 요청(scope 없음,
-            # openid 하나)을 invalid_scope 로 거부한다 — 두 장치로 모든 인가 요청이 동의 화면을 거친다(§7.3.1).
+            # 직접 확인하는 단계를 둔다(OAuth 2.1 §7.3).
+            # client 단위 설정이라
+            # shop-agent는 영향받지 않는다.
+            # PublicClientConsentService는 이 client의
+            # consent를 기록하지 않고, PublicClientScopeValidator는 consent할 scope가 없는 요청(scope 없음,
+            # openid 하나)을 invalid_scope로 거부한다 — 두 장치로 모든 authorization request가 consent 화면을 거친다(§7.3.1).
             require-authorization-consent: true
 
-# 이 모듈은 동적 클라이언트 등록(DCR)을 기본으로 켠다. MCP 2026-07-28 에서
-# DCR 은 deprecated 이고, 이 practice 는 사전 등록만 쓰므로 끈다.
+# 이 module은 동적 client 등록(DCR)을 기본으로 켠다.
+# MCP 2026-07-28에서
+# DCR은 deprecated이고, 이 practice는 pre-registration만 쓰므로 끈다.
 spring.ai.mcp.authorizationserver.dynamic-client-registration.enabled: false
 
 mcp:
   authorization:
-    # RFC 8707. 이 인가 서버가 토큰을 발급해 줄 수 있는 보호 리소스 목록이다.
+    # RFC 8707. 이 Authorization Server가 token을 발급해 줄 수 있는 protected resource 목록이다.
     resources:
       - http://localhost:8101/mcp
 
