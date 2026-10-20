@@ -46,8 +46,8 @@ class StepUpTest {
 	void 합친_scope로_다시_authorization을_받고_새_token으로_바꾼다() {
 		StepUp stepUp = stepUp(new TokenResponse("write-token", 300, "products:read products:write"));
 
-		// handle은 성공해도 true를 돌려주지 않는다. SDK의 재시도가 옛 token이 실린 요청을 그대로 다시
-		// 보내는 문제를 피하려면, 성공을 예외로 알려 호출한 쪽(McpCalls)이 새 요청을 만들게 해야 한다.
+		// handle은 성공해도 true를 돌려주지 않는다.
+		// SDK의 재시도가 옛 token이 들어 있는 요청을 그대로 다시 보내는 문제를 피하려면, 성공을 예외로 알려 호출한 쪽(McpCalls)이 새 요청을 만들게 해야 한다.
 		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
 				.isInstanceOf(StepUpCompletedException.class);
 

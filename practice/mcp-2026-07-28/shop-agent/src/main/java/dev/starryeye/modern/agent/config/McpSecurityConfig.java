@@ -36,7 +36,7 @@ import java.util.function.Function;
  * <p>Authorization Server의 endpoint는 설정이 아니라 discovery에서 온다.
  * token request와 refresh 요청에는 RFC 8707 {@code resource}를 넣는다.
  * 그래서 발급되는 token은 이 MCP Server 전용이 된다.
- * ChatGPT형이면 두 요청 모두에 서명한 client assertion을 붙인다.
+ * ChatGPT형이면 두 요청 모두에 sign한 client assertion을 붙인다.
  */
 @Configuration
 @EnableConfigurationProperties(McpAuthorizationProperties.class)
@@ -124,8 +124,8 @@ public class McpSecurityConfig {
     }
 
     /**
-     * client assertion을 서명할 key를 고른다(RFC 7523 §2.2).
-     * Authorization Server는 문서의 {@code jwks_uri}에서 같은 key의 public key를 가져와 서명을 확인한다.
+     * client assertion을 sign할 key를 고른다(RFC 7523 §2.2).
+     * Authorization Server는 문서의 {@code jwks_uri}에서 같은 key의 public key를 가져와 signature를 확인한다.
      * Claude형({@code none})이면 converter가 parameter를 더하지 않으므로 key를 주지 않는다.
      */
     static Function<ClientRegistration, JWK> clientAssertionKey(ClientSigningKey signingKey) {

@@ -36,14 +36,14 @@ import java.nio.charset.StandardCharsets;
  * <p>성공 응답과 오류 응답 모두에 붙여야 한다(RFC 9207 §2).
  * Spring Security 7.1에는 RFC 9207 구현이 없어서 이 handler가 그 일을 맡는다.
  *
- * <p>오류는 로그인한 사용자가 consent 화면에서 거절한 경우({@code access_denied})만 client에게 redirect로 알린다.
+ * <p>오류는 login한 사용자가 consent 화면에서 거절한 경우({@code access_denied})만 client에게 redirect로 알린다.
  * 그 밖의 오류는 redirect하지 않고 Authorization Server가 400으로 끝낸다.
  * CIMD client의 redirect URI는 누구나 자기 문서에 적는 값이라 믿을 수 없다.
  * Spring은 authorization request를 login보다 먼저 검사하므로, 오류를 그 주소로 보내면
- * 로그인하지 않은 사람이 누른 링크도 이 서버를 거쳐 공격자 주소로 간다(open redirector).
+ * login하지 않은 사람이 누른 링크도 이 서버를 거쳐 공격자 주소로 간다(open redirector).
  * RFC 9700 §4.11.2는 redirect 전에 사용자를 인증하고(MUST) 믿는 주소로만 자동 redirect하라고(SHOULD) 한다.
  * MCP Security Considerations(Open Redirection)도 믿지 못하는 주소로 보내지 않게 조치하라고 한다(MUST).
- * consent 화면의 거절은 로그인한 사용자가 문서 host와 redirect host를 보고 고른 결정이므로 redirect한다.
+ * consent 화면의 거절은 login한 사용자가 문서 host와 redirect host를 보고 고른 결정이므로 redirect한다.
  * client는 사용자가 거절했다는 사실을 알아야 흐름을 끝낼 수 있다.
  */
 public class IssuerIdentifyingAuthorizationResponseHandler
@@ -104,7 +104,7 @@ public class IssuerIdentifyingAuthorizationResponseHandler
 	}
 
 	/**
-	 * 로그인한 사용자가 consent 화면에서 거절했고, Spring이 검사한 redirect URI가 있을 때만 참이다.
+	 * login한 사용자가 consent 화면에서 거절했고, Spring이 검사한 redirect URI가 있을 때만 참이다.
 	 * redirect URI가 비어 있으면 Spring이 그 주소를 믿을 수 없다고 본 오류다({@code client_id}·{@code redirect_uri} 오류).
 	 */
 	private boolean deniedByUser(OAuth2Error error,

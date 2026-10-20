@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code step_up} parameter는 그 목록에 있는 scope만 허용한다 — 그 밖의 값은 사용자가
  * 아니라 다른 사이트가 끼워 넣었을 수 있다({@code <img>} 같은 subresource로도 이 GET을 부를 수 있다).
  *
- * <p>이 class는 {@code start}, {@code finish}, {@code retry}, {@code challenge}가 필드를 그 자리에서
+ * <p>이 class는 {@code start}, {@code finish}, {@code retry}, {@code challenge}가 field를 그 자리에서
  * 바꿀 뿐, {@code session.setAttribute}를 다시 부르지 않는다. 그래서 이 변경이 남으려면 session이
  * 메모리에 있고 참조로 공유돼야 한다. Spring Session처럼 attribute를 매번 외부 저장소에 직렬화해
  * 넣는 구현이라면, {@code setAttribute}를 다시 부르지 않는 이 class의 변경은 저장소에 반영되지

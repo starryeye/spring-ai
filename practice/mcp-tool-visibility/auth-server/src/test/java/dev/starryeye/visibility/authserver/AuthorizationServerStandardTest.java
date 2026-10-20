@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * MCP 인가 명세가 인가 서버에 요구하는 것들을 실제 흐름으로 검증한다.
+ * MCP authorization 명세가 Authorization Server에 요구하는 것들을 실제 흐름으로 검증한다.
  * PKCE(S256) 강제, RFC 8707 resource → aud, RFC 9207 iss.
  */
 @SpringBootTest
@@ -58,8 +58,9 @@ class AuthorizationServerStandardTest {
 	static final String RESOURCE = "http://localhost:8161/mcp";
 	static final String OTHER_RESOURCE = "http://localhost:9999/mcp";
 
-	// RFC 6749 §2.1 의 공개 클라이언트 — 비밀을 보관할 수 없어 client_id 만으로 토큰
-	// 엔드포인트에 온다. redirect-uri 는 RFC 8252 §7.3 의 루프백이다.
+	// RFC 6749 §2.1의 public client — 비밀을 보관할 수 없어 client_id만으로 token
+	// endpoint에 온다.
+	// redirect-uri는 RFC 8252 §7.3의 루프백이다.
 	static final String PUBLIC_CLIENT_ID = "local-mcp-client";
 	static final String PUBLIC_CLIENT_REDIRECT_URI = "http://127.0.0.1:8123/callback";
 
@@ -156,8 +157,9 @@ class AuthorizationServerStandardTest {
 	}
 
 	/**
-	 * 공개 클라이언트는 require-authorization-consent 가 true 라, 유효한 요청이면
-	 * 리다이렉트가 아니라 200 으로 동의 화면을 돌려준다. 그 판단은 호출부에서 한다.
+	 * public client는 require-authorization-consent가 true라, 유효한 요청이면
+	 * redirect가 아니라 200으로 consent 화면을 돌려준다.
+	 * 그 판단은 호출부에서 한다.
 	 */
 	MvcResult 공개클라이언트_인가요청(boolean pkce, String resource) throws Exception {
 		return this.mockMvc
@@ -165,7 +167,7 @@ class AuthorizationServerStandardTest {
 				.andReturn();
 	}
 
-	/** redirect_uri 가 유효해서 곧장 리다이렉트로 거부되는 경우(예: PKCE 누락)에 쓴다. */
+	/** redirect_uri가 유효해서 곧장 redirect로 거부되는 경우(예: PKCE 누락)에 쓴다. */
 	UriComponents 공개클라이언트_인가요청_거부(boolean pkce, String resource) throws Exception {
 		String location = this.mockMvc
 				.perform(get(공개클라이언트_인가요청_URI(pkce, resource).encode().build().toUri()).session(this.session))
@@ -175,14 +177,15 @@ class AuthorizationServerStandardTest {
 	}
 
 	/**
-	 * Spring 기본 동의 화면(DefaultConsentPage)이 실제로 돌려주는 폼의 hidden state 값을
-	 * 읽는다. 이 값은 원래 인가 요청의 state 파라미터가 아니라, 대기 중인 인가를 찾기 위해
+	 * Spring 기본 consent 화면(DefaultConsentPage)이 실제로 돌려주는 폼의 hidden state 값을
+	 * 읽는다.
+	 * 이 값은 원래 authorization request의 state parameter가 아니라, 대기 중인 authorization을 찾기 위해
 	 * 서버가 새로 발급한 값이다.
 	 *
-	 * DefaultConsentPage 는 Spring Authorization Server 소스에 "For internal use only"로
-	 * 표시된 비공개 클래스이고, 이 렌더링 결과를 정규식으로 파싱한다. DefaultConsentPage 의
+	 * DefaultConsentPage는 Spring Authorization Server 소스에 "For internal use only"로
+	 * 표시된 비공개 클래스이고, 이 렌더링 결과를 정규식으로 파싱한다. DefaultConsentPage의
 	 * 렌더링 형식이 바뀌면 이 정규식은 값을 찾지 못해 이 테스트가 실패한다. spring-security-test
-	 * 에는 동의 화면 파싱을 위한 공개 지원이 없어 지금은 이 결합을 대체할 방법이 없다.
+	 * 에는 consent 화면 파싱을 위한 공개 지원이 없어 지금은 이 결합을 대체할 방법이 없다.
 	 */
 	private static String 동의화면_state(String html) {
 		Matcher matcher = Pattern.compile("name=\"state\" value=\"([^\"]*)\"").matcher(html);
@@ -191,9 +194,9 @@ class AuthorizationServerStandardTest {
 	}
 
 	/**
-	 * 동의 화면의 체크박스를 담아 같은 URI 로 다시 POST 한다(client_id·state·scope). openid
-	 * 는 동의 대상이 아니라 체크박스 자체가 없으므로 scope 파라미터로 보내지 않아도
-	 * OAuth2AuthorizationConsentAuthenticationProvider 가 자동으로 다시 붙여 준다.
+	 * consent 화면의 체크박스를 담아 같은 URI로 다시 POST 한다(client_id·state·scope).
+	 * openid는 consent 대상이 아니라 체크박스 자체가 없으므로 scope parameter로 보내지 않아도
+	 * OAuth2AuthorizationConsentAuthenticationProvider가 자동으로 다시 붙여 준다.
 	 */
 	UriComponents 공개클라이언트_동의(MvcResult authorizationResponse, String approvedScope) throws Exception {
 		String state = 동의화면_state(authorizationResponse.getResponse().getContentAsString());
@@ -214,7 +217,7 @@ class AuthorizationServerStandardTest {
 		return 응답파라미터(codeResponse, "code");
 	}
 
-	/** 공개 클라이언트는 client_secret_basic 헤더 없이 client_id 파라미터만으로 온다. */
+	/** public client는 client_secret_basic header 없이 client_id parameter만으로 온다. */
 	String 공개클라이언트_토큰요청(MultiValueMap<String, String> parameters, int expectedStatus) throws Exception {
 		return this.mockMvc.perform(post("/oauth2/token").params(parameters))
 				.andExpect(status().is(expectedStatus))
@@ -234,7 +237,10 @@ class AuthorizationServerStandardTest {
 		return parameters;
 	}
 
-	/** public client 가 scope 만 바꿔 인가 요청한다. scope 가 null 이면 파라미터를 빼고 보낸다. */
+	/**
+	 * public client가 scope만 바꿔 authorization request를 보낸다.
+	 * scope가 null이면 parameter를 빼고 보낸다.
+	 */
 	UriComponents 공개클라이언트_scope_인가요청(String scope) throws Exception {
 		UriComponentsBuilder uri = 공개클라이언트_인가요청_URI(true, RESOURCE);
 		if (scope == null) {
@@ -249,7 +255,7 @@ class AuthorizationServerStandardTest {
 		return UriComponentsBuilder.fromUriString(location).build();
 	}
 
-	/** 기밀 client 의 인가 요청에서 scope 와 resource 값을 바꿔 보낸다. */
+	/** 기밀 client의 authorization request에서 scope와 resource 값을 바꿔 보낸다. */
 	UriComponents 인가요청(String scope, String... resources) throws Exception {
 		UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/oauth2/authorize")
 				.queryParam("response_type", "code")
@@ -381,8 +387,9 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 메타데이터에_클라이언트_인증_서명_알고리즘이_광고된다() throws Exception {
-		// RFC 8414 §2: token/revocation/introspection 이 client_secret_jwt·private_key_jwt 를
-		// 광고하면, 그 알고리즘 목록도 함께 실어야 한다(조건부 MUST). none 은 MUST NOT.
+		// RFC 8414 §2: token/revocation/introspection이 client_secret_jwt·private_key_jwt를
+		// 광고하면, 그 알고리즘 목록도 함께 넣어야 한다(조건부 MUST).
+		// none은 MUST NOT.
 		this.mockMvc.perform(get("/.well-known/oauth-authorization-server"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
@@ -400,9 +407,9 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void OIDC_디스커버리에도_token_revocation_introspection_인증_서명_알고리즘이_모두_있다() throws Exception {
-		// OIDC Discovery 1.0 도 RFC 8414 §2 와 같은 조건부 MUST 를 요구한다.
-		// OidcProviderConfigurationEndpointFilter 가 세 엔드포인트 모두에 private_key_jwt·
-		// client_secret_jwt 를 광고하므로, 짝이 되는 서명 알고리즘 claim 도 세 개 다 있어야 한다.
+		// OIDC Discovery 1.0도 RFC 8414 §2와 같은 조건부 MUST를 요구한다.
+		// OidcProviderConfigurationEndpointFilter가 세 endpoint 모두에 private_key_jwt·
+		// client_secret_jwt를 광고하므로, 짝이 되는 signature 알고리즘 claim도 세 개 다 있어야 한다.
 		this.mockMvc.perform(get("/.well-known/openid-configuration"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.token_endpoint_auth_methods_supported", hasItem("private_key_jwt")))
@@ -419,8 +426,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void Basic_인증_실패시_스킴에_맞는_WWW_Authenticate_가_실린다() throws Exception {
-		// RFC 6749 §5.2 / OAuth 2.1 §3.2.4: Authorization 헤더로 인증을 시도했다면
-		// 그 스킴에 맞는 WWW-Authenticate 를 401 과 함께 반드시 실어야 한다.
+		// RFC 6749 §5.2 / OAuth 2.1 §3.2.4: Authorization header로 인증을 시도했다면
+		// 그 스킴에 맞는 WWW-Authenticate를 401과 함께 반드시 넣어야 한다.
 		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
 		parameters.add("grant_type", "client_credentials");
 
@@ -431,13 +438,13 @@ class AuthorizationServerStandardTest {
 	}
 
 	/**
-	 * client_secret_post 파라미터(client_id·client_secret 폼 파라미터)는 등록된 클라이언트가
-	 * client_secret_basic 만 허용하므로 {@code ClientSecretAuthenticationProvider} 가
-	 * "authentication_method" 사유로 invalid_client 를 던진다 — 자격증명 자체는 맞아도 실패한다.
-	 * 이 변환기는 Authorization 헤더 내용과 무관하게 동작하므로, 헤더에 임의의(때로는 문법에
-	 * 어긋나는) 스킴을 실어도 그 값과 무관하게 실패를 재현할 수 있다. 우리 핸들러는 어느
-	 * 변환기가 실패시켰는지와 상관없이 원본 Authorization 헤더를 다시 파싱하므로, 이 방식으로
-	 * requestedScheme() 의 파싱·폴백 로직만 독립적으로 검증할 수 있다.
+	 * client_secret_post parameter(client_id·client_secret 폼 parameter)는 등록된 client가
+	 * client_secret_basic만 허용하므로 {@code ClientSecretAuthenticationProvider}가
+	 * "authentication_method" 사유로 invalid_client를 던진다 — credentials 자체는 맞아도 실패한다.
+	 * 이 변환기는 Authorization header 내용과 무관하게 동작하므로,
+	 * header에 임의의(때로는 문법에 어긋나는) 스킴을 넣어도 그 값과 무관하게 실패를 재현할 수 있다.
+	 * 우리 handler는 어느 변환기가 실패시켰는지와 상관없이 원본 Authorization header를 다시 파싱하므로,
+	 * 이 방식으로 requestedScheme()의 파싱·폴백 로직만 독립적으로 검증할 수 있다.
 	 */
 	static MultiValueMap<String, String> 인증방법이_허용되지_않는_클라이언트_자격증명() {
 		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
@@ -449,9 +456,9 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void Basic_아닌_스킴으로_인증_실패시_그_스킴이_그대로_반영된다() throws Exception {
-		// DEFAULT_SCHEME 이 "Basic" 이라 Basic 요청만으로는 스킴 파싱 자체가 이뤄지는지
+		// DEFAULT_SCHEME이 "Basic"이라 Basic 요청만으로는 스킴 파싱 자체가 이뤄지는지
 		// 검증하지 못한다 — 파싱을 건너뛰고 항상 기본값만 돌려주는 구현도 통과해버린다.
-		// Bearer 처럼 다른 스킴으로 시도했을 때 그 스킴이 그대로 실리는지로 파싱을 고정한다.
+		// Bearer처럼 다른 스킴으로 시도했을 때 그 스킴이 그대로 들어가는지로 파싱을 고정한다.
 		this.mockMvc.perform(post("/oauth2/token")
 						.header(HttpHeaders.AUTHORIZATION, "Bearer not-a-real-token")
 						.params(인증방법이_허용되지_않는_클라이언트_자격증명()))
@@ -462,7 +469,7 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 스킴_토큰에_따옴표가_섞이면_Basic_으로_폴백하고_주입되지_않는다() throws Exception {
-		// RFC 7230 §3.2.6 token 문법에 어긋나는 스킴(따옴표·공백 포함)은 헤더에 그대로
+		// RFC 7230 §3.2.6 token 문법에 어긋나는 스킴(따옴표·공백 포함)은 header에 그대로
 		// 옮기면 WWW-Authenticate 값 주입으로 이어질 수 있다. 기본 스킴으로 폴백해야 한다.
 		this.mockMvc.perform(post("/oauth2/token")
 						.header(HttpHeaders.AUTHORIZATION, "Basic\" , evil=\"x not-a-real-credential")
@@ -474,8 +481,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void Authorization_헤더_없이_실패하면_WWW_Authenticate_가_없다() throws Exception {
-		// client_secret_post 처럼 폼 파라미터로만 인증을 시도한 경우엔 스킴을 알 수 없으므로
-		// RFC 6749 §5.2 요구(Authorization 헤더로 시도한 경우 한정)의 대상이 아니다.
+		// client_secret_post처럼 폼 parameter로만 인증을 시도한 경우엔 스킴을 알 수 없으므로
+		// RFC 6749 §5.2 요구(Authorization header로 시도한 경우 한정)의 대상이 아니다.
 		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
 		parameters.add("grant_type", "client_credentials");
 		parameters.add("client_id", CLIENT_ID);
@@ -488,11 +495,12 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void client_인증은_성공하고_code_verifier_만_틀리면_WWW_Authenticate_가_없다() throws Exception {
-		// PKCE code_verifier 검증은 OAuth2TokenEndpointFilter 가 아니라, ClientSecretAuthenticationProvider
-		// 내부의 CodeVerifierAuthenticator 가 "클라이언트 인증"의 일부로 OAuth2ClientAuthenticationFilter
-		// 안에서 수행한다. 그래서 이 실패도 우리 챌린지 핸들러(그 필터의 실패 핸들러)를 거치지만,
-		// 오류 코드는 invalid_client 가 아니라 invalid_grant 다 — client_secret 자체는 맞았기 때문이다.
-		// RFC 6749 §5.2 의 챌린지 의무는 invalid_client 응답에 한정되므로 붙으면 안 된다.
+		// PKCE code_verifier 검증은 OAuth2TokenEndpointFilter가 아니라, ClientSecretAuthenticationProvider
+		// 내부의 CodeVerifierAuthenticator가 "client 인증"의 일부로 OAuth2ClientAuthenticationFilter
+		// 안에서 수행한다.
+		// 그래서 이 실패도 우리 challenge 핸들러(그 filter의 실패 핸들러)를 거치지만,
+		// 오류 코드는 invalid_client가 아니라 invalid_grant다 — client_secret 자체는 맞았기 때문이다.
+		// RFC 6749 §5.2의 challenge 의무는 invalid_client 응답에 한정되므로 붙으면 안 된다.
 		String code = 인가코드(RESOURCE);
 		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
 		parameters.add("grant_type", "authorization_code");
@@ -522,7 +530,7 @@ class AuthorizationServerStandardTest {
 
 		assertThat(응답파라미터(response, "error")).isEqualTo("invalid_request");
 		assertThat(응답파라미터(response, "code")).isNull();
-		// 오류 응답에도 iss 가 실려야 한다(RFC 9207 §2.4).
+		// 오류 응답에도 iss가 들어 있어야 한다(RFC 9207 §2.4).
 		assertThat(응답파라미터(response, "iss")).isEqualTo(ISSUER);
 	}
 
@@ -542,7 +550,7 @@ class AuthorizationServerStandardTest {
 		String accessToken = JsonPath.read(body, "$.access_token");
 		String idToken = JsonPath.read(body, "$.id_token");
 
-		// openid 스코프가 있어도 access token 의 aud 는 보호 리소스여야 한다.
+		// openid scope가 있어도 access token의 aud는 protected resource여야 한다.
 		assertThat(토큰의_aud(accessToken)).containsExactly(RESOURCE);
 		assertThat(토큰의_aud(idToken)).containsExactly(CLIENT_ID);
 	}
@@ -578,8 +586,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 메타데이터에_공개_클라이언트_인증_방식_none_이_광고되고_기존_방식도_유지된다() throws Exception {
-		// RFC 8414 §2: none 은 client_secret 이 없는 공개 클라이언트를 뜻한다.
-		// OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods() 는
+		// RFC 8414 §2: none은 client_secret이 없는 public client를 뜻한다.
+		// OAuth2AuthorizationServerMetadataEndpointFilter.clientAuthenticationMethods()는
 		// 이 값을 절대 넣지 않으므로, 커스터마이저가 더한 값이 기존 여섯 방식 곁에
 		// 그대로 남아 있어야 한다 — 지우고 다시 채운 게 아니라 더한 것이어야 한다.
 		this.mockMvc.perform(get("/.well-known/oauth-authorization-server"))
@@ -607,8 +615,8 @@ class AuthorizationServerStandardTest {
 	void 공개_클라이언트는_동의_뒤_클라이언트_인증_없이_토큰을_받고_access_token의_aud는_resource다() throws Exception {
 		String code = 공개클라이언트_인가코드(RESOURCE);
 
-		// client_secret_basic 헤더도 client_secret 파라미터도 없다 — client_id 만 보내고
-		// PKCE code_verifier 가 비밀의 자리를 대신한다(RFC 6749 §3.2.1 / OAuth 2.1 §3.2.2).
+		// client_secret_basic header도 client_secret parameter도 없다 — client_id만 보내고
+		// PKCE code_verifier가 비밀의 자리를 대신한다(RFC 6749 §3.2.1 / OAuth 2.1 §3.2.2).
 		String body = 공개클라이언트_토큰요청(공개클라이언트_인가코드교환(code, RESOURCE), 200);
 
 		String accessToken = JsonPath.read(body, "$.access_token");
@@ -636,9 +644,9 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다() throws Exception {
-		// redirect_uri 자체가 미등록이면 그 주소로 리다이렉트하지 않는다 — 오픈 리다이렉터를
-		// 막기 위한 RFC 6749 §4.1.2.1 요구다. IssuerIdentifyingAuthorizationResponseHandler 가
-		// 이 경우 redirectUri 가 null 로 지워진 예외를 받아 response.sendError 로 직접 응답한다.
+		// redirect_uri 자체가 미등록이면 그 주소로 redirect하지 않는다 — open redirector를
+		// 막기 위한 RFC 6749 §4.1.2.1 요구다. IssuerIdentifyingAuthorizationResponseHandler가
+		// 이 경우 redirectUri가 null로 지워진 예외를 받아 response.sendError로 직접 응답한다.
 		UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/oauth2/authorize")
 				.queryParam("response_type", "code")
 				.queryParam("client_id", PUBLIC_CLIENT_ID)
@@ -648,9 +656,9 @@ class AuthorizationServerStandardTest {
 				.queryParam("code_challenge", CODE_CHALLENGE)
 				.queryParam("code_challenge_method", "S256");
 
-		// response.sendError(int, String) 는 상태 코드만 응답에 반영하고, 그 메시지 자체는
-		// MockHttpServletResponse.getErrorMessage() 로만 확인할 수 있다(본문에는 실리지 않는다
-		// — 실제 컨테이너라면 에러 페이지가 그 메시지를 담아 렌더링하지만 MockMvc 는 렌더링까지
+		// response.sendError(int, String)는 상태 코드만 응답에 반영하고, 그 메시지 자체는
+		// MockHttpServletResponse.getErrorMessage()로만 확인할 수 있다(본문에는 들어가지 않는다
+		// — 실제 컨테이너라면 에러 페이지가 그 메시지를 담아 렌더링하지만 MockMvc는 렌더링까지
 		// 가지 않는다).
 		String errorMessage = this.mockMvc.perform(get(uri.encode().build().toUri()).session(this.session))
 				.andExpect(status().isBadRequest())
@@ -661,10 +669,10 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 공개_클라이언트에는_refresh_token_을_발급하지_않는다() throws Exception {
-		// 등록에 refresh_token 그랜트가 있어도 Spring 의 OAuth2RefreshTokenGenerator 는
-		// authorization_code 그랜트에서 클라이언트 인증 방식이 none 이면 null 을 돌려준다.
-		// 발급 여부는 인가 서버 재량이고(OAuth 2.1 §1.3.2), 공개 클라이언트에 발급한다면 회전이나
-		// sender-constrained 가 MUST 다(§4.3.1) — 발급하지 않는 쪽은 그 요구를 피해 간다.
+		// 등록에 refresh_token 그랜트가 있어도 Spring의 OAuth2RefreshTokenGenerator는
+		// authorization_code 그랜트에서 client 인증 방식이 none이면 null을 돌려준다.
+		// 발급 여부는 Authorization Server 재량이고(OAuth 2.1 §1.3.2),
+		// public client에 발급한다면 회전이나 sender-constrained가 MUST다(§4.3.1) — 발급하지 않는 쪽은 그 요구를 피해 간다.
 		String code = 공개클라이언트_인가코드(RESOURCE);
 
 		String body = 공개클라이언트_토큰요청(공개클라이언트_인가코드교환(code, RESOURCE), 200);
@@ -675,11 +683,11 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 루프백_리다이렉트는_등록된_포트와_달라도_허용되고_경로가_다르면_거부된다() throws Exception {
-		// RFC 8252 §7.3 · OAuth 2.1 §8.4.2 — 네이티브 앱은 실행 시점에 OS 에서 임시 포트를
-		// 받으므로, 인가 서버는 루프백 IP 리다이렉트의 포트를 요청 시점에 정하게 허용해야 한다(MUST).
-		// OAuth2AuthorizationCodeRequestAuthenticationValidator 는 호스트가 루프백이면 등록 URI 의
+		// RFC 8252 §7.3 · OAuth 2.1 §8.4.2 — 네이티브 앱은 실행 시점에 OS에서 임시 포트를
+		// 받으므로, Authorization Server는 루프백 IP redirect의 포트를 요청 시점에 정하게 허용해야 한다(MUST).
+		// OAuth2AuthorizationCodeRequestAuthenticationValidator는 호스트가 루프백이면 등록 URI의
 		// 포트를 요청 포트로 바꿔 비교한다. 포트 외의 부분(스킴·호스트·경로)은 정확히 일치해야 한다 —
-		// 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다 가 확인한다.
+		// 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다 test가 확인한다.
 		String otherPort = "http://127.0.0.1:9999/callback";
 		MvcResult consentPage = this.mockMvc
 				.perform(get(공개클라이언트_인가요청_URI(true, RESOURCE)
@@ -698,9 +706,10 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 공개_클라이언트는_이전에_동의했어도_매번_동의_화면을_거친다() throws Exception {
-		// OAuth 2.1 §7.3.1 — 클라이언트 신원을 확인할 수 없으면 이전 동의가 있어도 처음처럼
-		// 처리한다(SHOULD). PublicClientConsentService 가 공개 클라이언트의 동의를 기록하지 않으므로
-		// 첫 요청에서 동의를 마쳐도 두 번째 요청이 다시 동의 화면(200)으로 온다.
+		// OAuth 2.1 §7.3.1 — client 신원을 확인할 수 없으면 이전 consent가 있어도 처음처럼
+		// 처리한다(SHOULD).
+		// PublicClientConsentService가 public client의 consent를 기록하지 않으므로
+		// 첫 요청에서 consent를 마쳐도 두 번째 요청이 다시 consent 화면(200)으로 온다.
 		String code = 공개클라이언트_인가코드(RESOURCE);
 		assertThat(code).isNotBlank();
 
@@ -752,7 +761,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 인가_요청에_없던_resource_를_토큰_요청에서_정하면_invalid_target_이다() throws Exception {
-		// resource 는 사용자가 consent 한 대상이다. 인가 요청에 없던 대상을 token 요청에서 새로 정하지 못한다.
+		// resource는 사용자가 consent한 대상이다.
+		// authorization request에 없던 대상을 token request에서 새로 정하지 못한다.
 		String body = 토큰요청(인가코드교환(인가코드(null), RESOURCE), 400);
 
 		assertThat((String) JsonPath.read(body, "$.error")).isEqualTo("invalid_target");
@@ -760,7 +770,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 인가_요청의_resource_가_여러_개면_invalid_target_이다() throws Exception {
-		// 이 Authorization Server 는 보호 리소스 하나만 다룬다. 값이 여러 개면 String[] 이 되어 허용 목록과 맞지 않는다.
+		// 이 Authorization Server는 protected resource 하나만 다룬다.
+		// 값이 여러 개면 String[]이 되어 허용 목록과 맞지 않는다.
 		UriComponents response = 인가요청("openid products:read", RESOURCE, OTHER_RESOURCE);
 
 		assertThat(응답파라미터(response, "error")).isEqualTo("invalid_target");

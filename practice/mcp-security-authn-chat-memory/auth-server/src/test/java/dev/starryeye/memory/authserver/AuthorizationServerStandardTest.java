@@ -576,7 +576,7 @@ class AuthorizationServerStandardTest {
 		// 그래서 Authorization Server는 loopback IP redirect의 port를 요청할 때 정하도록 허용해야 한다(MUST).
 		// OAuth2AuthorizationCodeRequestAuthenticationValidator는 host가 loopback이면 등록 URI의
 		// port를 요청 port로 바꿔 비교한다. port 밖의 부분(scheme·host·경로)은 정확히 같아야 한다.
-		// 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다가 확인한다.
+		// 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다 test가 확인한다.
 		String otherPort = "http://127.0.0.1:9999/callback";
 		MvcResult consentPage = this.mockMvc
 				.perform(get(공개클라이언트_인가요청_URI(true, RESOURCE)

@@ -36,9 +36,9 @@ class ShopMcpServerApplicationTests {
 	}
 
 	/**
-	 * 401 과 함께 {@code WWW-Authenticate} 스킴이 {@code Bearer} 인지 본다. Boot 기본 보안(Basic)으로
-	 * 막혀도 401 이므로, 스킴이 OAuth2 Resource Server 가 연결됐다는 증거다.
-	 * {@code Host} 는 {@code McpTransportSecurityFilter} 가 인증보다 먼저 보므로 허용 값으로 싣는다.
+	 * 401과 함께 {@code WWW-Authenticate} 스킴이 {@code Bearer} 인지 본다. Boot 기본 보안(Basic)으로
+	 * 막혀도 401이므로, 스킴이 OAuth2 Resource Server가 연결됐다는 증거다.
+	 * {@code Host}는 {@code McpTransportSecurityFilter}가 인증보다 먼저 보므로 허용 값으로 넣는다.
 	 */
 	@Test
 	void 토큰_없이_MCP_엔드포인트를_호출하면_401이다() throws Exception {

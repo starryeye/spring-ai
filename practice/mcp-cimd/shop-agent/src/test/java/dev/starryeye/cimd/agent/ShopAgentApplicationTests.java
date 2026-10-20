@@ -231,7 +231,8 @@ class ShopAgentApplicationTests {
 
     /**
      * customizer bean이 있는지가 아니라, 자동 구성이 만든 {@link McpSyncClient}가 보내는 요청에
-     * 로그인한 사용자의 token이 실제로 실리는지 본다. {@code type: ASYNC}로 바꾸거나 customizer가 빠지면
+     * login한 사용자의 token이 실제로 들어가는지 본다.
+     * {@code type: ASYNC}로 바꾸거나 customizer가 빠지면
      * 오류 없이 token만 빠져 MCP Server가 401을 준다(6장 "조용히 401").
      */
     @Test

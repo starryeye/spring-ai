@@ -25,8 +25,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
-	// HttpClient 기반 MCP 클라이언트. MCP 표준 SDK 를 전이 의존으로 끌어온다 —
-	// io.modelcontextprotocol.sdk 의 클래스를 import 하는 데 별도 선언이 필요 없다.
+	// HttpClient 기반 MCP client.
+	// MCP 표준 SDK를 전이 의존으로 끌어온다 — io.modelcontextprotocol.sdk의 클래스를 import 하는 데 별도 선언이 필요 없다.
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
 	// 리액터 컨텍스트 자동 전파용. Spring Security 가 ThreadLocalAccessor 를

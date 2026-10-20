@@ -21,7 +21,7 @@ import java.util.Set;
  * 이미 가진 scope를 서버가 모자라다고 하거나, 이미 한 번 요청했는데도 못 받은 scope면 더 시도하지 않고 멈춘다.
  *
  * <p>{@link #handle}은 성공해도 {@code true}를 돌려주지 않는다. MCP Java SDK 2.0.1(2.0.0도 같다)은 {@code true}를
- * 받으면 {@code httpRequestCustomizer}를 다시 부르지 않고 옛 token이 실린 요청을 그대로 재시도한다
+ * 받으면 {@code httpRequestCustomizer}를 다시 부르지 않고 옛 token이 들어 있는 요청을 그대로 재시도한다
  * ({@code HttpClientStreamableHttpTransport#sendMessage} 참고). 그래서 성공하면 대신
  * {@link StepUpCompletedException}을 던져, 호출한 쪽({@link McpCalls})이 같은 요청을 새로 만들어
  * 다시 보내게 한다.

@@ -56,7 +56,8 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 
 	/**
 	 * lock을 기다리는 최대 시간이다. 정상이면 다른 요청이 새 token을 만들어 저장하는 짧은 동안만 기다린다.
-	 * 풀리지 않은 lock(버그)이 있어도 token 요청이 끝없이 묶이지 않게 상한을 둔다. 넘으면 그 refresh는 실패한다.
+	 * 풀리지 않은 lock(버그)이 있어도 token request가 끝없이 묶이지 않게 상한을 둔다.
+	 * 넘으면 그 refresh는 실패한다.
 	 */
 	private static final Duration LOCK_TIMEOUT = Duration.ofSeconds(10);
 

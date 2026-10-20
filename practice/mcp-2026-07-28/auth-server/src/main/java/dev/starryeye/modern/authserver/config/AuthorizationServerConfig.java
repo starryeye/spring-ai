@@ -95,7 +95,7 @@ public class AuthorizationServerConfig {
 	/**
 	 * CIMD client가 문서에 선언할 수 있는 인증 방식이다.
 	 * 문서는 누구나 읽으므로 비밀을 나누는 방식(client_secret_*)은 쓸 수 없다.
-	 * 남는 것은 key로 서명하는 {@code private_key_jwt}와 인증하지 않는 {@code none}이다.
+	 * 남는 것은 key로 sign하는 {@code private_key_jwt}와 인증하지 않는 {@code none}이다.
 	 * Claude 앱은 이 목록에 {@code none}이 있어야 CIMD를 쓴다.
 	 */
 	static final List<String> TOKEN_ENDPOINT_AUTHENTICATION_METHODS = List.of(

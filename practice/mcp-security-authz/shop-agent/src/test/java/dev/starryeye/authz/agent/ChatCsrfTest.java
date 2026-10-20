@@ -44,8 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@code /api/chat} 도 CSRF 를 검사한다. {@code csrf.spa()} 가 준 {@code XSRF-TOKEN} 쿠키 값을
- * {@code X-XSRF-TOKEN} 헤더로 되돌려 보내는 index.html 의 흐름을 그대로 밟는다.
+ * {@code /api/chat}도 CSRF를 검사한다. {@code csrf.spa()}가 준 {@code XSRF-TOKEN} 쿠키 값을
+ * {@code X-XSRF-TOKEN} header로 되돌려 보내는 index.html의 흐름을 그대로 밟는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

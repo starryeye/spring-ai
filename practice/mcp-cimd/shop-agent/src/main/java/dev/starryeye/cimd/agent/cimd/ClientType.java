@@ -11,7 +11,7 @@ public enum ClientType {
 
 	/**
 	 * ChatGPT와 같은 방식이다. 문서에 {@code private_key_jwt}와 {@code jwks_uri}를 선언하고,
-	 * token request마다 서명 key로 만든 client assertion을 붙인다.
+	 * token request마다 signature key로 만든 client assertion을 붙인다.
 	 */
 	CHATGPT("/oauth/client.json", "Shop Agent (ChatGPT형)", ClientAuthenticationMethod.PRIVATE_KEY_JWT),
 

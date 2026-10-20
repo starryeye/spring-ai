@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * MCP Server가 2026-07-28 요청을 받고, 지금까지의 인가 장치가 그 앞에서 그대로 도는지 본다.
+ * MCP Server가 2026-07-28 요청을 받고, 지금까지의 authorization 장치가 그 앞에서 그대로 도는지 본다.
  *
  * <p>SDK transport는 Spring MVC를 거치지 않는 servlet이라, 요청은 실제 HTTP로 보낸다({@link ModernTestClient}).
  * PRM과 {@code Host}·{@code Origin} 검사는 MockMvc로 보낸다.
