@@ -11,7 +11,7 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 |---|---|
 | 예 | 지킨다 |
 | **아니오** | MUST·MUST NOT·REQUIRED를 어긴다. 굵게 쓴 것만 위반으로 센다 |
-| 아니오(권고) | SHOULD·SHOULD NOT·RECOMMENDED를 따르지 않는다. 이유가 있으면 따르지 않아도 되는 권고라서 위반으로 세지 않고, 따르지 않는 내용과 있으면 그 이유를 칸에 적는다 |
+| 아니오(권고) | SHOULD·SHOULD NOT·RECOMMENDED를 따르지 않는다. 이유가 있으면 따르지 않아도 되는 권고라서 위반으로 세지 않고, 따르지 않는 내용과, 있으면 그 이유를 칸에 적는다 |
 | 다루지 않음 | 그 기능을 쓰지 않는다 |
 | 해당 없음 | 조건이 생기지 않는다 |
 | 판정하지 않음 | 그 practice의 기준 버전에 없는 규칙이거나 그 표에서 따로 보지 않은 항목이라 판정을 미룬다. 이유를 칸에 적는다 |
@@ -285,6 +285,8 @@ cimd에는 `local-client`가 없으므로, 그 행들의 `local-client` 판정�
 - cimd에 남은 MUST 위반은 12·27·41번이다.
   12번에서는 문서 host만 `https`이고, 나머지 서버는 `http://localhost`다.
   27번에서는 issuer binding이 없어, agent가 PRM이 가리키는 Authorization Server의 metadata를 확인 없이 요청한다.
+  41번은 cimd에서 실제로 걸린다.
+  CIMD 문서의 `localhost` redirect도 받지만 포트까지 비교하므로, 포트 없는 `http://localhost/callback`을 적은 Claude Code(CLI)의 문서는 맞지 않는다([4장](04-client-registration.md#44-public-client의-규칙)).
   문서를 가져오는 Authorization Server 쪽의 SSRF 대응은 loopback 예외 하나를 빼면 권고(SHOULD)를 따른다.
 - SHOULD 수준에서 지키지 않는 것은 21번, authz 표의 challenge `scope` 행(2025-11-25 기준), stateless 표의 `structuredContent` 행이다.
   35번은 `local-client`가 없어 해당 없음이 된다.

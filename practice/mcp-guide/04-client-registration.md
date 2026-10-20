@@ -170,7 +170,7 @@ native app을 다루는 RFC 8252는 포트를 자유롭게 두는 예외를 loop
 OAuth 2.1과 OAuth 보안 권고인 RFC 9700은 같은 예외를 native app의 `localhost` 주소로 넓힌다.
 OAuth 2.1은 native app을 다루는 절에서 RFC 8252의 좁은 문장도 그대로 옮겨 적어서, 한 문서 안에 두 문장이 함께 있다.
 Spring은 좁은 쪽을 따른다.
-그래서 [Claude 문서](https://claude.com/docs/connectors/building/authentication)는 Authorization Server에 `localhost`도 포트를 빼고 비교해 달라고 한다.
+Claude Code(CLI)는 `localhost`에 매번 다른 포트를 쓰므로, [Claude 문서](https://claude.com/docs/connectors/building/authentication)는 Authorization Server에 `localhost`도 포트를 빼고 비교해 달라고 한다.
 
 Spring Authorization Server로 이런 client를 받는 방법은 두 가지다.
 
