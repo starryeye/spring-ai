@@ -149,13 +149,35 @@ Authorization Server는 client마다 종류를 기록해 두므로, `local-mcp-c
 
 ```http
 HTTP/1.1 302
-Location: http://127.0.0.1:9999/callback?code=CMoLrbqdsRXI...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
+Location: http://127.0.0.1:9999/callback?code=6xh51JFgf9eG...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
 ```
 
 포트 말고는 등록한 주소와 정확히 같아야 한다.
 path가 다르면 그 주소로 redirect하지 않고 오류로 끝난다.
 `localhost`라는 이름은 이 예외에 들지 않아서, Spring은 `localhost` redirect URI를 포트까지 정확히 비교한다.
 `127.0.0.1`을 쓰면 callback server가 실수로 loopback 밖의 네트워크에서 요청을 받는 일도 없다.
+
+**`localhost`와 임시 포트를 쓰는 client**
+
+Claude Code(CLI)는 기본으로 `http://localhost:<빈 포트>/callback`에서 code를 받고, 포트는 login할 때마다 새로 고른다.
+Spring Authorization Server는 이 주소를 등록한 주소와 포트까지 글자 그대로 비교하므로, 등록한 포트와 우연히 같을 때만 통과한다.
+나머지 경우에는 그 주소로 redirect하지 않고 오류로 끝나므로, Claude Code(CLI)는 code를 받지 못하고 login도 끝나지 않는다.
+13장처럼 CIMD를 받게 만든 Authorization Server도 같다.
+Claude Code(CLI)의 CIMD 문서는 포트 없는 `http://localhost/callback`을 적으므로, 포트를 빼지 않고 비교하면 어떤 포트로 와도 맞지 않는다.
+
+표준의 문장은 두 갈래다.
+native app을 다루는 RFC 8252는 포트를 자유롭게 두는 예외를 loopback IP 주소에만 적고, `localhost`라는 이름은 권하지 않는다.
+OAuth 2.1과 OAuth 보안 권고인 RFC 9700은 같은 예외를 native app의 `localhost` 주소로 넓힌다.
+OAuth 2.1은 native app을 다루는 절에서 RFC 8252의 좁은 문장도 그대로 옮겨 적어서, 한 문서 안에 두 문장이 함께 있다.
+Spring은 좁은 쪽을 따른다.
+Claude Code(CLI)는 `localhost`에 매번 다른 포트를 쓰므로, [Claude 문서](https://claude.com/docs/connectors/building/authentication)는 Authorization Server에 `localhost`도 포트를 빼고 비교해 달라고 한다.
+
+Spring Authorization Server로 이런 client를 받는 방법은 두 가지다.
+
+| 방법 | 쓸 수 있는 경우 |
+|---|---|
+| redirect URI 검증기를 바꿔 `localhost`도 포트를 빼고 비교한다 | 미리 등록한 client, CIMD client 모두. official은 바꾸지 않는다 |
+| client가 포트를 고정한다. Claude Code(CLI)는 `claude mcp add`의 `--callback-port`로 포트를 정한다 | 그 포트를 넣은 주소를 미리 등록하거나 DCR로 등록할 때. 포트 없는 주소를 적은 CIMD 문서에는 통하지 않는다 |
 
 **consent를 매번 받는 이유**
 
@@ -468,7 +490,8 @@ public client의 규칙을 curl로 한 단계씩 기록하는 스크립트도 �
 | Authorization Server는 redirect URI의 host를 보여 주고, redirect URI가 `localhost`뿐인 client에는 경고를 더한다 | [MCP 2025-11-25 Authorization — Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#localhost-redirect-uri-risks) | MUST, SHOULD |
 | DCR은 선택이고, 2026-07-28에서 deprecated다. DCR을 쓰는 client는 알맞은 `application_type`을 넣는다 | [MCP 2025-11-25 Authorization — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#dynamic-client-registration), [MCP 2026-07-28 Client Registration — Dynamic Client Registration](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#dynamic-client-registration) | MAY, MUST |
 | 기기별 비밀이 없는 native 앱은 public client로 등록하고, Authorization Server는 client 종류를 기록한다. `none`은 비밀 없는 public client다 | [OAuth 2.1 §8.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.1), [RFC 7591 §2](https://www.rfc-editor.org/rfc/rfc7591#section-2), [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2) | MUST |
-| redirect URI는 등록하고 정확히 비교한다. loopback 주소는 요청의 어느 포트든 허용하고, 이름 `localhost`는 권하지 않는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2), [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) | MUST, NOT RECOMMENDED |
+| redirect URI는 등록하고 정확히 비교한다. loopback IP 주소는 요청의 어느 포트든 허용하고, 이름 `localhost`는 권하지 않는다 | [MCP 2025-11-25 Authorization — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection), [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2), [RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3), [§8.3](https://www.rfc-editor.org/rfc/rfc8252#section-8.3) | MUST, NOT RECOMMENDED |
+| native app의 `localhost` redirect URI는 포트만 빼고 정확히 비교해, 포트가 바뀌어도 받는다 | [OAuth 2.1 §4.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.1), [RFC 9700 §2.1](https://www.rfc-editor.org/rfc/rfc9700#section-2.1), [§4.1.3](https://www.rfc-editor.org/rfc/rfc9700#section-4.1.3) | MUST |
 | client 신원을 확인할 수 없으면 consent 없이 자동 처리하지 않고, 이전 consent가 있어도 처음처럼 처리한다 | [OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1) | SHOULD NOT, SHOULD |
 | refresh token 발급은 Authorization Server가 정한다. public client에 주면 rotation이나 sender-constrained token으로 재사용을 잡아낸다 | [OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2), [§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) | MUST |
 | 미리 등록했거나 DCR로 받은 credentials는 발급한 Authorization Server의 `issuer`에 묶는다. 서버가 바뀌면 재사용하지 않고 다시 등록하며, 맞지 않으면 오류를 보여 준다 | [MCP 2026-07-28 Client Registration — Authorization Server Binding](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#authorization-server-binding) | MUST, MUST NOT, SHOULD |

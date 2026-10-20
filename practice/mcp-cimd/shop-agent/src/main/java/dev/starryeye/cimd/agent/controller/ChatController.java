@@ -48,7 +48,7 @@ public class ChatController {
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSession session,
             Authentication authentication) {
-        // 대화 기억은 로그인 사용자(sub)마다 따로 둔다.
+        // 대화 기억은 login 사용자(sub)마다 따로 둔다.
         String conversationId = authentication.getName();
         // tool 결과 없이 끊긴 turn의 질문과 tool 호출이 기억에 남으면, 다음 질문 때 모델이 결과 없는 호출을 이어받는다.
         // step-up으로 끊기면 consent 뒤 browser가 같은 질문을 다시 보내므로, 그 turn은 끊기기 전의 기억에서 다시 시작해야 한다.
@@ -66,7 +66,10 @@ public class ChatController {
         return ChatEvents.of(content, StepUpState.of(session), () -> restore(conversationId, before));
     }
 
-    /** 화면의 "새 대화" 버튼이 부른다. 로그인 사용자의 대화 기억을 지운다. */
+    /**
+     * 화면의 "새 대화" 버튼이 부른다.
+     * login 사용자의 대화 기억을 지운다.
+     */
     @PostMapping("/api/chat/reset")
     public ResponseEntity<Void> reset(Authentication authentication) {
         this.chatMemory.clear(authentication.getName());

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 인증이 포함된 MCP 흐름을 curl 로 한 단계씩 밟으며 요청과 응답을 기록한다.
 # 사용: AS=... MCP_BASE=... CLIENT_ID=... LOGIN_USERNAME=... LOGIN_PASSWORD=... ./mcp-authorization-walkthrough.sh > 결과.txt
-# 주의: 이 스크립트의 출력(결과.txt)에는 access/refresh/id 토큰 원문(JWT)이 그대로 남는다 — 공유 전 확인할 것.
+# 출력의 token은 줄인다 — JWT는 앞 20자, refresh_token과 authorization code는 앞 12자 뒤에 "...".
 set -uo pipefail
 
 # 값 추출 직후 호출한다. 비어 있으면 어느 단계에서 무엇이 비었는지 알리고 즉시 멈춘다
@@ -32,6 +32,13 @@ JAR=$(mktemp)
 INITIALIZE='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"'"$PROTOCOL_VERSION"'","capabilities":{},"clientInfo":{"name":"walkthrough","version":"1.0.0"}}}'
 
 step() { printf '\n\n===== %s =====\n' "$1"; }
+# 다른 캡처 스크립트의 tidy() 와 같은 규칙으로 토큰을 줄인다. header 는 거르지 않는다.
+shorten() {
+  sed -E \
+    -e 's/(eyJ[A-Za-z0-9_-]{17})[A-Za-z0-9_.-]+/\1.../g' \
+    -e 's/("refresh_token":"[^"]{12})[^"]*"/\1..."/g' \
+    -e 's/([?&]code=[^&[:space:]]{12})[^&[:space:]]*/\1.../g'
+}
 payload() {
   local segment="$1" pad
   pad=$(( (4 - ${#segment} % 4) % 4 ))
@@ -73,7 +80,7 @@ AUTHORIZE=$(curl -si -c "$JAR" -b "$JAR" -G "$AS/oauth2/authorize" \
   --data-urlencode "redirect_uri=$REDIRECT_URI" --data-urlencode 'scope=openid profile' \
   --data-urlencode 'state=walkthrough-state' --data-urlencode "code_challenge=$CHALLENGE" \
   --data-urlencode 'code_challenge_method=S256' --data-urlencode "resource=$MCP")
-echo "$AUTHORIZE" | head -12
+echo "$AUTHORIZE" | head -12 | shorten
 LOCATION=$(printf '%s' "$AUTHORIZE" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p')
 CODE=$(printf '%s' "$LOCATION" | sed -n 's/.*[?&]code=\([^&]*\).*/\1/p')
 require "CODE" "$CODE" "5. 인가 요청 (PKCE S256 + resource)"
@@ -83,7 +90,7 @@ TOKEN=$(curl -s -u "$CLIENT_ID:$CLIENT_SECRET" -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=authorization_code' --data-urlencode "code=$CODE" \
   --data-urlencode "redirect_uri=$REDIRECT_URI" --data-urlencode "code_verifier=$VERIFIER" \
   --data-urlencode "resource=$MCP")
-echo "$TOKEN"
+echo "$TOKEN" | shorten
 ACCESS=$(printf '%s' "$TOKEN" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 REFRESH=$(printf '%s' "$TOKEN" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
 ID_TOKEN=$(printf '%s' "$TOKEN" | sed -n 's/.*"id_token":"\([^"]*\)".*/\1/p')
@@ -122,7 +129,7 @@ step "11. refresh_token 으로 갱신 (resource 를 다시 싣는다)"
 REFRESHED=$(curl -s -u "$CLIENT_ID:$CLIENT_SECRET" -X POST "$AS/oauth2/token" \
   --data-urlencode 'grant_type=refresh_token' --data-urlencode "refresh_token=$REFRESH" \
   --data-urlencode "resource=$MCP")
-echo "$REFRESHED"
+echo "$REFRESHED" | shorten
 payload "$(printf '%s' "$REFRESHED" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p' | cut -d. -f2)"
 
 step "12. 오류: aud 가 다른 토큰(id_token)을 Bearer 로 쓴다"

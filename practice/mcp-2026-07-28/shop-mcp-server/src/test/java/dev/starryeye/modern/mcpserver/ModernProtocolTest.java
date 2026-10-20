@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * MCP Server가 2026-07-28 요청을 받고, 지금까지의 인가 장치가 그 앞에서 그대로 도는지 본다.
+ * MCP Server가 2026-07-28 요청을 받고, 지금까지의 authorization 장치가 그 앞에서 그대로 도는지 본다.
  *
  * <p>SDK transport는 Spring MVC를 거치지 않는 servlet이라, 요청은 실제 HTTP로 보낸다({@link ModernTestClient}).
  * PRM과 {@code Host}·{@code Origin} 검사는 MockMvc로 보낸다.
@@ -304,7 +304,7 @@ class ModernProtocolTest {
 		JsonNode result = response.json().get("result");
 		assertThat(result.get("isError").asBoolean()).isFalse();
 		assertThat(result.get("content").get(0).get("text").asString())
-				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 재고를 7개로 바꿨습니다.");
+				.isEqualTo("상품 p1(게이밍 노트북 15인치)의 재고를 7개로 바꿨습니다.");
 	}
 
 	/**
@@ -334,7 +334,7 @@ class ModernProtocolTest {
 		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
 		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
 		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
-				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+				.isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.");
 	}
 
 	/**
@@ -359,7 +359,7 @@ class ModernProtocolTest {
 		}
 		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
 		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
-				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+				.isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.");
 	}
 
 	/**
@@ -594,7 +594,11 @@ class ModernProtocolTest {
 
 			assertThat(limited.status()).isEqualTo(429);
 			assertThat(Integer.parseInt(limited.header("Retry-After"))).isBetween(1, 60);
-			assertThat(limited.json().get("error").get("code").asInt()).isEqualTo(-32000);
+			// 2026-07-28은 JSON-RPC의 예약 범위(-32768~-32000)에 새 code를 만들지 말라고 한다.
+			// 속도 제한에는 명세가 정한 code가 없으므로, 그 밖의 정수 429를 쓴다.
+			int code = limited.json().get("error").get("code").asInt();
+			assertThat(code).isEqualTo(429);
+			assertThat(code >= -32768 && code <= -32000).as("JSON-RPC 예약 범위").isFalse();
 			// 상한은 사용자마다 따로 센다.
 			assertThat(client.callTool(손님, "searchProducts", Map.of()).status()).isEqualTo(200);
 		}

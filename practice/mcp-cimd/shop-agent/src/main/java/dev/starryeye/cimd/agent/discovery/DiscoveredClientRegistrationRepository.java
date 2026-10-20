@@ -41,7 +41,7 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>client_id는 agent가 올린 client 문서의 주소다.
  * Authorization Server에 미리 등록하지 않으므로 client_secret이 없다.
- * ChatGPT형은 token request에 서명한 assertion을 붙이고({@code McpSecurityConfig}), Claude형은 client_id만 보낸다.
+ * ChatGPT형은 token request에 sign한 assertion을 붙이고({@code McpSecurityConfig}), Claude형은 client_id만 보낸다.
  * redirect 주소는 문서에 올린 값 그대로 쓴다. 요청 host로 주소를 만들면 문서의 목록과 달라질 수 있다.
  */
 public class DiscoveredClientRegistrationRepository implements ClientRegistrationRepository {

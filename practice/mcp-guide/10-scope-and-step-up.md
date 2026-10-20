@@ -169,8 +169,8 @@ LLM이 `updateStock`을 고르면 client는 조회 token으로 다음 요청을 
 
 ```http
 POST /mcp HTTP/1.1
-Authorization: Bearer eyJraWQiOiJjNjk5OWMw...
-Mcp-Session-Id: 4dd4b443-3efa-4812-a247-42ab73ee4a8c
+Authorization: Bearer eyJraWQiOiIxMmNiOTZk...
+Mcp-Session-Id: bc2f716c-5dd0-4972-afaa-777cbd672982
 
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"updateStock","arguments":{"productId":"p1","quantity":10}}}
 ```
@@ -333,7 +333,7 @@ data:{"scope":"products:write","tool":"updateStock","url":"/oauth2/authorization
 5. 채팅 화면은 넣어 둔 질문을 한 번 다시 보낸다.
 
 agent는 MCP 요청마다 그 사용자의 authorized client에서 token을 찾아 붙이므로(6장), 다시 보낸 질문의 `tools/call`에는 새 token이 붙는다.
-LLM의 답은 매번 조금씩 다르지만, 예를 들어 `상품 p1 (게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`가 나온다.
+LLM의 답은 매번 조금씩 다르지만, 예를 들어 `상품 p1(게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`가 나온다.
 tool 호출이 아니라 질문을 다시 보내는 것은, consent 화면에 다녀오는 동안 채팅 응답과 LLM의 답이 이미 끊겼기 때문이다.
 카드에는 tool 이름과 필요한 scope만 나오고, 호출의 인자는 나오지 않는다.
 허락한 뒤에는 다시 보낸 질문을 LLM이 처음부터 다시 처리하므로, 실제로 실행되는 인자가 사용자가 짐작한 것과 다를 수 있다.
@@ -371,28 +371,28 @@ browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/aut
     Authorization Server: http://localhost:9030
     처음 요청할 scope: products:read (401의 scope)
 [2] browser에서 login과 consent를 한다
-    http://localhost:9030/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A61906%2Fcallback&scope=products%3Aread&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8141%2Fmcp
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:61906/callback
+    http://localhost:9030/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A51434%2Fcallback&scope=products%3Aread&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8141%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:51434/callback
 [4] client_secret 없이 access token을 받았다(299초 뒤 만료, scope: products:read)
 [5] MCP 호출
     initialize: protocolVersion=2025-11-25, server=authz-shop-mcp-server
     tool: getStock
     tool: searchProducts
     tool: updateStock
-    getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 10개입니다.
+    getStock(p1): 상품 p1(게이밍 노트북 15인치)의 현재 재고는 10개입니다.
     403 insufficient_scope — 필요한 scope: products:write
 [6] step-up: products:read products:write로 다시 authorization을 받는다
-    http://localhost:9030/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A61918%2Fcallback&scope=products%3Aread+products%3Awrite&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8141%2Fmcp
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:61918/callback
+    http://localhost:9030/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A51446%2Fcallback&scope=products%3Aread+products%3Awrite&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8141%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:51446/callback
 [4] client_secret 없이 access token을 받았다(299초 뒤 만료, scope: products:read products:write)
 [7] 새 token으로 같은 요청을 새로 보낸다
-    updateStock(p1, 10): 상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다.
+    updateStock(p1, 10): 상품 p1(게이밍 노트북 15인치)의 재고를 10개로 바꿨습니다.
 ```
 
 | 줄 | 볼 곳 |
 |---|---|
 | `[5]`의 `getStock(p1)` | 조회 token으로 충분하다. 재고가 이미 10개인 것은 이 실행 전에 다른 client가 재고를 10개로 바꿔 두었기 때문이다 |
-| 두 번째 `[3]`, `[4]` | step-up의 callback과 token request다. callback 포트가 `61918`로 바뀌었다 |
+| 두 번째 `[3]`, `[4]` | step-up의 callback과 token request다. callback 포트가 `51446`으로 바뀌었다 |
 | `[7]` | 새 token으로 같은 `updateStock` 호출을 새 요청으로 보낸다 |
 
 `[3]`, `[4]`가 다시 나오는 것은 step-up이 새로운 절차가 아니기 때문이다.

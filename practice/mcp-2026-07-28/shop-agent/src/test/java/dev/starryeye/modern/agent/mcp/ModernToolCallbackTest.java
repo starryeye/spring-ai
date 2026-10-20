@@ -81,9 +81,9 @@ class ModernToolCallbackTest {
 	@Test
 	void isError_결과도_같은_방식으로_모델에게_돌려준다() {
 		given(this.client.callTool(anyString(), anyString(), anyMap()))
-				.willReturn(결과(true, "상품 p9를 찾을 수 없습니다."));
+				.willReturn(결과(true, "상품 ID p9에 해당하는 상품이 없습니다."));
 
-		assertThat(this.callback.call("{\"productId\":\"p9\",\"quantity\":1}")).isEqualTo("상품 p9를 찾을 수 없습니다.");
+		assertThat(this.callback.call("{\"productId\":\"p9\",\"quantity\":1}")).isEqualTo("상품 ID p9에 해당하는 상품이 없습니다.");
 	}
 
 	@Test
@@ -119,7 +119,7 @@ class ModernToolCallbackTest {
 	@Test
 	void 속도_제한과_그_밖의_MCP_오류는_목록을_두고_ToolExecutionException이다() {
 		given(this.client.callTool(anyString(), anyString(), anyMap()))
-				.willThrow(new ToolRateLimitedException(Duration.ofSeconds(17), -32000,
+				.willThrow(new ToolRateLimitedException(Duration.ofSeconds(17), 429,
 						"tool 호출이 너무 잦습니다. 17초 뒤에 다시 시도하세요."))
 				.willThrow(new ModernMcpException(400, -32602, "Invalid arguments for tool updateStock"));
 

@@ -303,7 +303,8 @@ MCP 명세는 client와 서버 모두 token을 안전하게 보관하라고 정�
 | prompt injection | 8.10 표의 장치가 하나도 없다. tool별 scope와 consent 카드, tool 호출 속도 제한은 `mcp-security-authz`부터 더한다 | [10장](10-scope-and-step-up.md) |
 | 모아 둔 token 탈취 | agent는 token을 process 메모리(`InMemoryOAuth2AuthorizedClientService`)에만 두어 디스크와 로그에 남기지 않지만, 암호화하지 않고 logout해도 지우거나 metadata가 알리는 `revocation_endpoint`로 폐기하지 않는다. `local-client`도 실행하는 동안 메모리에만 두고, MCP Server는 token을 저장하지 않는다 | — |
 
-official이 명세를 지키지 못한 곳은 HTTPS, SSE event `id`의 유일성, tool 호출 속도 제한, agent가 앱 종료 때 보내는 session `DELETE`의 token 네 가지다.
+official이 명세를 지키지 못한 곳은 HTTPS, SSE event `id`의 유일성, tool 호출 속도 제한, agent가 앱 종료 때 보내는 session `DELETE`의 token, native app의 `localhost` redirect 포트 다섯 가지다.
+마지막 것은 official에 등록한 native app이 `127.0.0.1`을 쓰므로 지금 흐름에는 영향이 없다.
 항목별 이유와 판정은 [준수표의 남은 위반](reference-compliance.md#남은-위반)에 있다.
 
 ## 8.13 다루지 않는 것

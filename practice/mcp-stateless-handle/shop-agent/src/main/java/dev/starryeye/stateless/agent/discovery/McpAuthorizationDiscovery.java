@@ -85,7 +85,7 @@ public class McpAuthorizationDiscovery {
 	 *
 	 * <p>{@code RestClient.create()}는 classpath에서 고른 client(이 agent에서는 Reactor Netty)의 기본값을 쓴다.
 	 * 그 기본값에는 응답 전체에 걸리는 시간 제한이 없어서, 응답을 조금씩 흘리는 서버를 끝없이 기다린다.
-	 * Spring의 {@link JdkClientHttpRequestFactory}는 read timeout을 요청을 보낸 때부터 응답 본문을 다 읽을 때까지에 건다.
+	 * Spring의 {@link JdkClientHttpRequestFactory}에서 read timeout은 요청을 보낸 때부터 응답 본문을 다 읽을 때까지 적용된다.
 	 *
 	 * <p>redirect는 따라가지 않는다. JDK {@code HttpClient}의 기본값이지만, 의존성이 바뀌어도 그대로이도록 적어 둔다.
 	 * HTTP/1.1로 고정해 {@code http} 주소에 h2c upgrade를 시도하지 않는다.

@@ -31,7 +31,7 @@ import java.util.List;
  *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 header로 본다.
  *       모자라면 {@code 403}이다.</li>
  * </ol>
- * MCP 서버와 transport 자체는 {@link ModernMcpConfig}가 만든다.
+ * MCP Server와 transport 자체는 {@link ModernMcpConfig}가 만든다.
  */
 @Configuration
 public class McpTransportConfig {

@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.ResourceLoader;
 
-/** client 문서 서버와 서명 key를 bean으로 만든다. */
+/** client 문서 서버와 signature key를 bean으로 만든다. */
 @Configuration
 @EnableConfigurationProperties(ClientMetadataProperties.class)
 public class ClientMetadataConfig {

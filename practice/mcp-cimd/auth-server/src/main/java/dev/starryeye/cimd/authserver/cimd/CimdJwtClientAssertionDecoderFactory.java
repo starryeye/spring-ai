@@ -174,7 +174,7 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 
 	/**
 	 * client별 사용 기록과, 지울 때가 이른 순서로 늘어선 기록 목록이다. 모든 접근을 이 객체로 동기화한다.
-	 * 기록마다 한 번의 조회와 정렬된 목록의 추가·삭제라서, token 요청 하나에 드는 비용은 기록 수의 log에 비례한다.
+	 * 기록마다 한 번의 조회와 정렬된 목록의 추가·삭제라서, token request 하나에 드는 비용은 기록 수의 log에 비례한다.
 	 */
 	private static final class UsedAssertions {
 

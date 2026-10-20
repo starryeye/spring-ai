@@ -39,7 +39,18 @@ class ShopToolsTest {
 		CallToolResult result = 부른다("updateStock", Map.of("productId", "p1", "quantity", 4_294_967_301L));
 
 		assertThat(result.isError()).isTrue();
-		assertThat(글(result)).contains("quantity").contains("4294967301");
+		assertThat(글(result))
+				.isEqualTo("quantity의 값은 -2147483648 이상 2147483647 이하의 정수여야 합니다. (받은 값: 4294967301)");
+		assertThat(this.products.findById("p1").orElseThrow().stock()).isEqualTo(7);
+	}
+
+	@Test
+	void 소수가_있는_값은_실행하지_않고_tool_오류다() {
+		CallToolResult result = 부른다("updateStock", Map.of("productId", "p1", "quantity", 2.5));
+
+		assertThat(result.isError()).isTrue();
+		assertThat(글(result))
+				.isEqualTo("quantity의 값은 -2147483648 이상 2147483647 이하의 정수여야 합니다. (받은 값: 2.5)");
 		assertThat(this.products.findById("p1").orElseThrow().stock()).isEqualTo(7);
 	}
 

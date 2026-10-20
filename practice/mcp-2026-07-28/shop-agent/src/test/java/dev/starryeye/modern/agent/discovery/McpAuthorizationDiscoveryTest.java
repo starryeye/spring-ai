@@ -29,7 +29,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest;
 
 /**
- * MCP 2026-07-28 Authorization Server Discovery의 발견 순서를 검증한다.
+ * MCP 2026-07-28 Authorization Server Discovery의 순서를 검증한다.
  * 401 challenge → Protected Resource Metadata → Authorization Server Metadata 순서다.
  */
 class McpAuthorizationDiscoveryTest {
@@ -158,7 +158,8 @@ class McpAuthorizationDiscoveryTest {
 				{"resource":"http://localhost:8181","authorization_servers":["http://localhost:9070"]}""");
 		응답("http://localhost:9070/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		// 루트형이면 resource 는 서버 루트다. 클라이언트는 서버가 선언한 값을 그대로 쓴다.
+		// 루트형이면 resource는 서버 루트다.
+		// client는 서버가 선언한 값을 그대로 쓴다.
 		assertThat(this.discovery.discover(RESOURCE, METHOD).resource()).isEqualTo("http://localhost:8181");
 		this.server.verify();
 	}

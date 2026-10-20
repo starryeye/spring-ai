@@ -36,8 +36,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * 만료된 액세스 토큰은 refresh 로 갱신되어야 하고, 갱신 요청에도 resource 가 실려야 한다.
- * resource 가 빠지면 갱신된 토큰의 aud 가 달라져 MCP 서버가 거부한다.
+ * 만료된 access token은 refresh로 갱신되어야 하고, 갱신 요청에도 resource가 들어 있어야 한다.
+ * resource가 빠지면 갱신된 token의 aud가 달라져 MCP Server가 거부한다.
  */
 class TokenRefreshTest {
 
@@ -66,9 +66,10 @@ class TokenRefreshTest {
 
         RestClient.Builder builder = RestClient.builder()
                 // 기본 컨버터(범용 Jackson 컨버터 포함)를 그대로 두면, 그 컨버터가
-                // OAuth2AccessTokenResponse 도 읽을 수 있다고 주장해 먼저 선택되고,
-                // 리플렉션으로 필드 없는 빈 객체를 만들어 access_token 이 null 인 채로
-                // 반환한다. 기본값을 끄고 폼 인코딩과 토큰 응답 변환만 명시적으로 쓴다.
+                // OAuth2AccessTokenResponse도 읽을 수 있다고 주장해 먼저 선택되고,
+                // 리플렉션으로 field 없는 빈 객체를 만들어 access_token이 null인 채로
+                // 반환한다.
+                // 기본값을 끄고 폼 인코딩과 token response 변환만 명시적으로 쓴다.
                 .configureMessageConverters(converters -> converters
                         .disableDefaults()
                         .addCustomConverter(new FormHttpMessageConverter())
@@ -76,7 +77,7 @@ class TokenRefreshTest {
                 .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler());
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
-        // 운영과 같은 bean 메서드로 refresh client 를 만든다 — resource 파라미터를 싣는 것도 그 메서드의 일이다.
+        // 운영과 같은 bean 메서드로 refresh client를 만든다 — resource parameter를 넣는 것도 그 메서드의 일이다.
         DiscoveredClientRegistrationRepository discovered = mock(DiscoveredClientRegistrationRepository.class);
         given(discovered.discovered()).willReturn(DiscoveryFixtures.discovered());
         var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered);

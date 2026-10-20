@@ -28,7 +28,8 @@ class ClientSigningKeyTest {
 		ClientSigningKey signingKey = ClientSigningKey.load(new ClassPathResource("test-certs/client-signing.p12"),
 				"changeit", "client-signing");
 
-		// RSAKey의 toString은 비밀 key(d, p, q)까지 JSON으로 보인다. 로그에 남으면 key가 샌다.
+		// RSAKey의 toString은 private key(d, p, q)까지 JSON으로 보인다.
+		// 로그에 남으면 key가 샌다.
 		assertThat(signingKey.toString()).contains(signingKey.key().getKeyID()).doesNotContain("\"d\"");
 	}
 

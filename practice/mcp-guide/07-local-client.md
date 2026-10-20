@@ -325,20 +325,20 @@ terminal에는 다음이 나온다.
 [1] discovery: http://localhost:8111/mcp
     Authorization Server: http://localhost:9010
 [2] browser에서 login과 consent를 한다
-    http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A59597%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
-[3] callback으로 authorization code를 받았다: http://127.0.0.1:59597/callback
+    http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A50898%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+[3] callback으로 authorization code를 받았다: http://127.0.0.1:50898/callback
 [4] client_secret 없이 access token을 받았다(299초 뒤 만료)
 [5] MCP 호출
     initialize: protocolVersion=2025-11-25, server=official-shop-mcp-server
     tool: getStock
     tool: searchProducts
-    getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.
+    getStock(p1): 상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.
 ```
 
 | 줄 | 볼 곳 |
 |---|---|
 | `[2]` | 7.5의 authorization request 주소다. `state`와 `code_challenge`는 캡처 스크립트가 `...`로 줄였고, 실제로는 전체 값이 나온다 |
-| `[3]` | callback을 받은 주소다. 포트 `59597`은 운영체제가 고른 값이라 실행마다 다르다 |
+| `[3]` | callback을 받은 주소다. 포트 `50898`은 운영체제가 고른 값이라 실행마다 다르다 |
 | `[4]` | token 응답의 `expires_in`이다. refresh token이 없으므로 만료 뒤에는 처음부터 다시 실행한다 |
 
 `run.sh`로 띄웠다면 `practice/mcp-security-authn-official/logs/shop-mcp-server.log`에 `getStock 호출 (productId=p1, 사용자=user)`가 남는다.

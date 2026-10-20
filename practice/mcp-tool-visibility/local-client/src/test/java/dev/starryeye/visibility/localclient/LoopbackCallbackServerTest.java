@@ -97,7 +97,8 @@ class LoopbackCallbackServerTest {
 
 	@Test
 	void Authorization_Server의_오류_응답도_state가_맞으면_결과로_받는다() throws Exception {
-		// 오류 응답에도 state가 실린다(RFC 6749 4.1.2.1). 오류 판단은 AuthorizationResponse가 한다.
+		// 오류 응답에도 state가 들어 있다(RFC 6749 4.1.2.1).
+		// 오류 판단은 AuthorizationResponse가 한다.
 		try (LoopbackCallbackServer server = LoopbackCallbackServer.start("xyz")) {
 			assertThat(get(URI.create(server.redirectUri() + "?error=access_denied&state=xyz"))).isEqualTo(200);
 

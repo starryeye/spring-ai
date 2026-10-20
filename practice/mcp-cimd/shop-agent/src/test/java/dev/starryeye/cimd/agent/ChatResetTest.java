@@ -30,7 +30,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** 화면의 "새 대화" 버튼이 부르는 {@code /api/chat/reset}을 본다. CSRF 검사를 받고, 로그인 사용자의 기억만 지운다. */
+/**
+ * 화면의 "새 대화" 버튼이 부르는 {@code /api/chat/reset}을 본다.
+ * CSRF 검사를 받고, login 사용자의 기억만 지운다.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 class ChatResetTest {

@@ -20,7 +20,8 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	// 공식 리소스 서버. community 버전의 mcp-server-security-spring-boot 를 대체한다.
+	// 공식 resource server.
+	// community 버전의 mcp-server-security-spring-boot를 대체한다.
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	// MCP 2026-07-28 서버(io.modelcontextprotocol.modern)와 Jackson 3 mapper가 들어 있다.
 	// pre-release라 버전을 고정한다.

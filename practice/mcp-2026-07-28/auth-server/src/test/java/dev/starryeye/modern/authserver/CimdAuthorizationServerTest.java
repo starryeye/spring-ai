@@ -203,7 +203,10 @@ class CimdAuthorizationServerTest {
 		return parameters;
 	}
 
-	/** ChatGPT형은 private_key_jwt로 자신을 증명한다. 문서의 jwks_uri에 있는 key로 서명한 assertion을 붙인다. */
+	/**
+	 * ChatGPT형은 private_key_jwt로 자신을 증명한다.
+	 * 문서의 jwks_uri에 있는 key로 sign한 assertion을 붙인다.
+	 */
 	static MultiValueMap<String, String> withAssertion(MultiValueMap<String, String> parameters, RSAKey key)
 			throws Exception {
 		return withAssertion(parameters, key, CHATGPT);
@@ -242,7 +245,7 @@ class CimdAuthorizationServerTest {
 				.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
 	}
 
-	/** 로그인한 session으로 authorization request를 보내고 오류 응답 본문을 읽는다. */
+	/** login한 session으로 authorization request를 보내고 오류 응답 본문을 읽는다. */
 	String 오류_화면(URI uri) throws Exception {
 		return 오류_화면(get(uri).session(this.session));
 	}
@@ -385,7 +388,7 @@ class CimdAuthorizationServerTest {
 
 	@Test
 	void consent_화면에서_거절하면_access_denied와_iss를_redirect로_돌려준다() throws Exception {
-		// 로그인한 사용자가 consent 화면에서 고른 결정만 client에게 redirect로 알린다.
+		// login한 사용자가 consent 화면에서 고른 결정만 client에게 redirect로 알린다.
 		UriComponents response = 인가(CLAUDE, "openid products:read");
 
 		assertThat(response.toUriString()).startsWith(REDIRECT_URI);
@@ -408,7 +411,7 @@ class CimdAuthorizationServerTest {
 	void ChatGPT형도_openid만_요청하면_invalid_scope다() throws Exception {
 		// Spring은 openid 하나면 consent를 건너뛴다.
 		// 누구나 private_key_jwt 문서를 올릴 수 있으므로, 막지 않으면 consent 없이 code와 refresh token을 받는다.
-		// 로그인한 뒤의 오류도 consent 화면에서 거절한 것이 아니므로 redirect하지 않는다.
+		// login한 뒤의 오류도 consent 화면에서 거절한 것이 아니므로 redirect하지 않는다.
 		String body = 오류_화면(authorizationRequest(CHATGPT, "openid"));
 
 		assertThat(body).contains("invalid_scope").doesNotContain("code=");

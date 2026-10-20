@@ -42,8 +42,9 @@ if ! ollama list 2>/dev/null | grep -q 'qwen3:8b'; then
   ollama pull qwen3:8b
 fi
 
-# agent가 client 문서를 올리는 https://localhost:8182의 self-signed 인증서와, private_key_jwt에 쓰는 서명 key다.
-# 없을 때만 만든다. 비밀 key가 들어 있으므로 certs/는 commit하지 않는다(.gitignore).
+# agent가 client 문서를 올리는 https://localhost:8182의 self-signed 인증서와, private_key_jwt에 쓰는 signature key다.
+# 없을 때만 만든다.
+# private key가 들어 있으므로 certs/는 commit하지 않는다(.gitignore).
 make_certs() {
   local keytool="$JAVA_HOME/bin/keytool"
   mkdir -p certs

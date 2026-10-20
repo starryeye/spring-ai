@@ -50,7 +50,7 @@ class McpScopeTest {
 				.content(body);
 	}
 
-	/** 유효하지 않은 UTF-8 바이트를 그대로 실어 보내야 하는 시험을 위해, String이 아닌 raw byte[] 본문을 쓴다. */
+	/** 유효하지 않은 UTF-8 바이트를 그대로 넣어 보내야 하는 시험을 위해, String이 아닌 raw byte[] 본문을 쓴다. */
 	static MockHttpServletRequestBuilder mcpBytes(String token, byte[] body) {
 		return post("/mcp")
 				.contentType(MediaType.APPLICATION_JSON)

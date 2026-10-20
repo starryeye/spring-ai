@@ -13,10 +13,10 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 
 /**
- * {@code private_key_jwt}에 쓰는 agent의 서명 key다.
+ * {@code private_key_jwt}에 쓰는 agent의 signature key다.
  *
- * <p>비밀 key는 agent만 갖고, public key는 JWKS로 문서 host에 올린다.
- * Authorization Server는 문서의 {@code jwks_uri}에서 public key를 가져와 assertion의 서명을 확인한다.
+ * <p>private key는 agent만 갖고, public key는 JWKS로 문서 host에 올린다.
+ * Authorization Server는 문서의 {@code jwks_uri}에서 public key를 가져와 assertion의 signature를 확인한다.
  * 그래서 Authorization Server와 미리 나눈 비밀이 없어도 client가 자신을 증명할 수 있다.
  * {@code kid}는 public key의 RFC 7638 thumbprint라 key가 바뀌면 함께 바뀐다.
  */
@@ -42,7 +42,7 @@ public record ClientSigningKey(RSAKey key) {
 	}
 
 	/**
-	 * record가 만드는 기본 toString은 {@link RSAKey#toString()}을 써서 비밀 key({@code d}, {@code p}, {@code q})까지 보인다.
+	 * record가 만드는 기본 toString은 {@link RSAKey#toString()}을 써서 private key({@code d}, {@code p}, {@code q})까지 보인다.
 	 * 로그나 오류 메시지에 이 객체가 찍혀도 key가 새지 않도록 kid만 보인다.
 	 */
 	@Override

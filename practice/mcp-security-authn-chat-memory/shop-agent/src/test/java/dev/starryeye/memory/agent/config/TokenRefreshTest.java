@@ -65,7 +65,7 @@ class TokenRefreshTest {
                 // 기본 converter(범용 Jackson converter 포함)를 그대로 두면, 그 converter가
                 // OAuth2AccessTokenResponse도 읽을 수 있다고 나서서 먼저 선택된다.
                 // 그러면 reflection으로 field 없는 빈 객체를 만들어 access_token이 null인 채로 돌려준다.
-                // 기본값을 끄고 form 인코딩과 token 응답 변환만 명시적으로 쓴다.
+                // 기본값을 끄고 form 인코딩과 token response 변환만 명시적으로 쓴다.
                 .configureMessageConverters(converters -> converters
                         .disableDefaults()
                         .addCustomConverter(new FormHttpMessageConverter())

@@ -39,7 +39,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 /**
  * login(code 교환) 요청을 검증한다. 두 client type 모두 resource와 code_verifier를 넣고,
- * ChatGPT형은 서명한 client assertion을, Claude형은 client_id만 넣는다.
+ * ChatGPT형은 sign한 client assertion을, Claude형은 client_id만 넣는다.
  *
  * <p>{@code McpSecurityConfig.authorizationCodeTokenResponseClient(...)}를 그대로 불러,
  * 이 연결이 빠지거나 깨지면 이 테스트가 잡는다.

@@ -26,10 +26,10 @@ authorization은 HTTP 단계의 일이라서, JSON-RPC 본문은 token이 없을
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiJlZDY1ZWFl...
+Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
 Content-Type: application/json
 Accept: application/json, text/event-stream
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 MCP-Protocol-Version: 2025-11-25
 
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
@@ -161,6 +161,60 @@ server:
 
 실행 중에 `lsof -nP -iTCP -sTCP:LISTEN`으로 보면 `127.0.0.1:8111`에서 연결을 기다린다.
 bind 주소는 다른 기기에서 오는 요청을 막고, `Origin`·`Host` 검사는 같은 기기의 browser를 거친 요청을 막는다.
+
+**원격에 배포할 때**
+
+official의 값은 MCP Server가 사용자 기기에서 돈다고 보고 정한 것이다.
+MCP Server를 `https://mcp.example.com/mcp`로 배포하면, client의 요청은 TLS를 끝내는 reverse proxy를 거쳐 앱에 닿는다.
+이때 바꿀 값은 다음과 같다.
+
+| 설정 | official(로컬) | 원격 배포의 예 | 이유 |
+|---|---|---|---|
+| bind 주소 `server.address` | `127.0.0.1` | proxy가 닿는 interface 주소 | 외부에 무엇을 열지는 proxy와 방화벽이 정한다 |
+| 허용 `Host` | `localhost:8111`, `127.0.0.1:8111` | `mcp.example.com` | 앱이 받는 `Host`이고, proxy가 원래 `Host`를 넘기면 client가 부르는 이름이다. client는 기본 포트(443)를 `Host`에 대개 적지 않는다 |
+| 허용 `Origin` | 없음 | 없음 | agent와 명령줄 client는 browser가 아니라서 `Origin`을 보내지 않는다 |
+| `audiences` | `http://localhost:8111/mcp` | `https://mcp.example.com/mcp` | PRM의 `resource`와 token의 `aud`는 client가 부르는 주소와 같아야 한다(3장) |
+| `issuer-uri` | `http://localhost:9010` | `https://auth.example.com` | token의 `iss`와 글자 그대로 같아야 한다(6.5) |
+
+허용 `Host` 목록은 설정 파일에 없다.
+`McpTransportConfig`가 `server.port`로 `localhost:<포트>`와 `127.0.0.1:<포트>`를 만들어 SDK 검증기에 넘긴다(6.9).
+원격에 배포하려면 이 목록을 배포한 이름으로 바꾼다.
+
+```java
+DefaultServerTransportSecurityValidator.builder()
+        .allowedHosts(List.of("mcp.example.com"))   // client가 부르는 이름
+        .build();                                   // 허용 Origin은 여전히 두지 않는다
+```
+
+SDK 검증기는 `Host`를 목록의 값과 글자 그대로 비교한다.
+끝이 `:*`인 값(`mcp.example.com:*`)은 그 이름의 모든 포트를 받는다.
+목록을 비워 두면 모두 거절하는 것이 아니라, `Host` 검사를 아예 하지 않는다.
+filter는 `/mcp`에만 적용되므로, proxy가 내부 주소로 보내는 health check 같은 다른 경로는 이 목록과 상관없다.
+
+**reverse proxy 뒤의 `Host`**
+
+앱이 보는 `Host`는 proxy가 넘겨 준 값이다.
+proxy가 원래 `Host`를 그대로 넘기면 앱은 `mcp.example.com`을 보고, 위 목록으로 검사한다.
+proxy가 `Host`를 앱의 내부 주소(`10.0.0.5:8111` 같은 값)로 바꿔 보내면, 앱은 client가 쓴 이름을 볼 수 없다.
+그때는 앱의 허용 `Host`에 proxy가 보내는 값(`10.0.0.5:8111`)을 넣고, `mcp.example.com`으로 온 요청만 앱에 넘기는 일은 proxy가 맡는다.
+허용 `Host`를 그대로 두면 앱은 proxy가 넘긴 모든 요청에 `421`로 답한다.
+
+Spring Boot의 `server.forward-headers-strategy`를 켜면, 앱은 `X-Forwarded-Host`·`X-Forwarded-Proto`나 `Forwarded`로 요청 주소를 다시 계산한다.
+이 설정은 `request.getServerName()`·`getScheme()` 같은 값을 바꿀 뿐, `McpTransportSecurityFilter`가 읽는 `Host` header는 바꾸지 않는다.
+official의 MCP Server에는 이 설정이 필요 없다.
+PRM의 `resource`와 `401`의 `resource_metadata`를 요청 주소가 아니라 `audiences` 설정으로 만들기 때문이다(3장).
+요청 주소를 쓰는 다른 기능 때문에 이 설정을 켠다면, forwarded header는 proxy만 넣게 한다.
+client가 보낸 forwarded header를 proxy가 지우지 않고 넘기면, 누구나 앱이 계산하는 주소를 바꿀 수 있다.
+
+**모두 허용하지 않는 이유**
+
+내부망에서만 닿는 MCP Server라면, `Host`와 `Origin`을 모두 받을 때 DNS rebinding의 길이 다시 열린다.
+회사 내부망에만 연 MCP Server(`http://10.1.2.3:8111`)를 생각해 보자.
+사용자의 browser는 내부망 안에 있으므로, 공격 page는 앞의 방법으로 자기 domain을 그 IP에 붙여 요청을 보낼 수 있다.
+이 요청의 `Host`는 공격자의 domain이고 `Origin`은 공격 page의 주소라서, 두 목록이 좁으면 token을 보기 전에 거절된다.
+`Host`를 모두 받으면, 요청 주소로 링크나 metadata를 만드는 코드가 공격자의 이름을 그대로 알리게 될 수도 있다.
+browser에서 MCP Server를 직접 부르는 web page가 있다면, 그 page의 origin(`https://app.example.com`) 하나만 허용 `Origin`에 더한다.
+그런 page는 다른 origin의 응답을 읽어야 하므로, MCP Server는 그 origin에 대한 CORS 응답 header도 따로 보내야 한다.
 
 ## 6.5 2단계: token 검증
 
@@ -509,6 +563,7 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 
 - client는 모든 HTTP 요청의 `Authorization` header에 `Bearer`로 access token을 넣는다. session 안의 요청도 매번 넣는다.
 - official의 MCP Server는 `Origin`·`Host` → token → `MCP-Protocol-Version` → session 순서로 검사한다. `Origin`·`Host`는 token이 없어도 `403`·`421`이다.
+- 원격에 배포하면 허용 `Host`를 앱이 실제로 받는 `Host`로 바꾸고(proxy가 그대로 넘기면 client가 부르는 이름), 허용 `Origin`은 browser에서 직접 부르는 page가 있을 때만 그 origin을 더한다.
 - token은 `jwks_uri`의 public key로 signature를, `issuer-uri`로 `iss`를, `audiences`로 `aud`를 확인한다. 다른 `aud`의 token은 `401 invalid_token`이다.
 - session ID는 인증을 대신하지 않는다. official은 요청마다 token을 보지만 session을 사용자에 묶지는 않고, chat-memory practice는 묶는다.
 - agent는 요청마다 그 사용자의 token을 찾아 붙인다. reactor thread로 `SecurityContext`를 옮기는 설정이 빠지면 오류 없이 token만 빠진다.
@@ -520,6 +575,8 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 | client는 같은 session이라도 모든 HTTP 요청의 `Authorization` header에 access token을 넣고, query string에는 넣지 않는다. 그 MCP Server의 Authorization Server가 발급한 token만 보낸다 | [MCP 2025-11-25 Authorization — Token Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-requirements), [Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [OAuth 2.1 §5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.1.1) | MUST, MUST NOT |
 | 서버는 모든 연결의 `Origin`을 검증하고, 있는데 유효하지 않으면 `403`으로 답한다. 로컬 서버는 `127.0.0.1`에만 bind하고, 모든 연결에 인증을 둔다 | [MCP 2025-11-25 Transports — Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning), [MCP 2026-07-28 Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | MUST, SHOULD |
 | 이 서버로 올 요청이 아니면 `421 Misdirected Request`로 답할 수 있다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) | — |
+| resource server를 포함해 OAuth에 쓰는 주소는 `https`이고, loopback redirect URI만 `http`를 쓸 수 있다 | [OAuth 2.1 §1.5](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.5), [MCP 2025-11-25 Authorization — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security) | MUST, MAY |
+| `Forwarded` header는 요청이 거쳐 온 누구나 바꿀 수 있으므로, 믿는 proxy가 넣은 값만 믿는다 | [RFC 7239 §8.1](https://www.rfc-editor.org/rfc/rfc7239#section-8.1) | — |
 | MCP Server는 요청을 처리하기 전에 token을 검증하고, 자신을 audience로 발급된 token만 받는다. 유효하지 않거나 만료된 token에는 `401`로 답한다 | [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT |
 | RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
 | token의 scope가 모자라면 MCP Server는 `403`과 `WWW-Authenticate`의 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답하고, `scope`에는 이 요청에 필요한 scope를 넣는다. 사용자를 대신하는 client는 그 scope로 step-up authorization을 하고(`client_credentials`처럼 자기 권한으로 동작하는 client는 바로 멈춰도 된다), 다시 시도하는 횟수를 제한한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | SHOULD, MAY |
