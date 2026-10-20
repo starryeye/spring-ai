@@ -28,10 +28,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * MCP로 나가는 요청에 실제로 token이 붙는지를 검증한다.
- * 이 클래스가 하는 일 자체가
- * {@code AUTHENTICATION_KEY} 조회, {@code Bearer } 접두사, header 이름, registration id
- * 전달까지 전부 손으로 짠 연결이라 — 회귀가 나면 스위트는 초록인데 런타임에서만
- * 조용히 401로 보인다.
+ * 이 클래스가 하는 일은 {@code AUTHENTICATION_KEY} 조회, {@code Bearer } 접두사, header 이름, registration id 전달까지 전부 손으로 짠 연결이다.
+ * 그래서 회귀가 나면 스위트는 초록인데 런타임에서만 조용히 401로 보인다.
  * 이 테스트가 그 간극을 없앤다.
  */
 class OAuth2TokenAttachingRequestCustomizerTest {

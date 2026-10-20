@@ -66,7 +66,7 @@ class TokenRefreshTest {
 
         RestClient.Builder builder = RestClient.builder()
                 // 기본 컨버터(범용 Jackson 컨버터 포함)를 그대로 두면, 그 컨버터가
-                // OAuth2AccessTokenResponse 도 읽을 수 있다고 주장해 먼저 선택되고,
+                // OAuth2AccessTokenResponse도 읽을 수 있다고 주장해 먼저 선택되고,
                 // 리플렉션으로 field 없는 빈 객체를 만들어 access_token이 null인 채로
                 // 반환한다.
                 // 기본값을 끄고 폼 인코딩과 token response 변환만 명시적으로 쓴다.

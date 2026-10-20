@@ -178,9 +178,9 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다() {
-		// PRM 이 가리키는 주소로 곧장 GET 하면 공격자가 고른 주소로 요청이 나간다(SSRF).
+		// PRM이 가리키는 주소로 곧장 GET 하면 공격자가 고른 주소로 요청이 나간다(SSRF).
 		// credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다 — 기대하지 않은 요청이
-		// 나가면 MockRestServiceServer 가 AssertionError 를 던져 이 테스트가 실패한다.
+		// 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
 		챌린지("Bearer resource_metadata=\"http://localhost:8151/.well-known/oauth-protected-resource/mcp\"");
 		응답("http://localhost:8151/.well-known/oauth-protected-resource/mcp", """
 				{"resource":"http://localhost:8151/mcp","authorization_servers":["http://evil.example"]}""");

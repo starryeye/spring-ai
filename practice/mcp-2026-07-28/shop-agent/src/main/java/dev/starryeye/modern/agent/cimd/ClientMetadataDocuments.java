@@ -46,7 +46,10 @@ public final class ClientMetadataDocuments {
 		return this.json.writeValueAsString(document);
 	}
 
-	/** public key만 담는다. {@code toPublicJWK()}가 비밀 key 값(d, p, q …)을 뺀다. */
+	/**
+	 * public key만 담는다.
+	 * {@code toPublicJWK()}가 private key 값(d, p, q …)을 뺀다.
+	 */
 	public String jwks() {
 		return new JWKSet(this.signingKey.key().toPublicJWK()).toString();
 	}

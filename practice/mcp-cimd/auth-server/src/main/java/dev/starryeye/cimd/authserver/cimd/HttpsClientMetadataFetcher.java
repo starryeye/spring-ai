@@ -32,7 +32,7 @@ import java.util.concurrent.TimeoutException;
  * 제한을 넘기면 요청을 취소해 연결을 닫는다.
  * 본문은 크기 상한보다 1 byte 더 읽으면 멈춘다. 상한을 넘었는지만 알면 되기 때문이다.
  *
- * <p>문서는 login 전의 authorization request에서도 가져오고, JWKS는 인증 전의 token 요청마다 가져온다.
+ * <p>문서는 login 전의 authorization request에서도 가져오고, JWKS는 인증 전의 token request마다 가져온다.
  * 그래서 인증 없는 요청이 이 서버를 시켜 바깥으로 요청을 보내게 할 수 있다(CIMD draft §6.5).
  * 두 가지로 그 양을 줄인다.
  * 같은 주소를 가져오는 중에 같은 주소가 또 오면 새로 요청하지 않고 진행 중인 결과를 함께 기다린다(single-flight).

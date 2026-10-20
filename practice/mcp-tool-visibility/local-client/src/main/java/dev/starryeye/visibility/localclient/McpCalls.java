@@ -20,8 +20,7 @@ import java.util.function.Supplier;
  * <p>`403 insufficient_scope`가 오면 {@link StepUp}이 browser authorization을 다시 밟아 새 token을
  * 받고 {@link StepUpCompletedException}을 던진다(SDK의 재시도는 이미 만들어 둔 옛 요청을 그대로 다시
  * 보내 옛 token이 그대로 들어가므로 쓸 수 없다).
- * {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터
- * 새로 만들어(=customizer가 다시 불려 새 token이 들어 있는 요청으로) 한 번만 다시 보낸다.
+ * {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터 새로 만들어(=customizer가 다시 불려 새 token이 들어 있는 요청으로) 한 번만 다시 보낸다.
  *
  * <p>장바구니는 session이 아니라 서버가 만든 handle로 다룬다(안내서 11장).
  * 이 앱은 {@code createBasket}이 돌려준 {@code basketId}를 {@code addItem}·{@code getBasket}·{@code checkout}의 인자로 그대로 넘긴다.

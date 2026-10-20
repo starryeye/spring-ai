@@ -26,7 +26,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	// webflux가 아닌 기본(HttpClient 기반) MCP client 스타터다.
-	// mcp-client-security 는 HttpClientStreamableHttpTransport 를 커스터마이즈한다.
+	// mcp-client-security는 HttpClientStreamableHttpTransport를 커스터마이즈한다.
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 	implementation 'org.springaicommunity:mcp-client-security-spring-boot:0.1.14'
 	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'

@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 같은 사용자의 token 요청을 한 번에 하나씩 처리해, 만료된 token의 refresh가 겹치지 않게 한다.
+ * 같은 사용자의 token request를 한 번에 하나씩 처리해, 만료된 token의 refresh가 겹치지 않게 한다.
  *
  * <p>Authorization Server는 refresh할 때마다 새 refresh token을 주고 옛것을 버린다(rotation).
  * 버린 refresh token이 다시 오면 도난으로 보고 그 grant 전체를 끊는다.

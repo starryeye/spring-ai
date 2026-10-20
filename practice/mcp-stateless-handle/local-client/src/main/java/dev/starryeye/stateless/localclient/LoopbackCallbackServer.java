@@ -46,7 +46,7 @@ public final class LoopbackCallbackServer implements AutoCloseable {
 
 	/**
 	 * @param expectedState authorization request에 넣어 보낸 `state`.
-	 * 이 값이 같은 callback만 결과로 쓴다
+	 * 이 값이 같은 callback만 결과로 쓴다.
 	 */
 	public static LoopbackCallbackServer start(String expectedState) throws IOException {
 		return new LoopbackCallbackServer(
