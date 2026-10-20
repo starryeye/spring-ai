@@ -98,7 +98,7 @@ POST /mcp HTTP/1.1
 Content-Type: application/json
 Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2025-11-25
-Authorization: Bearer eyJraWQiOiJmNzc5MDY0...
+Authorization: Bearer eyJraWQiOiJiOGVmMGM4...
 
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
 ```
@@ -106,8 +106,8 @@ Authorization: Bearer eyJraWQiOiJmNzc5MDY0...
 두 요청 모두 `200`이고, 응답의 `result.tools`에서 tool 이름만 순서대로 뽑으면 다음과 같다(첫 줄이 `user`, 둘째 줄이 `user2`).
 
 ```text
-names(7개): getStock,searchProducts,updateStock,addItem,checkout,createBasket,getBasket
-names(6개): getStock,searchProducts,addItem,checkout,createBasket,getBasket
+names(7개): addItem,checkout,createBasket,getBasket,getStock,searchProducts,updateStock
+names(6개): addItem,checkout,createBasket,getBasket,getStock,searchProducts
 ```
 
 MCP Server는 `tools/list`마다 `tools/list — 사용자=user2, 역할=CUSTOMER, 보인 tool=6/7`처럼 사용자, 역할, 보인 tool 수를 로그에 남긴다.
@@ -365,14 +365,14 @@ discovery와 login(`[1]`\~`[4]`), 장바구니 줄, step-up의 주소와 `[3]`·
 ```text
 [5] MCP 호출
     initialize: protocolVersion=2025-11-25, server=visibility-shop-mcp-server
-    tools: getStock, searchProducts, addItem, checkout, createBasket, getBasket
+    tools: addItem, checkout, createBasket, getBasket, getStock, searchProducts
     updateStock(목록에 없음): JSON-RPC 오류 -32602 Unknown tool: invalid_tool_name (Tool not found: updateStock)
-    getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.
+    getStock(p1): 상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.
     403 insufficient_scope — 필요한 scope: orders:write
 [6] step-up: products:read orders:write로 다시 authorization을 받는다
 [7] 새 token으로 같은 요청을 새로 보낸다
     checkout: 주문을 접수했습니다. 주문 번호는 ord-1002입니다.
-    tools: getStock, searchProducts, addItem, checkout, createBasket, getBasket
+    tools: addItem, checkout, createBasket, getBasket, getStock, searchProducts
 ```
 
 `user`로 돌리면 두 `tools:` 줄에 `updateStock`이 든 7개가 찍히고, `updateStock(목록에 없음)` 줄은 없다.

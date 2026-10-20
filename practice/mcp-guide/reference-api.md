@@ -241,7 +241,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | SSE 준비 event(event ID와 빈 `data`) | SHOULD — SSE 시작 직후 | client가 `Last-Event-ID`로 다시 붙을 수 있게 한다 | 보내지 않는다 — 첫 event가 곧 response다(C9, C10) |
 | SSE `id` | MAY, 있으면 session 안 모든 stream에서 전역 유일 MUST ([Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | 재개용 커서 | session ID를 그대로 쓴다(C9·C10 모두 `id:7c324e98-...`). 그래서 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([8장](08-security.md)) |
 | SSE `retry` | SHOULD — stream을 끝내지 않고 연결을 닫기 전 | | 쓰지 않음 |
-| `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `7c324e98-8854-4b88-9243-7a97e94fd80a`(C7). stateless는 주지 않는다(stateless S3) |
+| `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `1eefa5b4-3132-4311-b184-cb7441dd5c36`(C7). stateless는 주지 않는다(stateless S3) |
 | `202 Accepted`, 본문 없음 | MUST — notification·response를 받아들였을 때 | | 씀(C8, S9) |
 
 **오류**
@@ -272,7 +272,7 @@ stateless의 transport `WebMvcStatelessServerTransport`는 session을 검사하�
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiJlZDY1ZWFl...
+Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
 Content-Type: application/json
 Accept: application/json, text/event-stream
 
@@ -281,7 +281,7 @@ Accept: application/json, text/event-stream
 
 ```http
 HTTP/1.1 200
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 Content-Type: application/json
 
 {
@@ -393,8 +393,8 @@ Session ID required in mcp-session-id header
 ```http
 DELETE /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiJlZDY1ZWFl...
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 MCP-Protocol-Version: 2025-11-25
 ```
 
@@ -482,7 +482,7 @@ HTTP 상태는 SDK 2.2.0-M1이 JSON-RPC `code`로 정한다.
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8181
-Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
+Authorization: Bearer eyJraWQiOiJmZDZiNWQ2...
 Content-Type: application/json
 Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
@@ -585,7 +585,7 @@ RFC 8414 §2 밖에서 정의되었지만 응답에 나오는 field:
 | `authorization_endpoint`·`token_endpoint`가 `https`도, loopback 주소의 `http`도 아님 | client는 거부 MUST — agent는 `McpAuthorizationDiscovery#requireHttpUrl`에서, `local-client`는 `Discovery`에서 멈춘다 | [Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation) |
 | `client_id_metadata_document_supported`가 `true`가 아니거나, 고른 인증 방식이 `token_endpoint_auth_methods_supported`에 없음 | client는 CIMD 지원을 확인한다 SHOULD — cimd의 agent는 이유를 남기고 멈춘다(`McpAuthorizationDiscoveryTest#CIMD를_알리지_않는_서버면_멈춘다`, `#고른_인증_방식을_받지_않는_서버면_멈춘다`) | [MCP 2026-07-28 Advertising CIMD Support](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#advertising-cimd-support), [CIMD draft-00 §5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5) |
 
-**예시** (C3, `token_endpoint_auth_methods_supported`만 `none`이 더해진 지금 설정의 P1 값)
+**예시** (C3)
 
 ```http
 GET /.well-known/oauth-authorization-server HTTP/1.1
@@ -813,14 +813,14 @@ Consent required
 local-mcp-client wants to access your account user
 form  POST /oauth2/authorize
   client_id = local-mcp-client                               (hidden)
-  state     = mStpfVCLBqQ-u6kX0Z7O_N9tGavdpL2_RdMBsvCXXBw=   (hidden)
+  state     = 4OOYm303fYTTs8krC7zFakvcK4c4OrhEm-X8wDN77HE=   (hidden)
   scope     = profile                                        (checkbox)
 ```
 
 **예시 2** (`local-client`가 여는 주소, [7장](07-local-client.md)의 실행 결과)
 
 ```text
-http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A59597%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+http://localhost:9010/oauth2/authorize?response_type=code&client_id=local-mcp-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A50898%2Fcallback&scope=openid+profile&state=...&code_challenge=...&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
 ```
 
 ## `POST /oauth2/authorize` — consent 제출
@@ -862,12 +862,12 @@ POST /oauth2/authorize HTTP/1.1
 Host: localhost:9010
 Content-Type: application/x-www-form-urlencoded
 
-client_id=local-mcp-client&state=mStpfVCLBqQ-u6kX0Z7O_N9tGavdpL2_RdMBsvCXXBw%3D&scope=profile
+client_id=local-mcp-client&state=4OOYm303fYTTs8krC7zFakvcK4c4OrhEm-X8wDN77HE%3D&scope=profile
 ```
 
 ```http
 HTTP/1.1 302
-Location: http://127.0.0.1:8123/callback?code=lMbNpgP99yyS...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
+Location: http://127.0.0.1:8123/callback?code=OdKH66yJ24g_...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
 ```
 
 ## Authorization Response — redirect
@@ -896,7 +896,7 @@ client는 code를 token endpoint로 보내기 전에 `state`와 `iss`를 확인�
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
-| `code` | REQUIRED | 수명이 짧고(최대 10분 RECOMMENDED) 한 번만 쓴다. client_id·redirect URI·code challenge에 묶인다 | `M1Q5-XA-2DoF...`(C5) |
+| `code` | REQUIRED | 수명이 짧고(최대 10분 RECOMMENDED) 한 번만 쓴다. client_id·redirect URI·code challenge에 묶인다 | `vWGE6LOgdELv...`(C5) |
 | `state` | 요청에 있었으면 REQUIRED, 받은 값 그대로 | | `walkthrough-state`(C5) |
 | `iss` | OPTIONAL (OAuth 2.1) · RFC 9207을 지원하는 서버는 MUST ([RFC 9207 §2](https://www.rfc-editor.org/rfc/rfc9207#section-2)) · SHOULD ([MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)) | Authorization Server의 issuer 식별자 | `http%3A%2F%2Flocalhost%3A9010`(C5) — `IssuerIdentifyingAuthorizationResponseHandler`가 넣는다 |
 
@@ -952,7 +952,7 @@ Host: localhost:9010
 
 ```http
 HTTP/1.1 302
-Location: http://localhost:8110/login/oauth2/code/authserver?code=M1Q5-XA-2DoF...&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9010
+Location: http://localhost:8110/login/oauth2/code/authserver?code=vWGE6LOgdELv...&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9010
 Content-Length: 0
 ```
 
@@ -1063,7 +1063,7 @@ POST /oauth2/token HTTP/1.1
 Host: localhost:9010
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=authorization_code&client_id=local-mcp-client&code=lMbNpgP99yyS...&redirect_uri=http%3A%2F%2F127.0.0.1%3A8123%2Fcallback&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+grant_type=authorization_code&client_id=local-mcp-client&code=OdKH66yJ24g_...&redirect_uri=http%3A%2F%2F127.0.0.1%3A8123%2Fcallback&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
 ```
 
 ```http
@@ -1071,9 +1071,9 @@ HTTP/1.1 200
 Content-Type: application/json;charset=UTF-8
 
 {
-  "access_token": "eyJraWQiOiI5YTM3YTU4...",
+  "access_token": "eyJraWQiOiIwNGRlZDhl...",
   "scope": "openid profile",
-  "id_token": "eyJraWQiOiI5YTM3YTU4...",
+  "id_token": "eyJraWQiOiIwNGRlZDhl...",
   "token_type": "Bearer",
   "expires_in": 299
 }
@@ -1142,15 +1142,15 @@ Host: localhost:9010
 Authorization: Basic <base64(official-shop-agent:official-shop-agent-secret)>
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=refresh_token&refresh_token=UqY5N0Bi3YAG...&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+grant_type=refresh_token&refresh_token=ySnltAsyLyJt...&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
 ```
 
 ```json
 {
-  "access_token": "eyJraWQiOiJlZDY1ZWFl...",
-  "refresh_token": "UqY5N0Bi3YAG...",
+  "access_token": "eyJraWQiOiIwNGRlZDhl...",
+  "refresh_token": "ySnltAsyLyJt...",
   "scope": "openid profile",
-  "id_token": "eyJraWQiOiJlZDY1ZWFl...",
+  "id_token": "eyJraWQiOiIwNGRlZDhl...",
   "token_type": "Bearer",
   "expires_in": 299
 }

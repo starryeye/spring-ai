@@ -46,7 +46,8 @@ if [ -z "$STATE" ]; then
   kill "$CLIENT_PID" 2>/dev/null
   exit 1
 fi
-curl -s -o /dev/null -L -c "$JAR" -b "$JAR" -X POST "$AS/oauth2/authorize" \
+# -X POST를 주지 않는다. 주면 curl이 callback으로 가는 redirect도 POST로 보내고, local-client는 GET이 아닌 callback을 400으로 거절한다.
+curl -s -o /dev/null -L -c "$JAR" -b "$JAR" "$AS/oauth2/authorize" \
   --data-urlencode 'client_id=local-mcp-client' --data-urlencode "state=$STATE" --data-urlencode 'scope=profile'
 
 wait "$CLIENT_PID"

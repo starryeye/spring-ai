@@ -26,10 +26,10 @@ authorization은 HTTP 단계의 일이라서, JSON-RPC 본문은 token이 없을
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiJlZDY1ZWFl...
+Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
 Content-Type: application/json
 Accept: application/json, text/event-stream
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 MCP-Protocol-Version: 2025-11-25
 
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}

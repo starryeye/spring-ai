@@ -138,7 +138,7 @@ Spring Security가 본문을 읽기 전에 `401`로 답하므로, MCP Server의 
 ## 14.4 2단계: `server/discover`로 서버가 받는 버전을 묻는다
 
 agent는 기동한 뒤 처음 질문을 받으면, tool 목록을 받기 전에 질문한 사용자의 token으로 `server/discover`를 보낸다.
-요청은 1단계와 같고 `Authorization: Bearer eyJraWQiOiI5YWQzNWE3...`만 더해진다.
+요청은 1단계와 같고 `Authorization: Bearer eyJraWQiOiJmZDZiNWQ2...`만 더해진다.
 
 ```http
 HTTP/1.1 200
@@ -241,7 +241,7 @@ key가 token이므로, step-up이나 refresh로 token이 바뀌면 목록을 다
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8181
-Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
+Authorization: Bearer eyJraWQiOiJmZDZiNWQ2...
 Content-Type: application/json
 Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2026-07-28
@@ -333,7 +333,7 @@ Claude형은 consent를 저장하지 않으므로 두 scope가 모두 새 항목
   "jsonrpc": "2.0",
   "id": 9,
   "result": {
-    "content": [{"type": "text", "text": "상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다."}],
+    "content": [{"type": "text", "text": "상품 p1(게이밍 노트북 15인치)의 재고를 10개로 바꿨습니다."}],
     "isError": false,
     "resultType": "complete",
     "...": "그 밖의 field는 생략"
@@ -469,7 +469,7 @@ token 없는 첫 요청은 형식과 상관없이 Spring Security가 `401`로 �
 
 ```http
 POST /mcp HTTP/1.1
-Authorization: Bearer eyJraWQiOiI5YWQzNWE3...
+Authorization: Bearer eyJraWQiOiJmZDZiNWQ2...
 Content-Type: application/json
 Accept: application/json, text/event-stream
 

@@ -44,7 +44,8 @@ consent() {
   fi
   args=(--data-urlencode 'client_id=local-mcp-client' --data-urlencode "state=$state")
   for s in "$@"; do args+=(--data-urlencode "scope=$s"); done
-  curl -s -o /dev/null -L -c "$JAR" -b "$JAR" -X POST "$AS/oauth2/authorize" "${args[@]}"
+  # -X POST를 주지 않는다. 주면 curl이 callback으로 가는 redirect도 POST로 보내고, local-client는 GET이 아닌 callback을 400으로 거절한다.
+  curl -s -o /dev/null -L -c "$JAR" -b "$JAR" "$AS/oauth2/authorize" "${args[@]}"
 }
 
 wait_url 1 || { echo "[오류] 첫 authorization 주소가 나오지 않았다" >&2; cat "$OUT" >&2; exit 1; }

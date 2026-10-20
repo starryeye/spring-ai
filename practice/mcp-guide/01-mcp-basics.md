@@ -127,7 +127,7 @@ client와 서버는 처음에 서로를 모른다.
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiJlZDY1ZWFl...
+Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
 Content-Type: application/json
 Accept: application/json, text/event-stream
 
@@ -136,7 +136,7 @@ Accept: application/json, text/event-stream
 
 ```http
 HTTP/1.1 200
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 Content-Type: application/json
 
 {"jsonrpc":"2.0","id":1,"result":{
@@ -171,7 +171,7 @@ official은 tool만 만들었지만 응답에는 `prompts`·`resources`·`comple
 
 ```http
 POST /mcp HTTP/1.1
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 MCP-Protocol-Version: 2025-11-25
 
 {"jsonrpc":"2.0","method":"notifications/initialized"}
@@ -190,7 +190,7 @@ tool의 이름과 설명, 받는 인자를 알아야 LLM에게 "이런 tool이 �
 HTTP/1.1 200
 Content-Type: text/event-stream
 
-id:7c324e98-8854-4b88-9243-7a97e94fd80a
+id:1eefa5b4-3132-4311-b184-cb7441dd5c36
 event:message
 data:{"jsonrpc":"2.0","id":2,"result":{"tools":[ ... ]}}
 ```
@@ -236,7 +236,7 @@ LLM이 tool과 인자를 고르면, MCP client가 그 호출을 서버에 전한
 응답은 3단계처럼 SSE로 오고, `data:` 줄은 다음과 같다.
 
 ```json
-{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다."}],"isError":false}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다."}],"isError":false}}
 ```
 
 `params.name`은 `tools/list`에서 받은 tool 이름이고, `params.arguments`는 `inputSchema` 형식을 따른 인자다.
@@ -253,7 +253,7 @@ client가 더 쓰지 않을 session을 알려 주면 서버는 그 자원을 바
 
 ```http
 DELETE /mcp HTTP/1.1
-Mcp-Session-Id: 7c324e98-8854-4b88-9243-7a97e94fd80a
+Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
 MCP-Protocol-Version: 2025-11-25
 ```
 

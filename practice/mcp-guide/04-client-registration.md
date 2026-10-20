@@ -149,7 +149,7 @@ Authorization Server는 client마다 종류를 기록해 두므로, `local-mcp-c
 
 ```http
 HTTP/1.1 302
-Location: http://127.0.0.1:9999/callback?code=CMoLrbqdsRXI...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
+Location: http://127.0.0.1:9999/callback?code=6xh51JFgf9eG...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9010
 ```
 
 포트 말고는 등록한 주소와 정확히 같아야 한다.
