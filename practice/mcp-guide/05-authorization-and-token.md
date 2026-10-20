@@ -378,6 +378,7 @@ Spring의 `audiences`는 `aud`에 그 값이 들어 있는지를 보므로, 값�
 discovery도 제품마다 다르다.
 Entra의 OpenID Connect Discovery 문서에는 `code_challenge_methods_supported`가 없고, RFC 8414 경로는 `404`다(2026-10-09 확인).
 그래서 3장의 확인을 그대로 하는 MCP client는 Entra 앞에서 멈춘다.
+MCP client가 붙을 Authorization Server를 고르거나 만들 때 확인할 항목은 [부록의 Authorization Server 점검표](reference-compliance.md#authorization-server-점검표)에 모았다.
 
 ## 5.9 만료와 refresh
 

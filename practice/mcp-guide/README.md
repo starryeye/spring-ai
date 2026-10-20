@@ -60,7 +60,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | 부록 | 내용 |
 |---|---|
 | [API 레퍼런스](reference-api.md) | endpoint마다 명세가 정한 parameter·header·field를 모은 사전이다 |
-| [명세 준수표](reference-compliance.md) | practice마다 명세 항목을 어디까지 지키는지 판정한 표다 |
+| [명세 준수표](reference-compliance.md) | practice마다 명세 항목을 어디까지 지키는지 판정한 표다. Authorization Server 점검표도 있다 |
 
 ## official과 예시 값
 

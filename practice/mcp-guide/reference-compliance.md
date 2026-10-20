@@ -24,6 +24,7 @@ official 칸은 agent(`shop-agent`)와 public client `local-client`를 함께 �
 `local-client`의 `[1]`\~`[5]`는 [local-client 캡처](../../docs/superpowers/captures/2026-09-26-local-client.txt)의 줄이다.
 "설명" 열은 그 내용을 설명하는 장이고, 공격은 [8장](08-security.md), 기준 버전(transport는 2025-11-25, authorization은 2025-11-25에 2026-07-28 추가분)은 [9장](09-versions.md)에 있다.
 authz·stateless·visibility·cimd·mcp-2026-07-28 practice에서 판정이 달라지는 행은 맨 뒤의 다섯 절에 따로 모았다.
+MCP client를 받는 Authorization Server가 갖출 것은 [Authorization Server 점검표](#authorization-server-점검표)에 따로 모았다.
 
 ## 구현 위치 지도
 
@@ -124,6 +125,30 @@ MUST 위반은 12·19·36·40번이고, 36번만 practice마다 다르다(chat-m
 - 17·22·38번과 34번의 `typ`은 MCP가 요구하지 않거나 규정이 없는 참고 항목이라 위반으로 세지 않는다.
 - 18·20·25번은 Spring 기본 동작이 명세에 못 미치는 곳을 practice가 직접 채운 것이다.
 - 공격마다 official이 막는 곳은 [8장](08-security.md#812-official에서-보기)에 있다.
+
+## Authorization Server 점검표
+
+MCP client가 붙을 Authorization Server를 고르거나 만들 때 확인할 항목을 모았다.
+상용 IdP라면 제품 문서와 그 IdP의 metadata로 한 행씩 확인한다.
+판정 표시는 [읽는 법](#읽는-법)과 같고, official 칸의 번호는 위 [준수표](#준수표)의 행 번호다.
+
+| 점검 항목 | 요구 수준 | 설명 | official |
+|---|---|---|---|
+| RFC 8414 metadata나 OpenID Connect Discovery 문서를 하나 이상 낸다. 문서의 `issuer`는 그 문서를 찾은 issuer와 글자까지 같다 | MUST ([MCP — Overview](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#overview)) · MUST ([RFC 8414 §3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3)) | [3장](03-discovery.md#35-3단계-authorization-server-metadata를-읽는다) | 예 — 두 문서를 모두 내고, `issuer`는 설정(`spring.security.oauth2.authorizationserver.issuer`)으로 고정한다 |
+| PKCE를 지원하고 강제한다. metadata의 `code_challenge_methods_supported`에 `S256`을 넣고, 없으면 MCP client는 진행하지 않는다 | MUST (지원·강제, [RFC 9700 §2.1.1](https://www.rfc-editor.org/rfc/rfc9700#section-2.1.1)) · RECOMMENDED (metadata, 같은 절) · OpenID Connect 문서의 field는 MUST ([MCP — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)) | [5장](05-authorization-and-token.md#54-pkce) | 예 — `require-proof-key: true`, metadata는 `["S256"]`(5·6번) |
+| 요청의 `resource`로 access token의 `aud`를 그 MCP Server로 제한한다. 모르는 `resource`는 `invalid_target`으로 거절한다 | SHOULD ([RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) · [RFC 9700 §2.3](https://www.rfc-editor.org/rfc/rfc9700#section-2.3)) · 표시 없음 (`invalid_target`, [RFC 8707 §2.1](https://www.rfc-editor.org/rfc/rfc8707#section-2.1)) | [5장](05-authorization-and-token.md#57-token-request), [상용 IdP](05-authorization-and-token.md#58-token의-내용-access-token과-id-token) | 예 — `ResourceAudienceTokenCustomizer`, `ResourceIndicatorValidator`(8번) |
+| authorization response에 오류 응답까지 `iss`를 넣고, metadata에 `authorization_response_iss_parameter_supported: true`를 알린다 | SHOULD (넣기, [MCP 2026-07-28 — Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)) · MUST (넣으면 알리기, [RFC 9207 §2.3](https://www.rfc-editor.org/rfc/rfc9207#section-2.3)) | [5장](05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) | 예 — `IssuerIdentifyingAuthorizationResponseHandler`(9번) |
+| redirect URI를 등록한 값과 정확히 비교하고, 맞지 않으면 그 주소로 redirect하지 않는다 | MUST ([MCP — Open Redirection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#open-redirection)) · MUST NOT ([OAuth 2.1 §4.1.2.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.2.1)) | [4장](04-client-registration.md#43-pre-registration-official의-두-client), [8장](08-security.md#83-redirect-uri-바꿔치기와-authorization-code-가로채기) | 예 — Spring `OAuth2AuthorizationCodeRequestAuthenticationValidator`(32번) |
+| loopback IP 주소의 redirect URI는 요청의 어느 포트든 받는다. native app의 `localhost` redirect URI도 포트를 빼고 비교한다 | MUST ([RFC 8252 §7.3](https://www.rfc-editor.org/rfc/rfc8252#section-7.3) · [OAuth 2.1 §8.4.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-8.4.2)) · `localhost`는 MUST ([RFC 9700 §4.1.3](https://www.rfc-editor.org/rfc/rfc9700#section-4.1.3)) | [4장](04-client-registration.md#44-public-client의-규칙) | 예(loopback IP만) — `127.0.0.1`·`[::1]`은 포트를 빼고 비교한다(24번). 이름 `localhost`는 포트까지 비교해, RFC 9700의 문장보다 좁다 |
+| endpoint를 모두 `https`로 내고, redirect URI는 `localhost`이거나 `https`인 것만 받는다 | MUST ([MCP — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security) · [OAuth 2.1 §1.5](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.5)) | [3장](03-discovery.md#36-client가-반드시-확인하는-것), [6장](06-mcp-call-and-validation.md#64-1단계-originhost-검사) | **아니오** — `http://localhost`로 돈다(12번). 등록한 redirect URI는 모두 loopback이다 |
+| 비밀 없는 public client(`none`)를 받고 metadata에 `none`을 알린다. 신원을 확인할 수 없는 client에게는 저장한 consent로 넘어가지 않고 매번 묻는다 | OPTIONAL (알리기, [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2)) · SHOULD, SHOULD NOT ([OAuth 2.1 §7.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-7.3.1)) | [4장](04-client-registration.md#44-public-client의-규칙), [5장](05-authorization-and-token.md#55-login과-consent) | 예 — `local-mcp-client`, `PublicClientConsentService`(23·25번) |
+| access token의 수명은 짧게 둔다. public client에 refresh token을 준다면 rotation이나 sender-constrained token으로 재사용을 잡아낸다 | SHOULD (수명) · MUST (rotation, [MCP 2026-07-28 — Token Theft](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#token-theft)) · MUST ([OAuth 2.1 §4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1) · [RFC 9700 §2.2.2](https://www.rfc-editor.org/rfc/rfc9700#section-2.2.2)) | [5장](05-authorization-and-token.md#59-만료와-refresh), [13장](13-cimd.md#138-5단계-public-client의-refresh와-rotation) | 예 — access token은 300초다. public client에는 refresh token을 주지 않아 rotation은 해당 없음이다(26번) |
+| CIMD를 지원한다면 metadata에 알리고, 가져온 문서의 `client_id`·redirect URI·구조를 검증한다. 문서를 가져올 때 SSRF를 막고, consent 화면에 redirect URI의 host를 보여 준다 | SHOULD (지원, [MCP — Client ID Metadata Documents](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#client-id-metadata-documents)) · SHOULD (SSRF, [Abuse Protection](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#authorization-server-abuse-protection)). MUST (알리기 [CIMD draft-00 §5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5), 검증 [Implementation Requirements](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#implementation-requirements), host 표시 [Localhost Redirect URI Risks](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#localhost-redirect-uri-risks)) | [4장](04-client-registration.md#45-cimd), [13장](13-cimd.md#135-2단계-문서를-가져와-믿기까지) | 다루지 않음 — 미리 등록한 client만 받는다(15번). cimd practice는 예다(cimd 표의 15번과 새 행) |
+| access token을 JWT로 준다면 RFC 9068 형식(`typ: at+jwt`, `client_id`, 공백 구분 `scope`)을 따른다 | 참고 — MCP는 요구하지 않음 ([RFC 9068 §2](https://www.rfc-editor.org/rfc/rfc9068#section-2)) | [5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token) | 아니오(불일치) — `typ`과 `client_id`가 없고 `scope`가 배열이다(17번) |
+
+- Claude는 metadata에 `client_id_metadata_document_supported: true`와 `token_endpoint_auth_methods_supported`의 `none`이 모두 있을 때만 CIMD로 붙고, 아니면 DCR을 시도한다([Claude 문서](https://claude.com/docs/connectors/building/authentication)).
+- Claude Code(CLI)는 `localhost`와 임시 포트로 code를 받으므로, `localhost`도 포트를 빼고 비교하는 Authorization Server에만 그대로 붙는다([4장](04-client-registration.md#44-public-client의-규칙)).
+- 상용 IdP가 `resource`를 `aud`로 쓰는 방식과 metadata의 차이는 [5장](05-authorization-and-token.md#58-token의-내용-access-token과-id-token)의 표에 있다.
 
 ## mcp-security-authz에서 달라지는 행
 
