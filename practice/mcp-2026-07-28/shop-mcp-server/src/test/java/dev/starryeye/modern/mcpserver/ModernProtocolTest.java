@@ -594,7 +594,11 @@ class ModernProtocolTest {
 
 			assertThat(limited.status()).isEqualTo(429);
 			assertThat(Integer.parseInt(limited.header("Retry-After"))).isBetween(1, 60);
-			assertThat(limited.json().get("error").get("code").asInt()).isEqualTo(-32000);
+			// 2026-07-28은 JSON-RPC의 예약 범위(-32768~-32000)에 새 code를 만들지 말라고 한다.
+			// 속도 제한에는 명세가 정한 code가 없으므로, 그 밖의 정수 429를 쓴다.
+			int code = limited.json().get("error").get("code").asInt();
+			assertThat(code).isEqualTo(429);
+			assertThat(code >= -32768 && code <= -32000).as("JSON-RPC 예약 범위").isFalse();
 			// 상한은 사용자마다 따로 센다.
 			assertThat(client.callTool(손님, "searchProducts", Map.of()).status()).isEqualTo(200);
 		}

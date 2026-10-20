@@ -263,7 +263,8 @@ class ToolScopeFilterTest {
 
 		assertThat(response.getStatus()).isEqualTo(429);
 		assertThat(response.getHeader("Retry-After")).isEqualTo("60");
-		assertThat(response.getContentAsString()).isEqualTo("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,"
+		// 명세가 속도 제한에 정한 code가 없으므로, 예약 범위(-32768~-32000) 밖의 code를 쓴다.
+		assertThat(response.getContentAsString()).isEqualTo("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":429,"
 				+ "\"message\":\"tool 호출이 너무 잦습니다. 60초 뒤에 다시 시도하세요.\"}}");
 		assertThat(chain.getRequest()).isNull();
 	}
