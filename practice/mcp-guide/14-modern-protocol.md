@@ -666,7 +666,7 @@ JDK `HttpClient`의 요청 제한 시간은 응답 header가 올 때까지만 �
 | `429` | `ToolRateLimitedException`(`Retry-After`) | HTTP 상태로 알아보고 본문 `code`는 보지 않는다. 모델에게 tool 오류 문장으로 간다 |
 | `-32602`이고 message가 `Unknown tool: `로 시작 | `UnknownToolException` | 그 token의 목록을 버리고, 모델에게 tool 오류 문장으로 간다 |
 | `-32020`·`-32021`·`-32022` | `McpProtocolMismatchException` | client가 요청을 잘못 만든 것이라 다시 보내도 결과가 같다. 로그에 WARN을 남기고, 모델에게 tool 오류 문장으로 간다 |
-| 응답 없음(연결 거절, header나 본문이 20초 안에 오지 않음) | `McpTransportException` | 모델에게 tool 오류 문장으로 간다 |
+| 응답 없음(연결 거절, header나 본문이 20초 안에 끝나지 않음) | `McpTransportException` | 모델에게 tool 오류 문장으로 간다 |
 | `resultType`이 `complete`가 아님 | `ModernMcpException` | 이 agent는 서버가 입력을 되묻는 흐름을 다루지 않는다 |
 
 `-32602`는 인자가 틀렸을 때도 쓰이므로 message까지 보고 모르는 tool을 가른다.
