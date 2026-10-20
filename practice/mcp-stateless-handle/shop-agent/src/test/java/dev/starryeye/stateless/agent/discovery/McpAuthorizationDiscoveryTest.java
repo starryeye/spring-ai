@@ -23,8 +23,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withUnauthorizedRequest;
 
 /**
- * MCP 2025-11-25 인가 §2.3 의 발견 순서를 검증한다.
- * 401 챌린지 → 보호 리소스 메타데이터 → 인가 서버 메타데이터.
+ * MCP 2025-11-25 authorization §2.3의 discovery 순서를 검증한다.
+ * 401 challenge → protected resource metadata → Authorization Server metadata.
  */
 class McpAuthorizationDiscoveryTest {
 
@@ -105,7 +105,8 @@ class McpAuthorizationDiscoveryTest {
 				{"resource":"http://localhost:8151","authorization_servers":["http://localhost:9040"]}""");
 		응답("http://localhost:9040/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-		// 루트형이면 resource 는 서버 루트다. 클라이언트는 서버가 선언한 값을 그대로 쓴다.
+		// 루트형이면 resource는 서버 루트다.
+		// client는 서버가 선언한 값을 그대로 쓴다.
 		assertThat(this.discovery.discover(RESOURCE, ISSUER).resource()).isEqualTo("http://localhost:8151");
 		this.server.verify();
 	}
@@ -178,7 +179,7 @@ class McpAuthorizationDiscoveryTest {
 	@Test
 	void PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다() {
 		// PRM 이 가리키는 주소로 곧장 GET 하면 공격자가 고른 주소로 요청이 나간다(SSRF).
-		// 자격증명이 묶인 issuer 가 아니면 그 metadata 도 요청하지 않는다 — 기대하지 않은 요청이
+		// credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다 — 기대하지 않은 요청이
 		// 나가면 MockRestServiceServer 가 AssertionError 를 던져 이 테스트가 실패한다.
 		챌린지("Bearer resource_metadata=\"http://localhost:8151/.well-known/oauth-protected-resource/mcp\"");
 		응답("http://localhost:8151/.well-known/oauth-protected-resource/mcp", """

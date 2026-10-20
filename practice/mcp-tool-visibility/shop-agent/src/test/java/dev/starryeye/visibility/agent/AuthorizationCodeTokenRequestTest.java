@@ -33,13 +33,14 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * 로그인(코드 교환) 요청에도 resource 가 실려야 한다. resource 가 빠지면 발급되는
- * 토큰의 aud 가 이 MCP 서버로 좁혀지지 않는다 — {@link TokenRefreshTest} 가 검증하는
- * 갱신 요청과 같은 요구사항이지만 별도 빈({@code authorizationCodeTokenResponseClient})으로
- * 배선되어 있어 따로 검증이 필요하다.
+ * login(코드 교환) 요청에도 resource가 들어 있어야 한다.
+ * resource가 빠지면 발급되는
+ * token의 aud가 이 MCP Server로 좁혀지지 않는다 — {@link TokenRefreshTest}가 검증하는
+ * 갱신 요청과 같은 요구사항이지만 별도 bean({@code authorizationCodeTokenResponseClient})으로
+ * 연결되어 있어 따로 검증이 필요하다.
  *
  * <p>{@code McpSecurityConfig.authorizationCodeTokenResponseClient(...)} 를 테스트 안에서
- * 다시 조립하지 않고 그대로 호출한다 — 그래야 이 배선이 다른 practice 로 복사되며
+ * 다시 조립하지 않고 그대로 호출한다 — 그래야 이 연결이 다른 practice로 복사되며
  * 깨져도 이 테스트가 잡아낸다.
  */
 class AuthorizationCodeTokenRequestTest {
@@ -60,12 +61,13 @@ class AuthorizationCodeTokenRequestTest {
                 .tokenUri(ISSUER + "/oauth2/token")
                 .build();
 
-        // resource 값은 발견 결과에서 오므로, 실제 발견을 거치지 않고 고정된 공급자로 넣는다.
+        // resource 값은 discovery 결과에서 오므로, 실제 discovery를 거치지 않고 고정된 공급자로 넣는다.
         DiscoveredClientRegistrationRepository registrations = mock(DiscoveredClientRegistrationRepository.class);
         given(registrations.discovered()).willReturn(DiscoveryFixtures.discovered());
 
-        // McpSecurityConfig 의 실제 빈 생성 메서드를 호출한다. 테스트 안에서 클라이언트를
-        // 새로 조립하면 이 배선이 빠지거나 깨져도 통과해 버린다.
+        // McpSecurityConfig의 실제 bean 생성 메서드를 호출한다.
+        // 테스트 안에서 client를
+        // 새로 조립하면 이 연결이 빠지거나 깨져도 통과해 버린다.
         RestClientAuthorizationCodeTokenResponseClient tokenResponseClient =
                 new McpSecurityConfig().authorizationCodeTokenResponseClient(registrations);
 
@@ -97,7 +99,7 @@ class AuthorizationCodeTokenRequestTest {
                 .clientId("visibility-shop-agent")
                 .redirectUri(REDIRECT_URI)
                 .state("state-1")
-                // PKCE 로 교환할 때만 code_verifier 가 실린다 — 여기서도 실제로 실리는지 확인한다.
+                // PKCE로 교환할 때만 code_verifier가 들어간다 — 여기서도 실제로 들어가는지 확인한다.
                 .attributes(attributes -> attributes.put(PkceParameterNames.CODE_VERIFIER, "verifier-1"))
                 .build();
         OAuth2AuthorizationResponse authorizationResponse = OAuth2AuthorizationResponse.success("code-1")

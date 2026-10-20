@@ -64,11 +64,13 @@ import java.util.stream.Collectors;
  * transport(Spring AI 2.0.1의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
  * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
  * 잘못된 바이트를 만나도 예외를 던지지 않고 대체 문자({@code U+FFFD})로 조용히 바꿔 넣는다.
- * 이 필터가 그 대신 {@code jsonMapper.readTree(byte[])}로 바이트를 직접 읽으면, Jackson은 잘못된 UTF-8 바이트에서
- * 예외를 던진다. 그러면 이 필터는 "JSON이 아니다"로 보고 tool 이름 검사를 건너뛰어 통과시키지만, transport는 같은
+ * 이 filter가 그 대신 {@code jsonMapper.readTree(byte[])}로 바이트를 직접 읽으면, Jackson은 잘못된 UTF-8 바이트에서
+ * 예외를 던진다.
+ * 그러면 이 filter는 "JSON이 아니다"로 보고 tool 이름 검사를 건너뛰어 통과시키지만, transport는 같은
  * 바이트를 대체 문자로 채워 넣어 여전히 유효한 JSON으로 읽고 그대로 실행한다. 검사와 실행이 서로 다른 것을 보는
  * parser differential이 생겨, scope가 없는 tool 호출이 검사를 피해 나간다.
- * 그래서 이 필터는 transport와 같은 규칙으로 decode한다. 그 결과가 JSON object가 아니면(구문 오류, 배열, 모르는
+ * 그래서 이 filter는 transport와 같은 규칙으로 decode한다.
+ * 그 결과가 JSON object가 아니면(구문 오류, 배열, 모르는
  * charset 이름) transport에 넘기지 않고 여기서 {@code 400}으로 끝낸다. transport가 읽을 것과 다르게 해석할 수 있는
  * 본문은 넘기지 않는 것이 "다르게 보일 수 있는 것은 아예 넘기지 않는다"는 원칙에 맞다.
  */

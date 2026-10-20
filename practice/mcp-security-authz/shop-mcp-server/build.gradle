@@ -24,7 +24,8 @@ ext {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	// 공식 리소스 서버. community 버전의 mcp-server-security-spring-boot 를 대체한다.
+	// 공식 resource server.
+	// community 버전의 mcp-server-security-spring-boot를 대체한다.
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'

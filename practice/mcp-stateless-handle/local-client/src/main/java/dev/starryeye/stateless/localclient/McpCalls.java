@@ -17,8 +17,9 @@ import java.util.function.Supplier;
  *
  * <p>`403 insufficient_scope`가 오면 {@link StepUp}이 browser authorization을 다시 밟아 새 token을
  * 받고 {@link StepUpCompletedException}을 던진다(SDK의 재시도는 이미 만들어 둔 옛 요청을 그대로 다시
- * 보내 옛 token이 그대로 실리므로 쓸 수 없다). {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터
- * 새로 만들어(=customizer가 다시 불려 새 token이 실린 요청으로) 한 번만 다시 보낸다.
+ * 보내 옛 token이 그대로 들어가므로 쓸 수 없다).
+ * {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터
+ * 새로 만들어(=customizer가 다시 불려 새 token이 들어 있는 요청으로) 한 번만 다시 보낸다.
  *
  * <p>장바구니는 session이 아니라 서버가 만든 handle로 다룬다(안내서 11장).
  * 이 앱은 {@code createBasket}이 돌려준 {@code basketId}를 {@code addItem}·{@code getBasket}·{@code checkout}의 인자로 그대로 넘긴다.
@@ -40,7 +41,7 @@ public final class McpCalls {
 				.endpoint(uri.getRawPath())
 				// 요청을 새로 만들 때마다 지금 token을 붙인다. SDK가 같은 요청을 그대로 재시도할 때는 이
 				// customizer를 다시 부르지 않으므로, step-up 뒤의 새 token은 callOnce가 새로 만드는
-				// 요청에만 실린다(재시도가 아니라 새 tool 호출이라야 여기를 다시 지난다).
+				// 요청에만 들어간다(재시도가 아니라 새 tool 호출이라야 여기를 다시 지난다).
 				.httpRequestCustomizer((builder, method, endpoint, body, context) ->
 						builder.setHeader("Authorization", "Bearer " + holder.accessToken()))
 				.authorizationErrorHandler(McpHttpClientTransportAuthorizationErrorHandler.fromSync(stepUp))
@@ -48,7 +49,7 @@ public final class McpCalls {
 		McpSyncClient client = McpClient.sync(transport)
 				.clientInfo(McpSchema.Implementation.builder("local-mcp-client", "0.0.1").build())
 				.requestTimeout(requestTimeout)
-				// initialize 중에 step-up이 나도(브라우저 로그인을 기다리는 동안) 20초로 끊기지 않게 한다.
+				// initialize 중에 step-up이 나도(browser login을 기다리는 동안) 20초로 끊기지 않게 한다.
 				.initializationTimeout(requestTimeout)
 				.build();
 		try {

@@ -102,7 +102,7 @@ class StepUpAuthorizationFilterChainTest {
         ClientRegistration registration =
                 this.clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID);
         // extra:granted는 discovery도 step_up도 모르는 scope다 — 오직 저장된 token에만 있다.
-        // 이 값이 최종 redirect에 실려야 SecurityContextHolder를 실제로 읽었다는 뜻이다.
+        // 이 값이 최종 redirect에 들어 있어야 SecurityContextHolder를 실제로 읽었다는 뜻이다.
         var token = new OAuth2AccessToken(OAuth2AccessToken.TokenType.BEARER, "t", Instant.now(),
                 Instant.now().plusSeconds(300), Set.of("openid", "products:read", "extra:granted"));
         this.authorizedClientService.saveAuthorizedClient(new OAuth2AuthorizedClient(registration, "user", token),

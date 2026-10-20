@@ -73,7 +73,7 @@ class DiscoveredClientRegistrationRepositoryTest {
 		assertThat(registration.getProviderDetails().getJwkSetUri())
 				.isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/jwks");
 		assertThat(registration.getScopes()).containsExactlyInAnyOrder("openid", "products:read");
-		// RFC 9207 지원 여부는 콜백 검증에서 쓰므로 등록에 실어 둔다.
+		// RFC 9207 지원 여부는 callback 검증에서 쓰므로 등록에 넣어 둔다.
 		assertThat(registration.getProviderDetails().getConfigurationMetadata())
 				.containsEntry("authorization_response_iss_parameter_supported", true);
 	}

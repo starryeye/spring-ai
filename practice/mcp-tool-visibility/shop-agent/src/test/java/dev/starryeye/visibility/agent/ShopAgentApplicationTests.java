@@ -144,7 +144,7 @@ class ShopAgentApplicationTests {
 
         assertThat(registration).isNotNull();
         assertThat(registration.getClientId()).isEqualTo("visibility-shop-agent");
-        // 엔드포인트는 설정이 아니라 발견 결과에서 온다.
+        // endpoint는 설정이 아니라 discovery 결과에서 온다.
         assertThat(registration.getProviderDetails().getIssuerUri()).isEqualTo(DiscoveryFixtures.ISSUER);
         assertThat(registration.getProviderDetails().getAuthorizationUri())
                 .isEqualTo(DiscoveryFixtures.ISSUER + "/oauth2/authorize");
@@ -152,8 +152,9 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * 서블릿 요청 없이 Authentication 만으로 토큰을 꺼낼 수 있어야
-     * 리액터 스레드에서 토큰을 붙일 수 있다. 매니저 타입이 바뀌면 그 성질이 깨진다.
+     * 서블릿 요청 없이 Authentication만으로 token을 꺼낼 수 있어야
+     * 리액터 스레드에서 token을 붙일 수 있다.
+     * 매니저 타입이 바뀌면 그 성질이 깨진다.
      */
     @Test
     void 서블릿_요청이_필요없는_인가_매니저를_쓴다() {
@@ -193,7 +194,8 @@ class ShopAgentApplicationTests {
 
     /**
      * customizer bean이 있는지가 아니라, 자동 구성이 만든 {@link McpSyncClient}가 보내는 요청에
-     * 로그인한 사용자의 token이 실제로 실리는지 본다. {@code type: ASYNC}로 바꾸거나 customizer가 빠지면
+     * login한 사용자의 token이 실제로 들어가는지 본다.
+     * {@code type: ASYNC}로 바꾸거나 customizer가 빠지면
      * 오류 없이 token만 빠져 MCP Server가 401을 준다(6장 "조용히 401").
      */
     @Test
@@ -219,8 +221,8 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * 브라우저로 보내는 인가 요청에 PKCE 챌린지와 resource 가 실려야 한다.
-     * 둘 중 하나라도 빠지면 인가 서버가 거부하거나(PKCE), 토큰의 aud 가 좁혀지지 않는다(resource).
+     * browser로 보내는 authorization request에 PKCE challenge와 resource가 들어 있어야 한다.
+     * 둘 중 하나라도 빠지면 Authorization Server가 거부하거나(PKCE), token의 aud가 좁혀지지 않는다(resource).
      */
     @Test
     void 인가_요청에_PKCE_와_resource_가_실린다() throws Exception {
