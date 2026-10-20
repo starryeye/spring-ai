@@ -176,13 +176,20 @@ client는 다음을 확인하고, 하나라도 어긋나면 더 진행하지 않
 | PRM의 `resource`가 PRM을 찾을 때 쓴 주소와 같다. `401` header로 찾았으면 방금 부른 MCP Server 주소다 | 다른 서버의 설명서를 믿고 엉뚱한 Authorization Server로 간다 |
 | metadata의 `issuer`가 PRM이 알려 준 issuer와 같다 | 가짜 metadata가 login·token 주소를 공격자 서버로 바꿔 놓을 수 있다 |
 | `code_challenge_methods_supported`에 `S256`이 있다 | PKCE 없이 진행하게 되어, 가로챈 authorization code가 그대로 쓰인다 |
-| `authorization_endpoint`·`token_endpoint`가 `https`다(개발용 loopback 주소만 `http` 허용) | `javascript:` 같은 주소를 browser에 열게 되거나, 암호화되지 않은 곳으로 code와 비밀이 간다 |
+| `authorization_endpoint`의 scheme이 `https`다. `http`는 개발용 loopback 주소일 때만 받는다 | `javascript:` 같은 주소를 browser에 열게 되거나, 암호화되지 않은 곳에서 login하게 된다 |
 | 가진 client credentials가 그 issuer에서 발급받은 것이다(2026-07-28 추가) | 다른 Authorization Server에 `client_secret`을 보내게 된다 |
 
 마지막 항목의 이유와 규칙은 [4장](04-client-registration.md#47-credentials를-issuer에-묶기)에서 본다.
+
 agent는 이 확인을 metadata를 요청하기 전에 해서, PRM이 `authorization_servers`에 내부망 주소를 넣는 SSRF도 일부 막는다.
 SSRF에 대비해 `401`의 `resource_metadata`도 MCP Server와 같은 origin일 때만 따라간다([8장](08-security.md#82-discovery-ssrf와-위험한-authorization-주소)).
 이 origin 확인은 명세가 요구하지 않아서, PRM을 다른 host에 두는 MCP Server에는 이 agent가 붙지 못한다.
+
+`https` 확인은 주소마다 무게가 다르다.
+browser로 여는 `authorization_endpoint`는 scheme이 틀리면 그 자리에서 공격이 되므로, 명세는 이 확인을 빼지 못하게 한다.
+`token_endpoint`처럼 client가 직접 부르는 주소가 `http`면 code와 client 비밀이 암호화되지 않은 채 간다.
+그래서 명세는 운영 환경이라면 이 주소들에도 같은 기준을 쓰라고 권한다.
+official의 agent와 `local-client`는 두 endpoint를 같은 기준으로 확인한다.
 
 ## 3.7 official 코드에서 보기
 
@@ -286,7 +293,9 @@ curl http://localhost:9010/.well-known/oauth-authorization-server
 | metadata 주소를 RFC 8414 → OpenID Connect 순서로 시도한다 | [MCP 2025-11-25 Authorization — Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-metadata-discovery) | MUST |
 | metadata의 `issuer`가 다르면 쓰지 않는다 | [RFC 8414 §3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3), [MCP 2026-07-28 Authorization Server Discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery) | MUST |
 | PKCE 지원을 확인하고, 없으면 진행하지 않는다 | [MCP 2025-11-25 Authorization — Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection) | MUST |
-| authorization 주소는 `https`만(개발용 loopback은 `http` 허용) | [MCP Security Best Practices](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices) | MUST |
+| client는 browser로 여는 authorization 주소의 scheme을 `http`·`https`로 제한하고, `http`는 개발용 loopback 주소에만 받는다. 운영 환경의 Authorization Server는 `https`를 쓴다 | [MCP 2025-11-25 Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation) | MUST |
+| client는 운영 환경에서 모든 OAuth 관련 주소에 `https`를 요구하고, `http`는 개발용 loopback 주소에만 받는다 | [MCP 2025-11-25 Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) | SHOULD |
+| Authorization Server의 endpoint는 모두 `https`로 제공한다 | [MCP 2025-11-25 Authorization — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security), [OAuth 2.1 §1.5](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.5) | MUST |
 | credentials는 발급한 Authorization Server에 묶어 둔다 | [MCP 2026-07-28 Client Registration — Authorization Server Binding](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#authorization-server-binding) | MUST |
 
 [← 2장](02-why-oauth.md) · [목차](README.md) · [4장 →](04-client-registration.md)
