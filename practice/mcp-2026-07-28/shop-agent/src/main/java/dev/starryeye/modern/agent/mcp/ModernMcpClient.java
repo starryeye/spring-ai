@@ -25,6 +25,12 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -46,6 +52,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * filter와 SDK가 만든 오류 본문에는 {@code id}가 없을 수 있어서, 오류는 요청의 {@code id}와 맞춰 보지 않는다.
  * 결과는 요청의 {@code id}와 같은 것만 받는다.
  * 응답을 받지 못한 경우(연결 거절, 시간 초과, 중단)도 {@link McpTransportException}으로 알린다.
+ * 응답을 끝까지 읽지 못한 경우(본문이 제한 시간 안에 끝나지 않음, 읽다 연결이 끊김)도 마찬가지다.
  * 그래서 이 client가 던지는 MCP 쪽 실패는 모두 {@link ModernMcpException}이거나 step-up 예외다.
  */
 public class ModernMcpClient {
@@ -72,11 +79,37 @@ public class ModernMcpClient {
 			McpSchema.MetaKeys.CLIENT_INFO, McpSchema.Implementation.builder(CLIENT_NAME, CLIENT_VERSION).build());
 
 	/**
-	 * 응답 header를 기다리는 시간이다.
+	 * 요청 하나가 끝나는 데 걸리는 전체 시간의 상한이다.
 	 * MCP Server가 멈추면 채팅 요청도 함께 멈추므로 끝을 둔다.
 	 * 값은 Spring AI MCP client의 기본 request timeout과 같다.
+	 *
+	 * <p>JDK {@link HttpClient}의 요청 제한 시간은 응답 header가 올 때까지만 잰다.
+	 * header가 온 뒤에는 본문을 얼마나 오래 읽어도 제한이 없다.
+	 * SSE 응답은 MCP Server가 keep-alive 주석만 계속 보내면 결과 없이 끝나지 않을 수 있다.
+	 * 그래서 본문을 읽는 시간도 같은 값으로 잰다.
+	 * 시작은 요청을 보낼 때이므로, header를 기다린 시간과 본문을 읽은 시간을 더해 이 값을 넘지 않는다.
+	 * 값을 둘로 나누지 않은 것은 호출하는 쪽이 알고 싶은 것이 "이 요청에 얼마나 기다리나" 하나이기 때문이다.
 	 */
 	static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
+
+	/**
+	 * 본문 읽기의 제한 시간이 지났을 때 연결을 닫는 thread다.
+	 * 읽는 thread는 {@code read()}에서 멈춰 있어 스스로 시간을 볼 수 없으므로, 다른 thread가 대신 닫아 깨운다.
+	 * 닫는 일만 하므로 thread 하나로 충분하고, JVM이 끝나는 것을 막지 않도록 daemon으로 둔다.
+	 */
+	private static final ScheduledExecutorService DEADLINES = deadlineScheduler();
+
+	private static ScheduledExecutorService deadlineScheduler() {
+		ScheduledThreadPoolExecutor scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1,
+				task -> {
+					Thread thread = new Thread(task, "modern-mcp-read-deadline");
+					thread.setDaemon(true);
+					return thread;
+				});
+		// 읽기가 제때 끝나면 예약을 지워, 20초짜리 예약이 쌓이지 않게 한다.
+		scheduler.setRemoveOnCancelPolicy(true);
+		return scheduler;
+	}
 
 	private static final String APPLICATION_JSON = "application/json";
 
@@ -108,7 +141,7 @@ public class ModernMcpClient {
 		this(endpoint, http, json, REQUEST_TIMEOUT);
 	}
 
-	/** 테스트가 기다리는 시간을 줄이려고 둔다. */
+	/** 테스트가 기다리는 시간을 줄이려고 둔다. {@code requestTimeout}은 {@link #REQUEST_TIMEOUT}처럼 요청 하나의 전체 시간이다. */
 	ModernMcpClient(URI endpoint, HttpClient http, McpJsonMapper json, Duration requestTimeout) {
 		this.endpoint = Objects.requireNonNull(endpoint, "endpoint");
 		this.http = Objects.requireNonNull(http, "http");
@@ -188,13 +221,66 @@ public class ModernMcpClient {
 			Class<T> type) {
 		long id = this.ids.incrementAndGet();
 		HttpRequest request = request(accessToken, method, name, new JsonRpc.JSONRPCRequest(method, id, params));
+		long deadline = System.nanoTime() + this.requestTimeout.toNanos();
 		HttpResponse<InputStream> response = exchange(request);
-		try (InputStream body = response.body()) {
-			JsonRpc.JSONRPCResponse rpc = read(response, body, id);
+		try (InputStream body = response.body(); ReadDeadline readDeadline = new ReadDeadline(body, deadline)) {
+			JsonRpc.JSONRPCResponse rpc;
+			try {
+				rpc = read(response, body, id);
+			}
+			catch (IOException ex) {
+				throw readDeadline.expired() ? readTimedOut()
+						: transportFailure("MCP Server의 응답을 읽다 연결이 끊겼다", ex);
+			}
+			if (rpc == null && readDeadline.expired()) {
+				// 닫힌 stream은 예외 없이 끝난 것처럼 읽힐 수 있다.
+				throw readTimedOut();
+			}
 			return result(response, rpc, id, name, type);
 		}
 		catch (IOException ex) {
+			// 본문을 닫다 난 오류다.
 			throw transportFailure("MCP Server의 응답을 읽다 연결이 끊겼다", ex);
+		}
+	}
+
+	private McpTransportException readTimedOut() {
+		return transportFailure("MCP Server가 " + describe(this.requestTimeout) + " 안에 응답을 끝까지 보내지 않았다",
+				new HttpTimeoutException("response body not finished in time"));
+	}
+
+	/**
+	 * 응답 본문을 읽는 동안 제한 시간을 지킨다.
+	 * 시간이 지나면 본문 stream을 닫아, {@code read()}에서 멈춘 thread가 깨어나게 한다.
+	 * 닫힌 stream은 읽던 곳에서 예외를 던지거나 끝난 것처럼 비어 돌아오므로, 읽은 쪽은 {@link #expired()}로 원인을 가린다.
+	 * try-with-resources로 쓰면 읽기가 끝날 때 예약이 취소된다.
+	 */
+	private static final class ReadDeadline implements AutoCloseable {
+
+		private final AtomicBoolean expired = new AtomicBoolean();
+
+		private final ScheduledFuture<?> closing;
+
+		/** @param deadline 이 시각({@link System#nanoTime()})까지 읽어야 한다 */
+		ReadDeadline(InputStream body, long deadline) {
+			this.closing = DEADLINES.schedule(() -> {
+				this.expired.set(true);
+				try {
+					body.close();
+				}
+				catch (IOException ex) {
+					log.debug("제한 시간이 지나 본문을 닫다 실패했다: {}", ex.toString());
+				}
+			}, Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
+		}
+
+		boolean expired() {
+			return this.expired.get();
+		}
+
+		@Override
+		public void close() {
+			this.closing.cancel(false);
 		}
 	}
 

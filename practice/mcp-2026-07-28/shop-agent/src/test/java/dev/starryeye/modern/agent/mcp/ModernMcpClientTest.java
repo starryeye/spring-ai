@@ -107,6 +107,19 @@ class ModernMcpClientTest {
 			this.elsewhere.incrementAndGet();
 			send(exchange, new Reply(200, Map.of("Content-Type", "application/json"), "{}"));
 		});
+		this.server.createContext("/keep-alive-forever", exchange -> {
+			exchange.getRequestBody().readAllBytes();
+			exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+			exchange.sendResponseHeaders(200, 0);
+			stream(exchange, ":\n\n".getBytes(StandardCharsets.UTF_8));
+		});
+		this.server.createContext("/json-stalls", exchange -> {
+			exchange.getRequestBody().readAllBytes();
+			exchange.getResponseHeaders().add("Content-Type", "application/json");
+			// 본문 길이는 1000byte라고 알리고 10byte만 보낸 뒤 멈춘다.
+			exchange.sendResponseHeaders(200, 1000);
+			stream(exchange, "{\"jsonrpc\"".getBytes(StandardCharsets.UTF_8));
+		});
 		this.server.start();
 		this.client = new ModernMcpClient(URI.create(origin() + "/mcp"), HttpClient.newBuilder()
 				.version(HttpClient.Version.HTTP_1_1)
@@ -133,6 +146,38 @@ class ModernMcpClientTest {
 			}
 		}
 		exchange.close();
+	}
+
+	/**
+	 * 헤더를 보낸 뒤 본문을 끝내지 않고 {@code chunk}를 20ms마다 계속 쓴다.
+	 * client가 연결을 닫아 쓰기가 실패하거나 5초가 지나면 멈춘다.
+	 * 시험이 끝나지 않는 일이 없도록 둔 상한이다.
+	 */
+	static void stream(HttpExchange exchange, byte[] chunk) {
+		try (OutputStream out = exchange.getResponseBody()) {
+			long giveUp = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+			while (System.nanoTime() < giveUp) {
+				out.write(chunk);
+				out.flush();
+				Thread.sleep(20);
+			}
+		}
+		catch (IOException ex) {
+			// client가 연결을 닫았다.
+		}
+		catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+		}
+		finally {
+			exchange.close();
+		}
+	}
+
+	ModernMcpClient clientWithDeadline(String path, Duration deadline) {
+		return new ModernMcpClient(URI.create(origin() + path), HttpClient.newBuilder()
+				.version(HttpClient.Version.HTTP_1_1)
+				.followRedirects(HttpClient.Redirect.NEVER)
+				.build(), MCP_JSON, deadline);
 	}
 
 	static Reply json(int status, String body) {
@@ -393,6 +438,48 @@ class ModernMcpClientTest {
 				})
 				.hasCauseInstanceOf(HttpTimeoutException.class);
 		assertThat(ModernMcpClient.REQUEST_TIMEOUT).isEqualTo(Duration.ofSeconds(20));
+	}
+
+	/**
+	 * JDK의 요청 제한 시간은 응답 header까지만 잰다.
+	 * header 뒤에 keep-alive 줄만 보내면 SSE 본문을 읽는 동안에는 끝이 없으므로, 본문을 읽는 시간도 같은 제한으로 잰다.
+	 */
+	@Test
+	void keep_alive만_보내고_결과를_주지_않는_SSE_응답은_정한_시간에_끊는다() {
+		ModernMcpClient impatient = clientWithDeadline("/keep-alive-forever", Duration.ofMillis(300));
+
+		long started = System.nanoTime();
+		assertThatThrownBy(() -> impatient.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class, error -> {
+					assertThat(error.httpStatus()).isZero();
+					assertThat(error.jsonRpcCode()).isNull();
+					assertThat(error.getMessage()).isEqualTo("MCP Server가 300ms 안에 응답을 끝까지 보내지 않았다");
+				})
+				.hasCauseInstanceOf(HttpTimeoutException.class);
+		assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(2));
+	}
+
+	@Test
+	void 본문이_도중에_멈춘_JSON_응답도_같은_시간에_끊는다() {
+		ModernMcpClient impatient = clientWithDeadline("/json-stalls", Duration.ofMillis(300));
+
+		long started = System.nanoTime();
+		assertThatThrownBy(() -> impatient.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class,
+						error -> assertThat(error.getMessage()).isEqualTo("MCP Server가 300ms 안에 응답을 끝까지 보내지 않았다"));
+		assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(2));
+	}
+
+	@Test
+	void 제한_시간_안에_결과가_오면_keep_alive가_앞서도_읽는다() {
+		this.responder = request -> new Reply(200, Map.of("Content-Type", "text/event-stream"), String.join("\n",
+				":", "", ":", "",
+				"data: {\"jsonrpc\":\"2.0\",\"id\":" + request.id()
+						+ ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"p1 재고 7개\"}],\"resultType\":\"complete\"}}",
+				"", ""));
+		ModernMcpClient patient = clientWithDeadline("/mcp", Duration.ofSeconds(5));
+
+		assertThat(patient.callTool("token-a", "getStock", Map.of()).content()).hasSize(1);
 	}
 
 	@Test
