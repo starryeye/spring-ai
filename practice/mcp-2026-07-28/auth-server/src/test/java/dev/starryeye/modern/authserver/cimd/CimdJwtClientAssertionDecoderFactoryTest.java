@@ -50,7 +50,7 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 	@BeforeAll
 	static void keys() throws JOSEException {
 		key = new RSAKeyGenerator(2048).keyID("agent-key").generate();
-		// kid가 같아도 key가 다르면 서명이 맞지 않는다.
+		// kid가 같아도 key가 다르면 signature가 맞지 않는다.
 		otherKey = new RSAKeyGenerator(2048).keyID("agent-key").generate();
 	}
 
@@ -318,7 +318,7 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 
 	@Test
 	void decoder는_자기_client_id의_assertion만_받는다() throws Exception {
-		// 같은 key로 서명하고 같은 JWKS를 쓰더라도 iss·sub가 다른 client면 거절한다.
+		// 같은 key로 sign하고 같은 JWKS를 쓰더라도 iss·sub가 다른 client면 거절한다.
 		String otherClient = assertion("https://localhost:8182/oauth/other.json", key, ISSUER);
 
 		assertThatExceptionOfType(JwtException.class)

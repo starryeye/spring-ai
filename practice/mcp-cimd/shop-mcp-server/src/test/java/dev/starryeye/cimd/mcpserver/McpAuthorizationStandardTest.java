@@ -37,8 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * MCP 인가 명세가 리소스 서버에 요구하는 것들을 검증한다.
- * RFC 9728 보호 리소스 메타데이터, 401 챌린지, audience 검증, Origin/Host 검증.
+ * MCP authorization 명세가 resource server에 요구하는 것들을 검증한다.
+ * RFC 9728 protected resource metadata, 401 challenge, audience 검증, Origin/Host 검증.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -69,7 +69,7 @@ class McpAuthorizationStandardTest {
 	}
 
 	/**
-	 * JWT 디코더가 인가 서버에서 메타데이터·JWKS 를 받아오는 자리에 가짜 응답을 물린다.
+	 * JWT 디코더가 Authorization Server에서 metadata·JWKS를 받아오는 자리에 가짜 응답을 물린다.
 	 * 운영 설정(issuer-uri + audiences)은 그대로 두고 네트워크만 끊는 것이라,
 	 * 실제로 켜지는 검증기(issuer·audience)를 그대로 시험한다.
 	 */
@@ -142,8 +142,8 @@ class McpAuthorizationStandardTest {
 	}
 
 	/**
-	 * {@code MCP-Protocol-Version} 헤더만 다르게 실어 보내는 요청을 만든다.
-	 * {@code protocolVersion} 이 {@code null} 이면 헤더 자체를 보내지 않는다.
+	 * {@code MCP-Protocol-Version} header만 다르게 넣어 보내는 요청을 만든다.
+	 * {@code protocolVersion}이 {@code null}이면 header 자체를 보내지 않는다.
 	 */
 	static MockHttpServletRequestBuilder mcpWithProtocolVersion(String token, String protocolVersion) {
 		MockHttpServletRequestBuilder request = post("/mcp")
@@ -162,11 +162,12 @@ class McpAuthorizationStandardTest {
 	void 보호_리소스_메타데이터를_경로형으로_공개한다() throws Exception {
 		this.mockMvc.perform(get("/.well-known/oauth-protected-resource/mcp").header("Host", HOST))
 				.andExpect(status().isOk())
-				// RFC 9728 §3.3: resource 는 메타데이터 URL 을 만든 리소스 식별자와 같아야 한다.
+				// RFC 9728 §3.3: resource는 metadata URL을 만든 리소스 식별자와 같아야 한다.
 				.andExpect(jsonPath("$.resource").value(RESOURCE))
 				.andExpect(jsonPath("$.authorization_servers[0]").value(ISSUER))
 				.andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
-				// 이 서버는 mTLS 로 묶인 토큰을 쓰지 않는다. Spring 기본값이 true 라 꺼야 한다.
+				// 이 서버는 mTLS로 묶인 token을 쓰지 않는다.
+				// Spring 기본값이 true라 꺼야 한다.
 				.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false))
 				.andExpect(jsonPath("$.scopes_supported").value(org.hamcrest.Matchers.contains("products:read")));
 	}
@@ -245,7 +246,7 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void aud_가_다른_토큰은_거부한다() throws Exception {
-		// 같은 인가 서버가 발급했지만 다른 청중(클라이언트 자신)을 향한 토큰이다.
+		// 같은 Authorization Server가 발급했지만 다른 청중(client 자신)을 향한 token이다.
 		this.mockMvc.perform(mcp(토큰(ISSUER, "cimd-shop-agent"), null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
@@ -270,7 +271,7 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 다른_키로_서명한_토큰은_거부한다() throws Exception {
-		// kid 는 같지만 JWKS 의 공개 키로 서명이 맞지 않는다.
+		// kid는 같지만 JWKS의 public key로 signature가 맞지 않는다.
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().plusSeconds(300), rsaKey()), null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
@@ -313,7 +314,7 @@ class McpAuthorizationStandardTest {
 
 	/*
 	 * MCP 2025-11-25 전송 명세 "Protocol Version Header" 절.
-	 * transport(WebMvcStatelessServerTransport)와 SDK는 이 헤더를 검증하지 않으므로
+	 * transport(WebMvcStatelessServerTransport)와 SDK는 이 header를 검증하지 않으므로
 	 * McpProtocolVersionFilter 가 대신 검증한다.
 	 */
 
@@ -339,7 +340,7 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void MCP_Protocol_Version_헤더가_없으면_명세대로_통과한다() throws Exception {
-		// 명세: 헤더가 없고 버전을 알 다른 방법이 없다면 서버는 2025-03-26 을 가정해야
+		// 명세: header가 없고 버전을 알 다른 방법이 없다면 서버는 2025-03-26을 가정해야
 		// 한다("SHOULD assume protocol version 2025-03-26") — 거부 사유가 아니다.
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), null))
 				.andExpect(status().isOk());
@@ -347,9 +348,9 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 따옴표가_든_MCP_Protocol_Version_헤더_값도_구조가_깨지지_않는_JSON으로_응답한다() throws Exception {
-		// 문자열 연결로 오류 메시지를 만들면 헤더 값에 섞인 따옴표가 JSON 구조를 깨고
+		// 문자열 연결로 오류 메시지를 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고
 		// 임의의 최상위 멤버를 주입할 수 있었다. jsonPath 평가 자체가 본문이 유효한
-		// JSON 임을 증명하고, injected 필드 부재가 주입이 통하지 않음을 증명한다.
+		// JSON임을 증명하고, injected field 부재가 주입이 통하지 않음을 증명한다.
 		String 악성_헤더_값 = "x\"},\"injected\":{\"a\":\"b";
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), 악성_헤더_값))
 				.andExpect(status().isBadRequest())

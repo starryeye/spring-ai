@@ -40,7 +40,7 @@ class PublicClientConsentServiceTest {
 
 	@Test
 	void 공개_클라이언트의_동의가_이미_저장돼_있어도_찾지_않는다() {
-		// 이 서비스를 쓰기 전에 남은 기록이 있어도 공개 클라이언트에는 쓰지 않는다.
+		// 이 서비스를 쓰기 전에 남은 기록이 있어도 public client에는 쓰지 않는다.
 		this.delegate.save(consent(PUBLIC_CLIENT));
 
 		assertThat(this.service.findById(PUBLIC_CLIENT.getId(), "user")).isNull();

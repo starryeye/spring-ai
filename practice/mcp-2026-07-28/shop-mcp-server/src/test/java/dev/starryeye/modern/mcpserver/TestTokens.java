@@ -24,7 +24,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 테스트 안에서 만든 RSA key로 access token을 서명한다.
+ * 테스트 안에서 만든 RSA key로 access token을 sign한다.
  *
  * <p>MCP Server는 운영 설정 그대로 {@code issuer-uri}와 {@code audiences}로 token을 검증한다.
  * 다만 Authorization Server를 띄우지 않으려고, metadata와 JWKS를 받아 오는 자리에 {@link StubAuthorizationServer}를 둔다.
@@ -43,7 +43,7 @@ public final class TestTokens {
 
 	/**
 	 * 새 RSA key다.
-	 * kid는 {@link #KEY}와 같아서, 서명만 맞지 않는 token을 만들 때 쓴다.
+	 * kid는 {@link #KEY}와 같아서, signature만 맞지 않는 token을 만들 때 쓴다.
 	 */
 	static RSAKey rsaKey() {
 		try {

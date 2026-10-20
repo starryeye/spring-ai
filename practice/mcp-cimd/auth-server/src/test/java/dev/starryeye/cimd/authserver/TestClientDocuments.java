@@ -16,7 +16,7 @@ import java.util.UUID;
 
 /**
  * agent가 8172에 올리는 두 문서와 JWKS를 테스트용으로 만든다.
- * 서명 key는 테스트마다 새로 만들고, JWKS에는 public key만 넣는다.
+ * signature key는 테스트마다 새로 만들고, JWKS에는 public key만 넣는다.
  */
 public final class TestClientDocuments {
 
@@ -33,7 +33,10 @@ public final class TestClientDocuments {
 
 	public static final RSAKey KEY = generate();
 
-	/** kid는 같고 key만 다르다. 서명이 맞지 않아야 한다. */
+	/**
+	 * kid는 같고 key만 다르다.
+	 * signature가 맞지 않아야 한다.
+	 */
 	public static final RSAKey OTHER_KEY = generate();
 
 	private TestClientDocuments() {
