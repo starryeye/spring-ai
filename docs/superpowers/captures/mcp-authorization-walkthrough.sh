@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 인증이 포함된 MCP 흐름을 curl 로 한 단계씩 밟으며 요청과 응답을 기록한다.
 # 사용: AS=... MCP_BASE=... CLIENT_ID=... LOGIN_USERNAME=... LOGIN_PASSWORD=... ./mcp-authorization-walkthrough.sh > 결과.txt
-# 출력의 토큰은 줄인다 — JWT 는 앞 20자, refresh_token 과 인가 코드는 앞 12자 뒤에 "...".
+# 출력의 token은 줄인다 — JWT는 앞 20자, refresh_token과 authorization code는 앞 12자 뒤에 "...".
 set -uo pipefail
 
 # 값 추출 직후 호출한다. 비어 있으면 어느 단계에서 무엇이 비었는지 알리고 즉시 멈춘다
