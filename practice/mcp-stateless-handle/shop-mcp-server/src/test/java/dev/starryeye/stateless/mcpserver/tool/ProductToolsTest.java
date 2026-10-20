@@ -34,34 +34,34 @@ class ProductToolsTest {
 
     @Test
     void 검색_결과가_없으면_없다고_말한다() {
-        assertThat(tools.searchProducts("없는상품")).contains("없습니다");
+        assertThat(tools.searchProducts("없는상품")).isEqualTo("'없는상품'에 해당하는 상품이 없습니다.");
     }
 
     @Test
     void 재고_수량을_문장으로_반환한다() {
-        assertThat(tools.getStock("p1")).contains("7");
+        assertThat(tools.getStock("p1")).isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.");
     }
 
     @Test
     void 재고가_0이면_품절이라고_말한다() {
-        assertThat(tools.getStock("p3")).contains("품절");
+        assertThat(tools.getStock("p3")).isEqualTo("상품 p3(무선 기계식 키보드)의 현재 재고는 0개로, 품절입니다.");
     }
 
     @Test
     void 없는_상품이면_예외_대신_문장을_반환한다() {
-        assertThat(tools.getStock("없는ID")).contains("해당하는 상품이 없습니다");
+        assertThat(tools.getStock("없는ID")).isEqualTo("상품 ID 없는ID에 해당하는 상품이 없습니다.");
     }
 
     @Test
     void 재고를_바꾸고_바뀐_값을_문장으로_반환한다() {
         assertThat(tools.updateStock("p1", 10)).isEqualTo("상품 p1(게이밍 노트북 15인치)의 재고를 10개로 바꿨습니다.");
-        assertThat(tools.getStock("p1")).contains("10개");
+        assertThat(tools.getStock("p1")).isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 10개입니다.");
     }
 
     @Test
     void 음수_재고는_바꾸지_않는다() {
         assertThat(tools.updateStock("p1", -1)).isEqualTo("재고 수량은 0 이상이어야 합니다. (받은 값: -1)");
-        assertThat(tools.getStock("p1")).contains("7개");
+        assertThat(tools.getStock("p1")).isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.");
     }
 
     @Test

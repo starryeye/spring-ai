@@ -239,7 +239,7 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | `200`과 `Content-Type: application/json` | request면 이것과 SSE 중 하나 MUST, client는 둘 다 처리 MUST | JSON 객체 하나 | `initialize`(C7) |
 | `200`과 `Content-Type: text/event-stream` | 위와 같음 | SSE stream. 관련 request·notification을 보낸 뒤 response를 보내고, response 뒤에는 stream을 닫는다(SHOULD) | `tools/list`·`tools/call`(C9, C10). stateless는 SSE로 답하지 않는다(`WebMvcStatelessServerTransport`) |
 | SSE 준비 event(event ID와 빈 `data`) | SHOULD — SSE 시작 직후 | client가 `Last-Event-ID`로 다시 붙을 수 있게 한다 | 보내지 않는다 — 첫 event가 곧 response다(C9, C10) |
-| SSE `id` | MAY, 있으면 session 안 모든 stream에서 전역 유일 MUST ([Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | 재개용 커서 | session ID를 그대로 쓴다(C9·C10 모두 `id:7c324e98-...`). 그래서 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([8장](08-security.md)) |
+| SSE `id` | MAY, 있으면 session 안 모든 stream에서 전역 유일 MUST ([Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | 재개용 커서 | session ID를 그대로 쓴다(C9·C10 모두 `id:1eefa5b4-...`). 그래서 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([8장](08-security.md)) |
 | SSE `retry` | SHOULD — stream을 끝내지 않고 연결을 닫기 전 | | 쓰지 않음 |
 | `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `1eefa5b4-3132-4311-b184-cb7441dd5c36`(C7). stateless는 주지 않는다(stateless S3) |
 | `202 Accepted`, 본문 없음 | MUST — notification·response를 받아들였을 때 | | 씀(C8, S9) |

@@ -260,7 +260,7 @@ token이 필요한 요청은 캡처 스크립트로 기록해 본다.
 스크립트의 기본값은 official이므로, 이 practice의 주소와 client를 환경 변수로 넘긴다.
 
 ```bash
-# practice/mcp-security-authn-community에서. 출력에는 token 원문이 남는다
+# practice/mcp-security-authn-community에서. JWT는 앞 20자만 남는다
 AS=http://localhost:9000 MCP_BASE=http://localhost:8101 \
   CLIENT_ID=shop-agent CLIENT_SECRET=shop-agent-secret \
   REDIRECT_URI=http://localhost:8100/login/oauth2/code/authserver \

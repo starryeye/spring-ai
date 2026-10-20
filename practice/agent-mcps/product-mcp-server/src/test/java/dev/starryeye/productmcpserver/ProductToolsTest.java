@@ -31,28 +31,28 @@ class ProductToolsTest {
     @Test
     void 검색_결과가_없으면_없다고_말한다() {
         StepVerifier.create(tools.searchProducts("없는상품"))
-                .assertNext(text -> assertThat(text).contains("없습니다"))
+                .assertNext(text -> assertThat(text).isEqualTo("'없는상품'에 해당하는 상품이 없습니다."))
                 .verifyComplete();
     }
 
     @Test
     void 재고_수량을_문장으로_반환한다() {
         StepVerifier.create(tools.getStock("p1"))
-                .assertNext(text -> assertThat(text).contains("7"))
+                .assertNext(text -> assertThat(text).isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다."))
                 .verifyComplete();
     }
 
     @Test
     void 재고가_0이면_품절이라고_말한다() {
         StepVerifier.create(tools.getStock("p3"))
-                .assertNext(text -> assertThat(text).contains("품절"))
+                .assertNext(text -> assertThat(text).isEqualTo("상품 p3(무선 기계식 키보드)의 현재 재고는 0개로, 품절입니다."))
                 .verifyComplete();
     }
 
     @Test
     void 없는_상품이면_찾을_수_없다고_말한다() {
         StepVerifier.create(tools.getStock("nope"))
-                .assertNext(text -> assertThat(text).contains("해당하는 상품이 없습니다"))
+                .assertNext(text -> assertThat(text).isEqualTo("상품 ID nope에 해당하는 상품이 없습니다."))
                 .verifyComplete();
     }
 }

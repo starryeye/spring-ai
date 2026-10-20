@@ -32,7 +32,7 @@ class ProductToolsTest {
         ProductTools tools = toolsWith(new StubProductClient(Flux.empty(), Mono.empty()));
 
         StepVerifier.create(tools.searchProducts("없는상품"))
-                .assertNext(text -> assertThat(text).contains("없습니다"))
+                .assertNext(text -> assertThat(text).isEqualTo("'없는상품'에 해당하는 상품이 없습니다."))
                 .verifyComplete();
     }
 
@@ -66,9 +66,7 @@ class ProductToolsTest {
         ProductTools tools = toolsWith(new StubProductClient(Flux.empty(), Mono.just(0)));
 
         StepVerifier.create(tools.getStock("p3"))
-                .assertNext(text -> assertThat(text)
-                        .contains("품절")
-                        .contains("p3"))
+                .assertNext(text -> assertThat(text).isEqualTo("상품 p3의 현재 재고는 0개로, 품절입니다."))
                 .verifyComplete();
     }
 
@@ -77,7 +75,7 @@ class ProductToolsTest {
         ProductTools tools = toolsWith(new StubProductClient(Flux.empty(), Mono.just(7)));
 
         StepVerifier.create(tools.getStock("p1"))
-                .assertNext(text -> assertThat(text).contains("7"))
+                .assertNext(text -> assertThat(text).isEqualTo("상품 p1의 현재 재고는 7개입니다."))
                 .verifyComplete();
     }
 
@@ -86,7 +84,7 @@ class ProductToolsTest {
         ProductTools tools = toolsWith(new StubProductClient(Flux.empty(), Mono.empty()));
 
         StepVerifier.create(tools.getStock("nope"))
-                .assertNext(text -> assertThat(text).contains("해당하는 상품이 없습니다"))
+                .assertNext(text -> assertThat(text).isEqualTo("상품 ID nope에 해당하는 상품이 없습니다."))
                 .verifyComplete();
     }
 

@@ -452,7 +452,7 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 MCP 요청과 응답을 직접 보려면 캡처 스크립트를 돌린다. 스크립트는 login과 token 발급을 대신 하고 MCP 요청을 차례로 보낸다.
 
 ```bash
-# 저장소 최상위 폴더에서. 출력에는 token 원문이 남는다
+# 저장소 최상위 폴더에서. JWT는 앞 20자만 남는다
 docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/walkthrough.txt
 ```
 
