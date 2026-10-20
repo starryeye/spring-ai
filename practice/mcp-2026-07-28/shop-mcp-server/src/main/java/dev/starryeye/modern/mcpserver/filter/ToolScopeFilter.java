@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
  *
  * <p>scope 검사를 통과한 {@code tools/call}은 사용자({@code sub})마다 횟수를 센다({@link ToolCallRateLimiter}).
  * 상한(기본 분당 60회, {@code mcp.limits.tool-calls-per-minute})을 넘으면 {@code 429}와 {@code Retry-After}로 끝낸다.
+ * 본문 오류의 code는 {@link #RATE_LIMITED_CODE}다.
  *
  * <p>이 filter가 끝내는 {@code 400}·{@code 429}의 본문은 {@code id}가 없는 JSON-RPC 오류다.
  * 본문을 읽지 않아 요청의 {@code id}를 모르기 때문이다.
@@ -87,6 +88,17 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	private static final String MCP_METHOD = "Mcp-Method";
 
 	private static final String MCP_NAME = "Mcp-Name";
+
+	/**
+	 * 속도 제한 {@code 429}의 본문 JSON-RPC 오류 code다.
+	 *
+	 * <p>MCP 2026-07-28은 속도 제한에 정한 code가 없다.
+	 * Overview — Error Codes는 명세가 정하지 않은 목적의 새 code를 JSON-RPC 예약 범위({@code -32768}~{@code -32000}) 밖에서 정하라고 한다.
+	 * 그 안의 {@code -32000}~{@code -32019}는 옛 구현이 쓰던 범위라 새 구현이 쓰지 않아야 하고, {@code -32020}~{@code -32099}는 명세만 정한다.
+	 * 그래서 이 서버가 정한 code는 HTTP status와 같은 {@code 429}다.
+	 * client는 어느 쪽 값으로든 알아볼 수 있고, 이 practice의 agent는 HTTP status만 본다.
+	 */
+	static final int RATE_LIMITED_CODE = 429;
 
 	/**
 	 * {@code Mcp-Name}을 풀 수 없을 때의 오류 문구다.
@@ -199,7 +211,7 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 		long seconds = Math.max(1, (retryAfter.toMillis() + 999) / 1000);
 		log.info("tool 호출 상한 초과 — 사용자={}, 다시 시도까지 {}초", subject, seconds);
 		response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
-		reject(response, HttpStatus.TOO_MANY_REQUESTS.value(), -32000,
+		reject(response, HttpStatus.TOO_MANY_REQUESTS.value(), RATE_LIMITED_CODE,
 				"tool 호출이 너무 잦습니다. " + seconds + "초 뒤에 다시 시도하세요.");
 	}
 

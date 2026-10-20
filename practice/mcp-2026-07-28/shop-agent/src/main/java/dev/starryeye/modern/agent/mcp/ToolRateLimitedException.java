@@ -7,6 +7,8 @@ import java.time.Duration;
  *
  * <p>MCP Server는 사용자마다 1분에 받을 tool 호출 수를 정해 둔다.
  * 다시 보내도 되는 시점은 {@code Retry-After} header로 알려 준다.
+ * 이 예외는 HTTP status {@code 429}로 알아본다.
+ * MCP 명세에 속도 제한 오류 code가 없어서, 본문의 JSON-RPC {@code code}는 서버마다 다를 수 있고 분류에 쓰지 않는다.
  */
 public class ToolRateLimitedException extends ModernMcpException {
 

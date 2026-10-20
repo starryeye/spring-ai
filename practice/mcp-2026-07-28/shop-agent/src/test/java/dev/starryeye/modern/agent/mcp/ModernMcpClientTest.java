@@ -107,6 +107,20 @@ class ModernMcpClientTest {
 			this.elsewhere.incrementAndGet();
 			send(exchange, new Reply(200, Map.of("Content-Type", "application/json"), "{}"));
 		});
+		this.server.createContext("/keep-alive-forever", exchange -> {
+			exchange.getRequestBody().readAllBytes();
+			exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+			exchange.sendResponseHeaders(200, 0);
+			stream(exchange, ":\n\n".getBytes(StandardCharsets.UTF_8));
+		});
+		this.server.createContext("/json-stalls", exchange -> {
+			exchange.getRequestBody().readAllBytes();
+			exchange.getResponseHeaders().add("Content-Type", "application/json");
+			// 본문 길이는 1000byte라고 알리고, 공백 1byte를 20ms마다 보내 본문이 끝나지 않게 한다.
+			// 5초 상한까지 250byte라서 알린 길이를 넘지 않는다.
+			exchange.sendResponseHeaders(200, 1000);
+			stream(exchange, " ".getBytes(StandardCharsets.UTF_8));
+		});
 		this.server.start();
 		this.client = new ModernMcpClient(URI.create(origin() + "/mcp"), HttpClient.newBuilder()
 				.version(HttpClient.Version.HTTP_1_1)
@@ -133,6 +147,38 @@ class ModernMcpClientTest {
 			}
 		}
 		exchange.close();
+	}
+
+	/**
+	 * 헤더를 보낸 뒤 본문을 끝내지 않고 {@code chunk}를 20ms마다 계속 쓴다.
+	 * client가 연결을 닫아 쓰기가 실패하거나 5초가 지나면 멈춘다.
+	 * 시험이 끝나지 않는 일이 없도록 둔 상한이다.
+	 */
+	static void stream(HttpExchange exchange, byte[] chunk) {
+		try (OutputStream out = exchange.getResponseBody()) {
+			long giveUp = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+			while (System.nanoTime() < giveUp) {
+				out.write(chunk);
+				out.flush();
+				Thread.sleep(20);
+			}
+		}
+		catch (IOException ex) {
+			// client가 연결을 닫았다.
+		}
+		catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+		}
+		finally {
+			exchange.close();
+		}
+	}
+
+	ModernMcpClient clientWithDeadline(String path, Duration deadline) {
+		return new ModernMcpClient(URI.create(origin() + path), HttpClient.newBuilder()
+				.version(HttpClient.Version.HTTP_1_1)
+				.followRedirects(HttpClient.Redirect.NEVER)
+				.build(), MCP_JSON, deadline);
 	}
 
 	static Reply json(int status, String body) {
@@ -321,14 +367,45 @@ class ModernMcpClientTest {
 	void _429면_Retry_After를_담는다() {
 		this.responder = request -> new Reply(429,
 				Map.of("Content-Type", "application/json", "Retry-After", "17"),
-				"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,"
+				"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":429,"
 						+ "\"message\":\"tool 호출이 너무 잦습니다. 17초 뒤에 다시 시도하세요.\"}}");
 
 		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
 				.isInstanceOfSatisfying(ToolRateLimitedException.class, error -> {
 					assertThat(error.retryAfter()).isEqualTo(Duration.ofSeconds(17));
 					assertThat(error.httpStatus()).isEqualTo(429);
+					assertThat(error.jsonRpcCode()).isEqualTo(429);
 					assertThat(error.getMessage()).isEqualTo("tool 호출이 너무 잦습니다. 17초 뒤에 다시 시도하세요.");
+				});
+	}
+
+	/**
+	 * 속도 제한은 HTTP status로 알아본다.
+	 * 본문 code는 서버가 정하는 값이라(명세에 속도 제한 code가 없다) 분류에 쓰지 않는다.
+	 */
+	@ParameterizedTest
+	@ValueSource(ints = { 429, -32000, 12345 })
+	void _429는_본문의_code와_상관없이_속도_제한이다(int code) {
+		this.responder = request -> new Reply(429, Map.of("Content-Type", "application/json", "Retry-After", "3"),
+				"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":" + code + ",\"message\":\"천천히\"}}");
+
+		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(ToolRateLimitedException.class, error -> {
+					assertThat(error.retryAfter()).isEqualTo(Duration.ofSeconds(3));
+					assertThat(error.jsonRpcCode()).isEqualTo(code);
+					assertThat(error.getMessage()).isEqualTo("천천히");
+				});
+	}
+
+	@Test
+	void _429의_본문이_비어_있어도_속도_제한이다() {
+		this.responder = request -> new Reply(429, Map.of("Retry-After", "3"), "");
+
+		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(ToolRateLimitedException.class, error -> {
+					assertThat(error.retryAfter()).isEqualTo(Duration.ofSeconds(3));
+					assertThat(error.jsonRpcCode()).isNull();
+					assertThat(error.getMessage()).contains("429");
 				});
 	}
 
@@ -393,6 +470,64 @@ class ModernMcpClientTest {
 				})
 				.hasCauseInstanceOf(HttpTimeoutException.class);
 		assertThat(ModernMcpClient.REQUEST_TIMEOUT).isEqualTo(Duration.ofSeconds(20));
+	}
+
+	/**
+	 * JDK의 요청 제한 시간은 응답 header까지만 잰다.
+	 * header 뒤에 keep-alive 줄만 보내면 SSE 본문을 읽는 동안에는 끝이 없으므로, 본문을 읽는 시간도 같은 제한으로 잰다.
+	 */
+	@Test
+	void keep_alive만_보내고_결과를_주지_않는_SSE_응답은_정한_시간에_끊는다() {
+		ModernMcpClient impatient = clientWithDeadline("/keep-alive-forever", Duration.ofMillis(300));
+
+		long started = System.nanoTime();
+		assertThatThrownBy(() -> impatient.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class, error -> {
+					assertThat(error.httpStatus()).isZero();
+					assertThat(error.jsonRpcCode()).isNull();
+					assertThat(error.getMessage()).isEqualTo("MCP Server가 300ms 안에 응답을 끝까지 보내지 않았다");
+				})
+				.hasCauseInstanceOf(HttpTimeoutException.class);
+		assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(2));
+	}
+
+	@Test
+	void 본문이_도중에_멈춘_JSON_응답도_같은_시간에_끊는다() {
+		ModernMcpClient impatient = clientWithDeadline("/json-stalls", Duration.ofMillis(300));
+
+		long started = System.nanoTime();
+		assertThatThrownBy(() -> impatient.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(McpTransportException.class,
+						error -> assertThat(error.getMessage()).isEqualTo("MCP Server가 300ms 안에 응답을 끝까지 보내지 않았다"));
+		assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(2));
+	}
+
+	@Test
+	void 응답을_제때_읽으면_본문_읽기_예약을_남기지_않는다() {
+		this.client.callTool("token-a", "getStock", Map.of());
+		this.client.listTools("token-a", null);
+		this.responder = request -> new Reply(200, Map.of("Content-Type", "text/event-stream"),
+				"data: {\"jsonrpc\":\"2.0\",\"id\":" + request.id()
+						+ ",\"result\":{\"content\":[],\"resultType\":\"complete\"}}\n\n");
+		this.client.callTool("token-a", "getStock", Map.of());
+		this.responder = request -> 오류(400, -32602, "Unknown tool: getStock");
+		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOf(UnknownToolException.class);
+
+		// 읽기가 끝나면 20초짜리 예약이 취소되어 지워진다.
+		assertThat(ModernMcpClient.pendingReadDeadlines()).isZero();
+	}
+
+	@Test
+	void 제한_시간_안에_결과가_오면_keep_alive가_앞서도_읽는다() {
+		this.responder = request -> new Reply(200, Map.of("Content-Type", "text/event-stream"), String.join("\n",
+				":", "", ":", "",
+				"data: {\"jsonrpc\":\"2.0\",\"id\":" + request.id()
+						+ ",\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"p1 재고 7개\"}],\"resultType\":\"complete\"}}",
+				"", ""));
+		ModernMcpClient patient = clientWithDeadline("/mcp", Duration.ofSeconds(5));
+
+		assertThat(patient.callTool("token-a", "getStock", Map.of()).content()).hasSize(1);
 	}
 
 	@Test

@@ -119,7 +119,7 @@ class ModernToolCallbackTest {
 	@Test
 	void 속도_제한과_그_밖의_MCP_오류는_목록을_두고_ToolExecutionException이다() {
 		given(this.client.callTool(anyString(), anyString(), anyMap()))
-				.willThrow(new ToolRateLimitedException(Duration.ofSeconds(17), -32000,
+				.willThrow(new ToolRateLimitedException(Duration.ofSeconds(17), 429,
 						"tool 호출이 너무 잦습니다. 17초 뒤에 다시 시도하세요."))
 				.willThrow(new ModernMcpException(400, -32602, "Invalid arguments for tool updateStock"));
 
