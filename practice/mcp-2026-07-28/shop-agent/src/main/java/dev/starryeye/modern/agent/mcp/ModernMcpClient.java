@@ -25,8 +25,6 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -97,18 +95,22 @@ public class ModernMcpClient {
 	 * 읽는 thread는 {@code read()}에서 멈춰 있어 스스로 시간을 볼 수 없으므로, 다른 thread가 대신 닫아 깨운다.
 	 * 닫는 일만 하므로 thread 하나로 충분하고, JVM이 끝나는 것을 막지 않도록 daemon으로 둔다.
 	 */
-	private static final ScheduledExecutorService DEADLINES = deadlineScheduler();
+	private static final ScheduledThreadPoolExecutor DEADLINES = deadlineScheduler();
 
-	private static ScheduledExecutorService deadlineScheduler() {
-		ScheduledThreadPoolExecutor scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1,
-				task -> {
-					Thread thread = new Thread(task, "modern-mcp-read-deadline");
-					thread.setDaemon(true);
-					return thread;
-				});
+	private static ScheduledThreadPoolExecutor deadlineScheduler() {
+		ScheduledThreadPoolExecutor scheduler = new ScheduledThreadPoolExecutor(1, task -> {
+			Thread thread = new Thread(task, "modern-mcp-read-deadline");
+			thread.setDaemon(true);
+			return thread;
+		});
 		// 읽기가 제때 끝나면 예약을 지워, 20초짜리 예약이 쌓이지 않게 한다.
 		scheduler.setRemoveOnCancelPolicy(true);
 		return scheduler;
+	}
+
+	/** 제한 시간이 아직 지나지 않아 남아 있는 본문 읽기 예약의 수다. 읽기가 끝나면 지워지는지 테스트가 본다. */
+	static int pendingReadDeadlines() {
+		return DEADLINES.getQueue().size();
 	}
 
 	private static final String APPLICATION_JSON = "application/json";

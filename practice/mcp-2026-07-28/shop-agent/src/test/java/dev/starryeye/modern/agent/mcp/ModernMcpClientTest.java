@@ -116,9 +116,10 @@ class ModernMcpClientTest {
 		this.server.createContext("/json-stalls", exchange -> {
 			exchange.getRequestBody().readAllBytes();
 			exchange.getResponseHeaders().add("Content-Type", "application/json");
-			// 본문 길이는 1000byte라고 알리고 10byte만 보낸 뒤 멈춘다.
+			// 본문 길이는 1000byte라고 알리고, 공백 1byte를 20ms마다 보내 본문이 끝나지 않게 한다.
+			// 5초 상한까지 250byte라서 알린 길이를 넘지 않는다.
 			exchange.sendResponseHeaders(200, 1000);
-			stream(exchange, "{\"jsonrpc\"".getBytes(StandardCharsets.UTF_8));
+			stream(exchange, " ".getBytes(StandardCharsets.UTF_8));
 		});
 		this.server.start();
 		this.client = new ModernMcpClient(URI.create(origin() + "/mcp"), HttpClient.newBuilder()
@@ -499,6 +500,22 @@ class ModernMcpClientTest {
 				.isInstanceOfSatisfying(McpTransportException.class,
 						error -> assertThat(error.getMessage()).isEqualTo("MCP Server가 300ms 안에 응답을 끝까지 보내지 않았다"));
 		assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(2));
+	}
+
+	@Test
+	void 응답을_제때_읽으면_본문_읽기_예약을_남기지_않는다() {
+		this.client.callTool("token-a", "getStock", Map.of());
+		this.client.listTools("token-a", null);
+		this.responder = request -> new Reply(200, Map.of("Content-Type", "text/event-stream"),
+				"data: {\"jsonrpc\":\"2.0\",\"id\":" + request.id()
+						+ ",\"result\":{\"content\":[],\"resultType\":\"complete\"}}\n\n");
+		this.client.callTool("token-a", "getStock", Map.of());
+		this.responder = request -> 오류(400, -32602, "Unknown tool: getStock");
+		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOf(UnknownToolException.class);
+
+		// 읽기가 끝나면 20초짜리 예약이 취소되어 지워진다.
+		assertThat(ModernMcpClient.pendingReadDeadlines()).isZero();
 	}
 
 	@Test
