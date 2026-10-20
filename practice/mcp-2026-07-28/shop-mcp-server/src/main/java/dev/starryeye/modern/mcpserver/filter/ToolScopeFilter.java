@@ -94,7 +94,7 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	 *
 	 * <p>MCP 2026-07-28은 속도 제한에 정한 code가 없다.
 	 * Overview — Error Codes는 명세가 정하지 않은 목적의 새 code를 JSON-RPC 예약 범위({@code -32768}~{@code -32000}) 밖에서 정하라고 한다.
-	 * 그 안의 {@code -32000}~{@code -32019}는 옛 구현이 쓰던 범위라 새 구현이 쓰지 않아야 하고, {@code -32020} 아래는 명세만 정할 수 있다.
+	 * 그 안의 {@code -32000}~{@code -32019}는 옛 구현이 쓰던 범위라 새 구현이 쓰지 않아야 하고, {@code -32020}~{@code -32099}는 명세만 정한다.
 	 * 그래서 이 서버가 정한 code는 HTTP status와 같은 {@code 429}다.
 	 * client는 어느 쪽 값으로든 알아볼 수 있고, 이 practice의 agent는 HTTP status만 본다.
 	 */

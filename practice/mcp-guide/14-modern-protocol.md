@@ -449,6 +449,18 @@ SDK 2.2.0-M1은 JSON-RPC 오류 code에 따라 HTTP 상태를 정한다.
 숨긴 tool은 `ShopToolRepository.find`가 `null`을 돌려주므로, 이 practice에서도 없는 tool과 같은 `Unknown tool: <이름>`을 받는다.
 오류 본문에는 `code`와 `message`만 있고, tool이 던진 예외는 `-32603` `Internal error`가 되며 자세한 내용은 로그에만 남는다.
 
+**속도 제한 `429`의 본문 `code`**
+
+사용자의 호출 수가 상한을 넘으면 filter가 SDK에 넘기지 않고 `429`와 `Retry-After`로 끝낸다.
+SDK가 만드는 오류가 아니라서 본문의 `code`도 filter가 정한다.
+2026-07-28은 속도 제한에 쓸 `code`를 정해 두지 않았다.
+`-32000`\~`-32019`는 옛 구현이 쓰던 범위라 새 구현은 쓰지 않는다.
+`-32020`\~`-32099`는 명세만 정하는 범위라서, 명세가 정하지 않은 뜻으로는 쓸 수 없다.
+명세가 정하지 않은 목적의 새 `code`는 JSON-RPC가 예약한 범위(`-32768`\~`-32000`) 밖에서 정하게 한다.
+그래서 filter는 그 밖의 정수 중 HTTP 상태와 같은 `429`를 본문 `code`로 쓴다.
+상태와 `code`가 같은 값이라 따로 기억할 것이 없다.
+agent는 HTTP 상태로 속도 제한을 알아보므로, 본문의 `code`가 달라도 같게 다룬다.
+
 | 확인 | 어기면 생기는 일 |
 |---|---|
 | filter는 `Mcp-Name`으로 tool scope를 보고 본문은 읽지 않는다 | 본문을 따로 읽으면 filter와 SDK가 같은 바이트를 다른 이름으로 읽을 수 있다 |
@@ -619,7 +631,7 @@ protected void doFilterInternal(HttpServletRequest request, HttpServletResponse 
 ```java
 private HttpRequest request(String accessToken, String method, String name, JsonRpc.JSONRPCRequest body) {
     HttpRequest.Builder builder = HttpRequest.newBuilder(this.endpoint)
-            .timeout(this.requestTimeout)                       // 20초
+            .timeout(this.requestTimeout)                       // 20초. 응답 header까지만 잰다
             .header("Content-Type", APPLICATION_JSON)
             .header("Accept", APPLICATION_JSON + ", " + TEXT_EVENT_STREAM)
             .header("MCP-Protocol-Version", PROTOCOL_VERSION)   // "2026-07-28"
@@ -640,16 +652,21 @@ JSON 타입은 SDK의 `McpSchema`·`JsonRpc`를 쓰고, HTTP 요청과 응답 �
 redirect를 따라가는 `HttpClient`는 받지 않는다.
 따라가면 access token이 든 요청이 MCP Server가 고른 다른 주소로 가기 때문이다.
 응답이 SSE stream이면 `data:` 줄을 모아 같은 `id`의 응답을 찾고, keep-alive 주석과 다른 `id`의 메시지는 건너뛴다.
+JDK `HttpClient`의 요청 제한 시간은 응답 header가 올 때까지만 잰다.
+그래서 header를 보낸 뒤 keep-alive 주석만 계속 보내는 서버라면, 본문을 읽는 동안에는 기다림이 끝나지 않는다.
+`ModernMcpClient`는 요청을 보낸 때부터 20초를 header 기다림과 본문 읽기에 함께 쓴다.
+20초가 지나도 본문이 끝나지 않으면 연결을 닫고 `McpTransportException`을 던진다.
+제한 시간을 둘로 나누지 않았으므로, 요청 하나는 길어야 20초 안에 끝난다.
 
 응답은 HTTP 상태와 JSON-RPC `code`로 나눈다.
 
 | 응답 | 예외 | 그 뒤 |
 |---|---|---|
 | `403`과 `error="insufficient_scope"` | `StepUpRequiredException`(challenge의 scope) | 채팅까지 올라가 consent 카드가 된다 |
-| `429` | `ToolRateLimitedException`(`Retry-After`) | 모델에게 tool 오류 문장으로 간다 |
+| `429` | `ToolRateLimitedException`(`Retry-After`) | HTTP 상태로 알아보고 본문 `code`는 보지 않는다. 모델에게 tool 오류 문장으로 간다 |
 | `-32602`이고 message가 `Unknown tool: `로 시작 | `UnknownToolException` | 그 token의 목록을 버리고, 모델에게 tool 오류 문장으로 간다 |
 | `-32020`·`-32021`·`-32022` | `McpProtocolMismatchException` | client가 요청을 잘못 만든 것이라 다시 보내도 결과가 같다. 로그에 WARN을 남기고, 모델에게 tool 오류 문장으로 간다 |
-| 응답 없음(연결 거절, 시간 초과) | `McpTransportException` | 모델에게 tool 오류 문장으로 간다 |
+| 응답 없음(연결 거절, header나 본문이 20초 안에 오지 않음) | `McpTransportException` | 모델에게 tool 오류 문장으로 간다 |
 | `resultType`이 `complete`가 아님 | `ModernMcpException` | 이 agent는 서버가 입력을 되묻는 흐름을 다루지 않는다 |
 
 `-32602`는 인자가 틀렸을 때도 쓰이므로 message까지 보고 모르는 tool을 가른다.
@@ -775,5 +792,7 @@ header와 본문이 다른 요청, 숫자 tool 이름, 옛 형식과 2026-07-28 
 | 서버는 `tools/list` 같은 결과에 `ttlMs`와 `cacheScope`를 넣는다. `ttlMs`는 0 이상이다 | [MCP 2026-07-28 Caching — Cacheable Results](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cacheable-results), [Time-to-Live (TTL) Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#time-to-live-ttl-field) | MUST |
 | `"private"` 결과는 같은 authorization context에서 다시 쓸 수 있지만, 다른 authorization context와 cache를 나누면 안 된다 | [Caching — Cache Scope Field](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#cache-scope-field) | MAY, MUST NOT |
 | 서버는 tool마다 알맞은 접근 제어를 하고, 무단 접근을 막는 데 `cacheScope`에만 기대지 않는다 | [Caching — Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/utilities/caching#security-considerations) | MUST, MUST NOT |
+| 명세가 정하지 않은 목적의 새 오류 `code`는 JSON-RPC 예약 범위(`-32768`\~`-32000`) 밖에서 정한다. 새 구현은 `-32000`\~`-32019`를 쓰지 않는다 | [Overview — Error Codes](https://modelcontextprotocol.io/specification/2026-07-28/basic/index#error-codes) | SHOULD, SHOULD NOT |
+| 서버는 tool 호출에 속도 제한을 둔다. client는 tool 호출에 제한 시간을 둔다 | [Tools — Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/server/tools#security-considerations) | MUST, SHOULD |
 
 [← 13장](13-cimd.md) · [목차](README.md) · [부록: API 레퍼런스 →](reference-api.md)
