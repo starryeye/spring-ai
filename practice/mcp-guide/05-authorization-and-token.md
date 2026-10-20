@@ -321,6 +321,41 @@ ID token은 login한 사용자가 누구인지 client 자신에게 알려 주는
 MCP Server는 `aud`에 자기 이름이 있는 token만 받으므로, ID token을 보내면 `401`로 거절한다(6장).
 access token의 수명은 `exp`에서 `iat`를 뺀 300초이고, 응답의 `expires_in`은 `299`다.
 
+**JWT access token의 표준 형식: RFC 9068**
+
+JWT의 어느 claim에 무엇을 넣을지는 Authorization Server마다 다를 수 있다.
+RFC 9068은 resource server가 어느 Authorization Server의 token이든 같은 방법으로 읽도록 JWT access token의 형식을 정한다.
+MCP는 이 형식을 요구하지 않지만, MCP Server가 token을 어떻게 확인할지 정할 때 기준이 된다.
+
+| 항목 | RFC 9068 | official의 access token |
+|---|---|---|
+| header의 `typ` | `at+jwt` | 없다. header에는 `kid`와 `alg`만 있다(6장) |
+| `scope` claim | 공백으로 나눈 문자열 하나(`"openid profile"`) | JSON 배열(`["openid", "profile"]`) |
+| 꼭 있어야 하는 claim | `iss`, `exp`, `aud`, `sub`, `client_id`, `iat`, `jti` | `client_id`가 없다. 10장부터의 practice는 `client_id`를 넣는다 |
+
+`typ`은 같은 Authorization Server가 만드는 다른 JWT와 access token을 가르는 표시다.
+ID token은 access token과 같은 key로 signature를 만들고 `iss`도 같아서, `typ`이 없으면 resource server는 `aud`로만 둘을 가른다.
+`typ`이 `at+jwt`면, `aud` 설정을 빠뜨린 resource server도 ID token을 access token으로 받지 않는다.
+
+`scope`는 token 응답의 `scope`(`"openid profile"`)와 같은 공백 구분 문자열이다.
+Spring Authorization Server는 이 claim을 배열로 넣는다.
+MCP Server 쪽의 Spring Security는 `scope`를 `SCOPE_` 권한으로 바꿀 때 문자열과 배열을 모두 받으므로, practice 안에서는 차이가 보이지 않는다.
+문자열만 기대하는 다른 resource server는 이 token의 scope를 읽지 못할 수 있다.
+
+RFC 9068을 따르는 resource server는 token을 받으면 다음을 확인한다.
+
+1. header의 `typ`이 `at+jwt`나 `application/at+jwt`인지 본다. 다른 값이면 거절한다.
+2. `iss`가 discovery로 알아낸 issuer와 글자 그대로 같은지 본다.
+3. `aud`에 자신의 resource 식별자가 있는지 본다.
+4. Authorization Server의 key로 signature를 확인하고, `alg`가 `none`이면 거절한다.
+5. `exp`가 지나지 않았는지 본다. 시계 차이를 위한 여유는 몇 분 안으로 둔다.
+
+official의 MCP Server는 2\~5를 한다(6장).
+1은 하지 않는다.
+Spring Security의 기본 검증기는 `typ`이 없거나 `JWT`인 token만 받으므로, Authorization Server가 `typ: at+jwt`를 넣기 시작하면 MCP Server는 그 token을 `401 invalid_token`으로 거절한다.
+그래서 RFC 9068을 따르려면 Authorization Server와 MCP Server를 함께 바꾼다.
+Spring Security에는 1\~3과 꼭 있어야 하는 claim의 확인을 모은 `JwtValidators.createAtJwtValidator()`가 있다.
+
 **상용 IdP에서 `aud` 맞추기**
 
 official의 Authorization Server는 `resource` 값을 그대로 access token의 `aud`에 넣는다.
@@ -458,6 +493,7 @@ public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures
 - public client는 매번 consent를 받고, consent를 건너뛰는 길은 Authorization Server가 막는다.
 - callback에서는 `state`와 `iss`를 확인한 뒤에만 code를 token endpoint로 보낸다.
 - token request와 refresh request에도 `resource`를 넣는다. access token의 `aud`는 MCP Server이고, ID token의 `aud`는 `client_id`다.
+- JWT access token의 표준 형식은 RFC 9068이다. official의 token은 `typ`과 `client_id`가 없고 `scope`가 배열이라, 이 형식을 따르려면 MCP Server의 검증도 함께 바꾼다.
 
 ## 5.14 명세 근거
 
@@ -473,6 +509,9 @@ public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures
 | 여러 Authorization Server를 다루는 client는 mix-up을 막는다 | [OAuth 2.1 §2.3.4](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-2.3.4), [MCP 2026-07-28 Security — Mix-Up Attacks](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#mix-up-attacks) | MUST |
 | token request의 `code_verifier`는 `code_challenge`가 있었으면 필수이고, 인증하지 않는 client는 `client_id`를 보낸다. Authorization Server는 code 하나로 token을 한 번만 발급한다 | [OAuth 2.1 §4.1.3](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.1.3) | REQUIRED, MUST |
 | OpenID Connect의 token 응답에는 ID token이 있고, ID token의 `aud`에는 `client_id`가 있다 | [OpenID Connect Core 1.0 §2](https://openid.net/specs/openid-connect-core-1_0.html#IDToken), [§3.1.3.3](https://openid.net/specs/openid-connect-core-1_0.html#TokenResponse) | MUST |
+| JWT access token은 header의 `typ`에 이 형식임을 밝히고, 그 값은 `at+jwt`로 쓴다. `iss`·`exp`·`aud`·`sub`·`client_id`·`iat`·`jti`가 있어야 하고, scope를 요청받았으면 `scope` claim을 넣는다 | [RFC 9068 §2.1](https://www.rfc-editor.org/rfc/rfc9068#section-2.1), [§2.2](https://www.rfc-editor.org/rfc/rfc9068#section-2.2), [§2.2.3](https://www.rfc-editor.org/rfc/rfc9068#section-2.2.3) | MUST, SHOULD, REQUIRED |
+| `scope` claim의 값은 공백으로 나눈 scope 목록을 담은 JSON 문자열이다 | [RFC 8693 §4.2](https://www.rfc-editor.org/rfc/rfc8693#section-4.2) | — |
+| resource server는 `typ`이 `at+jwt`·`application/at+jwt`가 아닌 token을 거절하고, `iss` 일치, `aud`, signature(`alg: none` 거절), `exp`를 확인한다. 시계 차이를 위한 작은 여유는 둘 수 있다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4) | MUST, MAY |
 | Authorization Server는 수명이 짧은 access token을 발급한다. refresh token 발급은 Authorization Server가 정하고, public client에 주면 재사용을 잡아내는 장치를 쓴다. client는 발급을 가정하지 않는다 | [MCP 2026-07-28 Security — Token Theft](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations#token-theft), [OAuth 2.1 §1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.3.2), [§4.3.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-4.3.1), [MCP 2026-07-28 Authorization — Refresh Tokens](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#refresh-tokens) | SHOULD, MUST, MUST NOT |
 
 [← 4장](04-client-registration.md) · [목차](README.md) · [6장 →](06-mcp-call-and-validation.md)
