@@ -366,14 +366,45 @@ class ModernMcpClientTest {
 	void _429면_Retry_After를_담는다() {
 		this.responder = request -> new Reply(429,
 				Map.of("Content-Type", "application/json", "Retry-After", "17"),
-				"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,"
+				"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":429,"
 						+ "\"message\":\"tool 호출이 너무 잦습니다. 17초 뒤에 다시 시도하세요.\"}}");
 
 		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
 				.isInstanceOfSatisfying(ToolRateLimitedException.class, error -> {
 					assertThat(error.retryAfter()).isEqualTo(Duration.ofSeconds(17));
 					assertThat(error.httpStatus()).isEqualTo(429);
+					assertThat(error.jsonRpcCode()).isEqualTo(429);
 					assertThat(error.getMessage()).isEqualTo("tool 호출이 너무 잦습니다. 17초 뒤에 다시 시도하세요.");
+				});
+	}
+
+	/**
+	 * 속도 제한은 HTTP status로 알아본다.
+	 * 본문 code는 서버가 정하는 값이라(명세에 속도 제한 code가 없다) 분류에 쓰지 않는다.
+	 */
+	@ParameterizedTest
+	@ValueSource(ints = { 429, -32000, 12345 })
+	void _429는_본문의_code와_상관없이_속도_제한이다(int code) {
+		this.responder = request -> new Reply(429, Map.of("Content-Type", "application/json", "Retry-After", "3"),
+				"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":" + code + ",\"message\":\"천천히\"}}");
+
+		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(ToolRateLimitedException.class, error -> {
+					assertThat(error.retryAfter()).isEqualTo(Duration.ofSeconds(3));
+					assertThat(error.jsonRpcCode()).isEqualTo(code);
+					assertThat(error.getMessage()).isEqualTo("천천히");
+				});
+	}
+
+	@Test
+	void _429의_본문이_비어_있어도_속도_제한이다() {
+		this.responder = request -> new Reply(429, Map.of("Retry-After", "3"), "");
+
+		assertThatThrownBy(() -> this.client.callTool("token-a", "getStock", Map.of()))
+				.isInstanceOfSatisfying(ToolRateLimitedException.class, error -> {
+					assertThat(error.retryAfter()).isEqualTo(Duration.ofSeconds(3));
+					assertThat(error.jsonRpcCode()).isNull();
+					assertThat(error.getMessage()).contains("429");
 				});
 	}
 
