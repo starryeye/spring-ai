@@ -52,7 +52,7 @@ class ProductToolsTest {
     @Test
     void 없는_상품이면_찾을_수_없다고_말한다() {
         StepVerifier.create(tools.getStock("nope"))
-                .assertNext(text -> assertThat(text).contains("찾을 수 없습니다"))
+                .assertNext(text -> assertThat(text).contains("해당하는 상품이 없습니다"))
                 .verifyComplete();
     }
 }

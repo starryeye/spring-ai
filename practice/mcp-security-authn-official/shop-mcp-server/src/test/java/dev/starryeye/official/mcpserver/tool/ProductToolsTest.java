@@ -49,6 +49,6 @@ class ProductToolsTest {
 
     @Test
     void 없는_상품이면_예외_대신_문장을_반환한다() {
-        assertThat(tools.getStock("없는ID")).contains("찾을 수 없습니다");
+        assertThat(tools.getStock("없는ID")).contains("해당하는 상품이 없습니다");
     }
 }

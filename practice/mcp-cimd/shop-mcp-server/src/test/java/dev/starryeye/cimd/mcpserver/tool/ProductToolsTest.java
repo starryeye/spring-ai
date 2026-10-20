@@ -49,12 +49,12 @@ class ProductToolsTest {
 
     @Test
     void 없는_상품이면_예외_대신_문장을_반환한다() {
-        assertThat(tools.getStock("없는ID")).contains("찾을 수 없습니다");
+        assertThat(tools.getStock("없는ID")).contains("해당하는 상품이 없습니다");
     }
 
     @Test
     void 재고를_바꾸고_바뀐_값을_문장으로_반환한다() {
-        assertThat(tools.updateStock("p1", 10)).isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다.");
+        assertThat(tools.updateStock("p1", 10)).isEqualTo("상품 p1(게이밍 노트북 15인치)의 재고를 10개로 바꿨습니다.");
         assertThat(tools.getStock("p1")).contains("10개");
     }
 
@@ -66,6 +66,6 @@ class ProductToolsTest {
 
     @Test
     void 없는_상품의_재고는_바꾸지_않는다() {
-        assertThat(tools.updateStock("p99", 3)).isEqualTo("상품 p99 를 찾을 수 없습니다.");
+        assertThat(tools.updateStock("p99", 3)).isEqualTo("상품 ID p99에 해당하는 상품이 없습니다.");
     }
 }

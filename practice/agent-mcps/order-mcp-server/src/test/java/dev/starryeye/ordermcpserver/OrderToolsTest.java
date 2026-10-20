@@ -48,7 +48,7 @@ class OrderToolsTest {
     @Test
     void 없는_주문이면_찾을_수_없다고_말한다() {
         StepVerifier.create(tools.getOrder("nope"))
-                .assertNext(text -> assertThat(text).contains("찾을 수 없습니다"))
+                .assertNext(text -> assertThat(text).contains("해당하는 주문이 없습니다"))
                 .verifyComplete();
     }
 
@@ -67,14 +67,14 @@ class OrderToolsTest {
         tools.cancelOrder("o1").block();
 
         StepVerifier.create(tools.cancelOrder("o1"))
-                .assertNext(text -> assertThat(text).contains("이미 취소"))
+                .assertNext(text -> assertThat(text).contains("이미 '취소됨'"))
                 .verifyComplete();
     }
 
     @Test
     void 없는_주문은_취소할_수_없다() {
         StepVerifier.create(tools.cancelOrder("nope"))
-                .assertNext(text -> assertThat(text).contains("찾을 수 없습니다"))
+                .assertNext(text -> assertThat(text).contains("해당하는 주문이 없습니다"))
                 .verifyComplete();
     }
 }

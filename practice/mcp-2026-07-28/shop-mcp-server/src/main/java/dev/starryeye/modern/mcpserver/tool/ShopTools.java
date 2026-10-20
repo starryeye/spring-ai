@@ -150,7 +150,7 @@ public final class ShopTools {
 		Integer exact = exactInt(value);
 		if (exact == null) {
 			return CallToolResult.builder()
-					.addContent(TextContent.builder("%s는 %d 이상 %d 이하의 정수여야 합니다. (받은 값: %s)"
+					.addContent(TextContent.builder("%s의 값은 %d 이상 %d 이하의 정수여야 합니다. (받은 값: %s)"
 							.formatted(name, Integer.MIN_VALUE, Integer.MAX_VALUE, value)).build())
 					.isError(true)
 					.build();

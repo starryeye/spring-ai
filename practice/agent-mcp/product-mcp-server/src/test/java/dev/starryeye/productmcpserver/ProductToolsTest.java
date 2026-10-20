@@ -86,7 +86,7 @@ class ProductToolsTest {
         ProductTools tools = toolsWith(new StubProductClient(Flux.empty(), Mono.empty()));
 
         StepVerifier.create(tools.getStock("nope"))
-                .assertNext(text -> assertThat(text).contains("찾을 수 없습니다"))
+                .assertNext(text -> assertThat(text).contains("해당하는 상품이 없습니다"))
                 .verifyComplete();
     }
 
