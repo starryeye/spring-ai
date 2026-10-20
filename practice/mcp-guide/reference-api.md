@@ -521,7 +521,7 @@ cimd의 agent는 PRM의 issuer를 credentials의 issuer와 비교하지 않고, 
 
 - RFC·draft: [RFC 8414 §2](https://www.rfc-editor.org/rfc/rfc8414#section-2), [§2.1](https://www.rfc-editor.org/rfc/rfc8414#section-2.1), [§3](https://www.rfc-editor.org/rfc/rfc8414#section-3)–[§3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3), [RFC 9207 §2.3](https://www.rfc-editor.org/rfc/rfc9207#section-2.3), [§3](https://www.rfc-editor.org/rfc/rfc9207#section-3), [CIMD draft-00 §5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5)
 - MCP 2025-11-25 Authorization: [Authorization Server Metadata Discovery](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-server-metadata-discovery), [Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection)
-- MCP 2025-11-25: [Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation)
+- MCP 2025-11-25: [Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation), [SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf)
 - MCP 2026-07-28: [Authorization Response Validation](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)
 
 **요청**
@@ -582,7 +582,8 @@ RFC 8414 §2 밖에서 정의되었지만 응답에 나오는 field:
 |---|---|---|
 | 받은 `issuer`가 요청에 쓴 issuer와 다름 | client는 그 응답을 쓰지 않는다(MUST NOT) | [RFC 8414 §3.3](https://www.rfc-editor.org/rfc/rfc8414#section-3.3) |
 | `code_challenge_methods_supported`가 없거나 `S256`이 없음 | MCP client는 진행 거부 MUST — agent·`local-client`는 여기서 멈춘다 | [MCP Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection) |
-| `authorization_endpoint`·`token_endpoint`가 `https`도, loopback 주소의 `http`도 아님 | client는 거부 MUST — agent는 `McpAuthorizationDiscovery#requireHttpUrl`에서, `local-client`는 `Discovery`에서 멈춘다 | [Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation) |
+| `authorization_endpoint`가 `https`도, loopback 주소의 `http`도 아님 | client는 거부 MUST — agent는 `McpAuthorizationDiscovery#requireHttpUrl`에서, `local-client`는 `Discovery`에서 멈춘다 | [Security Best Practices — OAuth Authorization URL Validation](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#oauth-authorization-url-validation) |
+| `token_endpoint`가 `https`도, loopback 주소의 `http`도 아님 | 운영 환경의 client는 거부 SHOULD — agent와 `local-client`는 `authorization_endpoint`와 같은 곳에서 멈춘다 | [Security Best Practices — SSRF](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#server-side-request-forgery-ssrf) |
 | `client_id_metadata_document_supported`가 `true`가 아니거나, 고른 인증 방식이 `token_endpoint_auth_methods_supported`에 없음 | client는 CIMD 지원을 확인한다 SHOULD — cimd의 agent는 이유를 남기고 멈춘다(`McpAuthorizationDiscoveryTest#CIMD를_알리지_않는_서버면_멈춘다`, `#고른_인증_방식을_받지_않는_서버면_멈춘다`) | [MCP 2026-07-28 Advertising CIMD Support](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration#advertising-cimd-support), [CIMD draft-00 §5](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-00.html#section-5) |
 
 **예시** (C3, `token_endpoint_auth_methods_supported`만 `none`이 더해진 지금 설정의 P1 값)
