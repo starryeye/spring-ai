@@ -335,9 +335,9 @@ MCP는 이 형식을 요구하지 않지만, MCP Server가 token을 어떻게 �
 
 `typ`은 같은 Authorization Server가 만드는 다른 JWT와 access token을 가르는 표시다.
 ID token은 access token과 같은 key로 signature를 만들고 `iss`도 같아서, `typ`이 없으면 resource server는 `aud`로만 둘을 가른다.
-`typ`이 `at+jwt`면, `aud` 설정을 빠뜨린 resource server도 ID token을 access token으로 받지 않는다.
+resource server가 `typ`이 `at+jwt`인지 확인하면, `aud` 설정을 빠뜨렸어도 ID token을 access token으로 받지 않는다.
 
-`scope`는 token 응답의 `scope`(`"openid profile"`)와 같은 공백 구분 문자열이다.
+RFC 9068의 `scope` claim은 token response의 `scope`(`"openid profile"`)와 같은 공백 구분 문자열이다.
 Spring Authorization Server는 이 claim을 배열로 넣는다.
 MCP Server 쪽의 Spring Security는 `scope`를 `SCOPE_` 권한으로 바꿀 때 문자열과 배열을 모두 받으므로, practice 안에서는 차이가 보이지 않는다.
 문자열만 기대하는 다른 resource server는 이 token의 scope를 읽지 못할 수 있다.
@@ -354,7 +354,8 @@ official의 MCP Server는 2\~5를 한다(6장).
 1은 하지 않는다.
 Spring Security의 기본 검증기는 `typ`이 없거나 `JWT`인 token만 받으므로, Authorization Server가 `typ: at+jwt`를 넣기 시작하면 MCP Server는 그 token을 `401 invalid_token`으로 거절한다.
 그래서 RFC 9068을 따르려면 Authorization Server와 MCP Server를 함께 바꾼다.
-Spring Security에는 1\~3과 꼭 있어야 하는 claim의 확인을 모은 `JwtValidators.createAtJwtValidator()`가 있다.
+Spring Security의 `JwtValidators.createAtJwtValidator()`로 1·2·3·5와 꼭 있어야 하는 claim을 한 번에 확인하는 검증기를 만들 수 있다.
+issuer와 audience는 이 builder에 넣는다.
 
 **상용 IdP에서 `aud` 맞추기**
 
@@ -494,7 +495,9 @@ public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures
 - public client는 매번 consent를 받고, consent를 건너뛰는 길은 Authorization Server가 막는다.
 - callback에서는 `state`와 `iss`를 확인한 뒤에만 code를 token endpoint로 보낸다.
 - token request와 refresh request에도 `resource`를 넣는다. access token의 `aud`는 MCP Server이고, ID token의 `aud`는 `client_id`다.
-- JWT access token의 표준 형식은 RFC 9068이다. official의 token은 `typ`과 `client_id`가 없고 `scope`가 배열이라, 이 형식을 따르려면 MCP Server의 검증도 함께 바꾼다.
+- JWT access token의 표준 형식은 RFC 9068이다.
+  official의 token은 `typ`과 `client_id`가 없고 `scope`가 배열이다.
+  Spring Security의 기본 검증기는 `typ: at+jwt`를 거절하므로, 이 형식으로 바꾸려면 MCP Server의 검증도 함께 바꾼다.
 
 ## 5.14 명세 근거
 

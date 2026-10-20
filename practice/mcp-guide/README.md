@@ -6,6 +6,8 @@ OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP�
 
 장마다 그 단계가 왜 있는지를 먼저 보고, practice를 실제로 띄워 받은 요청·응답과 코드를 본 뒤, 직접 해 본다.
 장 끝의 "명세 근거" 표는 본문의 규칙이 MCP 명세와 RFC의 어느 절에서 왔는지를 요구 수준과 함께 보여 준다.
+다이어그램은 mermaid로 그렸고, GitHub와 IntelliJ는 이를 그림으로 보여 준다.
+mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 "다이어그램 그림으로 보기" 링크로 같은 그림(PNG)을 연다.
 
 ## 읽는 순서
 
@@ -33,8 +35,6 @@ OAuth의 기본(authorization code grant, access token)은 알지만 MCP와 MCP�
 | 14 | [mcp-2026-07-28](../mcp-2026-07-28/README.md) ([실행](../mcp-2026-07-28/README.md#실행)) | MCP 요청 형식 2026-07-28 |
 
 10장의 practice는 official에, 11\~14장의 practice는 바로 앞 장의 practice에 표의 것을 더한다.
-다이어그램은 mermaid로 그렸고, GitHub와 IntelliJ는 이를 그림으로 보여 준다.
-mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 "다이어그램 그림으로 보기" 링크로 같은 그림(PNG)을 연다.
 
 ## 장 목록
 

@@ -187,8 +187,8 @@ SSRF에 대비해 `401`의 `resource_metadata`도 MCP Server와 같은 origin일
 
 `https` 확인은 주소마다 무게가 다르다.
 browser로 여는 `authorization_endpoint`는 scheme이 틀리면 그 자리에서 공격이 되므로, 명세는 이 확인을 빼지 못하게 한다.
-`token_endpoint`처럼 client가 직접 부르는 나머지 OAuth 주소는, 운영 환경이라면 같은 기준을 쓰라고 권한다.
-`http` token endpoint로는 code와 client 비밀이 암호화되지 않은 채 간다.
+`token_endpoint`처럼 client가 직접 부르는 주소가 `http`면 code와 client 비밀이 암호화되지 않은 채 간다.
+그래서 명세는 운영 환경이라면 이 주소들에도 같은 기준을 쓰라고 권한다.
 official의 agent와 `local-client`는 두 endpoint를 같은 기준으로 확인한다.
 
 ## 3.7 official 코드에서 보기
