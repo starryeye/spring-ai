@@ -19,18 +19,18 @@ POST /login → HTTP 302
 HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" value="products:read" id="products:read">
 체크한 scope: products:read
-Location: http://localhost:8140/login/oauth2/code/authserver?code=-H_8TM-tJzne...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
+Location: http://localhost:8140/login/oauth2/code/authserver?code=iWovkr18hI_z...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
 
 
 ===== A4-token. token request =====
-{"access_token":"eyJraWQiOiJjNjk5OWMw...","refresh_token":"J-V02rhz9qHN...","scope":"products:read openid","id_token":"eyJraWQiOiJjNjk5OWMw...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiIxMmNiOTZk...","refresh_token":"x8k6yT_BTMJ0...","scope":"products:read openid","id_token":"eyJraWQiOiIxMmNiOTZk...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1790627379,"scope":["products:read","openid"],"iss":"http://localhost:9030","exp":1790627679,"iat":1790627379,"jti":"3586d7f2-f77c-4eb8-8c4e-e48e992d2446","client_id":"authz-shop-agent"}
+{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1792508401,"scope":["products:read","openid"],"iss":"http://localhost:9030","exp":1792508701,"iat":1792508401,"jti":"eee9fe5b-ba66-4a5e-badc-682f712b81a9","client_id":"authz-shop-agent"}
 
 
 ===== A5. 조회 token 으로 initialize 와 tools/list =====
 HTTP/1.1 200 
-Mcp-Session-Id: 4dd4b443-3efa-4812-a247-42ab73ee4a8c
+Mcp-Session-Id: bc2f716c-5dd0-4972-afaa-777cbd672982
 Content-Type: application/json
 Content-Length: 288
 
@@ -54,13 +54,13 @@ HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" id="openid" checked disabled>
 <input class="form-check-input" type="checkbox" name="scope" id="products:read" checked disabled>
 체크한 scope: (없음)
-Location: http://localhost:8140/login/oauth2/code/authserver?code=5hCIVUU7wI50...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
+Location: http://localhost:8140/login/oauth2/code/authserver?code=edyeVxbEFlmq...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
 
 
 ===== A7-token. 이전 scope 만 담긴 token =====
-{"access_token":"eyJraWQiOiJjNjk5OWMw...","refresh_token":"VGNBPRicGEND...","scope":"openid products:read","id_token":"eyJraWQiOiJjNjk5OWMw...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiIxMmNiOTZk...","refresh_token":"OPnVFqsEWIrX...","scope":"openid products:read","id_token":"eyJraWQiOiIxMmNiOTZk...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1790627379,"scope":["openid","products:read"],"iss":"http://localhost:9030","exp":1790627679,"iat":1790627379,"jti":"7efcdbff-38c5-42a9-964d-42dc78b760c8","client_id":"authz-shop-agent"}
+{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1792508402,"scope":["openid","products:read"],"iss":"http://localhost:9030","exp":1792508702,"iat":1792508402,"jti":"a693e394-cb9e-4fb3-8c60-32197499a7e3","client_id":"authz-shop-agent"}
 
 
 ===== A7-call. 다시 재고 변경 — 여전히 403 =====
@@ -76,13 +76,13 @@ HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" id="openid" checked disabled>
 <input class="form-check-input" type="checkbox" name="scope" id="products:read" checked disabled>
 체크한 scope: products:write
-Location: http://localhost:8140/login/oauth2/code/authserver?code=0EYDU2zbxNQD...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
+Location: http://localhost:8140/login/oauth2/code/authserver?code=GnFGU3X3yHt8...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9030
 
 
 ===== A8-token. 두 scope 가 담긴 token =====
-{"access_token":"eyJraWQiOiJjNjk5OWMw...","refresh_token":"8SHADGExyHcT...","scope":"openid products:read products:write","id_token":"eyJraWQiOiJjNjk5OWMw...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiIxMmNiOTZk...","refresh_token":"gzSAesHf44Fl...","scope":"openid products:read products:write","id_token":"eyJraWQiOiIxMmNiOTZk...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1790627380,"scope":["openid","products:read","products:write"],"iss":"http://localhost:9030","exp":1790627680,"iat":1790627380,"jti":"fdb6c79d-59b5-473d-a0bb-811cc437749a","client_id":"authz-shop-agent"}
+{"sub":"user","aud":"http://localhost:8141/mcp","nbf":1792508402,"scope":["openid","products:read","products:write"],"iss":"http://localhost:9030","exp":1792508702,"iat":1792508402,"jti":"461fe9c6-2f02-47f0-9432-562f739b25a0","client_id":"authz-shop-agent"}
 
 
 ===== A8-call. 재고 변경 — 200 =====
@@ -90,7 +90,7 @@ HTTP/1.1 200
 Content-Type: text/event-stream
 Transfer-Encoding: chunked
 
-id:4dd4b443-3efa-4812-a247-42ab73ee4a8c
+id:bc2f716c-5dd0-4972-afaa-777cbd672982
 event:message
-data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 재고를 10개로 바꿨습니다."}],"isError":false}}
+data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1(게이밍 노트북 15인치)의 재고를 10개로 바꿨습니다."}],"isError":false}}
 

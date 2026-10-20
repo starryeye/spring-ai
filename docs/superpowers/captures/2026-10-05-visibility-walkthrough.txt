@@ -5,13 +5,13 @@ POST /login → HTTP 302
 HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" value="products:read" id="products:read">
 체크한 scope: products:read
-Location: http://localhost:8160/login/oauth2/code/authserver?code=qdfcEsFKgfFg...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9050
+Location: http://localhost:8160/login/oauth2/code/authserver?code=q4JVMf9fivUW...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9050
 
 
 ===== V1-token. token request =====
-{"access_token":"eyJraWQiOiJmNzc5MDY0...","refresh_token":"-8m7UKWYDdAb...","scope":"products:read openid","id_token":"eyJraWQiOiJmNzc5MDY0...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiOGVmMGM4...","refresh_token":"P8FnfnWlib5c...","scope":"products:read openid","id_token":"eyJraWQiOiJiOGVmMGM4...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user","aud":"http://localhost:8161/mcp","nbf":1791194609,"scope":["products:read","openid"],"iss":"http://localhost:9050","exp":1791194909,"iat":1791194609,"jti":"5467d7c9-376d-4836-af2b-80ee511af50e","client_id":"visibility-shop-agent"}
+{"sub":"user","aud":"http://localhost:8161/mcp","nbf":1792508548,"scope":["products:read","openid"],"iss":"http://localhost:9050","exp":1792508848,"iat":1792508548,"jti":"a4b3d6e1-4247-4876-84bf-ee834f42a697","client_id":"visibility-shop-agent"}
 
 
 ===== V1-list. STAFF_READ로 tools/list =====
@@ -19,8 +19,8 @@ HTTP/1.1 200
 Content-Type: application/json
 Content-Length: 5010
 
-{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. 상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"}},"required":["productId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"searchProducts","title":"searchProducts","description":"판매 중인 상품을 검색한다. 각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. 키워드는 상품명과 카테고리명에만 부분일치로 적용된다. 따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 (예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"keyword":{"type":"string","description":"상품명 또는 카테고리명의 일부. 가격·재고 같은 조건이나 문장을 넣으면 안 된다. 특정 상품을 지목하지 않는 질문이면 생략한다."}},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"updateStock","title":"updateStock","description":"상품 ID의 재고 수량을 quantity로 바꾼다. 사용자가 재고를 바꿔 달라고 분명히 요청할 때만 사용한다. 바뀐 뒤의 재고를 반환한다. 처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"},"quantity":{"type":"integer","format":"int32","description":"바꿀 재고 수량. 0 이상의 정수"}},"required":["productId","quantity"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"addItem","title":"addItem","description":"장바구니에 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해진다. 한 장바구니에는 같은 상품을 99개까지 담을 수 있다. basketId는 createBasket이 준 값이다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"},"productId":{"type":"string","description":"상품 ID. 예: p1"},"quantity":{"type":"integer","format":"int32","description":"담을 수량. 1 이상 99 이하의 정수"}},"required":["basketId","productId","quantity"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"checkout","title":"checkout","description":"장바구니를 주문한다. 재고를 줄이고 주문 번호를 돌려주며, 장바구니는 닫힌다. 사용자가 주문이나 결제를 분명히 요청할 때만 사용한다. 처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"createBasket","title":"createBasket","description":"새 장바구니를 만들고 장바구니 ID(basketId)를 돌려준다. 상품을 담거나(addItem) 보거나(getBasket) 주문할(checkout) 때 이 ID를 넘긴다. 장바구니는 만든 뒤 30분이 지나면 만료되고, 한 사용자는 열린 장바구니를 5개까지 가진다. 이미 쓰던 장바구니가 있으면 새로 만들지 말고 그 ID를 이어 쓴다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"getBasket","title":"getBasket","description":"장바구니에 담긴 상품, 수량, 합계, 만료 시각을 보여 준다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}}]}}
-names(7개): getStock,searchProducts,updateStock,addItem,checkout,createBasket,getBasket
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"addItem","title":"addItem","description":"장바구니에 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해진다. 한 장바구니에는 같은 상품을 99개까지 담을 수 있다. basketId는 createBasket이 준 값이다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"},"productId":{"type":"string","description":"상품 ID. 예: p1"},"quantity":{"type":"integer","format":"int32","description":"담을 수량. 1 이상 99 이하의 정수"}},"required":["basketId","productId","quantity"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"checkout","title":"checkout","description":"장바구니를 주문한다. 재고를 줄이고 주문 번호를 돌려주며, 장바구니는 닫힌다. 사용자가 주문이나 결제를 분명히 요청할 때만 사용한다. 처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"createBasket","title":"createBasket","description":"새 장바구니를 만들고 장바구니 ID(basketId)를 돌려준다. 상품을 담거나(addItem) 보거나(getBasket) 주문할(checkout) 때 이 ID를 넘긴다. 장바구니는 만든 뒤 30분이 지나면 만료되고, 한 사용자는 열린 장바구니를 5개까지 가진다. 이미 쓰던 장바구니가 있으면 새로 만들지 말고 그 ID를 이어 쓴다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"getBasket","title":"getBasket","description":"장바구니에 담긴 상품, 수량, 합계, 만료 시각을 보여 준다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. 상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"}},"required":["productId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"searchProducts","title":"searchProducts","description":"판매 중인 상품을 검색한다. 각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. 키워드는 상품명과 카테고리명에만 부분일치로 적용된다. 따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 (예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"keyword":{"type":"string","description":"상품명 또는 카테고리명의 일부. 가격·재고 같은 조건이나 문장을 넣으면 안 된다. 특정 상품을 지목하지 않는 질문이면 생략한다."}},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"updateStock","title":"updateStock","description":"상품 ID의 재고 수량을 quantity로 바꾼다. 사용자가 재고를 바꿔 달라고 분명히 요청할 때만 사용한다. 바뀐 뒤의 재고를 반환한다. 처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"},"quantity":{"type":"integer","format":"int32","description":"바꿀 재고 수량. 0 이상의 정수"}},"required":["productId","quantity"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}}]}}
+names(7개): addItem,checkout,createBasket,getBasket,getStock,searchProducts,updateStock
 
 
 ===== V2. user2(손님, 새 JAR) login → 같은 흐름 → token(CUSTOMER_READ) → tools/list(updateStock만 빠진 6개) =====
@@ -28,13 +28,13 @@ POST /login → HTTP 302
 HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" value="products:read" id="products:read">
 체크한 scope: products:read
-Location: http://localhost:8160/login/oauth2/code/authserver?code=dnuG3Fj1oZuF...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9050
+Location: http://localhost:8160/login/oauth2/code/authserver?code=Y7n7Hfvy05Jw...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9050
 
 
 ===== V2-token. token request =====
-{"access_token":"eyJraWQiOiJmNzc5MDY0...","refresh_token":"NFhoIZYRe71S...","scope":"products:read openid","id_token":"eyJraWQiOiJmNzc5MDY0...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiOGVmMGM4...","refresh_token":"ioqAnvKnXNBk...","scope":"products:read openid","id_token":"eyJraWQiOiJiOGVmMGM4...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user2","aud":"http://localhost:8161/mcp","nbf":1791194609,"scope":["products:read","openid"],"iss":"http://localhost:9050","exp":1791194909,"iat":1791194609,"jti":"8a94c304-b21e-42e7-a5cc-a4ccd97fab7a","client_id":"visibility-shop-agent"}
+{"sub":"user2","aud":"http://localhost:8161/mcp","nbf":1792508548,"scope":["products:read","openid"],"iss":"http://localhost:9050","exp":1792508848,"iat":1792508548,"jti":"4676b056-41ee-4f22-b225-2c76e624409e","client_id":"visibility-shop-agent"}
 
 
 ===== V2-list. CUSTOMER_READ로 tools/list =====
@@ -42,9 +42,9 @@ HTTP/1.1 200
 Content-Type: application/json
 Content-Length: 4269
 
-{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. 상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"}},"required":["productId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"searchProducts","title":"searchProducts","description":"판매 중인 상품을 검색한다. 각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. 키워드는 상품명과 카테고리명에만 부분일치로 적용된다. 따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 (예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"keyword":{"type":"string","description":"상품명 또는 카테고리명의 일부. 가격·재고 같은 조건이나 문장을 넣으면 안 된다. 특정 상품을 지목하지 않는 질문이면 생략한다."}},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"addItem","title":"addItem","description":"장바구니에 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해진다. 한 장바구니에는 같은 상품을 99개까지 담을 수 있다. basketId는 createBasket이 준 값이다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"},"productId":{"type":"string","description":"상품 ID. 예: p1"},"quantity":{"type":"integer","format":"int32","description":"담을 수량. 1 이상 99 이하의 정수"}},"required":["basketId","productId","quantity"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"checkout","title":"checkout","description":"장바구니를 주문한다. 재고를 줄이고 주문 번호를 돌려주며, 장바구니는 닫힌다. 사용자가 주문이나 결제를 분명히 요청할 때만 사용한다. 처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"createBasket","title":"createBasket","description":"새 장바구니를 만들고 장바구니 ID(basketId)를 돌려준다. 상품을 담거나(addItem) 보거나(getBasket) 주문할(checkout) 때 이 ID를 넘긴다. 장바구니는 만든 뒤 30분이 지나면 만료되고, 한 사용자는 열린 장바구니를 5개까지 가진다. 이미 쓰던 장바구니가 있으면 새로 만들지 말고 그 ID를 이어 쓴다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"getBasket","title":"getBasket","description":"장바구니에 담긴 상품, 수량, 합계, 만료 시각을 보여 준다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}}]}}
-names(6개): getStock,searchProducts,addItem,checkout,createBasket,getBasket
-점원 목록에서 updateStock만 뺀 것: getStock,searchProducts,addItem,checkout,createBasket,getBasket
+{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"addItem","title":"addItem","description":"장바구니에 상품을 담는다. 같은 상품을 다시 담으면 수량이 더해진다. 한 장바구니에는 같은 상품을 99개까지 담을 수 있다. basketId는 createBasket이 준 값이다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"},"productId":{"type":"string","description":"상품 ID. 예: p1"},"quantity":{"type":"integer","format":"int32","description":"담을 수량. 1 이상 99 이하의 정수"}},"required":["basketId","productId","quantity"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"checkout","title":"checkout","description":"장바구니를 주문한다. 재고를 줄이고 주문 번호를 돌려주며, 장바구니는 닫힌다. 사용자가 주문이나 결제를 분명히 요청할 때만 사용한다. 처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"createBasket","title":"createBasket","description":"새 장바구니를 만들고 장바구니 ID(basketId)를 돌려준다. 상품을 담거나(addItem) 보거나(getBasket) 주문할(checkout) 때 이 ID를 넘긴다. 장바구니는 만든 뒤 30분이 지나면 만료되고, 한 사용자는 열린 장바구니를 5개까지 가진다. 이미 쓰던 장바구니가 있으면 새로 만들지 말고 그 ID를 이어 쓴다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"getBasket","title":"getBasket","description":"장바구니에 담긴 상품, 수량, 합계, 만료 시각을 보여 준다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"basketId":{"type":"string","description":"장바구니 ID. createBasket이 준 bsk_로 시작하는 값"}},"required":["basketId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"getStock","title":"getStock","description":"상품 ID로 현재 재고 수량을 조회한다. 사용자가 특정 상품의 재고나 구매 가능 여부를 물을 때 사용한다. 상품 ID를 모르면 먼저 searchProducts 로 상품을 찾아야 한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"productId":{"type":"string","description":"상품 ID. 예: p1"}},"required":["productId"]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}},{"name":"searchProducts","title":"searchProducts","description":"판매 중인 상품을 검색한다. 각 상품의 ID, 이름, 카테고리, 가격, 재고 수량을 함께 반환한다. 키워드는 상품명과 카테고리명에만 부분일치로 적용된다. 따라서 가격·재고처럼 이름이 아닌 조건으로 거르려면 (예: '10만원 넘는 상품', '품절 아닌 것') 키워드 없이 호출해 전체 목록을 받은 뒤 그 결과를 직접 판단해야 한다. 조건을 키워드로 넘기면 아무것도 찾지 못한다.","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"keyword":{"type":"string","description":"상품명 또는 카테고리명의 일부. 가격·재고 같은 조건이나 문장을 넣으면 안 된다. 특정 상품을 지목하지 않는 질문이면 생략한다."}},"required":[]},"annotations":{"title":"","readOnlyHint":false,"destructiveHint":true,"idempotentHint":false,"openWorldHint":true}}]}}
+names(6개): addItem,checkout,createBasket,getBasket,getStock,searchProducts
+점원 목록에서 updateStock만 뺀 것: addItem,checkout,createBasket,getBasket,getStock,searchProducts
 
 
 ===== V3. CUSTOMER_READ로 목록에 없는 updateStock 호출 → 응답 header 전체와 본문(200, WWW-Authenticate 없음, Unknown tool) =====
@@ -73,7 +73,7 @@ Content-Length: 0
 
 
 ===== V6. STAFF_READ로 tools/list를 한 번 더 → 목록이 V1과 같다 =====
-names(7개): getStock,searchProducts,updateStock,addItem,checkout,createBasket,getBasket
+names(7개): addItem,checkout,createBasket,getBasket,getStock,searchProducts,updateStock
 
 
 ===== V7. user2가 products:write까지 요청 → authorize(openid products:read products:write) → consent → token(CUSTOMER_WRITE) =====
@@ -82,25 +82,25 @@ HTTP 200 — consent 화면. scope 선택 항목:
 <input class="form-check-input" type="checkbox" name="scope" id="openid" checked disabled>
 <input class="form-check-input" type="checkbox" name="scope" id="products:read" checked disabled>
 체크한 scope: products:write
-Location: http://localhost:8160/login/oauth2/code/authserver?code=hM3dF8szGOEw...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9050
+Location: http://localhost:8160/login/oauth2/code/authserver?code=f9uTae_mlgtN...&state=state-1&iss=http%3A%2F%2Flocalhost%3A9050
 
 
 ===== V7-token. products:write가 든 token =====
-{"access_token":"eyJraWQiOiJmNzc5MDY0...","refresh_token":"D42xC0fnbZEN...","scope":"openid products:read products:write","id_token":"eyJraWQiOiJmNzc5MDY0...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiJiOGVmMGM4...","refresh_token":"W3xSB5IJbFLT...","scope":"openid products:read products:write","id_token":"eyJraWQiOiJiOGVmMGM4...","token_type":"Bearer","expires_in":299}
 access token payload:
-{"sub":"user2","aud":"http://localhost:8161/mcp","nbf":1791194610,"scope":["openid","products:read","products:write"],"iss":"http://localhost:9050","exp":1791194910,"iat":1791194610,"jti":"6cb5d111-f785-4778-88f7-9f8629944e33","client_id":"visibility-shop-agent"}
+{"sub":"user2","aud":"http://localhost:8161/mcp","nbf":1792508548,"scope":["openid","products:read","products:write"],"iss":"http://localhost:9050","exp":1792508848,"iat":1792508548,"jti":"e2a83067-5b9f-4792-b3c2-4fc2e7265f6a","client_id":"visibility-shop-agent"}
 
 
 ===== V7-list. CUSTOMER_WRITE로 tools/list → V2와 같다 =====
-names(6개): getStock,searchProducts,addItem,checkout,createBasket,getBasket
+names(6개): addItem,checkout,createBasket,getBasket,getStock,searchProducts
 
 
 ===== V7-before. getStock(p1) =====
 HTTP/1.1 200 
 Content-Type: application/json
-Content-Length: 165
+Content-Length: 163
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다."}],"isError":false}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다."}],"isError":false}}
 
 
 ===== V7-call. CUSTOMER_WRITE로 updateStock(p1, 10) → 여전히 Unknown tool =====
@@ -114,7 +114,7 @@ Content-Length: 129
 ===== V7-after. getStock(p1) → 재고가 그대로다 =====
 HTTP/1.1 200 
 Content-Type: application/json
-Content-Length: 165
+Content-Length: 163
 
-{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다."}],"isError":false}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다."}],"isError":false}}
 → 재고가 그대로다.

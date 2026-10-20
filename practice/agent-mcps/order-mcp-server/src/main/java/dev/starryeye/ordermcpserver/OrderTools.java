@@ -37,7 +37,7 @@ public class OrderTools {
                                         order.productName(), order.quantity(), order.status()))
                         .collect(Collectors.joining("\n")))
                 .map(joined -> joined.isBlank()
-                        ? "'%s' 의 주문을 찾을 수 없습니다.".formatted(customer)
+                        ? "고객명 '%s'에 해당하는 주문이 없습니다.".formatted(customer)
                         : joined);
     }
 
@@ -55,12 +55,12 @@ public class OrderTools {
                         .map(order -> "주문 %s / 고객 %s / 상품 %s (ID: %s) %d개 / 상태 %s"
                                 .formatted(order.id(), order.customer(), order.productName(),
                                         order.productId(), order.quantity(), order.status()))
-                        .orElse("주문 %s 를 찾을 수 없습니다.".formatted(orderId)));
+                        .orElse("주문 ID %s에 해당하는 주문이 없습니다.".formatted(orderId)));
     }
 
     @McpTool(
             name = "cancelOrder",
-            description = "주문을 취소한다. 주문 상태를 '취소됨' 으로 바꾸며 되돌릴 수 없다. "
+            description = "주문을 취소한다. 주문 상태를 '취소됨'으로 바꾸며 되돌릴 수 없다. "
                     + "사용자가 명시적으로 취소를 요청한 경우에만 사용한다."
     )
     public Mono<String> cancelOrder(
@@ -71,11 +71,11 @@ public class OrderTools {
         return Mono.fromSupplier(() -> orderRepository.findById(orderId)
                         .map(existing -> {
                             if (OrderRepository.STATUS_CANCELLED.equals(existing.status())) {
-                                return "주문 %s 는 이미 취소된 주문입니다.".formatted(orderId);
+                                return "주문 %s의 상태는 이미 '취소됨'입니다.".formatted(orderId);
                             }
                             orderRepository.cancel(orderId);
-                            return "주문 %s 를 취소했습니다.".formatted(orderId);
+                            return "주문 %s의 상태를 '취소됨'으로 바꿨습니다.".formatted(orderId);
                         })
-                        .orElse("주문 %s 를 찾을 수 없습니다.".formatted(orderId)));
+                        .orElse("주문 ID %s에 해당하는 주문이 없습니다.".formatted(orderId)));
     }
 }

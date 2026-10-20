@@ -403,16 +403,16 @@ SEP-2567은 대화를 줄일 때 handle이 든 tool 결과를 지키는 일을 c
 
 ```text
 [5] MCP 호출
-    getStock(p1): 상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.
-    createBasket: 장바구니를 만들었습니다. ID는 bsk_mnshrpY_OfULti14leL2MA이고, 2026-10-05T17:58:20.312005Z에 만료됩니다.
-    addItem(p4, 1): 장바구니 bsk_mnshrpY_OfULti14leL2MA:
+    getStock(p1): 상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.
+    createBasket: 장바구니를 만들었습니다. ID는 bsk_RyIfvkS2_i2wX0o0ppjAYg이고, 2026-10-20T15:31:02.856481Z에 만료됩니다.
+    addItem(p4, 1): 장바구니 bsk_RyIfvkS2_i2wX0o0ppjAYg:
 - [p4] 인체공학 마우스 × 1 = 59,000원
-합계 59,000원. 2026-10-05T17:58:20.312005Z에 만료됩니다.
+합계 59,000원. 2026-10-20T15:31:02.856481Z에 만료됩니다.
     addItem(p9, 2): (생략)
-    getBasket: 장바구니 bsk_mnshrpY_OfULti14leL2MA:
+    getBasket: 장바구니 bsk_RyIfvkS2_i2wX0o0ppjAYg:
 - [p4] 인체공학 마우스 × 1 = 59,000원
 - [p9] 휴대용 SSD 1TB × 2 = 278,000원
-합계 337,000원. 2026-10-05T17:58:20.312005Z에 만료됩니다.
+합계 337,000원. 2026-10-20T15:31:02.856481Z에 만료됩니다.
     getBasket(모르는 ID): [오류] 찾을 수 없는 장바구니입니다(bsk_AAAAAAAAAAAAAAAAAAAAAA). createBasket으로 새 장바구니를 만드세요.
     403 insufficient_scope — 필요한 scope: orders:write
 [6] step-up: products:read orders:write로 다시 authorization을 받는다

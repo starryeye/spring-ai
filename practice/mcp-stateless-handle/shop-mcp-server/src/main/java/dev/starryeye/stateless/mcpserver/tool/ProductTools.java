@@ -51,7 +51,7 @@ public class ProductTools {
                 .collect(Collectors.joining("\n"));
 
         return joined.isBlank()
-                ? "'%s' 에 해당하는 상품이 없습니다.".formatted(keyword)
+                ? "'%s'에 해당하는 상품이 없습니다.".formatted(keyword)
                 : joined;
     }
 
@@ -69,11 +69,11 @@ public class ProductTools {
 
         return productRepository.findById(productId)
                 .map(product -> product.stock() == 0
-                        ? "상품 %s (%s) 는 현재 품절입니다. (재고 0개)"
+                        ? "상품 %s(%s)의 현재 재고는 0개로, 품절입니다."
                                 .formatted(productId, product.name())
-                        : "상품 %s (%s) 의 현재 재고는 %d개입니다."
+                        : "상품 %s(%s)의 현재 재고는 %d개입니다."
                                 .formatted(productId, product.name(), product.stock()))
-                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId));
+                .orElse("상품 ID %s에 해당하는 상품이 없습니다.".formatted(productId));
     }
 
     @McpTool(
@@ -94,9 +94,9 @@ public class ProductTools {
             return "재고 수량은 0 이상이어야 합니다. (받은 값: %d)".formatted(quantity);
         }
         return productRepository.updateStock(productId, quantity)
-                .map(product -> "상품 %s (%s) 의 재고를 %d개로 바꿨습니다."
+                .map(product -> "상품 %s(%s)의 재고를 %d개로 바꿨습니다."
                         .formatted(productId, product.name(), product.stock()))
-                .orElse("상품 %s 를 찾을 수 없습니다.".formatted(productId));
+                .orElse("상품 ID %s에 해당하는 상품이 없습니다.".formatted(productId));
     }
 
     /**

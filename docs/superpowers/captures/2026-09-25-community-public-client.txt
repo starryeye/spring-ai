@@ -1,4 +1,4 @@
-# 공개 클라이언트 관측 — 2026-09-25 (mcp-authorization-public-client.sh)
+# 공개 클라이언트 관측 — 2026-10-20 (mcp-authorization-public-client.sh)
 # AS=http://localhost:9000 MCP=http://localhost:8101/mcp PUBLIC_CLIENT_ID=local-mcp-client REDIRECT_URI=http://127.0.0.1:8123/callback
 
 
@@ -17,13 +17,13 @@ Content-Length: 2388
 <p><span class="font-weight-bold text-primary">local-mcp-client</span> wants to access your account <span class="font-weight-bold">user</span></p>
 <form name="consent_form" method="post" action="/oauth2/authorize">
 <input type="hidden" name="client_id" value="local-mcp-client">
-<input type="hidden" name="state" value="UluHOGFrDewkZ9SKDIpFpweqlakAs8yZjN3rCjqifbg=">
+<input type="hidden" name="state" value="v0mulfsW3xvqMB9_wQWIir27uzu9yc4_9jcGwIsVk2Y=">
 <input class="form-check-input" type="checkbox" name="scope" value="profile" id="profile">
 
 
 ===== P4. 동의 제출 (POST /oauth2/authorize) → 인가 코드와 iss =====
 HTTP/1.1 302 
-Location: http://127.0.0.1:8123/callback?code=x5kbzPgZS_Oh...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
+Location: http://127.0.0.1:8123/callback?code=Vo8p6yTENwAP...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
 
 
 ===== P5. 토큰 요청 — 클라이언트 인증 없이 client_id 만 (OAuth 2.1 §3.2.2) =====
@@ -33,16 +33,16 @@ Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
 Content-Length: 1547
 
-{"access_token":"eyJraWQiOiJjMmM5MDM3...","scope":"openid profile","id_token":"eyJraWQiOiJjMmM5MDM3...","token_type":"Bearer","expires_in":299}
+{"access_token":"eyJraWQiOiIzMzZkMDk3...","scope":"openid profile","id_token":"eyJraWQiOiIzMzZkMDk3...","token_type":"Bearer","expires_in":299}
 
 
 ===== P5-1. access token 페이로드 — aud 는 클라이언트 유형과 무관하게 resource 다 (RFC 8707) =====
-{"sub":"user","aud":"http://localhost:8101/mcp","nbf":1790342953,"scope":["openid","profile"],"iss":"http://localhost:9000","exp":1790343253,"iat":1790342953,"jti":"eb186ed1-9e9a-488c-9961-09fb978c83d2"}
+{"sub":"user","aud":"http://localhost:8101/mcp","nbf":1792508280,"scope":["openid","profile"],"iss":"http://localhost:9000","exp":1792508580,"iat":1792508280,"jti":"5b2299d3-e206-43b9-b778-789da9da2e4d"}
 
 
 ===== P6. 이 토큰으로 MCP initialize =====
 HTTP/1.1 200 
-Mcp-Session-Id: d14d9d0d-0f7a-42b6-80e3-77c4e111b58c
+Mcp-Session-Id: 61d83990-eee8-4d24-abd4-2a31aa96af2f
 Cache-Control: no-cache, no-store, max-age=0, must-revalidate
 Pragma: no-cache
 Content-Type: application/json
@@ -55,9 +55,9 @@ Cache-Control: no-cache
 Content-Type: text/event-stream
 Transfer-Encoding: chunked
 
-id:d14d9d0d-0f7a-42b6-80e3-77c4e111b58c
+id:61d83990-eee8-4d24-abd4-2a31aa96af2f
 event:message
-data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다."}],"isError":false}}
+data:{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다."}],"isError":false}}
 
 
 
@@ -87,7 +87,7 @@ Location: http://127.0.0.1:8123/callback?error=invalid_request&error_description
 
 ===== P10. 루프백 리다이렉트는 포트가 달라도 허용된다 (RFC 8252 §7.3 · OAuth 2.1 §8.4.2) =====
 HTTP/1.1 302 
-Location: http://127.0.0.1:9999/callback?code=RuL2HI71zrf6...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
+Location: http://127.0.0.1:9999/callback?code=1K-xt_mTFwUT...&state=public-state&iss=http%3A%2F%2Flocalhost%3A9000
 
 
 ===== P10-1. 오류: 루프백이라도 경로가 다르면 거부한다 (리다이렉트하지 않는다) =====
@@ -97,7 +97,7 @@ Pragma: no-cache
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"timestamp":"2026-09-25T13:29:13.692Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
+{"timestamp":"2026-10-20T14:58:00.577Z","status":400,"error":"Bad Request","path":"/oauth2/authorize"}
 
 
 ===== P11. 오류: 틀린 code_verifier (invalid_grant) — 공개 클라이언트의 유일한 가로채기 방어 =====
@@ -123,7 +123,7 @@ Content-Length: 26
 
 ===== P13. 대조: 기밀 클라이언트는 동의 화면 없이 곧장 코드로 리다이렉트한다 =====
 HTTP/1.1 302 
-Location: http://localhost:8100/login/oauth2/code/authserver?code=D5AjSTTWgyc1...&state=confidential-state&iss=http%3A%2F%2Flocalhost%3A9000
+Location: http://localhost:8100/login/oauth2/code/authserver?code=XSdMAQfrxeto...&state=confidential-state&iss=http%3A%2F%2Flocalhost%3A9000
 
 
 ===== P14. 대조: 기밀 클라이언트는 client_id 만으로는 토큰을 받지 못한다 (invalid_client) =====

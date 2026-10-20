@@ -42,7 +42,7 @@ public class ProductTools {
                                 product.price(), product.stock()))
                 .collect(Collectors.joining("\n"))
                 .map(joined -> joined.isBlank()
-                        ? "'%s' 에 해당하는 상품이 없습니다.".formatted(keyword)
+                        ? "'%s'에 해당하는 상품이 없습니다.".formatted(keyword)
                         : joined)
                 .doOnError(error -> log.error("searchProducts 실패 (keyword={})", keyword, error))
                 .onErrorReturn("상품 정보를 조회할 수 없습니다. 상품 서비스에 연결하지 못했습니다.");
@@ -61,9 +61,9 @@ public class ProductTools {
         log.info("getStock 호출 (productId={})", productId);
         return productClient.stockOf(productId)
                 .map(stock -> stock == 0
-                        ? "상품 %s 는 현재 품절입니다. (재고 0개)".formatted(productId)
-                        : "상품 %s 의 현재 재고는 %d개입니다.".formatted(productId, stock))
-                .defaultIfEmpty("상품 %s 를 찾을 수 없습니다.".formatted(productId))
+                        ? "상품 %s의 현재 재고는 0개로, 품절입니다.".formatted(productId)
+                        : "상품 %s의 현재 재고는 %d개입니다.".formatted(productId, stock))
+                .defaultIfEmpty("상품 ID %s에 해당하는 상품이 없습니다.".formatted(productId))
                 .doOnError(error -> log.error("getStock 실패 (productId={})", productId, error))
                 .onErrorReturn("재고 정보를 조회할 수 없습니다. 상품 서비스에 연결하지 못했습니다.");
     }

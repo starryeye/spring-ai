@@ -238,7 +238,7 @@ Authorization: Basic <base64(official-shop-agent:official-shop-agent-secret)>
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code
-&code=M1Q5-XA-2DoF...
+&code=vWGE6LOgdELv...
 &redirect_uri=http%3A%2F%2Flocalhost%3A8110%2Flogin%2Foauth2%2Fcode%2Fauthserver
 &code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 &resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
@@ -246,9 +246,9 @@ grant_type=authorization_code
 
 ```json
 {
-  "access_token": "eyJraWQiOiJlZDY1ZWFl...",
-  "refresh_token": "UqY5N0Bi3YAG...",
-  "id_token": "eyJraWQiOiJlZDY1ZWFl...",
+  "access_token": "eyJraWQiOiIwNGRlZDhl...",
+  "refresh_token": "ySnltAsyLyJt...",
+  "id_token": "eyJraWQiOiIwNGRlZDhl...",
   "scope": "openid profile",
   "token_type": "Bearer",
   "expires_in": 299
@@ -264,7 +264,7 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code
 &client_id=local-mcp-client
-&code=lMbNpgP99yyS...
+&code=OdKH66yJ24g_...
 &redirect_uri=http%3A%2F%2F127.0.0.1%3A8123%2Fcallback
 &code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 &resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
@@ -298,8 +298,8 @@ access token의 payload는 다음과 같다.
   "sub": "user",
   "aud": "http://localhost:8111/mcp",
   "scope": ["openid", "profile"],
-  "iat": 1789903269,
-  "exp": 1789903569,
+  "iat": 1792507711,
+  "exp": 1792508011,
   "...": "그 밖의 field는 생략"
 }
 ```
@@ -357,7 +357,7 @@ Authorization: Basic <base64(official-shop-agent:official-shop-agent-secret)>
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token
-&refresh_token=UqY5N0Bi3YAG...
+&refresh_token=ySnltAsyLyJt...
 &resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
 ```
 

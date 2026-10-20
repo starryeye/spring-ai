@@ -204,7 +204,7 @@ web agent의 줄은 표의 순서대로 한다.
 | "권한 허용" 누르기 | consent 화면에서 새로 고를 항목은 `products:write` 하나다. `openid`와 `products:read`는 "You have already granted the following permissions to the above app" 아래에 체크된 채 바꿀 수 없게 나온다 |
 | `products:write`를 체크하지 않고 제출하거나 Cancel 누르기 | 채팅 화면으로 돌아와 질문이 다시 간다. 이번에는 `updateStock에 필요한 products:write 권한을 받지 못했습니다. 다시 요청하려면 아래 버튼을 누르세요.` 안내와 "다시 요청" 버튼이 뜬다 |
 | `grep 'step-up' logs/shop-agent.log` | `step-up authorization request — 추가 scope=[products:write], 요청 scope=[openid, products:read, products:write]`와 `step-up에서 허락받지 못한 scope — 사용자=user, 빠진 scope=[products:write]`가 찍힌다 |
-| "다시 요청"을 누르고 consent 화면에서 `products:write`를 체크해 제출 | 돌아와 질문이 다시 가고, `상품 p1 (게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.` 같은 답이 나온다. `logs/shop-agent.log`에는 `step-up 완료 — 사용자=user, 받은 scope=[openid, products:read, products:write]`가 남는다 |
+| "다시 요청"을 누르고 consent 화면에서 `products:write`를 체크해 제출 | 돌아와 질문이 다시 가고, `상품 p1(게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.` 같은 답이 나온다. `logs/shop-agent.log`에는 `step-up 완료 — 사용자=user, 받은 scope=[openid, products:read, products:write]`가 남는다 |
 | `grep 'updateStock 호출' logs/shop-mcp-server.log` | `updateStock 호출 (productId=p1, quantity=10, 사용자=user)` |
 | `local-client`에서 `./gradlew -q run` 뒤 두 번의 consent | `[1]`에 `처음 요청할 scope: products:read (401의 scope)`가, 첫 `[4]`에 `scope: products:read`가 찍힌다. `403 insufficient_scope — 필요한 scope: products:write` 뒤에 `[6]`, `[3]`, `[4]`(`scope: products:read products:write`), `[7]` 순서로 찍히고, 재고를 10개로 바꾼다 |
 | `local-client` 실행 뒤 `grep 'scope 부족' ../logs/shop-mcp-server.log` | `client_id=local-mcp-client`와 `가진 scope=[products:read]`인 줄이 더 있다. 같은 사용자라도 어느 client를 거친 요청인지 로그로 구분된다 |

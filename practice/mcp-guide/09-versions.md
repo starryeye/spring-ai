@@ -256,7 +256,7 @@ MCP Server는 token이 없는 요청을 버전 검사보다 먼저 `401`로 거�
 `PROTOCOL_VERSION`을 주면 `initialize`의 `protocolVersion`과 뒤 요청의 `MCP-Protocol-Version`이 그 값이 된다.
 
 ```bash
-# 저장소 최상위 폴더에서. 출력에는 token 원문이 남는다
+# 저장소 최상위 폴더에서. JWT는 앞 20자만 남는다
 PROTOCOL_VERSION=2026-07-28 docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/walkthrough-2026.txt
 ```
 

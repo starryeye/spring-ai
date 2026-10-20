@@ -178,8 +178,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 
 token이 필요한 요청은 캡처 스크립트로 한 단계씩 기록해 본다.
 스크립트는 login과 token 발급을 curl로 대신 한다.
-`mcp-authorization-walkthrough.sh`의 출력에는 token 원문이 남는다.
-supplement와 public-client 스크립트는 JWT를 앞 20자만 남기고, `local-client-run.sh`는 token을 찍지 않는다.
+`mcp-authorization-walkthrough.sh`와 supplement·public-client 스크립트는 JWT를 앞 20자만 남기고, `local-client-run.sh`는 token을 찍지 않는다.
 
 ```bash
 # 저장소 최상위 폴더에서

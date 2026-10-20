@@ -81,9 +81,9 @@ class ModernToolCallbackTest {
 	@Test
 	void isError_결과도_같은_방식으로_모델에게_돌려준다() {
 		given(this.client.callTool(anyString(), anyString(), anyMap()))
-				.willReturn(결과(true, "상품 p9를 찾을 수 없습니다."));
+				.willReturn(결과(true, "상품 ID p9에 해당하는 상품이 없습니다."));
 
-		assertThat(this.callback.call("{\"productId\":\"p9\",\"quantity\":1}")).isEqualTo("상품 p9를 찾을 수 없습니다.");
+		assertThat(this.callback.call("{\"productId\":\"p9\",\"quantity\":1}")).isEqualTo("상품 ID p9에 해당하는 상품이 없습니다.");
 	}
 
 	@Test

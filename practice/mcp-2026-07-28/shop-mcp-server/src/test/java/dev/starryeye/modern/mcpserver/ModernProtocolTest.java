@@ -304,7 +304,7 @@ class ModernProtocolTest {
 		JsonNode result = response.json().get("result");
 		assertThat(result.get("isError").asBoolean()).isFalse();
 		assertThat(result.get("content").get(0).get("text").asString())
-				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 재고를 7개로 바꿨습니다.");
+				.isEqualTo("상품 p1(게이밍 노트북 15인치)의 재고를 7개로 바꿨습니다.");
 	}
 
 	/**
@@ -334,7 +334,7 @@ class ModernProtocolTest {
 		assertThat(response.json().get("error").get("code").asInt()).isEqualTo(-32020);
 		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
 		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
-				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+				.isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.");
 	}
 
 	/**
@@ -359,7 +359,7 @@ class ModernProtocolTest {
 		}
 		Response stock = client().callTool(점원(), "getStock", Map.of("productId", "p1"));
 		assertThat(stock.json().get("result").get("content").get(0).get("text").asString())
-				.isEqualTo("상품 p1 (게이밍 노트북 15인치) 의 현재 재고는 7개입니다.");
+				.isEqualTo("상품 p1(게이밍 노트북 15인치)의 현재 재고는 7개입니다.");
 	}
 
 	/**

@@ -217,7 +217,7 @@ browser의 줄은 표의 순서대로 한다.
 | `p1 재고를 10개로 바꿔 줘` 보내기 | 채팅 아래에 `updateStock을(를) 하려면 products:write 권한이 더 필요합니다. 허용하면 권한을 받은 뒤 질문을 다시 보냅니다.` 카드와 "권한 허용" 버튼이 뜬다 |
 | `grep 'scope 부족' logs/shop-mcp-server.log` | `scope 부족 — 사용자=user, client_id=https://localhost:8172/oauth/client.json, tool=updateStock, 필요한 scope=products:write, 가진 scope=[openid, products:read]`다. `client_id`가 문서 주소다 |
 | "권한 허용" 누르기 | consent 화면에서 새로 고를 항목은 `products:write` 하나다. `products:read`는 "이미 허락한 권한" 아래에 나온다 |
-| `products:write`를 체크해 제출 | 질문이 다시 가고, `상품 p1 (게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`처럼 답한다. MCP Server 로그에는 `updateStock 호출 (productId=p1, quantity=10, 사용자=user)`가 찍힌다 |
+| `products:write`를 체크해 제출 | 질문이 다시 가고, `상품 p1(게이밍 노트북 15인치)의 재고를 10개로 변경했습니다.`처럼 답한다. MCP Server 로그에는 `updateStock 호출 (productId=p1, quantity=10, 사용자=user)`가 찍힌다 |
 | `./stop.sh && ./run.sh claude` 뒤 같은 순서로 login과 재고 변경. step-up에서는 `products:read`와 `products:write`를 모두 체크해 제출 | consent 화면의 제목이 `권한 요청: Shop Agent (Claude형)`이고, 두 host와 경고는 같다. step-up의 consent 화면에는 두 scope가 모두 빈 체크박스로 나오고, 하나라도 빼면 새 token에 scope가 모자라 step-up 카드가 다시 뜬다 |
 | `grep 'client 문서를 가져왔다' logs/auth-server.log`와 `grep 'scope 부족' logs/shop-mcp-server.log` | `client 문서를 가져왔다 (client_id=https://localhost:8172/oauth/public-client.json, 인증 방식=none, cache=300초)`가 찍힌다. MCP Server 로그의 `client_id=`도 `https://localhost:8172/oauth/public-client.json`이다 |
 | Claude형의 재고 변경이 끝나고 6분 뒤 `노트북 재고 있어?` 보내기 | login 화면 없이 답이 온다. access token(5분)이 끝나, agent가 `client_id`만 보내는 refresh로 새 token을 받았기 때문이다 |
