@@ -34,6 +34,11 @@ mcp:
     # 사용자(token의 sub)마다 1분 동안 부를 수 있는 tools/call 수다. 넘으면 429와 Retry-After다.
     # MCP Tools 명세는 서버가 tool 호출 속도를 제한하라고 한다(MUST).
     tool-calls-per-minute: 60
+    # 서버가 한꺼번에 들고 있는 MCP session 수의 상한이다. 넘으면 새 initialize가 503이다.
+    # 사용자마다 세지 않고 서버 전체로 센다. 한 사용자가 채우면 다른 사용자의 initialize도 503이 된다.
+    max-sessions: 1000
+    # 요청이 이만큼 없던 session은 지운다. 지운 session으로 온 요청은 404이고, client는 새 session을 연다.
+    session-idle-timeout: 30m
 
 logging:
   level:
