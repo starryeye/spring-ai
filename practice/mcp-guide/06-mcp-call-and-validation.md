@@ -542,7 +542,7 @@ sequenceDiagram
 (5)\~(8)은 SDK가 뒤에서 보내는 요청이라, 다시 부른 호출(9)과 순서가 섞일 수 있다.
 `notifications/initialized`는 줄여 그렸다.
 
-만료마다 MCP Server는 token 없는 `DELETE`와 `initialize`를 하나씩 받아 `401`로 답한다.
+만료 뒤 첫 tool 호출 때마다 MCP Server는 token 없는 `DELETE`와 `initialize`를 하나씩 받아 `401`로 답한다.
 agent 로그에도 처음 실패한 호출 때문에 SDK와 Spring AI가 남기는 `ERROR` 줄과 stack trace가 있다.
 그 뒤에 `MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool=getStock)`가 찍히고 다시 부른 호출이 성공하면, 사용자에게는 정상 답이 간다.
 token 없는 두 요청은 앱 종료 때의 `DELETE`(6.7)와 같은 이유로 생기고, [부록: 준수표](reference-compliance.md#남은-위반)에 남은 위반으로 적었다.
@@ -552,7 +552,7 @@ token 없는 두 요청은 앱 종료 때의 `DELETE`(6.7)와 같은 이유로 �
 다시 보내는 실패는 tool이 실행되지 않았다고 볼 수 있는 경우뿐이다.
 timeout, 연결 오류, `isError` 결과는 MCP Server가 이미 tool을 실행했을 수 있어서 다시 보내지 않는다.
 `403`과 token을 붙인 요청의 `401`은 다시 보내도 같은 답이 오므로 그대로 올린다.
-그래도 SDK는 늦게 온 `404`가 지금 session의 것인지 옛 session의 것인지 가리지 않고 지금 session을 닫는다.
+다만 SDK는 늦게 온 `404`가 지금 session의 것인지 옛 session의 것인지 가리지 않고 지금 session을 닫는다.
 그래서 만료 직후 여러 사용자의 호출 셋 이상이 겹치면, 이미 실행된 호출이 한 번 더 갈 수 있다.
 official의 tool은 조회뿐이라 두 번 실행되어도 결과가 같다.
 
