@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * streamable transport가 session 수에 상한을 두고, 오래 쓰지 않은 session을 만료시키는지 본다.
  * 두 context에서 시험한다.
- * 상한은 만료 없이(기본 30분) 상한만 2로 낮춘 context에서 본다.
+ * 상한은 만료를 기본값(30분)으로 둔 채 {@code max-sessions}만 2로 낮춘 context에서 본다.
  * 그래야 시험 도중에 만료가 끼어들지 않는다.
  * 만료는 상한 2, 만료 500ms로 낮춘 context에서 본다.
  *
@@ -32,10 +32,16 @@ class SessionLimitTest {
 
 	static final String TOOLS_LIST = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
 
-	/** 자리가 비기를 기다리는 최대 시간이다. 만료는 1초 안에 일어나므로 넉넉히 둔다. */
+	/**
+	 * 자리가 비기를 기다리는 최대 시간이다.
+	 * 만료는 1초 안에 일어나므로 넉넉히 둔다.
+	 */
 	static final Duration WAIT_LIMIT = Duration.ofSeconds(5);
 
-	/** 상한에 닿기까지 보내는 {@code initialize}의 최대 수다. 상한이 2라서 만료가 끼어들어도 몇 번이면 닿는다. */
+	/**
+	 * 상한에 닿기까지 보내는 {@code initialize}의 최대 수다.
+	 * 상한이 2라서 만료가 끼어들어도 몇 번이면 닿는다.
+	 */
 	static final int MAX_ATTEMPTS = 10;
 
 	static final String TOKEN = McpScopeTest.토큰("products:read");
@@ -93,7 +99,10 @@ class SessionLimitTest {
 			return response;
 		}
 
-		/** 상한이 찬 동안 {@code initialize}는 {@code 503}이다. {@code 503}이 아닌 응답이 올 때까지 다시 보낸다. */
+		/**
+		 * 상한이 찬 동안 {@code initialize}는 {@code 503}이다.
+		 * {@code 503}이 아닌 응답이 올 때까지 다시 보낸다.
+		 */
 		MockHttpServletResponse 자리가_빌_때까지_initialize한다() throws Exception {
 			Instant deadline = Instant.now().plus(WAIT_LIMIT);
 			MockHttpServletResponse response = initialize(this.mockMvc);
