@@ -15,7 +15,8 @@ MCP Server는 `Origin` header로 browser를 거친 요청을 거절한다.
 official은 `Host`도 보고, 이 검사를 token보다 먼저 한다.
 
 이 장에서는 token을 붙인 요청의 형식을 보고, MCP Server가 그 요청을 어떤 순서로 검사하는지 따라간다.
-마지막으로 agent가 MCP 요청마다 그 요청을 일으킨 사용자의 token을 골라 붙이는 방법을 본다.
+이어서 agent가 MCP 요청마다 그 요청을 일으킨 사용자의 token을 골라 붙이는 방법을 본다.
+마지막으로 서버가 오래 쓰지 않은 session을 끝냈을 때 agent가 호출을 이어 가는 방법을 본다.
 
 ## 6.2 Bearer token으로 부르기
 
@@ -469,7 +470,7 @@ MCP 요청에서 token만 빠지고, MCP Server가 `401`로 답한 뒤에야 알
 
 Streamable HTTP 서버는 `initialize`를 받을 때마다 session을 하나 만들어 메모리에 둔다.
 client가 `DELETE`로 끝내 주면 서버는 그 자원을 바로 정리하지만, 그러지 않고 사라지는 client도 있다.
-꺼진 앱, 끊긴 연결, 앱 종료 때 `DELETE`를 보내지 못한 agent(6.7)가 그런 예다.
+끊긴 연결, 꺼진 기기, 앱 종료 때 `DELETE`를 보내지 못한 agent(6.7)가 그런 예다.
 이런 session을 지우지 않으면 서버를 다시 띄울 때까지 메모리에 쌓인다.
 또 token을 가진 사용자는 `initialize`를 되풀이해 session을 얼마든지 만들 수 있다.
 
@@ -492,19 +493,20 @@ transport는 session마다 그 session ID가 붙은 POST나 GET을 마지막으�
 그리고 `session-idle-timeout` 간격으로 돌면서, 마지막 요청 뒤 그 시간이 지난 session을 지운다.
 검사가 주기적이라서, 쉬는 session은 정한 시간의 1\~2배 사이에 사라진다.
 열어 둔 GET stream은 요청으로 세지 않는다.
-그래서 agent가 GET stream을 열어 두어도, tool 호출 없이 30분이 지나면 그 session은 끝난다.
+그래서 agent가 GET stream을 열어 두어도, tool 호출 없이 30분\~1시간이 지나면 그 session은 끝난다.
 
 **상한은 서버 전체의 수다**
 
 `max-sessions`는 사용자마다 따로 세지 않고, 서버가 가진 session을 모두 센다.
 그래서 사용자 한 명이 `initialize`를 되풀이해 상한을 채우면, 다른 사용자의 `initialize`도 `503`을 받는다.
 그 session들이 만료로 지워져야 자리가 다시 빈다.
-상한은 이 공격의 피해를 서버 메모리 고갈 대신 만료 시간 동안의 `503`으로 줄일 뿐이다.
+상한은 서버 메모리가 바닥나는 것을 막을 뿐, 다른 사용자가 새 session을 열지 못하는 피해는 막지 못한다.
+공격자가 session을 계속 쓰거나 지워진 자리를 다시 채우면 `503`도 계속된다.
 사용자마다 상한을 두려면 token의 `sub`로 session을 세는 filter를 따로 만든다.
 
 **만료 뒤 agent의 첫 tool 호출**
 
-official의 agent에서 30분 넘게 tool 호출이 없으면, 다음 tool 호출은 끝난 session으로 나가 `404`를 받는다.
+official의 agent에서 tool 호출이 없는 사이 session이 만료되면, 만료 뒤 첫 tool 호출은 끝난 session으로 나가 `404`를 받는다.
 MCP Java SDK client는 `404`를 받으면 그 session을 버리고, 뒤에서 `initialize`를 다시 보낸다.
 하지만 실패한 tool 호출은 다시 보내지 않으므로, 그대로 두면 사용자는 오래 쉰 뒤 첫 질문에서 tool 오류를 받는다.
 그래서 agent는 MCP tool을 `SessionRetryingToolCallback`으로 감싸, session이 없어 실패한 호출을 같은 입력으로 다시 보낸다.
@@ -559,7 +561,7 @@ official의 tool은 조회뿐이라 두 번 실행되어도 결과가 같다.
 **chat-memory의 agent**
 
 사용자마다 client를 두는 [chat-memory](../mcp-security-authn-chat-memory/README.md)의 agent는 client 주인의 token을 붙이므로, SDK가 뒤에서 보내는 `initialize`도 성공한다.
-그래도 실패한 호출은 다시 보내지 않으므로 같은 이름의 감싸기를 쓴다.
+그래도 SDK는 실패한 호출을 다시 보내지 않으므로, 같은 이름의 감싸기를 쓴다.
 chat-memory의 MCP Server는 session 묶음의 만료를 transport의 만료와 같은 값(기본 1시간)으로 맞춘다.
 
 ## 6.10 official 코드에서 보기
@@ -672,8 +674,8 @@ toolCallbackProvider.ifAvailable(provider -> configured.defaultTools(SessionRetr
 ```
 
 `wrap`은 provider의 tool마다 `SessionRetryingToolCallback`을 씌운다.
-tool 목록은 부를 때마다 provider에서 받는다.
-provider는 처음 불릴 때 `initialize`를 하므로, 그 일을 bean을 만들 때가 아니라 login한 사용자의 채팅 안으로 미루기 위해서다.
+provider는 처음 불릴 때 `initialize`를 한다.
+목록을 bean을 만들 때가 아니라 부를 때마다 받는 것은, 이 `initialize`를 login한 사용자의 채팅 안으로 미루기 위해서다.
 
 ## 6.11 직접 해 보기
 
@@ -740,6 +742,7 @@ session 만료는 기다리는 시간을 줄여 보면 된다.
 | RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
 | token의 scope가 모자라면 MCP Server는 `403`과 `WWW-Authenticate`의 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답하고, `scope`에는 이 요청에 필요한 scope를 넣는다. 사용자를 대신하는 client는 그 scope로 step-up authorization을 하고(`client_credentials`처럼 자기 권한으로 동작하는 client는 바로 멈춰도 된다), 다시 시도하는 횟수를 제한한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | SHOULD, MAY |
 | 지원하지 않는 `MCP-Protocol-Version`에는 `400`, session ID가 없으면 `400`, 끝난 session에는 `404`로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MUST, SHOULD |
+| 서버는 session을 언제든 끝낼 수 있고, 끝낸 session의 ID가 붙은 요청에는 `404`로 답한다. `404`를 받은 client는 session ID 없이 새 `initialize`를 보내 session을 다시 시작한다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MAY, MUST |
 | host는 MCP Server마다 client를 하나 만들고, client는 그 서버와 1:1로 연결되어 session을 하나 연다 | [MCP 2025-11-25 Architecture — Clients](https://modelcontextprotocol.io/specification/2025-11-25/architecture#clients) | — |
 | authorization을 구현한 MCP Server는 모든 요청을 검증하고 session을 인증에 쓰지 않는다. session ID는 추측할 수 없는 값으로 만들고, 사용자 정보에 묶는다 | [MCP 2025-11-25 Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) | MUST, MUST NOT, SHOULD |
 | 2026-07-28은 protocol 수준의 session과 `Mcp-Session-Id`를 없앤다 | [MCP 2026-07-28 Changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) | — |

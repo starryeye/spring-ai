@@ -287,7 +287,7 @@ MCP 명세는 client와 서버 모두 token을 안전하게 보관하라고 정�
 
 ## 8.12 official에서 보기
 
-앞 절의 공격을 official이 어디서 막는지 모으면 다음과 같다.
+앞 절의 공격과 6장에서 본 session 고갈을 official이 어디서 막는지 모으면 다음과 같다.
 
 | 공격 | official에서 막는 곳 | 설명한 장 |
 |---|---|---|
@@ -300,6 +300,7 @@ MCP 명세는 client와 서버 모두 token을 안전하게 보관하라고 정�
 | token passthrough | `shop-mcp-server`는 downstream API를 부르지 않는다. agent는 사용자가 `official-shop-agent`로 받은, `aud`가 이 MCP Server인 token만 붙인다 | [6장](06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 | DNS rebinding, 같은 네트워크, 도청 | `McpTransportSecurityFilter`가 Spring Security 앞에서 `Origin`과 `Host`를 보고, 세 앱은 `127.0.0.1`에만 bind한다. HTTPS는 쓰지 않는다 | [6장](06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
 | session hijacking | MCP Server는 session ID가 있어도 모든 요청에 token을 요구하고, SDK는 session ID를 `UUID.randomUUID()`로 만든다. session을 사용자에 묶지는 않는다 | [6장](06-mcp-call-and-validation.md#67-session과-사용자) |
+| session 고갈 | `McpTransportConfig`가 transport에 서버 전체의 session 상한(`mcp.limits.max-sessions`)과 만료(`session-idle-timeout`)를 넣는다. 상한은 서버 메모리를 지킬 뿐이라, 상한이 찬 동안 새 `initialize`는 `503`이다 | [6장](06-mcp-call-and-validation.md#69-session-만료와-상한) |
 | prompt injection | 8.10 표의 장치가 하나도 없다. tool별 scope와 consent 카드, tool 호출 속도 제한은 `mcp-security-authz`부터 더한다 | [10장](10-scope-and-step-up.md) |
 | 모아 둔 token 탈취 | agent는 token을 process 메모리(`InMemoryOAuth2AuthorizedClientService`)에만 두어 디스크와 로그에 남기지 않지만, 암호화하지 않고 logout해도 지우거나 metadata가 알리는 `revocation_endpoint`로 폐기하지 않는다. `local-client`도 실행하는 동안 메모리에만 두고, MCP Server는 token을 저장하지 않는다 | — |
 

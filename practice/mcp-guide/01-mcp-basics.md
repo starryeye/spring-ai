@@ -287,8 +287,8 @@ HTTP/1.1 404  {"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Sessi
 두 본문은 `id`가 `null`인 JSON-RPC 오류다.
 Spring AI의 transport는 이런 오류에 예외 객체를 그대로 JSON으로 만들어 서버의 class 이름과 stack trace까지 내보낸다.
 그래서 official은 transport의 오류 본문을 `code`와 `message`만 남긴 이 모양으로 바꾼다([6장](06-mcp-call-and-validation.md#610-official-코드에서-보기)).
-MCP Java SDK client는 session ID를 붙인 요청이 `404`나 `400`을 받으면, 본문을 읽지 않고 session이 없어진 것으로 본다.
 서버가 발급한 적 없는 session ID를 보내도 똑같이 `404`다.
+MCP Java SDK client는 session ID를 붙인 요청이 `404`나 `400`을 받으면, 본문을 읽지 않고 session이 없어진 것으로 본다.
 
 **MCP session은 사용자의 login session이 아니다**
 
@@ -487,7 +487,7 @@ docs/superpowers/captures/mcp-authorization-walkthrough.sh > /tmp/walkthrough.tx
 | 메시지마다 새 `POST`를 보내고 `Accept`에 `application/json`과 `text/event-stream`을 모두 적는다. 서버는 notification에 본문 없는 `202`로, 요청에 JSON이나 SSE로 답하고, client는 둘 다 처리한다 | [MCP 2025-11-25 Transports — Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) | MUST |
 | client는 `GET`으로 SSE stream을 열 수 있고, 서버는 SSE나 `405`로 답한다. 서버는 SSE event에 ID를 붙여 끊긴 stream을 이어 받게 할 수 있다 | [MCP 2025-11-25 Transports — Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server), [Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery) | MAY, MUST |
 | 서버는 `initialize` 응답에서 session ID를 줄 수 있고, 받은 client는 이후 모든 요청에 넣는다. ID가 없는 요청(초기화 제외)에는 `400`으로 답한다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), [RFC 9110 §5.1](https://www.rfc-editor.org/rfc/rfc9110#section-5.1)(header 이름은 대소문자 구분 없음) | MAY, MUST, SHOULD |
-| 끝난 session에는 `404`로 답하고, 받은 client는 새로 `initialize` 한다. 더 쓰지 않을 session은 `DELETE`로 끝내고(HTTP 연결을 닫는 것으로도 끝난다), 서버는 이를 `405`로 거절할 수 있다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), [Lifecycle — Shutdown](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#shutdown) | MUST, SHOULD, MAY |
+| 서버는 session을 언제든 끝낼 수 있고, 끝난 session에는 `404`로 답하며, 받은 client는 새로 `initialize` 한다. 더 쓰지 않을 session은 `DELETE`로 끝내고(HTTP 연결을 닫는 것으로도 끝난다), 서버는 이를 `405`로 거절할 수 있다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), [Lifecycle — Shutdown](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#shutdown) | MUST, SHOULD, MAY |
 | client는 초기화 뒤 모든 요청에 `MCP-Protocol-Version`을 넣는다. header가 없으면 서버는 `2025-03-26`으로 여기고, 지원하지 않는 버전에는 `400`으로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [MCP 2025-06-18 Key Changes](https://modelcontextprotocol.io/specification/2025-06-18/changelog)(header 도입) | MUST, SHOULD |
 | HTTP transport는 authorization 명세를 따르고, stdio transport는 그 대신 환경에서 credentials를 가져온다 | [MCP 2025-11-25 Authorization — Protocol Requirements](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protocol-requirements), [MCP 2025-11-25 Overview — Auth](https://modelcontextprotocol.io/specification/2025-11-25/basic#auth) | SHOULD, SHOULD NOT |
 

@@ -142,7 +142,7 @@ client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 �
 
 한 사용자가 여러 session을 열면 session마다 그 사용자에 묶이고, 묶음은 서버 메모리의 map에 있다.
 쓰지 않은 묶음을 지우는 것은 agent가 `DELETE` 없이 끝나면 묶음이 계속 쌓이기 때문이다.
-묶음이 transport의 session보다 오래 남으면 transport가 지운 session의 묶음이 쌓이고, 더 일찍 지워지면 transport에 남은 session을 쓸 수 없다.
+묶음과 transport session의 만료 값이 다르면, 둘 중 하나가 쓸 수 없는 묶음이나 session을 쌓는다.
 그래서 묶음의 만료는 transport의 session 만료와 같은 설정 값을 쓴다.
 묶음이 없는 session을 filter가 직접 `404`로 끝내는 것은, 묶음만 지우고 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있기 때문이다.
 SDK client는 `404`를 받으면 다시 `initialize`한 새 session을 쓰고, 실패한 tool 호출은 `SessionRetryingToolCallback`이 다시 보낸다([6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한)).
@@ -214,14 +214,10 @@ client는 `closeGracefully()`로 닫고, 이때 SDK가 session 종료 `DELETE`�
 logout도 HTTP session을 끝내지만, client는 map에서 이미 지워져 있어 두 번 닫히지 않는다.
 그 사용자의 다음 채팅은 새 client를 열고, 새 `initialize`로 새 session을 받는다.
 
-이 방식에는 대가가 두 가지 있다.
-
-- client는 사용자 이름마다 하나다.
-  한 browser에서 logout하면, 같은 사용자가 다른 browser에서 진행 중인 채팅은 끝까지 그 client를 쓰고 끝난 뒤 닫힌다.
-  그 browser의 다음 채팅은 새 client를 열고 새 session을 받는다.
-- agent가 `DELETE` 없이 끝나면, 그 session은 만료될 때까지 transport 메모리에 남는다.
-  transport는 만료를 주기적으로 검사하므로, 쉬는 session은 정한 시간의 2배까지 남을 수 있다.
-  그 사이 그 session ID로 온 요청은 묶음이 없어 filter가 `404`로 막는다.
+이 방식에는 대가가 하나 있다.
+client는 사용자 이름마다 하나다.
+그래서 한 browser에서 logout하면, 같은 사용자가 다른 browser에서 진행 중인 채팅은 끝까지 그 client를 쓰고 끝난 뒤 닫힌다.
+그 browser의 다음 채팅은 새 client를 열고 새 session을 받는다.
 
 ## 실행
 
