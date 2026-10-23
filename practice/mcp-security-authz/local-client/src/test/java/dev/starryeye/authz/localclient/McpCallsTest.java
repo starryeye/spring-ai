@@ -16,9 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * StepUpTest는 handler를 직접 불러 "성공하면 새 token으로 바뀌는지"만 본다.
- * 실제 문제는 그 뒤, SDK가 재시도로 옛 token이 들어 있는 요청을 다시 보내는 데 있었다.
- * 이 test는 fake MCP server를 실제로 띄워 McpCalls.run이 끝까지 새 token으로 다시 보내는지를 본다.
+ * StepUpTest는 handler를 직접 불러 scope 판단과 token 교체만 본다.
+ * 이 test는 fake MCP server를 실제로 띄워, handler가 true를 돌려준 뒤 SDK의 재시도 요청에 새 token이 붙는지 본다.
  */
 class McpCallsTest {
 
@@ -52,20 +51,19 @@ class McpCallsTest {
 	}
 
 	@Test
-	void step_up_뒤_updateStock을_새_token을_실은_새_요청으로_다시_보낸다() {
+	void step_up_뒤_SDK가_새_token으로_다시_보낸다() {
 		TokenHolder holder = new TokenHolder("read-token", Set.of("products:read"));
 		StepUp stepUp = stepUp(holder, new TokenResponse("write-token", 300, "products:read products:write"));
 
 		McpCalls.run(this.mcp.origin() + "/mcp", holder, stepUp, Duration.ofSeconds(20), this.out);
 
-		List<FakeMcpServer.Recorded> updateStockCalls = updateStockCalls();
-		assertThat(updateStockCalls).hasSize(2);
-		assertThat(updateStockCalls.get(0).authorization()).isEqualTo("Bearer read-token");
-		assertThat(updateStockCalls.get(1).authorization()).isEqualTo("Bearer write-token");
-
+		assertThat(updateStockCalls()).extracting(FakeMcpServer.Recorded::authorization)
+				.containsExactly("Bearer read-token", "Bearer write-token");
 		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
 		String printedText = this.printed.toString(StandardCharsets.UTF_8);
-		assertThat(printedText).contains("updateStock(p1, 10): p1 재고를 10으로 바꿨다").contains("[7]");
+		assertThat(printedText).contains("updateStock(p1, 10): p1 재고를 10으로 바꿨다");
+		assertThat(printedText.lines().filter(line -> line.startsWith("[7]")))
+				.containsExactly("[7] 새 token으로 같은 요청을 새로 보낸다");
 	}
 
 	@Test
@@ -80,5 +78,6 @@ class McpCallsTest {
 
 		assertThat(updateStockCalls()).hasSize(1);
 		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
+		assertThat(this.printed.toString(StandardCharsets.UTF_8)).doesNotContain("[7]");
 	}
 }

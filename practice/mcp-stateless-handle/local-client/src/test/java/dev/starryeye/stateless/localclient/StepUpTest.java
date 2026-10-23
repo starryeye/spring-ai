@@ -43,18 +43,20 @@ class StepUpTest {
 	}
 
 	@Test
-	void 합친_scope로_다시_authorization을_받고_새_token으로_바꾼다() {
+	void 합친_scope로_다시_authorization을_받고_새_token으로_바꾼_뒤_true를_돌려준다() {
 		StepUp stepUp = stepUp(new TokenResponse("write-token", 300, "products:read products:write"));
 
-		// handle은 성공해도 true를 돌려주지 않는다.
-		// SDK의 재시도가 옛 token이 들어 있는 요청을 그대로 다시 보내는 문제를 피하려면, 성공을 예외로 알려 호출한 쪽(McpCalls)이 새 요청을 만들게 해야 한다.
-		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
-				.isInstanceOf(StepUpCompletedException.class);
+		// true를 돌려주면 SDK가 같은 요청을 새로 만들어 다시 보낸다.
+		assertThat(stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY)).isTrue();
 
 		assertThat(this.requested).containsExactly(Set.of("products:read", "products:write"));
 		assertThat(this.holder.accessToken()).isEqualTo("write-token");
 		assertThat(this.holder.scopes()).containsExactlyInAnyOrder("products:read", "products:write");
-		assertThat(this.printed.toString(StandardCharsets.UTF_8)).contains("[6] step-up");
+		String printedText = this.printed.toString(StandardCharsets.UTF_8);
+		assertThat(printedText).contains("[6] step-up");
+		assertThat(printedText.lines().filter(line -> line.startsWith("[7]")))
+				.containsExactly("[7] 새 token으로 같은 요청을 새로 보낸다");
+		assertThat(printedText.indexOf("[6]")).isLessThan(printedText.indexOf("[7]"));
 	}
 
 	@Test
@@ -64,13 +66,15 @@ class StepUpTest {
 		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
 				.isInstanceOf(LocalClientException.class)
 				.hasMessage("products:write 권한을 받지 못했다");
+		// 새 token을 받지 못했으니 token은 그대로고, 같은 요청을 다시 보낸다는 안내도 찍지 않는다.
+		assertThat(this.holder.accessToken()).isEqualTo("read-token");
+		assertThat(this.printed.toString(StandardCharsets.UTF_8)).doesNotContain("[7]");
 	}
 
 	@Test
 	void 같은_scope로_두_번_step_up하지_않는다() {
 		StepUp stepUp = stepUp(new TokenResponse("write-token", 300, "products:read products:write"));
-		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
-				.isInstanceOf(StepUpCompletedException.class);
+		assertThat(stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY)).isTrue();
 
 		assertThatThrownBy(() -> stepUp.handle(null, info(403, WRITE), McpTransportContext.EMPTY))
 				.isInstanceOf(LocalClientException.class);
@@ -79,8 +83,8 @@ class StepUpTest {
 
 	@Test
 	void 이미_가진_scope를_모자라다고_하면_멈춘다() {
-		// 서버가 이미 갖고 있는 scope를 모자라다고 하는 건 (SDK가 재시도로 옛 요청을 다시 보낸 경우 등)
-		// step-up으로 고칠 수 없는 상황이다. authorizer를 다시 부르지 않고 바로 멈춘다.
+		// 서버가 이미 갖고 있는 scope를 모자라다고 하는 건 step-up으로 고칠 수 없는 상황이다.
+		// authorizer를 다시 부르지 않고 바로 멈춘다.
 		TokenHolder holder = new TokenHolder("token", Set.of("products:read", "products:write"));
 		List<Set<String>> requested = new ArrayList<>();
 		StepUp stepUp = new StepUp(holder, scopes -> {

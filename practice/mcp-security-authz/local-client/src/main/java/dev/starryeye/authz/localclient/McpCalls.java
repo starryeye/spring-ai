@@ -10,15 +10,12 @@ import java.io.PrintStream;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * 요청을 새로 만들 때마다 {@link TokenHolder}의 token을 붙인다.
  *
- * <p>`403 insufficient_scope`가 오면 {@link StepUp}이 browser authorization을 다시 밟아 새 token을
- * 받고 {@link StepUpCompletedException}을 던진다(SDK의 재시도는 이미 만들어 둔 옛 요청을 그대로 다시
- * 보내 옛 token이 그대로 들어가므로 쓸 수 없다).
- * {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터 새로 만들어(=customizer가 다시 불려 새 token이 들어 있는 요청으로) 한 번만 다시 보낸다.
+ * <p>`403 insufficient_scope`가 오면 {@link StepUp}이 browser authorization을 다시 밟아 새 token을 받고 {@code true}를 돌려준다.
+ * 그러면 SDK가 같은 요청을 새로 만들어 다시 보내므로, 이 클래스는 재시도를 따로 다룰 필요가 없다.
  */
 public final class McpCalls {
 
@@ -31,9 +28,8 @@ public final class McpCalls {
 		HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport
 				.builder(uri.getScheme() + "://" + uri.getRawAuthority())
 				.endpoint(uri.getRawPath())
-				// 요청을 새로 만들 때마다 지금 token을 붙인다. SDK가 같은 요청을 그대로 재시도할 때는 이
-				// customizer를 다시 부르지 않으므로, step-up 뒤의 새 token은 callOnce가 새로 만드는
-				// 요청에만 들어간다(재시도가 아니라 새 tool 호출이라야 여기를 다시 지난다).
+				// 요청을 만들 때마다 지금 token을 붙인다.
+				// SDK는 step-up 뒤의 재시도에도 요청을 새로 만들어 이 customizer를 다시 부르므로, 재시도에는 새 token이 들어간다.
 				// httpRequestCustomizer(...)는 다른 customizer를 모두 지우므로 add로 더한다.
 				.addHttpRequestCustomizer((builder, method, endpoint, body, context) ->
 						builder.setHeader("Authorization", "Bearer " + holder.accessToken()))
@@ -46,16 +42,16 @@ public final class McpCalls {
 				.initializationTimeout(requestTimeout)
 				.build();
 		try {
-			McpSchema.InitializeResult initialized = callOnce(client::initialize, out);
+			McpSchema.InitializeResult initialized = client.initialize();
 			out.println("    initialize: protocolVersion=" + initialized.protocolVersion()
 					+ ", server=" + initialized.serverInfo().name());
-			callOnce(client::listTools, out).tools().forEach(tool -> out.println("    tool: " + tool.name()));
-			McpSchema.CallToolResult result = callOnce(() -> client.callTool(
-					McpSchema.CallToolRequest.builder("getStock").arguments(Map.of("productId", "p1")).build()), out);
+			client.listTools().tools().forEach(tool -> out.println("    tool: " + tool.name()));
+			McpSchema.CallToolResult result = client.callTool(
+					McpSchema.CallToolRequest.builder("getStock").arguments(Map.of("productId", "p1")).build());
 			result.content().forEach(content -> out.println("    getStock(p1): "
 					+ (content instanceof McpSchema.TextContent text ? text.text() : content)));
-			McpSchema.CallToolResult updated = callOnce(() -> client.callTool(McpSchema.CallToolRequest
-					.builder("updateStock").arguments(Map.of("productId", "p1", "quantity", 10)).build()), out);
+			McpSchema.CallToolResult updated = client.callTool(McpSchema.CallToolRequest
+					.builder("updateStock").arguments(Map.of("productId", "p1", "quantity", 10)).build());
 			updated.content().forEach(content -> out.println("    updateStock(p1, 10): "
 					+ (content instanceof McpSchema.TextContent text ? text.text() : content)));
 		}
@@ -71,33 +67,5 @@ public final class McpCalls {
 		finally {
 			client.closeGracefully();
 		}
-	}
-
-	/**
-	 * 호출 하나를 보낸다. 원인 사슬에 {@link StepUpCompletedException}이 있으면(= step-up이 새 token을
-	 * 받았다는 뜻) `[7]`을 찍고 같은 호출을 새 요청으로 한 번만 다시 보낸다. 그 재시도에서 또 step-up이
-	 * 나도 더 반복하지 않고 그대로 위로 올린다(StepUp의 attempted 규칙이 같은 scope의 무한 반복을 막으므로,
-	 * 실제로는 그 재시도가 다시 StepUpCompletedException을 던지는 일은 없다).
-	 */
-	private static <T> T callOnce(Supplier<T> call, PrintStream out) {
-		try {
-			return call.get();
-		}
-		catch (RuntimeException ex) {
-			if (!steppedUp(ex)) {
-				throw ex;
-			}
-			out.println("[7] 새 token으로 같은 요청을 새로 보낸다");
-			return call.get();
-		}
-	}
-
-	private static boolean steppedUp(Throwable ex) {
-		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
-			if (cause instanceof StepUpCompletedException) {
-				return true;
-			}
-		}
-		return false;
 	}
 }

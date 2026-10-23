@@ -12,15 +12,12 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * 요청을 새로 만들 때마다 {@link TokenHolder}의 token을 붙인다.
  *
- * <p>`403 insufficient_scope`가 오면 {@link StepUp}이 browser authorization을 다시 밟아 새 token을
- * 받고 {@link StepUpCompletedException}을 던진다(SDK의 재시도는 이미 만들어 둔 옛 요청을 그대로 다시
- * 보내 옛 token이 그대로 들어가므로 쓸 수 없다).
- * {@link #callOnce}가 그 예외를 잡아 같은 tool 호출을 처음부터 새로 만들어(=customizer가 다시 불려 새 token이 들어 있는 요청으로) 한 번만 다시 보낸다.
+ * <p>`403 insufficient_scope`가 오면 {@link StepUp}이 browser authorization을 다시 밟아 새 token을 받고 {@code true}를 돌려준다.
+ * 그러면 SDK가 같은 요청을 새로 만들어 다시 보내므로, 이 클래스는 재시도를 따로 다룰 필요가 없다.
  *
  * <p>장바구니는 session이 아니라 서버가 만든 handle로 다룬다(안내서 11장).
  * 이 앱은 {@code createBasket}이 돌려준 {@code basketId}를 {@code addItem}·{@code getBasket}·{@code checkout}의 인자로 그대로 넘긴다.
@@ -44,9 +41,8 @@ public final class McpCalls {
 		HttpClientStreamableHttpTransport transport = HttpClientStreamableHttpTransport
 				.builder(uri.getScheme() + "://" + uri.getRawAuthority())
 				.endpoint(uri.getRawPath())
-				// 요청을 새로 만들 때마다 지금 token을 붙인다. SDK가 같은 요청을 그대로 재시도할 때는 이
-				// customizer를 다시 부르지 않으므로, step-up 뒤의 새 token은 callOnce가 새로 만드는
-				// 요청에만 들어간다(재시도가 아니라 새 tool 호출이라야 여기를 다시 지난다).
+				// 요청을 만들 때마다 지금 token을 붙인다.
+				// SDK는 step-up 뒤의 재시도에도 요청을 새로 만들어 이 customizer를 다시 부르므로, 재시도에는 새 token이 들어간다.
 				// httpRequestCustomizer(...)는 다른 customizer를 모두 지우므로 add로 더한다.
 				.addHttpRequestCustomizer((builder, method, endpoint, body, context) ->
 						builder.setHeader("Authorization", "Bearer " + holder.accessToken()))
@@ -59,7 +55,7 @@ public final class McpCalls {
 				.initializationTimeout(requestTimeout)
 				.build();
 		try {
-			McpSchema.InitializeResult initialized = callOnce(client::initialize, out);
+			McpSchema.InitializeResult initialized = client.initialize();
 			out.println("    initialize: protocolVersion=" + initialized.protocolVersion()
 					+ ", server=" + initialized.serverInfo().name());
 			// 서버는 사용자 역할로 목록을 거른다(안내서 12장).
@@ -69,22 +65,22 @@ public final class McpCalls {
 				// scope를 늘려도 쓸 수 없는 tool이라 step-up이 아니라 JSON-RPC 오류가 온다.
 				callHidden(client, out);
 			}
-			print(out, "getStock(p1)", callOnce(() -> call(client, "getStock", Map.of("productId", "p1")), out));
+			print(out, "getStock(p1)", call(client, "getStock", Map.of("productId", "p1")));
 
 			// handle은 서버가 만든다. 이 앱은 받은 handle을 다음 호출의 인자로 넘긴다(안내서 11장).
-			McpSchema.CallToolResult created = callOnce(() -> call(client, "createBasket", Map.of()), out);
+			McpSchema.CallToolResult created = call(client, "createBasket", Map.of());
 			print(out, "createBasket", created);
 			String basketId = basketId(created);
-			print(out, "addItem(p4, 1)", callOnce(() -> call(client, "addItem",
-					Map.of("basketId", basketId, "productId", "p4", "quantity", 1)), out));
-			print(out, "addItem(p9, 2)", callOnce(() -> call(client, "addItem",
-					Map.of("basketId", basketId, "productId", "p9", "quantity", 2)), out));
-			print(out, "getBasket", callOnce(() -> call(client, "getBasket", Map.of("basketId", basketId)), out));
+			print(out, "addItem(p4, 1)", call(client, "addItem",
+					Map.of("basketId", basketId, "productId", "p4", "quantity", 1)));
+			print(out, "addItem(p9, 2)", call(client, "addItem",
+					Map.of("basketId", basketId, "productId", "p9", "quantity", 2)));
+			print(out, "getBasket", call(client, "getBasket", Map.of("basketId", basketId)));
 			// 만든 적 없는 handle은 "찾을 수 없다"다. 가진 것만으로는 쓸 수 없다.
 			print(out, "getBasket(모르는 ID)",
-					callOnce(() -> call(client, "getBasket", Map.of("basketId", UNKNOWN_BASKET)), out));
-			// 주문은 orders:write가 필요하다. 조회 token이면 403 → 그 자리에서 step-up → 새 요청으로 다시 보낸다.
-			print(out, "checkout", callOnce(() -> call(client, "checkout", Map.of("basketId", basketId)), out));
+					call(client, "getBasket", Map.of("basketId", UNKNOWN_BASKET)));
+			// 주문은 orders:write가 필요하다. 조회 token이면 403 → 그 자리에서 step-up → SDK가 새 token으로 다시 보낸다.
+			print(out, "checkout", call(client, "checkout", Map.of("basketId", basketId)));
 			// step-up으로 token이 바뀌었으면 목록을 다시 받는다. 새 요청이라 customizer가 새 token을 붙인다.
 			tools.printIfTokenChanged();
 		}
@@ -100,34 +96,6 @@ public final class McpCalls {
 		finally {
 			client.closeGracefully();
 		}
-	}
-
-	/**
-	 * 호출 하나를 보낸다. 원인 사슬에 {@link StepUpCompletedException}이 있으면(= step-up이 새 token을
-	 * 받았다는 뜻) `[7]`을 찍고 같은 호출을 새 요청으로 한 번만 다시 보낸다. 그 재시도에서 또 step-up이
-	 * 나도 더 반복하지 않고 그대로 위로 올린다(StepUp의 attempted 규칙이 같은 scope의 무한 반복을 막으므로,
-	 * 실제로는 그 재시도가 다시 StepUpCompletedException을 던지는 일은 없다).
-	 */
-	private static <T> T callOnce(Supplier<T> call, PrintStream out) {
-		try {
-			return call.get();
-		}
-		catch (RuntimeException ex) {
-			if (!steppedUp(ex)) {
-				throw ex;
-			}
-			out.println("[7] 새 token으로 같은 요청을 새로 보낸다");
-			return call.get();
-		}
-	}
-
-	private static boolean steppedUp(Throwable ex) {
-		for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
-			if (cause instanceof StepUpCompletedException) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/** 목록을 받은 token을 기억해 두고, token이 바뀌었을 때만 다시 받아 한 줄로 찍는다. */
@@ -152,7 +120,7 @@ public final class McpCalls {
 		List<String> printIfTokenChanged() {
 			String token = this.holder.accessToken();
 			if (!token.equals(this.listedWith)) {
-				this.names = callOnce(this.client::listTools, this.out).tools().stream()
+				this.names = this.client.listTools().tools().stream()
 						.map(McpSchema.Tool::name).toList();
 				// 목록을 받다가 step-up이 났을 수 있으므로, 처음 읽은 token이 아니라 받은 뒤의 token을 기억한다.
 				this.listedWith = this.holder.accessToken();
