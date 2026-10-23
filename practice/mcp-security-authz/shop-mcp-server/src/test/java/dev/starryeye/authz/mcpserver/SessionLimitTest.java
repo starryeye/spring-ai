@@ -1,5 +1,6 @@
 package dev.starryeye.authz.mcpserver;
 
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,19 +18,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * streamable transport가 session 수에 상한을 두고, 오래 쓰지 않은 session을 만료시키는지 본다.
- * 상한을 2, 만료를 500ms로 낮춘 context에서 시험한다.
+ * 두 context에서 시험한다.
+ * 상한은 만료 없이(기본 30분) 상한만 2로 낮춘 context에서 본다.
+ * 그래야 시험 도중에 만료가 끼어들지 않는다.
+ * 만료는 상한 2, 만료 500ms로 낮춘 context에서 본다.
  *
  * <p>transport는 {@code session-idle-timeout} 간격으로 만료를 검사하므로, 쉬는 session은 500ms~1초 사이에 사라진다.
  * 같은 session에 요청을 보내면 쉰 시간이 다시 0이 된다.
  * 그래서 만료를 기다리는 동안에는 그 session에 요청을 보내지 않는다.
  * 대신 상한을 채워 두고, 새 {@code initialize}가 다시 성공하면 자리가 빈 것으로 본다.
- *
- * <p>남은 session이 다음 테스트의 상한 계산에 섞이지 않도록, 테스트마다 context를 닫고 새로 띄운다.
  */
-@SpringBootTest(properties = { "mcp.limits.max-sessions=2", "mcp.limits.session-idle-timeout=500ms" })
-@AutoConfigureMockMvc
-@Import(McpAuthorizationStandardTest.StubAuthorizationServer.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class SessionLimitTest {
 
 	static final String TOOLS_LIST = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}";
@@ -37,70 +35,99 @@ class SessionLimitTest {
 	/** 자리가 비기를 기다리는 최대 시간이다. 만료는 1초 안에 일어나므로 넉넉히 둔다. */
 	static final Duration WAIT_LIMIT = Duration.ofSeconds(5);
 
+	/** 상한에 닿기까지 보내는 {@code initialize}의 최대 수다. 상한이 2라서 만료가 끼어들어도 몇 번이면 닿는다. */
+	static final int MAX_ATTEMPTS = 10;
+
 	static final String TOKEN = McpScopeTest.토큰("products:read");
 
-	@Autowired
-	MockMvc mockMvc;
-
-	MockHttpServletResponse initialize() throws Exception {
-		return this.mockMvc.perform(McpScopeTest.mcp(TOKEN, McpAuthorizationStandardTest.INITIALIZE))
+	static MockHttpServletResponse initialize(MockMvc mockMvc) throws Exception {
+		return mockMvc.perform(McpScopeTest.mcp(TOKEN, McpAuthorizationStandardTest.INITIALIZE))
 				.andReturn().getResponse();
 	}
 
-	String session을_연다() throws Exception {
-		MockHttpServletResponse response = initialize();
+	static String session을_연다(MockMvc mockMvc) throws Exception {
+		MockHttpServletResponse response = initialize(mockMvc);
 		assertThat(response.getStatus()).isEqualTo(200);
 		return response.getHeader("Mcp-Session-Id");
 	}
 
-	/** 상한이 찬 동안 {@code initialize}는 {@code 503}이다. {@code 503}이 아닌 응답이 올 때까지 다시 보낸다. */
-	MockHttpServletResponse 자리가_빌_때까지_initialize한다() throws Exception {
-		Instant deadline = Instant.now().plus(WAIT_LIMIT);
-		MockHttpServletResponse response = initialize();
-		while (response.getStatus() == 503 && Instant.now().isBefore(deadline)) {
-			Thread.sleep(50);
-			response = initialize();
+	@Nested
+	@SpringBootTest(properties = "mcp.limits.max-sessions=2")
+	@AutoConfigureMockMvc
+	@Import(McpAuthorizationStandardTest.StubAuthorizationServer.class)
+	class 상한 {
+
+		@Autowired
+		MockMvc mockMvc;
+
+		@Test
+		void 상한을_넘은_initialize는_503이다() throws Exception {
+			session을_연다(this.mockMvc);
+			session을_연다(this.mockMvc);
+
+			MockHttpServletResponse third = initialize(this.mockMvc);
+
+			JsonNode error = MalformedMessageTest.내부_정보_없는_오류다("상한 초과", third, 503, -32603);
+			assertThat(error.get("message").asString()).isEqualTo("Max number of sessions reached");
+			assertThat(third.getHeader("Mcp-Session-Id")).isNull();
 		}
-		return response;
 	}
 
-	@Test
-	void 상한을_넘은_initialize는_503이다() throws Exception {
-		session을_연다();
-		session을_연다();
+	/** 남은 session이 다음 테스트의 상한 계산에 섞이지 않도록, 테스트마다 context를 닫고 새로 띄운다. */
+	@Nested
+	@SpringBootTest(properties = { "mcp.limits.max-sessions=2", "mcp.limits.session-idle-timeout=500ms" })
+	@AutoConfigureMockMvc
+	@Import(McpAuthorizationStandardTest.StubAuthorizationServer.class)
+	@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+	class 만료 {
 
-		MockHttpServletResponse third = initialize();
+		@Autowired
+		MockMvc mockMvc;
 
-		JsonNode error = MalformedMessageTest.내부_정보_없는_오류다("상한 초과", third, 503, -32603);
-		assertThat(error.get("message").asString()).isEqualTo("Max number of sessions reached");
-		assertThat(third.getHeader("Mcp-Session-Id")).isNull();
-	}
+		/** {@code 503}이 올 때까지 {@code initialize}를 보낸다. */
+		MockHttpServletResponse 상한에_닿을_때까지_initialize한다() throws Exception {
+			MockHttpServletResponse response = initialize(this.mockMvc);
+			for (int attempt = 1; response.getStatus() != 503 && attempt < MAX_ATTEMPTS; attempt++) {
+				response = initialize(this.mockMvc);
+			}
+			return response;
+		}
 
-	@Test
-	void 만료된_session의_요청은_404다() throws Exception {
-		String first = session을_연다();
-		// 상한을 채운다.
-		// 먼저 연 session이 먼저 만료되므로, 새 initialize가 성공했다면 first는 만료됐다.
-		session을_연다();
-		assertThat(자리가_빌_때까지_initialize한다().getStatus()).isEqualTo(200);
+		/** 상한이 찬 동안 {@code initialize}는 {@code 503}이다. {@code 503}이 아닌 응답이 올 때까지 다시 보낸다. */
+		MockHttpServletResponse 자리가_빌_때까지_initialize한다() throws Exception {
+			Instant deadline = Instant.now().plus(WAIT_LIMIT);
+			MockHttpServletResponse response = initialize(this.mockMvc);
+			while (response.getStatus() == 503 && Instant.now().isBefore(deadline)) {
+				Thread.sleep(50);
+				response = initialize(this.mockMvc);
+			}
+			return response;
+		}
 
-		MockHttpServletResponse response = this.mockMvc
-				.perform(McpScopeTest.mcp(TOKEN, TOOLS_LIST).header("Mcp-Session-Id", first))
-				.andReturn().getResponse();
+		@Test
+		void 만료된_session의_요청은_404다() throws Exception {
+			String first = session을_연다(this.mockMvc);
+			// 상한을 채운다.
+			// 먼저 연 session이 먼저 만료되므로, 새 initialize가 성공했다면 first는 만료됐다.
+			session을_연다(this.mockMvc);
+			assertThat(자리가_빌_때까지_initialize한다().getStatus()).isEqualTo(200);
 
-		JsonNode error = MalformedMessageTest.내부_정보_없는_오류다("만료된 session", response, 404, -32603);
-		assertThat(error.get("message").asString()).isEqualTo("Session not found: " + first);
-	}
+			MockHttpServletResponse response = this.mockMvc
+					.perform(McpScopeTest.mcp(TOKEN, TOOLS_LIST).header("Mcp-Session-Id", first))
+					.andReturn().getResponse();
 
-	@Test
-	void 만료로_자리가_비면_다시_initialize할_수_있다() throws Exception {
-		session을_연다();
-		session을_연다();
-		assertThat(initialize().getStatus()).isEqualTo(503);
+			JsonNode error = MalformedMessageTest.내부_정보_없는_오류다("만료된 session", response, 404, -32603);
+			assertThat(error.get("message").asString()).isEqualTo("Session not found: " + first);
+		}
 
-		MockHttpServletResponse again = 자리가_빌_때까지_initialize한다();
+		@Test
+		void 만료로_자리가_비면_다시_initialize할_수_있다() throws Exception {
+			assertThat(상한에_닿을_때까지_initialize한다().getStatus()).isEqualTo(503);
 
-		assertThat(again.getStatus()).isEqualTo(200);
-		assertThat(again.getHeader("Mcp-Session-Id")).isNotBlank();
+			MockHttpServletResponse again = 자리가_빌_때까지_initialize한다();
+
+			assertThat(again.getStatus()).isEqualTo(200);
+			assertThat(again.getHeader("Mcp-Session-Id")).isNotBlank();
+		}
 	}
 }

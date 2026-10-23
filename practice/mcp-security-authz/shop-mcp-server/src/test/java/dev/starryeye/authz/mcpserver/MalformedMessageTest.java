@@ -25,10 +25,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Spring MVC는 그 {@code stackTrace}까지 JSON으로 직렬화한다.
  * router filter가 이 본문을 {@code code}와 {@code message}만 남긴 JSON-RPC 오류로 바꾼다.
  *
- * <p>깨진 {@code id}나 {@code jsonrpc}는 MCP Java SDK 2.1.0의 Jackson 3 mapper가 변환 오류({@code JacksonException})를
+ * <p>깨진 {@code id}나 {@code jsonrpc}를 읽을 때 MCP Java SDK 2.1.0의 Jackson 3 mapper는 변환 오류({@code JacksonException})를
  * {@code IllegalArgumentException}으로 감싼다.
  * transport는 이 예외를 형식 오류로 보고 {@code 400}과 {@code -32600}으로 답한다.
  * 본문은 session을 찾기 전에 읽으므로, session 안에서 보내도 같은 응답이다.
+ *
+ * <p>{@code Mcp-Session-Id}를 붙인 {@code initialize}는 이미 연 session을 다시 여는 요청이다.
+ * Spring AI 2.0.2의 transport는 이 요청에 {@code 400}과 {@code -32603}으로 답한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -102,6 +105,15 @@ class MalformedMessageTest {
 			JsonNode error = 내부_정보_없는_오류다(body.getKey(), 보낸다(body.getValue(), null), 400, -32600);
 			assertThat(error.get("message").asString()).as(body.getKey()).isEqualTo("Invalid message format");
 		}
+	}
+
+	@Test
+	void session_ID를_붙인_initialize는_400이고_내부_정보가_없다() throws Exception {
+		String sessionId = session을_연다();
+
+		JsonNode error = 내부_정보_없는_오류다("session ID를 붙인 initialize",
+				보낸다(McpAuthorizationStandardTest.INITIALIZE, sessionId), 400, -32603);
+		assertThat(error.get("message").asString()).isEqualTo("Session already initialized");
 	}
 
 	@Test

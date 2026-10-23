@@ -21,7 +21,8 @@ import tools.jackson.databind.node.ObjectNode;
  * token이 있는 사용자는 누구나 형식이 틀린 본문 하나로 이 응답을 받을 수 있다.
  * 그래서 transport가 예외 객체로 답한 오류 응답을 모두 여기서 바꾼다.
  *
- * <p>바꾸는 응답은 아래와 같다. 상태 코드와 {@code code}는 transport가 정한 그대로 둔다.
+ * <p>바꾸는 응답은 아래와 같다.
+ * 상태 코드와 {@code code}는 transport가 정한 그대로 둔다.
  * <ul>
  *   <li>{@code 400} — JSON-RPC 메시지로 읽을 수 없는 본문, 맞지 않는 {@code Accept}, {@code Mcp-Session-Id} 없는 요청,
  *       session ID를 붙인 {@code initialize}</li>
