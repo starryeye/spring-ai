@@ -52,7 +52,10 @@ public final class ToolVisibility {
 				&& !grantable(roleOf(subject)).contains(this.registry.scopeFor(tool));
 	}
 
-	/** 서버가 내놓는 tool의 수다. 목록 로그에서 보인 tool 수와 견주는 데 쓴다. */
+	/**
+	 * 서버가 내놓는 tool의 수다.
+	 * 목록 로그에서 보인 tool 수와 견주는 데 쓴다.
+	 */
 	public int toolCount() {
 		return this.registry.all().size();
 	}

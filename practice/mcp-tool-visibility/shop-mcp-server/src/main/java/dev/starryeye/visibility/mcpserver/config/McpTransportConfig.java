@@ -48,7 +48,8 @@ import java.util.Map;
  * <p>학습용 역할 표({@link ToolVisibility})도 여기서 만든다.
  * 역할에 따라 {@code tools/list}를 거르는 것은 SDK의 tool filter({@link #toolVisibilityListFilter})고,
  * 숨긴 tool의 호출에 "모르는 tool"로 답하는 것은 {@code @Primary}인 transport wrapper({@link ToolVisibilityTransport})다.
- * 둘은 한 쌍이다. filter는 목록만 거르므로, wrapper가 없으면 숨긴 tool도 이름으로 부르면 실행된다.
+ * 둘은 한 쌍이다.
+ * filter는 목록만 거르므로, wrapper가 없으면 숨긴 tool도 이름으로 부르면 실행된다.
  */
 @Configuration
 @EnableConfigurationProperties(McpLimitProperties.class)
@@ -159,7 +160,8 @@ public class McpTransportConfig {
 	}
 
 	/**
-	 * 역할로 거른 {@code tools/list}를 만든다. SDK 2.1.0의 tool filter를 Spring AI 2.0.2의 customizer bean으로 등록한다.
+	 * 역할로 거른 {@code tools/list}를 만든다.
+	 * SDK 2.1.0의 tool filter를 Spring AI 2.0.2의 customizer bean으로 등록한다.
 	 * Spring AI가 tool을 모두 더한 뒤에 이 customizer를 적용하므로, 자동 구성의 server를 대신 만들 필요가 없다.
 	 *
 	 * <p>filter는 tool마다 불리고 요청의 {@code McpTransportContext}만 받는다.
@@ -169,7 +171,8 @@ public class McpTransportConfig {
 	 * filter가 예외를 던지면 SDK가 {@code tools/list} 전체를 내부 오류({@code -32603})로 바꾸므로 던지면 안 된다.
 	 * {@code sub}가 없는 요청은 사용자를 모르는 요청이라, 사용자를 {@code null}로 넘겨 {@link ToolVisibility}가 손님으로 다루게 한다.
 	 *
-	 * <p>이 filter는 {@code tools/list}에만 적용된다. {@code tools/call}은 거치지 않으므로,
+	 * <p>이 filter는 {@code tools/list}에만 적용된다.
+	 * {@code tools/call}은 거치지 않으므로,
 	 * 숨긴 tool의 호출은 {@link ToolVisibilityTransport}가 막는다.
 	 */
 	@Bean
@@ -179,7 +182,8 @@ public class McpTransportConfig {
 	}
 
 	/**
-	 * 숨긴 tool의 {@code tools/call}만 막는 wrapper다. 목록은 {@link #toolVisibilityListFilter}가 거른다.
+	 * 숨긴 tool의 {@code tools/call}만 막는 wrapper다.
+	 * 목록은 {@link #toolVisibilityListFilter}가 거른다.
 	 * 자동 구성의 server는 transport를 {@code McpStatelessServerTransport} 타입으로 받으므로, {@code @Primary}인 이 bean이 간다.
 	 * router는 {@code WebMvcStatelessServerTransport} 타입으로 받으므로 원래 bean이 그대로 간다.
 	 */

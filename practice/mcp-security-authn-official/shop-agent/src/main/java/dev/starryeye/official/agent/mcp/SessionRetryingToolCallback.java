@@ -54,7 +54,8 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
  * SDK 2.1.0은 이를 가리지 않는다.
  * {@code 404}의 session ID를 지금 session과 맞춰 보지 않고 지금 session을 버리고, 기다리던 호출을 모두 끝낸다.
  *
- * <p>그래서 같은 tool 호출이 두 번 실행될 수 있다. 아래가 모두 겹칠 때다.
+ * <p>그래서 같은 tool 호출이 두 번 실행될 수 있다.
+ * 아래가 모두 겹칠 때다.
  * <ul>
  * <li>옛 session으로 나간 다른 호출의 {@code 404}가 늦게 와서, 다시 연 새 session을 닫는다.
  * 그 {@code 404}는 옛 session의 {@code DELETE}가 끝나기 전에 와야 한다.
@@ -177,7 +178,10 @@ public class SessionRetryingToolCallback implements ToolCallback {
                 && request.headers().firstValue(AUTHORIZATION).isEmpty();
     }
 
-    /** {@code initCause}로 A → B → A 같은 고리가 생길 수 있다. 한 번 본 예외를 다시 만나면 멈춘다. */
+    /**
+     * {@code initCause}로 A → B → A 같은 고리가 생길 수 있다.
+     * 한 번 본 예외를 다시 만나면 멈춘다.
+     */
     private static boolean anyCause(Throwable failure, Predicate<Throwable> condition) {
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Throwable cause = failure; cause != null && seen.add(cause); cause = cause.getCause()) {

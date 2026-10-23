@@ -19,7 +19,10 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
  */
 public final class UnknownToolAwareToolCallback implements ToolCallback {
 
-	/** MCP Java SDK 2.1.0이 없는 tool에 주는 message다. SDK를 올리면 다시 확인한다. */
+	/**
+	 * MCP Java SDK 2.1.0이 없는 tool에 주는 message다.
+	 * SDK를 올리면 다시 확인한다.
+	 */
 	static final String UNKNOWN_TOOL_MESSAGE = "Unknown tool: invalid_tool_name";
 
 	private final ToolCallback delegate;

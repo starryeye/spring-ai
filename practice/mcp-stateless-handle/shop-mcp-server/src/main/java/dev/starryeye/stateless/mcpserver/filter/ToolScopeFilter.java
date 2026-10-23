@@ -56,7 +56,8 @@ import java.util.stream.Collectors;
  *
  * <p>{@code tools/call}의 params가 SDK의 {@code CallToolRequest}로 바뀔 수 없는 모양이면(params가 object가 아니거나,
  * {@code name}이 문자열이 아니거나, {@code arguments}·{@code _meta}가 object가 아니면) transport로 넘기지 않고
- * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다. 넘기면 Spring AI 2.0.2 stateless transport가 {@code 500}과 함께
+ * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다.
+ * 넘기면 Spring AI 2.0.2 stateless transport가 {@code 500}과 함께
  * 예외 객체를 본문에 써서 stack trace가 나간다. {@code name}을 문자열로만 받으면, SDK가 숫자·boolean 이름을 문자열로
  * 바꾸는 것과 이 filter가 이름을 읽는 방식이 어긋날 일도 없다. 이 거절은 속도 제한에서 세지 않는다.
  *

@@ -10,9 +10,13 @@ import java.time.Duration;
  * MCP session의 상한이다.
  * 정하지 않은 값은 기본값을 쓴다.
  *
- * @param maxSessions 서버가 한꺼번에 들고 있는 session 수의 상한. 사용자마다 세지 않고 서버 전체로 센다.
- *        넘으면 새 {@code initialize}가 {@code 503}이다. 기본 1000
- * @param sessionIdleTimeout 요청이 없는 session을 지우기까지의 시간. 지운 session으로 온 요청은 {@code 404}다. 기본 30분
+ * @param maxSessions 서버가 한꺼번에 들고 있는 session 수의 상한.
+ *        사용자마다 세지 않고 서버 전체로 센다.
+ *        넘으면 새 {@code initialize}가 {@code 503}이다.
+ *        기본 1000
+ * @param sessionIdleTimeout 요청이 없는 session을 지우기까지의 시간.
+ *        지운 session으로 온 요청은 {@code 404}다.
+ *        기본 30분
  */
 @ConfigurationProperties("mcp.limits")
 public record McpLimitProperties(@DefaultValue("1000") long maxSessions,

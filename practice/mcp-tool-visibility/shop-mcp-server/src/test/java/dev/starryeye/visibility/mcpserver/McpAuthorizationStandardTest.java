@@ -116,7 +116,8 @@ class McpAuthorizationStandardTest {
 				.issuedAt(expiresAt.minusSeconds(600))
 				.expiresAt(expiresAt)
 				.claim("scope", scopes);
-		// subject가 null이면 sub claim을 아예 넣지 않는다. 사용자를 모르는 token을 만들 때 쓴다.
+		// subject가 null이면 sub claim을 아예 넣지 않는다.
+		// 사용자를 모르는 token을 만들 때 쓴다.
 		if (subject != null) {
 			claims.subject(subject);
 		}

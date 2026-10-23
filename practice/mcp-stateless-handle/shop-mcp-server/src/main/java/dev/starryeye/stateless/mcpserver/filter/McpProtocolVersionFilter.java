@@ -20,7 +20,8 @@ import java.util.Set;
  * MCP 2025-11-25 Transports 명세의 "Protocol Version Header" 절을 구현한다.
  *
  * <p>Spring AI 2.0.2의 {@code WebMvcStatelessServerTransport}는 이 header를 읽지 않는다.
- * MCP SDK 2.1.0 server도 검증하지 못한다. transport가 server에 넘기는 것은 JSON-RPC message와 {@code McpTransportContext}뿐이다.
+ * MCP SDK 2.1.0 server도 검증하지 못한다.
+ * transport가 server에 넘기는 것은 JSON-RPC message와 {@code McpTransportContext}뿐이다.
  * 그래서 지원하지 않는 값을 보내도 200이 돌아온다. transport와 SDK가 하지 않는 이 검증을 filter로 채운다.
  *
  * <p>명세가 정한 규칙은 두 가지다.

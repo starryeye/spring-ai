@@ -67,7 +67,8 @@ public final class McpCalls {
 			// 만든 적 없는 handle은 "찾을 수 없다"다. 가진 것만으로는 쓸 수 없다.
 			print(out, "getBasket(모르는 ID)",
 					call(client, "getBasket", Map.of("basketId", UNKNOWN_BASKET)));
-			// 주문은 orders:write가 필요하다. 조회 token이면 403 → 그 자리에서 step-up → SDK가 새 token으로 다시 보낸다.
+			// 주문은 orders:write가 필요하다.
+			// 조회 token이면 403 → 그 자리에서 step-up → SDK가 새 token으로 다시 보낸다.
 			print(out, "checkout", call(client, "checkout", Map.of("basketId", basketId)));
 		}
 		catch (RuntimeException ex) {

@@ -106,7 +106,10 @@ class SessionLimitTest {
 		@Autowired
 		WebApplicationContext context;
 
-		/** filter를 하나도 붙이지 않은 {@code MockMvc}다. 요청이 {@code McpSessionBindingFilter} 없이 transport에 곧장 닿는다. */
+		/**
+		 * filter를 하나도 붙이지 않은 {@code MockMvc}다.
+		 * 요청이 {@code McpSessionBindingFilter} 없이 transport에 곧장 닿는다.
+		 */
 		MockMvc transportOnly;
 
 		@BeforeEach

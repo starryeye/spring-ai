@@ -14,9 +14,13 @@ import java.time.Duration;
  * @param maxRequestBody scope filter가 tool 이름을 읽으려고 메모리에 올리는 본문의 상한. 넘으면 {@code 413}이다. 기본 1 MiB
  * @param toolCallsPerMinute 사용자(token의 {@code sub})마다 1분 동안 부를 수 있는 {@code tools/call} 수.
  *        넘으면 {@code 429}와 {@code Retry-After}다. 기본 60
- * @param maxSessions 서버가 한꺼번에 들고 있는 session 수의 상한. 사용자마다 세지 않고 서버 전체로 센다.
- *        넘으면 새 {@code initialize}가 {@code 503}이다. 기본 1000
- * @param sessionIdleTimeout 요청이 없는 session을 지우기까지의 시간. 지운 session으로 온 요청은 {@code 404}다. 기본 30분
+ * @param maxSessions 서버가 한꺼번에 들고 있는 session 수의 상한.
+ *        사용자마다 세지 않고 서버 전체로 센다.
+ *        넘으면 새 {@code initialize}가 {@code 503}이다.
+ *        기본 1000
+ * @param sessionIdleTimeout 요청이 없는 session을 지우기까지의 시간.
+ *        지운 session으로 온 요청은 {@code 404}다.
+ *        기본 30분
  */
 @ConfigurationProperties("mcp.limits")
 public record McpLimitProperties(DataSize maxRequestBody, Integer toolCallsPerMinute,
