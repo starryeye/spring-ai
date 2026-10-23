@@ -54,6 +54,12 @@ class SessionRetryingToolCallbackTest {
         return new ToolExecutionException(GET_STOCK, new RuntimeException("MCP session with server terminated"));
     }
 
+    /** 다시 보낸 호출의 {@code initialize}가 끝나기 전에 session이 또 없어졌다. tool 요청은 나가지 않았다. */
+    static ToolExecutionException initialize_중에_session이_또_없어졌다() {
+        return new ToolExecutionException(GET_STOCK, new RuntimeException("Client failed to initialize calling tool",
+                new RuntimeException("MCP session with server terminated")));
+    }
+
     static McpHttpClientTransportAuthorizationException authorizationError(int status,
                                                                            Map<String, List<String>> headers) {
         HttpRequestSnapshot request = new HttpRequestSnapshot(MCP, "POST", HttpHeaders.of(headers, (name, value) -> true));
@@ -146,6 +152,35 @@ class SessionRetryingToolCallbackTest {
 
         assertThatThrownBy(() -> new SessionRetryingToolCallback(tool).call("{}")).isSameAs(second);
         assertThat(tool.inputs).hasSize(2);
+    }
+
+    @Test
+    void 다시_보낸_호출이_initialize_중에_session이_또_없어져_끝나면_한_번_더_부른다() {
+        ScriptedTool tool = new ScriptedTool(session이_없어졌다(), initialize_중에_session이_또_없어졌다());
+
+        String result = new SessionRetryingToolCallback(tool).call("{}");
+
+        assertThat(result).isEqualTo("[{\"text\":\"p1: 3개\"}]");
+        assertThat(tool.inputs).hasSize(3);
+    }
+
+    @Test
+    void 다시_보낸_호출의_initialize가_session_없음이_아닌_이유로_끝나면_더_보내지_않는다() {
+        ToolExecutionException second = new ToolExecutionException(GET_STOCK,
+                new RuntimeException("Client failed to initialize calling tool", new ConnectException("Connection refused")));
+        ScriptedTool tool = new ScriptedTool(session이_없어졌다(), second);
+
+        assertThatThrownBy(() -> new SessionRetryingToolCallback(tool).call("{}")).isSameAs(second);
+        assertThat(tool.inputs).hasSize(2);
+    }
+
+    @Test
+    void 세_번째_호출이_다시_initialize_중에_끝나도_그대로_올린다() {
+        ToolExecutionException third = initialize_중에_session이_또_없어졌다();
+        ScriptedTool tool = new ScriptedTool(session이_없어졌다(), initialize_중에_session이_또_없어졌다(), third);
+
+        assertThatThrownBy(() -> new SessionRetryingToolCallback(tool).call("{}")).isSameAs(third);
+        assertThat(tool.inputs).hasSize(3);
     }
 
     static Stream<Arguments> session_없음이_아닌_실패() {

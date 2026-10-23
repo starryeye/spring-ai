@@ -93,7 +93,11 @@ final class FakeStreamableMcpServer implements AutoCloseable {
         this.openStreams.forEach(stream -> stream.complete(false));
     }
 
-    /** 살아 있는 session을 모두 지우고 열린 GET stream의 연결을 끊는다. client는 끊긴 stream을 다시 연결한다. */
+    /**
+     * 살아 있는 session을 모두 지우고 열린 GET stream의 연결을 끊는다.
+     * 다시 연결하는 client라면 옛 session ID로 GET을 보내 {@code 404}를 받는다.
+     * SDK 2.1.0 client는 다시 연결하지 않는다(테스트가 확인한다).
+     */
     void expireSessionsAndDropStreams() {
         this.liveSessions.clear();
         this.openStreams.forEach(stream -> stream.complete(true));
@@ -161,7 +165,7 @@ final class FakeStreamableMcpServer implements AutoCloseable {
         body.flush();
         if (end.join()) {
             // 마지막 chunk를 쓰지 않고 handler를 예외로 끝내면 HttpServer가 연결을 바로 닫는다.
-            // client는 stream이 끊긴 것으로 보고 다시 연결한다.
+            // client는 읽던 stream이 중간에 끊긴 것을 오류로 받는다.
             throw new IOException("listening stream dropped");
         }
         exchange.close();

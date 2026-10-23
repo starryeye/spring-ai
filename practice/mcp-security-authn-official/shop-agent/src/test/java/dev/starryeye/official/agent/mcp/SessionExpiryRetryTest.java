@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.execution.ToolExecutionException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,6 +27,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,6 +47,8 @@ class SessionExpiryRetryTest {
     private FakeStreamableMcpServer server;
 
     private McpSyncClient client;
+
+    private SyncMcpToolCallbackProvider provider;
 
     @AfterEach
     void tearDown() {
@@ -82,8 +86,8 @@ class SessionExpiryRetryTest {
                 .transportContextProvider(new SecurityMcpTransportContextProvider())
                 .requestTimeout(requestTimeout)
                 .build();
-        return SessionRetryingToolCallback.wrap(SyncMcpToolCallbackProvider.builder().mcpClients(this.client).build())
-                .getToolCallbacks();
+        this.provider = SyncMcpToolCallbackProvider.builder().mcpClients(this.client).build();
+        return SessionRetryingToolCallback.wrap(this.provider).getToolCallbacks();
     }
 
     ToolCallback[] 서버에_연결한다(boolean listeningStream) throws IOException {
@@ -126,6 +130,56 @@ class SessionExpiryRetryTest {
                         tuple("session-2", 200));
         다시_연_session의_token은("Bearer token-bob");
         assertThat(this.server.toolCalls().getLast().authorization()).isEqualTo("Bearer token-bob");
+    }
+
+    @Test
+    void SDK의_뒤_initialize가_끝난_뒤라면_한_번만_다시_보내_성공한다() throws Exception {
+        login("alice");
+        서버에_연결한다(false);
+        ToolCallback raw = tool(this.provider.getToolCallbacks(), "getStock");
+        AtomicInteger calls = new AtomicInteger();
+        // 두 번째 호출 전에 SDK가 뒤에서 보낸 token 없는 initialize가 401로 끝나기를 기다린다.
+        // 그러면 다시 보낸 호출은 그 initialize에 합류하지 않고 bob의 token으로 session을 연다.
+        ToolCallback getStock = new SessionRetryingToolCallback(new ToolCallback() {
+
+            @Override
+            public ToolDefinition getToolDefinition() {
+                return raw.getToolDefinition();
+            }
+
+            @Override
+            public String call(String toolInput) {
+                if (calls.incrementAndGet() == 2) {
+                    뒤의_initialize가_끝나기를_기다린다();
+                }
+                return raw.call(toolInput);
+            }
+        });
+        getStock.call("{}");
+        calls.set(0);
+
+        this.server.expireSessions();
+        login("bob");
+        String result = getStock.call("{}");
+
+        assertThat(result).contains("session-2");
+        assertThat(calls).hasValue(2);
+        assertThat(this.server.initializes()).extracting(Recorded::authorization, Recorded::status)
+                .containsExactly(tuple("Bearer token-alice", 200), tuple(null, 401), tuple("Bearer token-bob", 200));
+        assertThat(this.server.toolCalls()).extracting(Recorded::sessionId, Recorded::status)
+                .containsExactly(tuple("session-1", 200), tuple("session-1", 404), tuple("session-2", 200));
+    }
+
+    /** 서버가 token 없는 initialize에 401로 답한 뒤, client가 그 실패를 정리할 시간을 넉넉히 준다. */
+    void 뒤의_initialize가_끝나기를_기다린다() {
+        try {
+            this.server.awaitRequest(request -> request.isInitialize() && request.authorization() == null);
+            Thread.sleep(100);
+        }
+        catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(ex);
+        }
     }
 
     @Test

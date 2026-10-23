@@ -31,38 +31,55 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
  * 그대로 두면 오래 쉰 뒤 첫 질문의 tool 호출이 오류로 끝난다.
  * 그래서 이 callback이 같은 입력으로 다시 부른다.
  *
- * <p>다시 보내는 실패는 MCP Server가 tool을 실행하지 않은 것이 확실한 두 가지다.
+ * <p>첫 호출은 아래 두 실패일 때 다시 보낸다.
  * <ul>
  * <li>session이 없어졌다.
- * SDK는 {@code 404}를 받으면 그 session에서 기다리던 요청을 모두 {@value #SESSION_TERMINATED} 예외로 끝낸다.
+ * SDK는 session ID를 붙인 요청이 {@code 404}나 {@code 400}을 받으면 session이 없어진 것으로 본다.
+ * 그러면 그 client에서 기다리던 호출을 모두 {@value #SESSION_TERMINATED} 예외로 끝낸다.
  * 그래서 호출한 쪽에는 {@link McpTransportSessionNotFoundException}보다 이 예외가 먼저 닿는다.
- * 둘 중 하나가 원인 사슬에 있으면 session이 없어진 것으로 본다.
  * <li>token 없이 나간 {@code initialize}가 {@code 401}을 받았다.
  * SDK가 뒤에서 보내는 {@code initialize}에는 요청한 사용자가 없어 token이 붙지 않는다({@link OAuth2TokenAttachingRequestCustomizer}).
  * 그 사이 같은 client로 나간 호출은 이 {@code initialize}에 합류해 같은 {@code 401}로 끝난다.
- * tool 요청은 아직 나가지 않았다.
  * 다시 부르면 그 호출이 사용자의 token으로 session을 새로 연다.
  * </ul>
- * delegate는 세 번까지 부른다.
- * 세 번째는 두 번째가 token 없는 {@code initialize}의 {@code 401}로 끝났을 때만 부른다.
- * session이 없어진 실패로는 한 번만 다시 보낸다.
+ * 두 번째 호출이 {@code initialize} 단계에서 끝났으면 한 번 더 부른다.
+ * 위의 {@code 401}을 받았거나, {@code initialize} 중에 session이 또 없어진 경우다.
+ * 그래서 delegate는 세 번까지 부른다.
  *
- * <p>timeout, 연결 오류, {@code isError} 결과, {@code 403}은 다시 보내지 않는다.
+ * <p>MCP Server가 tool을 실행하지 않은 것이 확실한 실패는 둘이다.
+ * 원인 사슬에 {@link McpTransportSessionNotFoundException}이 있으면 이 호출 자신이 거절되었다.
+ * {@code initialize} 단계에서 끝났으면(위의 {@code 401}과 {@code initialize} 중 session 없음) tool 요청은 아직 나가지 않았다.
+ * {@value #SESSION_TERMINATED} 예외만으로는 확실하지 않다.
+ * 그 {@code 404}가 이 호출이 쓴 session의 것일 때만 이 호출이 실행되지 않았다고 말할 수 있다.
+ * SDK 2.1.0은 이를 가리지 않는다.
+ * {@code 404}의 session ID를 지금 session과 맞춰 보지 않고 지금 session을 버리고, 기다리던 호출을 모두 끝낸다.
+ *
+ * <p>그래서 같은 tool 호출이 두 번 실행될 수 있다. 아래가 모두 겹칠 때다.
+ * <ul>
+ * <li>옛 session으로 나간 다른 호출의 {@code 404}가 늦게 와서, 다시 연 새 session을 닫는다.
+ * 그 {@code 404}는 옛 session의 {@code DELETE}가 끝나기 전에 와야 한다.
+ * {@code DefaultMcpTransportSession.closeGracefully}는 {@code DELETE}가 끝난 뒤에야 옛 session의 열린 요청을 끊기 때문이다.
+ * <li>그때 새 session에서 어떤 호출의 첫 시도가 이미 실행되었다.
+ * 이렇게 되려면 호출 셋이 동시에 있어야 한다.
+ * 호출 둘만으로는 다시 보낸 호출만 끝나고, 다시 보낸 호출의 session 없음은 그대로 올린다.
+ * </ul>
+ * 이 practice의 tool은 조회이거나 재고를 정한 값으로 바꾸는 것이라 다시 실행해도 상태가 같다.
+ * 그래서 이 위험을 받아들인다.
+ *
+ * <p>timeout, 연결 오류, {@code isError} 결과는 다시 보내지 않는다.
  * MCP Server가 이미 tool을 실행했을 수 있어서다.
- * 쓰기 tool이면 같은 변경이 두 번 일어난다.
+ * {@code 403}과 token을 붙인 요청의 {@code 401}도 다시 보내지 않는다.
+ * tool이 돌기 전에 거절된 것이지만, 다시 보내도 같은 답이 오기 때문이다.
  * {@code 403 insufficient_scope}가 바뀐 {@code StepUpRequiredException}도 그대로 올린다.
  * 사용자가 consent를 거쳐야 하므로 다시 보내도 같은 {@code 403}이고, 채팅까지 올라가야 consent 카드가 뜬다.
- *
- * <p>막지 못하는 경우가 하나 있다.
- * SDK는 {@code 404}가 지금 session의 것인지 보지 않고 지금 session을 버린다.
- * 그래서 만료 직후 여러 사용자가 동시에 부르면, 늦게 온 옛 session의 {@code 404}가 새 session을 닫을 수 있다.
- * 그때 새 session에서 이미 실행된 호출도 session이 없어진 것처럼 끝난다.
- * 그 호출이 처음 보낸 것이면 이 callback이 다시 보내므로, 쓰기 tool이 두 번 실행될 수 있다.
  */
 public class SessionRetryingToolCallback implements ToolCallback {
 
     /** SDK의 {@code McpClientSession}이 session을 닫으며 기다리던 요청을 끝낼 때 쓰는 문구다(SDK 2.1.0). */
     static final String SESSION_TERMINATED = "MCP session with server terminated";
+
+    /** SDK의 {@code LifecycleInitializer}가 {@code initialize} 실패를 감쌀 때 쓰는 문구의 앞부분이다(SDK 2.1.0). */
+    static final String INITIALIZATION_FAILED = "Client failed to initialize ";
 
     private static final Logger log = LoggerFactory.getLogger(SessionRetryingToolCallback.class);
 
@@ -104,19 +121,25 @@ public class SessionRetryingToolCallback implements ToolCallback {
             return this.delegate.call(toolInput, toolContext);
         }
         catch (RuntimeException ex) {
-            if (!sessionEnded(ex) && !userlessInitializeRejected(ex)) {
+            if (userlessInitializeRejected(ex)) {
+                log.info("SDK가 사용자 없이 보낸 initialize에 합류해 401로 끝났다. tool 요청은 나가지 않았으므로 다시 부른다 (tool={})",
+                        name());
+            }
+            else if (sessionEnded(ex)) {
+                log.info("MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool={})", name());
+            }
+            else {
                 throw ex;
             }
-            log.info("MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool={})", name());
         }
         try {
             return this.delegate.call(toolInput, toolContext);
         }
         catch (RuntimeException ex) {
-            if (!userlessInitializeRejected(ex)) {
+            if (!userlessInitializeRejected(ex) && !initializationInterrupted(ex)) {
                 throw ex;
             }
-            log.info("SDK가 사용자 없이 보낸 initialize에 합류해 401로 끝났다. tool 요청은 나가지 않았으므로 다시 부른다 (tool={})", name());
+            log.info("다시 보낸 호출이 initialize 단계에서 끝났다. tool 요청은 나가지 않았으므로 한 번 더 부른다 (tool={})", name());
         }
         return this.delegate.call(toolInput, toolContext);
     }
@@ -128,6 +151,16 @@ public class SessionRetryingToolCallback implements ToolCallback {
     static boolean sessionEnded(Throwable failure) {
         return anyCause(failure, cause -> cause instanceof McpTransportSessionNotFoundException
                 || (cause.getClass() == RuntimeException.class && SESSION_TERMINATED.equals(cause.getMessage())));
+    }
+
+    /**
+     * {@code initialize}가 끝나기 전에 session이 또 없어졌다.
+     * SDK는 {@code initialize}가 성공한 뒤에야 tool 요청을 보내므로, 이 실패면 tool 요청은 나가지 않았다.
+     */
+    static boolean initializationInterrupted(Throwable failure) {
+        return anyCause(failure, cause -> cause.getClass() == RuntimeException.class
+                && cause.getMessage() != null && cause.getMessage().startsWith(INITIALIZATION_FAILED)
+                && cause.getCause() != null && sessionEnded(cause.getCause()));
     }
 
     /**
