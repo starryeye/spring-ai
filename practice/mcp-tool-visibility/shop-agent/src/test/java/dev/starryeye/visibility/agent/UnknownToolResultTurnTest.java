@@ -43,7 +43,7 @@ import static org.mockito.Mockito.mock;
  *
  * <p>목록은 운영과 같은 loader({@link UserToolCatalog#mcp})로 만든다.
  * 그래서 tool마다 {@code SyncMcpToolCallback}을 {@code UnknownToolAwareToolCallback}이 감싼다.
- * MCP client만 mock이고, {@code callTool}은 SDK 2.0.1이 없는 tool에 주는 JSON-RPC 오류({@link McpError})를 던진다.
+ * MCP client만 mock이고, {@code callTool}은 SDK 2.1.0이 없는 tool에 주는 JSON-RPC 오류({@link McpError})를 던진다.
  */
 @SpringBootTest
 class UnknownToolResultTurnTest {

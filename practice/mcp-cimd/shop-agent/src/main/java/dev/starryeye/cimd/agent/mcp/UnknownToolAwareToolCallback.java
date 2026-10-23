@@ -12,14 +12,14 @@ import org.springframework.ai.tool.metadata.ToolMetadata;
 /**
  * MCP tool 호출이 "모르는 tool" 오류로 끝나면, 이 사용자의 tool 목록이 낡았다고 보고 버린다(안내서 12장).
  *
- * <p>Spring AI 2.0.1의 {@code SyncMcpToolCallback}은 JSON-RPC 오류({@link McpError})를 감싸지 않고 그대로 던진다.
+ * <p>Spring AI 2.0.2의 {@code SyncMcpToolCallback}은 JSON-RPC 오류({@link McpError})를 감싸지 않고 그대로 던진다.
  * tool loop는 {@link ToolExecutionException}만 잡으므로, 그대로 두면 채팅 stream이 오류로 끝난다.
  * 그래서 여기서 받아 목록을 버리고 {@link ToolExecutionException}으로 바꾼다.
  * 그러면 tool 실행 예외 처리가 오류 문장을 모델에게 tool 결과로 돌려주고 turn이 이어진다.
  */
 public final class UnknownToolAwareToolCallback implements ToolCallback {
 
-	/** MCP Java SDK 2.0.1이 없는 tool에 주는 message다. SDK를 올리면 다시 확인한다. */
+	/** MCP Java SDK 2.1.0이 없는 tool에 주는 message다. SDK를 올리면 다시 확인한다. */
 	static final String UNKNOWN_TOOL_MESSAGE = "Unknown tool: invalid_tool_name";
 
 	private final ToolCallback delegate;

@@ -178,7 +178,8 @@ public class McpSecurityConfig {
     public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder> mcpTokenAttachingCustomizer(
             OAuth2AuthorizedClientManager authorizedClientManager) {
         return (name, transport) -> transport
-                .httpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID))
+                // httpRequestCustomizer(...)는 다른 customizer를 모두 지우므로 add로 더한다.
+                .addHttpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID))
                 .authorizationErrorHandler(new StepUpAuthorizationErrorHandler());
     }
 

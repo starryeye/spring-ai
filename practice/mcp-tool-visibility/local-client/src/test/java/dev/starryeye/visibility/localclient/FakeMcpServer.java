@@ -99,7 +99,7 @@ final class FakeMcpServer implements AutoCloseable {
 
 	private void handleToolCall(HttpExchange exchange, Object id, String toolName, Map<String, Object> arguments,
 			String authorization) throws IOException {
-		// MCP Java SDK 2.0.1 서버가 없는 tool에 주는 응답과 같다. HTTP 200이라 step-up handler는 불리지 않는다.
+		// MCP Java SDK 2.1.0 서버가 없는 tool에 주는 응답과 같다. HTTP 200이라 step-up handler는 불리지 않는다.
 		if (this.hidden.contains(toolName)) {
 			String body = MAPPER.writeValueAsString(Map.of("jsonrpc", "2.0", "id", id, "error", Map.of(
 					"code", -32602, "message", "Unknown tool: invalid_tool_name", "data", "Tool not found: " + toolName)));

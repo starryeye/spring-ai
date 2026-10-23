@@ -32,7 +32,7 @@ public final class ToolVisibilityTransport implements McpStatelessServerTranspor
 	private static final Logger log = LoggerFactory.getLogger(ToolVisibilityTransport.class);
 
 	/**
-	 * SDK 2.0.1이 없는 tool에 주는 message다(이름은 넣지 않는 고정 문자열이다).
+	 * SDK 2.1.0이 없는 tool에 주는 message다(이름은 넣지 않는 고정 문자열이다).
 	 * 숨긴 tool도 이 값으로 답해야 정말 없는 tool과 구별되지 않는다.
 	 * SDK를 올리면 다시 확인한다.
 	 */

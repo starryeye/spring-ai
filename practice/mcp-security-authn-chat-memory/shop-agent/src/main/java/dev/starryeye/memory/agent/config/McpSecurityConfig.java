@@ -49,7 +49,7 @@ public class McpSecurityConfig {
     /** application.yml의 registration key와 같아야 한다. */
     public static final String REGISTRATION_ID = "authserver";
 
-    private static final McpSchema.Implementation CLIENT_INFO = new McpSchema.Implementation("memory-shop-agent", "0.0.1");
+    private static final McpSchema.Implementation CLIENT_INFO = McpSchema.Implementation.builder("memory-shop-agent", "0.0.1").build();
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
 
@@ -135,7 +135,8 @@ public class McpSecurityConfig {
         String origin = resource.getScheme() + "://" + resource.getRawAuthority();
         return new UserMcpClients(owner -> McpClient.sync(HttpClientStreamableHttpTransport.builder(origin)
                         .endpoint(resource.getRawPath())
-                        .httpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager,
+                        // httpRequestCustomizer(...)는 다른 customizer를 모두 지우므로 add로 더한다.
+                        .addHttpRequestCustomizer(new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager,
                                 REGISTRATION_ID, owner))
                         .build())
                 .clientInfo(CLIENT_INFO)

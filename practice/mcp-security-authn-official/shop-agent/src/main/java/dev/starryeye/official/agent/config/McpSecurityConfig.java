@@ -126,7 +126,8 @@ public class McpSecurityConfig {
     @Bean
     public McpClientCustomizer<HttpClientStreamableHttpTransport.Builder> mcpTokenAttachingCustomizer(
             OAuth2AuthorizedClientManager authorizedClientManager) {
-        return (name, transport) -> transport.httpRequestCustomizer(
+        // httpRequestCustomizer(...)는 다른 customizer를 모두 지우므로 add로 더한다.
+        return (name, transport) -> transport.addHttpRequestCustomizer(
                 new OAuth2TokenAttachingRequestCustomizer(authorizedClientManager, REGISTRATION_ID));
     }
 }

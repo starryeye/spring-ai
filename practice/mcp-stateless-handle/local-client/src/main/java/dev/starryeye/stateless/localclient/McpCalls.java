@@ -41,7 +41,8 @@ public final class McpCalls {
 				// 요청을 새로 만들 때마다 지금 token을 붙인다. SDK가 같은 요청을 그대로 재시도할 때는 이
 				// customizer를 다시 부르지 않으므로, step-up 뒤의 새 token은 callOnce가 새로 만드는
 				// 요청에만 들어간다(재시도가 아니라 새 tool 호출이라야 여기를 다시 지난다).
-				.httpRequestCustomizer((builder, method, endpoint, body, context) ->
+				// httpRequestCustomizer(...)는 다른 customizer를 모두 지우므로 add로 더한다.
+				.addHttpRequestCustomizer((builder, method, endpoint, body, context) ->
 						builder.setHeader("Authorization", "Bearer " + holder.accessToken()))
 				.authorizationErrorHandler(McpHttpClientTransportAuthorizationErrorHandler.fromSync(stepUp))
 				.build();

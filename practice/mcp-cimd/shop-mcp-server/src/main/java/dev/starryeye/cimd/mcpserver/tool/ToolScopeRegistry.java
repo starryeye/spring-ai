@@ -52,7 +52,7 @@ public final class ToolScopeRegistry {
 	/**
 	 * 주어진 class에서 {@link McpTool}이 붙은 메서드를 찾아 tool 이름과 scope를 모은다. {@link RequiredScope}가 없으면 기본 scope다.
 	 *
-	 * <p>메서드를 찾는 규칙은 Spring AI 2.0.x의 annotation provider와 같다.
+	 * <p>메서드를 찾는 규칙은 Spring AI 2.0.2의 annotation provider({@code AnnotationProviderUtil.beanMethods})와 같다.
 	 * 상속한 메서드까지 보고({@code ReflectionUtils.getUniqueDeclaredMethods}), 이름이 비어 있으면 메서드 이름을 쓴다.
 	 * 이름이 같은 tool이 둘이면 어느 scope를 써야 할지 모르므로 표를 만들지 않는다.
 	 */

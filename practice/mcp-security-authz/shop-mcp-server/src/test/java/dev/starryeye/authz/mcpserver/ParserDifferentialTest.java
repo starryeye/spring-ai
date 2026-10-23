@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>상태 코드만 보지 않고 결과를 본다. 쓰기 tool({@code updateStock})이 실행되면 재고가 바뀐다.
  * 대조군은 같은 경로로 쓰기 scope token을 보내 재고가 정말 바뀌는 것을 보인다. 그래야 "재고가 그대로다"라는 단정이 의미를 가진다.
  *
- * <p>지금 조합(Spring AI 2.0.0, MCP SDK 2.0.0)에서 확인한 동작은 이렇다.
+ * <p>지금 조합(Spring AI 2.0.2, MCP SDK 2.1.0)에서 확인한 동작은 이렇다.
  * 중복 key는 filter와 SDK 모두 뒤의 값을 쓴다.
  * 숫자·boolean 이름은 filter가 "이름 없음"으로 보고 넘기지만, SDK가 문자열로 바꿔 "모르는 tool"로 답한다.
  * 배열 이름은 SDK가 문자열로 바꾸지 못해 결과 없이 끝난다.

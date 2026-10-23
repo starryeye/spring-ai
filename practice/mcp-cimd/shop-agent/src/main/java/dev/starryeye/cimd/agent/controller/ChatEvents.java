@@ -40,7 +40,7 @@ public final class ChatEvents {
     static final String TOOL_UNAVAILABLE = "tool-unavailable";
 
     /**
-     * Spring AI 2.0.1에는 이 오류를 위한 전용 예외 type이 없어서 message 글자로 알아본다.
+     * Spring AI 2.0.2에는 이 오류를 위한 전용 예외 type이 없어서 message 글자로 알아본다.
      * 목록에 없는 tool을 모델이 부를 때 던지는 message의 앞부분이다.
      * Spring AI를 올리면 다시 확인한다.
      */
