@@ -29,8 +29,9 @@ import java.util.List;
  * server가 생성될 때 넘기는 handler를 감싸, SDK가 tool을 찾기 전에 답한다.
  * 답은 SDK가 정말 없는 tool에 주는 오류와 같아서, 호출한 쪽은 숨긴 tool과 없는 tool을 구별할 수 없다.
  *
- * <p>{@code tools/list}의 응답은 바꾸지 않고, SDK가 거른 결과의 수만 한 요청에 한 줄 로그로 남긴다.
- * filter는 tool마다 불려서 그 한 줄을 남길 수 없다.
+ * <p>목록 로그는 한 요청에 한 줄이어야 한다.
+ * SDK의 tool filter는 tool마다 불리므로, 요청마다 한 번 지나는 이 handler에서 남긴다.
+ * {@code tools/list}의 응답은 바꾸지 않고, SDK가 거른 결과의 수만 남긴다.
  */
 public final class ToolVisibilityTransport implements McpStatelessServerTransport {
 

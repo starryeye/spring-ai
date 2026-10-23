@@ -164,6 +164,8 @@ public class McpTransportConfig {
 	 *
 	 * <p>filter는 tool마다 불리고 요청의 {@code McpTransportContext}만 받는다.
 	 * 사용자는 transport가 token에서 꺼내 넣은 {@code sub}를 읽는다.
+	 * SDK는 filter를 {@code filterWhen}으로 적용해 tool 순서를 등록된 순서 그대로 둔다.
+	 * 그래서 client의 목록 cache와 모델의 prompt cache가 흔들리지 않는다.
 	 * filter가 예외를 던지면 SDK가 {@code tools/list} 전체를 내부 오류({@code -32603})로 바꾸므로 던지면 안 된다.
 	 * {@code sub}가 없는 요청은 사용자를 모르는 요청이라, 사용자를 {@code null}로 넘겨 {@link ToolVisibility}가 손님으로 다루게 한다.
 	 *
