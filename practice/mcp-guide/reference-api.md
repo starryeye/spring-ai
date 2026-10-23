@@ -53,7 +53,7 @@ MCP endpoint `/mcp`가 받는 모든 요청에 공통인 header다.
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
-| `MCP-Protocol-Version` | MUST — 초기화 뒤 모든 요청 · 값은 협상한 버전 SHOULD ([Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)) | header가 없고 달리 알 방법도 없으면 서버는 `2025-03-26`으로 여긴다(SHOULD). 무효·미지원 값에는 `400`(MUST) | MCP Java SDK 2.0.0 client(agent, `local-client`)는 `initialize`에도 붙인다. `McpProtocolVersionFilter`는 `1999-01-01`(C15)과 `2026-07-28`에 `400`, header가 없으면(S10) 통과 |
+| `MCP-Protocol-Version` | MUST — 초기화 뒤 모든 요청 · 값은 협상한 버전 SHOULD ([Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header)) | header가 없고 달리 알 방법도 없으면 서버는 `2025-03-26`으로 여긴다(SHOULD). 무효·미지원 값에는 `400`(MUST) | MCP Java SDK 2.1.0 client(agent, `local-client`)는 `initialize`에도 붙인다. `McpProtocolVersionFilter`는 `1999-01-01`(C15)과 `2026-07-28`에 `400`, header가 없으면(S10) 통과 |
 | `MCP-Session-Id` | MUST — 서버가 초기화 때 발급했으면 이후 모든 HTTP 요청 ([Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management)) | 보이는 ASCII(0x21\~0x7E)만 쓴다(MUST). header 이름은 대소문자를 가리지 않아서, official 응답의 `Mcp-Session-Id`와 같은 header다 | 씀 — 없으면 `400`(C14), 모르는 값이면 `404`(S13). stateless는 서버가 발급하지 않아 client도 보내지 않는다(stateless S3) |
 | `Origin` | client 쪽 요구 없음 · 서버는 모든 연결에서 검증 MUST, 있는데 무효면 `403` MUST ([Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning)) | browser가 붙이고, 서버 사이 호출에는 없다 | agent·`local-client`는 보내지 않는다. 허용한 `Origin`이 없어서 `Origin`이 붙은 요청은 token이 없어도 모두 `403`이다(C13 `http://evil.example`) |
 | `Host` | MCP 규정 없음 · 이 서버로 올 요청이 아니면 `421 Misdirected Request` ([RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20)) | DNS rebinding을 막는 데 쓴다 | `localhost:8111`·`127.0.0.1:8111`만 받고, 나머지는 token이 없어도 `421`(S14) |
@@ -239,9 +239,9 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | `200`과 `Content-Type: application/json` | request면 이것과 SSE 중 하나 MUST, client는 둘 다 처리 MUST | JSON 객체 하나 | `initialize`(C7) |
 | `200`과 `Content-Type: text/event-stream` | 위와 같음 | SSE stream. 관련 request·notification을 보낸 뒤 response를 보내고, response 뒤에는 stream을 닫는다(SHOULD) | `tools/list`·`tools/call`(C9, C10). stateless는 SSE로 답하지 않는다(`WebMvcStatelessServerTransport`) |
 | SSE 준비 event(event ID와 빈 `data`) | SHOULD — SSE 시작 직후 | client가 `Last-Event-ID`로 다시 붙을 수 있게 한다 | 보내지 않는다 — 첫 event가 곧 response다(C9, C10) |
-| SSE `id` | MAY, 있으면 session 안 모든 stream에서 전역 유일 MUST ([Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | 재개용 커서 | session ID를 그대로 쓴다(C9·C10 모두 `id:1eefa5b4-...`). 그래서 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([8장](08-security.md)) |
+| SSE `id` | MAY, 있으면 session 안 모든 stream에서 전역 유일 MUST ([Resumability and Redelivery](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#resumability-and-redelivery)) | 재개용 커서 | session ID를 그대로 쓴다(C9·C10 모두 `id:6226b6d0-...`). 그래서 끊긴 stream을 이어 받을 위치를 가리킬 수 없다([8장](08-security.md)) |
 | SSE `retry` | SHOULD — stream을 끝내지 않고 연결을 닫기 전 | | 쓰지 않음 |
-| `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `1eefa5b4-3132-4311-b184-cb7441dd5c36`(C7). stateless는 주지 않는다(stateless S3) |
+| `MCP-Session-Id` 응답 header | MAY — `InitializeResult` 응답에서 발급 · 전역 유일하고 암호학적으로 안전 SHOULD · 보이는 ASCII만 MUST | | UUID — `6226b6d0-cb22-46cb-8d5e-6f91545a879e`(C7). stateless는 주지 않는다(stateless S3) |
 | `202 Accepted`, 본문 없음 | MUST — notification·response를 받아들였을 때 | | 씀(C8, S9) |
 
 **오류**
@@ -249,17 +249,20 @@ access token을 붙여 JSON-RPC 메시지를 하나씩 보낸다.
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | 받아들일 수 없는 notification·response | 오류 상태 코드 MUST(예: `400`), `id` 없는 JSON-RPC 오류 본문 MAY | [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) |
-| `MCP-Session-Id` 없음(초기화 제외) | `400` SHOULD — `Session ID missing`(C14). 본문은 JSON-RPC 오류 `-32601`과 Java `stackTrace`를 담는다([준수표](reference-compliance.md#준수표) 38번) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| `MCP-Session-Id` 없음(초기화 제외) | `400` SHOULD — `Session ID missing`(C14). 본문은 `id` 없는 JSON-RPC 오류 `-32601`이다([준수표](reference-compliance.md#준수표) 38번) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| `MCP-Session-Id`를 붙인 `initialize` | `400`, `id` 없는 JSON-RPC 오류 `-32603` `Session already initialized`(코드로 판정, `MalformedMessageTest`). 새 session을 여는 `initialize`에는 session ID를 붙이지 않는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
 | 무효·미지원 `MCP-Protocol-Version` | `400` MUST — JSON-RPC `-32600`, `id: null`(C15). `2026-07-28`도 같다([9장](09-versions.md)) | [Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header) |
 | `Accept`에 `text/event-stream` 없음 | `400` — `Invalid Accept headers`(S15) | [Sending Messages to the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#sending-messages-to-the-server) (client MUST) |
 | 무효·만료 token | `401` MUST와 `WWW-Authenticate` MUST — [token 없는 요청](#post-mcp--token-없는-요청)의 오류 표 | [MCP Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), RFC 6750 §3 |
 | `Origin`이 있음(official은 허용한 `Origin`이 없다) | `403` MUST — `Invalid Origin header`(C13). token과 상관없이 인증 전에 나온다 | [Security Warning](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#security-warning) |
 | scope 부족 | `403`과 `insufficient_scope`·`scope`·`resource_metadata` SHOULD — official은 쓰지 않음. authz는 이 `403`을 보내고, `scope`에는 모자란 scope만 넣는다(A6 `scope="products:write"`, [준수표](reference-compliance.md#mcp-security-authz에서-달라지는-행)) | [MCP Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling) |
-| 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 JSON-RPC 오류 `-32603`과 Java `stackTrace`를 담는다 | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| 끝났거나 모르는 session ID | `404` MUST, 받은 client는 새 `initialize` MUST — S13, S16. 본문은 `id` 없는 JSON-RPC 오류 `-32603` `Session not found: <ID>`다. 서버가 session을 끝내는 것은 MAY이고, official·chat-memory·authz는 `mcp.limits.session-idle-timeout`(30분, chat-memory는 1시간) 동안 쓰지 않은 session을 끝낸다([6장](06-mcp-call-and-validation.md#69-session-만료와-상한)) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management), 오류 본문 [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| session 수가 상한(`mcp.limits.max-sessions`, 기본 1000)에 닿은 서버에 `initialize` | official·chat-memory·authz는 `503`, `id` 없는 JSON-RPC 오류 `-32603` `Max number of sessions reached`(`SessionLimitTest`). 상한은 사용자별이 아니라 서버 전체 값이다. community는 transport 기본값 100,000이다 | 명세 범위 밖 — 서버의 자원 보호 |
 | 본문이 상한(`mcp.limits.max-request-body`, 기본 1MB)을 넘음 | authz부터 `413`, `id` 없는 JSON-RPC 오류 `-32600`. `Content-Length`가 넘으면 본문을 읽지 않는다([10장](10-scope-and-step-up.md#108-서버-코드에서-보기)) | 명세 범위 밖 — 서버의 자원 보호 |
 | 한 사용자의 `tools/call`이 1분에 상한(`mcp.limits.tool-calls-per-minute`, 기본 60)을 넘음 | authz\~cimd는 `429`와 `Retry-After`(초), `id` 없는 JSON-RPC 오류 `-32000`. scope 검사에서 `403`으로 끝난 호출은 세지 않는다 | 속도 제한 MUST ([Tools — Security Considerations](https://modelcontextprotocol.io/specification/2025-11-25/server/tools#security-considerations)) |
 | 형식이 틀린 `tools/call` — `params`가 object가 아니거나, `name`이 문자열이 아니거나 없거나, `arguments`·`_meta`가 object가 아님 | stateless부터 `400`과 `id` 없는 JSON-RPC 오류 `-32602`(Invalid params)([11장](11-stateless-and-handle.md#119-서버-코드에서-보기)) | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
-| transport가 `McpError`로 끝낸 그 밖의 오류(`id`·`jsonrpc`가 틀린 본문 등) | stateless부터 같은 상태 코드에 `code`·`message`만 남긴 JSON-RPC 오류(`TransportErrorResponseFilter`). official·authz는 `McpError`와 Java `stackTrace`를 그대로 담는다 | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| `id`·`jsonrpc`가 틀린 본문 | `400`, `id` 없는 JSON-RPC 오류 `-32600` `Invalid message format`(`MalformedMessageTest`). SDK의 JSON mapper가 JSON-RPC 메시지로 읽지 못한 본문이다 | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
+| transport가 `McpError`로 끝낸 오류의 본문 | Spring AI transport를 쓰는 practice는 상태 코드는 그대로 두고 `code`·`message`만 남긴 `id` 없는 JSON-RPC 오류로 바꾼다(`TransportErrorResponseFilter`). transport는 예외 객체를 본문에 써서 Java `stackTrace`가 나가기 때문이다 | [JSON-RPC 2.0 §5.1](https://www.jsonrpc.org/specification#error_object) |
 | 허용하지 않은 `Host` | `421 Misdirected Request` — MCP 규정은 없고 DNS rebinding을 막는다(S14). 인증 전에 나온다 | [RFC 9110 §15.5.20](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.20) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
@@ -272,7 +275,7 @@ stateless의 transport `WebMvcStatelessServerTransport`는 session을 검사하�
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
+Authorization: Bearer eyJraWQiOiI3YWI2Zjg1...
 Content-Type: application/json
 Accept: application/json, text/event-stream
 
@@ -281,7 +284,7 @@ Accept: application/json, text/event-stream
 
 ```http
 HTTP/1.1 200
-Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
+Mcp-Session-Id: 6226b6d0-cb22-46cb-8d5e-6f91545a879e
 Content-Type: application/json
 
 {
@@ -329,6 +332,7 @@ client가 먼저 `POST`하지 않아도 서버가 request·notification을 보�
 | 상황 | 응답 | 근거 |
 |---|---|---|
 | `MCP-Session-Id` 없음 | `400` SHOULD — `Session ID required in mcp-session-id header`(S12) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
+| 끝났거나 모르는 session ID | `404` MUST — 본문 없이 답한다(코드로 판정, `WebMvcStreamableServerTransportProvider`). MCP Java SDK client는 만료로 닫힌 GET stream을 다시 열지 않으므로, 만료는 다음 POST의 `404`로 알게 된다([6장](06-mcp-call-and-validation.md#69-session-만료와-상한)) | [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) |
 | SSE stream을 제공하지 않는 서버 | `405` MUST — stateless가 이렇게 답한다(stateless S4) | [Listening for Messages from the Server](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#listening-for-messages-from-the-server) |
 | 다른 사용자의 token과 남의 session ID | official은 받는다 — session을 사용자에 묶지 않는다([6장](06-mcp-call-and-validation.md)) | [Security Best Practices — Session Hijacking](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices#session-hijacking) — 사용자 정보에 묶기 SHOULD |
 
@@ -343,7 +347,7 @@ Spring AI의 서버 transport는 `ServerResponse.sse(...)`로 답해서, 첫 eve
 ```http
 GET /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiI1ZDI5YjQ2...
+Authorization: Bearer eyJraWQiOiI3YWI2Zjg1...
 Accept: text/event-stream
 MCP-Protocol-Version: 2025-11-25
 ```
@@ -393,8 +397,8 @@ Session ID required in mcp-session-id header
 ```http
 DELETE /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
-Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
+Authorization: Bearer eyJraWQiOiI3YWI2Zjg1...
+Mcp-Session-Id: 6226b6d0-cb22-46cb-8d5e-6f91545a879e
 MCP-Protocol-Version: 2025-11-25
 ```
 
@@ -700,7 +704,7 @@ Authorization Server Metadata에서 본 `revocation_*`·`introspection_*`·`tls_
 | `issuer`가 요청한 Issuer URL과 다름 | 그 정보를 쓰지 않는다(MUST NOT) | [OIDC Discovery §4.3](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationValidation) |
 | `code_challenge_methods_supported` 없음 | MCP client는 진행 거부 MUST | [MCP Authorization Code Protection](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#authorization-code-protection) |
 
-**예시** (S1, `token_endpoint_auth_methods_supported`만 지금 설정의 P2 값)
+**예시** (S1)
 
 ```http
 GET /.well-known/openid-configuration HTTP/1.1
@@ -897,7 +901,7 @@ client는 code를 token endpoint로 보내기 전에 `state`와 `iss`를 확인�
 
 | 이름 | 요구 수준 | 설명 | official |
 |---|---|---|---|
-| `code` | REQUIRED | 수명이 짧고(최대 10분 RECOMMENDED) 한 번만 쓴다. client_id·redirect URI·code challenge에 묶인다 | `vWGE6LOgdELv...`(C5) |
+| `code` | REQUIRED | 수명이 짧고(최대 10분 RECOMMENDED) 한 번만 쓴다. client_id·redirect URI·code challenge에 묶인다 | `cLR1reKObkxD...`(C5) |
 | `state` | 요청에 있었으면 REQUIRED, 받은 값 그대로 | | `walkthrough-state`(C5) |
 | `iss` | OPTIONAL (OAuth 2.1) · RFC 9207을 지원하는 서버는 MUST ([RFC 9207 §2](https://www.rfc-editor.org/rfc/rfc9207#section-2)) · SHOULD ([MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#authorization-response-validation)) | Authorization Server의 issuer 식별자 | `http%3A%2F%2Flocalhost%3A9010`(C5) — `IssuerIdentifyingAuthorizationResponseHandler`가 넣는다 |
 
@@ -953,7 +957,7 @@ Host: localhost:9010
 
 ```http
 HTTP/1.1 302
-Location: http://localhost:8110/login/oauth2/code/authserver?code=vWGE6LOgdELv...&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9010
+Location: http://localhost:8110/login/oauth2/code/authserver?code=cLR1reKObkxD...&state=walkthrough-state&iss=http%3A%2F%2Flocalhost%3A9010
 Content-Length: 0
 ```
 
@@ -1048,10 +1052,10 @@ Pragma: no-cache
 Content-Type: application/json;charset=UTF-8
 
 {
-  "access_token": "eyJraWQiOiI1ZDI5YjQ2...",
-  "refresh_token": "c2EWpcuQtqtf...",
+  "access_token": "eyJraWQiOiI3YWI2Zjg1...",
+  "refresh_token": "WoatHHQLYYA4...",
   "scope": "openid profile",
-  "id_token": "eyJraWQiOiI1ZDI5YjQ2...",
+  "id_token": "eyJraWQiOiI3YWI2Zjg1...",
   "token_type": "Bearer",
   "expires_in": 299
 }
@@ -1143,15 +1147,15 @@ Host: localhost:9010
 Authorization: Basic <base64(official-shop-agent:official-shop-agent-secret)>
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=refresh_token&refresh_token=ySnltAsyLyJt...&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
+grant_type=refresh_token&refresh_token=Oq2kdtVjLVcR...&resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
 ```
 
 ```json
 {
-  "access_token": "eyJraWQiOiIwNGRlZDhl...",
-  "refresh_token": "ySnltAsyLyJt...",
+  "access_token": "eyJraWQiOiI3YWI2Zjg1...",
+  "refresh_token": "Oq2kdtVjLVcR...",
   "scope": "openid profile",
-  "id_token": "eyJraWQiOiIwNGRlZDhl...",
+  "id_token": "eyJraWQiOiI3YWI2Zjg1...",
   "token_type": "Bearer",
   "expires_in": 299
 }
