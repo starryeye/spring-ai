@@ -13,11 +13,12 @@ import tools.jackson.databind.json.JsonMapper;
  * {@link McpProtocolVersionFilter}를 MCP endpoint에만 적용한다(MCP 2025-11-25 Transports 명세:
  * 잘못됐거나 지원하지 않는 {@code MCP-Protocol-Version} header에는 400).
  *
- * <p>official practice의 {@code McpTransportConfig}는 transport bean을 정의하지 않고 Spring AI 자동 구성의
- * 것을 그대로 쓰며, 이 filter와 Origin/Host를 검증하는 {@code McpTransportSecurityFilter} 두 개를 등록한다.
+ * <p>official practice의 {@code McpTransportConfig}는 이 filter와 Origin/Host를 검증하는
+ * {@code McpTransportSecurityFilter} 두 개를 등록한다.
  * community는 module의 {@code OriginValidationFilter}({@link SecurityConfig}에서 켠다)가 Origin/Host 검증을
  * 맡으므로 {@code McpTransportSecurityFilter}가 필요 없다.
- * transport bean은 마찬가지로 자동 구성의 것을 그대로 두고, 이 filter 등록만 더한다.
+ * 그래서 이 설정은 filter 등록만 한다.
+ * transport의 router는 {@link McpTransportConfig}가 맡는다.
  * 포트처럼 practice마다 달라지는 값을 코드에 고정하지 않도록, endpoint 경로도 설정값에서 가져온다.
  */
 @Configuration
