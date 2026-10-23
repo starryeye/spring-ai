@@ -1,5 +1,7 @@
 package dev.starryeye.authz.agent.config;
 
+import dev.starryeye.authz.agent.mcp.SessionRetryingToolCallback;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,12 +24,15 @@ public class ChatClientConfig {
      * MCP client 자동 구성이 만들어 주는 것은 {@link ToolCallbackProvider} bean까지다.
      * {@code defaultTools(...)}로 직접 넣어야 LLM이 tool 정의를 받는다.
      * 이 줄을 지워도 앱은 뜨고 답변도 온다. 하지만 모델은 tool 없이 기억으로만 답한다.
+     *
+     * <p>tool은 {@link SessionRetryingToolCallback}으로 감싸서 넣는다.
+     * MCP Server가 오래 쓰지 않은 session을 지운 뒤에도 첫 tool 호출이 성공하게 하기 위해서다.
      */
     @Bean
     public ChatClient shopChatClient(ChatClient.Builder builder,
                                      ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
         ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
-        toolCallbackProvider.ifAvailable(configured::defaultTools);
+        toolCallbackProvider.ifAvailable(provider -> configured.defaultTools(SessionRetryingToolCallback.wrap(provider)));
         return configured.build();
     }
 }
