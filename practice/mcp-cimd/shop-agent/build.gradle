@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.1.1'
+	id 'org.springframework.boot' version '4.1.2'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -18,7 +18,7 @@ repositories {
 }
 
 ext {
-	set('springAiVersion', "2.0.1")
+	set('springAiVersion', "2.0.2")
 }
 
 dependencies {
@@ -41,8 +41,6 @@ dependencies {
 dependencyManagement {
 	imports {
 		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
-		// Spring AI 2.0.1은 MCP Java SDK 2.0.0에 맞춰 나왔다. stateless 서버 수정이 들어간 2.0.1로 올린다(나중 import가 이긴다).
-		mavenBom "io.modelcontextprotocol.sdk:mcp-bom:2.0.1"
 	}
 }
 
