@@ -40,7 +40,10 @@ import java.util.function.Predicate;
  */
 final class FakeStreamableMcpServer implements AutoCloseable {
 
-    /** 서버가 받은 요청 하나다. {@code rpcMethod}는 POST에만 있다. */
+    /**
+     * 서버가 받은 요청 하나다.
+     * {@code rpcMethod}는 POST에만 있다.
+     */
     record Recorded(String httpMethod, String rpcMethod, String sessionId, String authorization, int status) {
 
         boolean isInitialize() {
@@ -62,7 +65,10 @@ final class FakeStreamableMcpServer implements AutoCloseable {
 
     private final AtomicInteger sessionCounter = new AtomicInteger();
 
-    /** 열려 있는 GET stream이다. 끝낼 때 {@code true}를 주면 연결을 끊고, {@code false}면 정상으로 닫는다. */
+    /**
+     * 열려 있는 GET stream이다.
+     * 끝낼 때 {@code true}를 주면 연결을 끊고, {@code false}면 정상으로 닫는다.
+     */
     private final List<CompletableFuture<Boolean>> openStreams = new CopyOnWriteArrayList<>();
 
     private final CompletableFuture<Void> stopping = new CompletableFuture<>();
@@ -87,7 +93,10 @@ final class FakeStreamableMcpServer implements AutoCloseable {
         return "http://127.0.0.1:" + this.server.getAddress().getPort();
     }
 
-    /** 살아 있는 session을 모두 지우고 열린 GET stream을 정상으로 닫는다. Spring AI transport의 만료와 같다. */
+    /**
+     * 살아 있는 session을 모두 지우고 열린 GET stream을 정상으로 닫는다.
+     * Spring AI transport의 만료와 같다.
+     */
     void expireSessions() {
         this.liveSessions.clear();
         this.openStreams.forEach(stream -> stream.complete(false));
@@ -115,7 +124,10 @@ final class FakeStreamableMcpServer implements AutoCloseable {
         return this.requests.stream().filter(Recorded::isToolCall).toList();
     }
 
-    /** 조건에 맞는 요청이 기록될 때까지 기다린다. client가 뒤에서 보내는 요청을 기다릴 때 쓴다. */
+    /**
+     * 조건에 맞는 요청이 기록될 때까지 기다린다.
+     * client가 뒤에서 보내는 요청을 기다릴 때 쓴다.
+     */
     void awaitRequest(Predicate<Recorded> condition) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (this.requests.stream().noneMatch(condition)) {
@@ -218,7 +230,8 @@ final class FakeStreamableMcpServer implements AutoCloseable {
             case "brokenTool" -> respondResult(exchange, ok, id, Map.of("isError", true,
                     "content", List.of(Map.of("type", "text", "text", "재고 저장소에 닿지 못했다"))), null);
             case "slowTool" -> {
-                // 답하지 않고 기다린다. client는 제한 시간이 지나 호출을 끝낸다.
+                // 답하지 않고 기다린다.
+                // client는 제한 시간이 지나 호출을 끝낸다.
                 this.requests.add(ok);
                 this.stopping.join();
                 exchange.close();

@@ -124,7 +124,8 @@ class SessionExpiryRetryTest {
         this.server.awaitRequest(request -> "GET".equals(request.httpMethod()) && "session-2".equals(request.sessionId()));
 
         assertThat(result).contains("session-2");
-        // SDK는 정상으로 닫힌 stream을 다시 연결하지 않는다. session이 없어진 것은 다음 tool 호출의 404로 안다.
+        // SDK는 정상으로 닫힌 stream을 다시 연결하지 않는다.
+        // session이 없어진 것은 다음 tool 호출의 404로 안다.
         assertThat(this.server.requests).filteredOn(request -> "GET".equals(request.httpMethod()))
                 .extracting(Recorded::sessionId, Recorded::status)
                 .containsExactly(tuple("session-1", 200), tuple("session-2", 200));
@@ -139,13 +140,15 @@ class SessionExpiryRetryTest {
         this.server.awaitRequest(request -> "GET".equals(request.httpMethod()) && request.status() == 200);
 
         this.server.expireSessionsAndDropStreams();
-        // SDK가 끊긴 stream을 다시 연결한다면 곧바로 한다. 그럴 시간을 준다.
+        // SDK가 끊긴 stream을 다시 연결한다면 곧바로 한다.
+        // 그럴 시간을 준다.
         Thread.sleep(300);
         String result = getStock.call("{}");
         this.server.awaitRequest(request -> "GET".equals(request.httpMethod()) && "session-2".equals(request.sessionId()));
 
         assertThat(result).contains("session-2");
-        // SDK 2.1.0은 끊긴 GET stream도 다시 연결하지 않는다. 옛 session ID로 GET을 보내 404를 받는 일은 없다.
+        // SDK 2.1.0은 끊긴 GET stream도 다시 연결하지 않는다.
+        // 옛 session ID로 GET을 보내 404를 받는 일은 없다.
         assertThat(this.server.requests).filteredOn(request -> "GET".equals(request.httpMethod()))
                 .extracting(Recorded::sessionId, Recorded::status)
                 .containsExactly(tuple("session-1", 200), tuple("session-2", 200));
@@ -156,7 +159,8 @@ class SessionExpiryRetryTest {
     @Test
     void session_없음이_아닌_실패는_다시_보내지_않는다() throws Exception {
         this.server = new FakeStreamableMcpServer(false);
-        // timeout을 보려고 제한 시간만 짧게 둔다. 나머지는 McpSecurityConfig의 client와 같다.
+        // timeout을 보려고 제한 시간만 짧게 둔다.
+        // 나머지는 McpSecurityConfig의 client와 같다.
         Authentication alice = user("alice");
         this.clients = new UserMcpClients(owner -> McpClient.sync(
                         HttpClientStreamableHttpTransport.builder(this.server.origin())

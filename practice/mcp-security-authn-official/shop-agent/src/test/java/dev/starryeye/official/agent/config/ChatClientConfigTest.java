@@ -53,7 +53,10 @@ class ChatClientConfigTest {
     @MockitoBean
     ChatModel chatModel;
 
-    /** context가 뜰 때 {@code getToolCallbacks()}가 불린다. {@code RETURNS_MOCKS}면 stub 전에도 빈 배열을 준다. */
+    /**
+     * context가 뜰 때 {@code getToolCallbacks()}가 불린다.
+     * {@code RETURNS_MOCKS}면 stub 전에도 빈 배열을 준다.
+     */
     @MockitoBean(answers = org.mockito.Answers.RETURNS_MOCKS)
     ToolCallbackProvider toolCallbackProvider;
 

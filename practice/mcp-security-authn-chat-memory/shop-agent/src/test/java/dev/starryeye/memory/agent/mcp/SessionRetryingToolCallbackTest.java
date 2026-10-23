@@ -54,7 +54,10 @@ class SessionRetryingToolCallbackTest {
         return new ToolExecutionException(GET_STOCK, new RuntimeException("MCP session with server terminated"));
     }
 
-    /** 다시 보낸 호출의 {@code initialize}가 끝나기 전에 session이 또 없어졌다. tool 요청은 나가지 않았다. */
+    /**
+     * 다시 보낸 호출의 {@code initialize}가 끝나기 전에 session이 또 없어졌다.
+     * tool 요청은 나가지 않았다.
+     */
     static ToolExecutionException initialize_중에_session이_또_없어졌다() {
         return new ToolExecutionException(GET_STOCK, new RuntimeException("Client failed to initialize calling tool",
                 new RuntimeException("MCP session with server terminated")));
@@ -87,7 +90,10 @@ class SessionRetryingToolCallbackTest {
         };
     }
 
-    /** 정해 둔 실패를 차례로 던지고, 실패가 다 떨어지면 답한다. 받은 입력을 모두 기록한다. */
+    /**
+     * 정해 둔 실패를 차례로 던지고, 실패가 다 떨어지면 답한다.
+     * 받은 입력을 모두 기록한다.
+     */
     static class ScriptedTool implements ToolCallback {
 
         private final Deque<RuntimeException> failures;

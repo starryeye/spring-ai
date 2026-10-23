@@ -77,7 +77,10 @@ class SessionExpiryRetryTest {
         };
     }
 
-    /** tool 목록을 받으며 첫 {@code initialize}를 한다. 실제 채팅처럼 login한 사용자의 요청 안에서 부른다. */
+    /**
+     * tool 목록을 받으며 첫 {@code initialize}를 한다.
+     * 실제 채팅처럼 login한 사용자의 요청 안에서 부른다.
+     */
     ToolCallback[] 서버에_연결한다(boolean listeningStream, Duration requestTimeout) throws IOException {
         this.server = new FakeStreamableMcpServer(listeningStream);
         this.client = McpClient.sync(HttpClientStreamableHttpTransport.builder(this.server.origin())
@@ -104,7 +107,10 @@ class SessionExpiryRetryTest {
                 UsernamePasswordAuthenticationToken.authenticated(name, null, List.of())));
     }
 
-    /** {@code initialize}가 성공한 요청에는 모두 token이 있다. 다시 연 session의 token은 {@code expected}다. */
+    /**
+     * {@code initialize}가 성공한 요청에는 모두 token이 있다.
+     * 다시 연 session의 token은 {@code expected}다.
+     */
     void 다시_연_session의_token은(String expected) {
         List<Recorded> opened = this.server.initializes().stream().filter(request -> request.status() == 200).toList();
         assertThat(opened).allSatisfy(request -> assertThat(request.authorization()).isNotNull());
@@ -116,7 +122,8 @@ class SessionExpiryRetryTest {
         login("alice");
         ToolCallback getStock = tool(서버에_연결한다(false), "getStock");
         getStock.call("{}");
-        // SDK가 뒤에서 보내는 token 없는 initialize의 401을 늦춘다. 다시 보낸 호출이 그 initialize에 합류하게 한다.
+        // SDK가 뒤에서 보내는 token 없는 initialize의 401을 늦춘다.
+        // 다시 보낸 호출이 그 initialize에 합류하게 한다.
         this.server.delayTokenlessInitialize(Duration.ofMillis(300));
 
         this.server.expireSessions();
@@ -170,11 +177,15 @@ class SessionExpiryRetryTest {
                 .containsExactly(tuple("session-1", 200), tuple("session-1", 404), tuple("session-2", 200));
     }
 
-    /** 서버가 token 없는 initialize에 401로 답한 뒤, client가 그 실패를 정리할 시간을 넉넉히 준다. */
+    /**
+     * 서버가 token 없는 initialize에 401로 답한 뒤, client가 그 실패를 정리할 시간을 준다.
+     * SDK는 정리가 끝난 때를 알리는 신호를 내지 않으므로 시간으로 기다린다.
+     * 부하가 큰 machine에서도 넘도록 500 ms를 준다.
+     */
     void 뒤의_initialize가_끝나기를_기다린다() {
         try {
             this.server.awaitRequest(request -> request.isInitialize() && request.authorization() == null);
-            Thread.sleep(100);
+            Thread.sleep(500);
         }
         catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -195,7 +206,8 @@ class SessionExpiryRetryTest {
         this.server.awaitRequest(request -> "GET".equals(request.httpMethod()) && "session-2".equals(request.sessionId()));
 
         assertThat(result).contains("session-2");
-        // SDK는 정상으로 닫힌 stream을 다시 연결하지 않는다. session이 없어진 것은 다음 tool 호출의 404로 안다.
+        // SDK는 정상으로 닫힌 stream을 다시 연결하지 않는다.
+        // session이 없어진 것은 다음 tool 호출의 404로 안다.
         assertThat(this.server.requests).filteredOn(request -> "GET".equals(request.httpMethod()))
                 .extracting(Recorded::sessionId, Recorded::status)
                 .containsExactly(tuple("session-1", 200), tuple("session-2", 200));
@@ -211,13 +223,15 @@ class SessionExpiryRetryTest {
         this.server.awaitRequest(request -> "GET".equals(request.httpMethod()) && request.status() == 200);
 
         this.server.expireSessionsAndDropStreams();
-        // SDK가 끊긴 stream을 다시 연결한다면 곧바로 한다. 그럴 시간을 준다.
+        // SDK가 끊긴 stream을 다시 연결한다면 곧바로 한다.
+        // 그럴 시간을 준다.
         Thread.sleep(300);
         String result = getStock.call("{}");
         this.server.awaitRequest(request -> "GET".equals(request.httpMethod()) && "session-2".equals(request.sessionId()));
 
         assertThat(result).contains("session-2");
-        // SDK 2.1.0은 끊긴 GET stream도 다시 연결하지 않는다. 옛 session ID로 GET을 보내 404를 받는 일은 없다.
+        // SDK 2.1.0은 끊긴 GET stream도 다시 연결하지 않는다.
+        // 옛 session ID로 GET을 보내 404를 받는 일은 없다.
         assertThat(this.server.requests).filteredOn(request -> "GET".equals(request.httpMethod()))
                 .extracting(Recorded::sessionId, Recorded::status)
                 .containsExactly(tuple("session-1", 200), tuple("session-2", 200));
@@ -233,12 +247,14 @@ class SessionExpiryRetryTest {
         this.server.delayTokenlessInitialize(Duration.ofMillis(300));
         this.server.expireSessions();
 
-        // 감싸지 않은 client로 불러 404를 받게 한다. 다시 보내는 호출이 없으니 SDK가 뒤에서 보내는 initialize만 나간다.
+        // 감싸지 않은 client로 불러 404를 받게 한다.
+        // 다시 보내는 호출이 없으니 SDK가 뒤에서 보내는 initialize만 나간다.
         assertThatThrownBy(() -> this.client.callTool(
                 McpSchema.CallToolRequest.builder("getStock").arguments(Map.of()).build()))
                 .hasMessage(SessionRetryingToolCallback.SESSION_TERMINATED);
         this.server.awaitRequest(request -> request.isInitialize() && request.authorization() == null);
-        // 그 initialize가 401을 받기 전에 bob이 부른다. 이 호출은 그 initialize에 합류해 401로 끝난 뒤 다시 간다.
+        // 그 initialize가 401을 받기 전에 bob이 부른다.
+        // 이 호출은 그 initialize에 합류해 401로 끝난 뒤 다시 간다.
         login("bob");
         String result = getStock.call("{}");
 
