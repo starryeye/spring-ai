@@ -675,7 +675,7 @@ toolCallbackProvider.ifAvailable(provider -> configured.defaultTools(SessionRetr
 
 `wrap`은 provider의 tool마다 `SessionRetryingToolCallback`을 씌운다.
 provider는 처음 불릴 때 `initialize`를 한다.
-목록을 bean을 만들 때가 아니라 부를 때마다 받는 것은, 이 `initialize`를 login한 사용자의 채팅 안으로 미루기 위해서다.
+tool 목록을 bean을 만들 때가 아니라 부를 때마다 받는 것은, 이 `initialize`를 login한 사용자의 채팅 안으로 미루기 위해서다.
 
 ## 6.11 직접 해 보기
 

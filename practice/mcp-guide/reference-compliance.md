@@ -133,7 +133,11 @@ MUST 위반은 12·19·36·40·41번이고, 36번만 practice마다 다르다(ch
   session 수의 상한(`mcp.limits.max-sessions`, 기본 1000)은 명세가 요구하지 않는 practice의 선택이다.
   상한은 사용자별이 아니라 서버 전체 값이라, 한 사용자가 채우면 다른 사용자의 `initialize`도 `503`이다.
   만료는 transport가 `session-idle-timeout` 간격으로 검사하므로, 쉬는 session은 정한 시간의 1\~2배 사이에 지워진다.
-  남은 위험(source로 판정, 재현하지 않음): Spring AI 2.0.2 transport의 만료 검사가 같은 session의 `DELETE`와 겹치면 예외로 멈출 수 있고, 그러면 재시작 전까지 찬 상한이 다시 비지 않는다.
+  남은 위험(source로 판정, 재현하지 않음): Spring AI 2.0.2 transport의 만료 검사는 session을 꺼낸 뒤 지우기 전에 같은 session의 `DELETE`가 먼저 끝나면 `NullPointerException`으로 멈춘다.
+  멈춘 검사는 다시 돌지 않아서, 재시작 전까지 session이 만료되지 않고 상한이 차면 모든 `initialize`가 `503`이다.
+  token이 있는 client는 `DELETE`를 보낼 때를 스스로 고르므로, 검사가 도는 때에 맞춰 `DELETE`를 몰아 보내 일부러 일으킬 수 있다.
+  멈추면 Reactor가 ERROR 로그를 남긴다(logger `reactor.core.publisher.Operators`, 메시지 `Operator called default onErrorDropped`, 원인 `NullPointerException`).
+  transport 기본값은 만료가 없어 한 번 찬 상한이 다시 비지 않으므로, 이 위험이 기본값보다 나쁜 것은 아니다.
   agent의 재시도에도 남은 위험이 있다(source로 판정, 재현하지 않음).
   SDK 2.1.0은 늦게 온 `404`가 옛 session의 것인지 가리지 않고 지금 session을 닫으므로, 만료 직후 호출 셋 이상이 겹치면 이미 실행된 호출이 다시 갈 수 있다.
   official·chat-memory의 tool은 조회라 결과가 같고, authz의 `updateStock`은 재고를 같은 절댓값으로 다시 정하지만 그 사이 다른 사용자가 바꾼 값은 덮어쓸 수 있다.

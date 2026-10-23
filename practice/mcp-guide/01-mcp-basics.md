@@ -284,10 +284,10 @@ HTTP/1.1 400  {"jsonrpc":"2.0","id":null,"error":{"code":-32601,"message":"Sessi
 HTTP/1.1 404  {"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Session not found: 7bbea3ef-029d-4a7a-851a-82e85d91575d"}}
 ```
 
+서버가 발급한 적 없는 session ID를 보내도 똑같이 `404`다.
 두 본문은 `id`가 `null`인 JSON-RPC 오류다.
 Spring AI의 transport는 이런 오류에 예외 객체를 그대로 JSON으로 만들어 서버의 class 이름과 stack trace까지 내보낸다.
 그래서 official은 transport의 오류 본문을 `code`와 `message`만 남긴 이 모양으로 바꾼다([6장](06-mcp-call-and-validation.md#610-official-코드에서-보기)).
-서버가 발급한 적 없는 session ID를 보내도 똑같이 `404`다.
 MCP Java SDK client는 session ID를 붙인 요청이 `404`나 `400`을 받으면, 본문을 읽지 않고 session이 없어진 것으로 본다.
 
 **MCP session은 사용자의 login session이 아니다**
