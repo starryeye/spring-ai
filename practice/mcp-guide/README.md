@@ -45,7 +45,7 @@ mermaid를 그리지 못하는 viewer에서는 다이어그램 바로 아래의 
 | [3. Discovery](03-discovery.md) | `401` → PRM → metadata로 endpoint 찾기 | curl 세 번으로 따라가기 |
 | [4. Client 등록](04-client-registration.md) | pre-registration·CIMD·DCR, public client의 규칙 | metadata에서 등록 방식 보기 |
 | [5. Authorization request와 token](05-authorization-and-token.md) | PKCE, `resource`, `state`·`iss` 확인, refresh | `code_challenge` 계산, `invalid_target` 받기 |
-| [6. MCP 호출과 token 검증](06-mcp-call-and-validation.md) | MCP Server의 검사 순서, agent가 token을 붙이는 방법 | `403`·`421`·`401` 받기 |
+| [6. MCP 호출과 token 검증](06-mcp-call-and-validation.md) | MCP Server의 검사 순서, agent가 token을 붙이는 방법, session 만료와 상한 | `403`·`421`·`401` 받기 |
 | [7. 로컬 MCP client](07-local-client.md) | 사용자 기기의 public client와 loopback callback | `local-client`로 login부터 호출까지 |
 | [8. 보안](08-security.md) | MCP authorization을 노리는 공격과 막는 장치 | 다른 `iss`로 `401` 받기 |
 | [9. 버전](09-versions.md) | 2025-03-26부터 2026-07-28까지 바뀐 것 | `2026-07-28` 요청에 대한 답 보기 |

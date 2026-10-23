@@ -220,14 +220,14 @@ MCP Java SDK 2.2로 요청 형식을 2026-07-28로 올린 practice는 [14장](14
 
 | 영역 | 기준 버전 | 이유 |
 |---|---|---|
-| transport·lifecycle | 2025-11-25 | MCP Java SDK 2.0.0이 아는 가장 새 버전이다 |
+| transport·lifecycle | 2025-11-25 | MCP Java SDK 2.1.0이 아는 가장 새 버전이다 |
 | authorization | 2025-11-25와 2026-07-28 추가분(`iss`, issuer binding) | MCP 메시지와 따로 도는 HTTP 단계라서 SDK 버전과 상관이 없다 |
 
 **transport: SDK가 아는 버전**
 
-MCP Java SDK 2.0.0의 `io.modelcontextprotocol.spec.ProtocolVersions`는 `2024-11-05`부터 `2025-11-25`까지 네 버전만 안다.
+MCP Java SDK 2.1.0의 `io.modelcontextprotocol.spec.ProtocolVersions`는 `2024-11-05`부터 `2025-11-25`까지 네 버전만 안다.
 서버는 `initialize`에서 이 가운데 하나로 협상하고, official의 `McpProtocolVersionFilter`도 이 네 값만 받는다([6장](06-mcp-call-and-validation.md)).
-SDK와 Spring AI 2.0.0의 MCP module에는 `_meta`로 버전을 받는 처리도, `server/discover`도 없다.
+SDK와 Spring AI 2.0.2의 MCP module에는 `_meta`로 버전을 받는 처리도, `server/discover`도 없다.
 `spring.ai.mcp.server.protocol: STATELESS`도 session ID를 주지 않을 뿐, `initialize`를 받는 2025-11-25 방식이다.
 
 **authorization: HTTP 단계의 규칙**

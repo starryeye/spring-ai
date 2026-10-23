@@ -26,10 +26,10 @@ authorization은 HTTP 단계의 일이라서, JSON-RPC 본문은 token이 없을
 ```http
 POST /mcp HTTP/1.1
 Host: localhost:8111
-Authorization: Bearer eyJraWQiOiIwNGRlZDhl...
+Authorization: Bearer eyJraWQiOiI3YWI2Zjg1...
 Content-Type: application/json
 Accept: application/json, text/event-stream
-Mcp-Session-Id: 1eefa5b4-3132-4311-b184-cb7441dd5c36
+Mcp-Session-Id: 6226b6d0-cb22-46cb-8d5e-6f91545a879e
 MCP-Protocol-Version: 2025-11-25
 
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}
@@ -142,10 +142,12 @@ HTTP/1.1 421  Invalid Host header
 
 **인증보다 먼저 검사하는 이유**
 
-MCP Java SDK에는 `Origin`·`Host`를 검사하는 `DefaultServerTransportSecurityValidator`가 있지만, Spring AI 자동 구성은 이 검증기를 transport에 넣지 않는다.
-넣더라도 transport는 Spring Security 뒤에 있어서, token 없는 요청은 `Origin`을 보기 전에 `401`로 끝난다.
+MCP Java SDK에는 `Origin`·`Host`를 검사하는 `DefaultServerTransportSecurityValidator`가 있다.
+그런데 Spring AI의 transport가 기본으로 쓰는 검증기는 아무것도 막지 않고, Spring AI 자동 구성은 SDK의 검증기를 transport에 넣지 않는다.
+검증기를 transport에 넣더라도 transport는 Spring Security 뒤에 있어서, token 없는 요청은 `Origin`을 보기 전에 `401`로 끝난다.
 `Origin` 검사는 token과 상관없이 browser를 거친 요청을 `403`으로 거절하는 방어다.
-그래서 official은 같은 검증기를 `McpTransportSecurityFilter`라는 servlet filter로 감싸 Spring Security 앞에 둔다(6.9).
+그래서 official은 같은 검증기를 `McpTransportSecurityFilter`라는 servlet filter로 감싸 Spring Security 앞에 둔다(6.10).
+transport에는 검증기를 넣지 않으므로, official에서 `Origin`·`Host`를 보는 곳은 이 filter 하나뿐이다.
 
 **`127.0.0.1`에만 bind한다**
 
@@ -177,7 +179,7 @@ MCP Server를 `https://mcp.example.com/mcp`로 배포하면, client의 요청은
 | `issuer-uri` | `http://localhost:9010` | `https://auth.example.com` | token의 `iss`와 글자 그대로 같아야 한다(6.5) |
 
 허용 `Host` 목록은 설정 파일에 없다.
-`McpTransportConfig`가 `server.port`로 `localhost:<포트>`와 `127.0.0.1:<포트>`를 만들어 SDK 검증기에 넘긴다(6.9).
+`McpTransportConfig`가 `server.port`로 `localhost:<포트>`와 `127.0.0.1:<포트>`를 만들어 SDK 검증기에 넘긴다(6.10).
 원격에 배포하려면 이 목록을 배포한 이름으로 바꾼다.
 
 ```java
@@ -325,6 +327,8 @@ token까지 통과한 요청만 MCP의 규칙을 검사받는다.
 모르는 버전이면 `400`이고, header가 없으면 통과시킨다.
 session은 Spring AI의 transport가 본다.
 `initialize`가 아닌 요청에 `Mcp-Session-Id`가 없으면 `400`, 끝났거나 모르는 session이면 `404`다.
+`initialize`에 `Mcp-Session-Id`를 붙이면 이미 연 session을 다시 열려는 요청이라 `400`이다.
+session이 끝나는 때와 session 수의 상한은 6.9에서 본다.
 
 `McpProtocolVersionFilter`는 Spring Security 뒤에서 돈다.
 그래서 token 없이 `MCP-Protocol-Version: 1999-01-01`을 보내면 `400`이 아니라 `401`을 받는다.
@@ -459,7 +463,106 @@ MCP 요청에서 token만 빠지고, MCP Server가 `401`로 답한 뒤에야 알
 
 `local-client`는 실행하는 동안 token이 하나라서, transport의 기본 요청에 `Authorization` header를 한 번 넣는다([7장](07-local-client.md#78-6단계-mcp-호출--mcpcalls)).
 
-## 6.9 official 코드에서 보기
+## 6.9 session 만료와 상한
+
+**만료와 상한의 필요성**
+
+Streamable HTTP 서버는 `initialize`를 받을 때마다 session을 하나 만들어 메모리에 둔다.
+client가 `DELETE`로 끝내 주면 서버는 그 자원을 바로 정리하지만, 그러지 않고 사라지는 client도 있다.
+꺼진 앱, 끊긴 연결, 앱 종료 때 `DELETE`를 보내지 못한 agent(6.7)가 그런 예다.
+이런 session을 지우지 않으면 서버를 다시 띄울 때까지 메모리에 쌓인다.
+또 token을 가진 사용자는 `initialize`를 되풀이해 session을 얼마든지 만들 수 있다.
+
+명세는 서버가 session을 언제든 끝낼 수 있게 한다.
+끝낸 session의 ID로 요청이 오면 서버는 `404`로 답하고, `404`를 받은 client는 session ID 없이 `initialize`를 보내 새 session을 연다(1.9).
+그래서 official의 MCP Server는 오래 쓰지 않은 session을 끝내고, 한꺼번에 들고 있는 session 수에도 상한을 둔다.
+session 수의 상한은 명세가 정한 것이 아니라, 서버가 자기 메모리를 지키려고 둔 것이다.
+
+| 설정 | 기본값 | 하는 일 |
+|---|---|---|
+| `mcp.limits.session-idle-timeout` | `30m` | 이 시간 동안 요청이 없던 session을 지운다. 지운 session의 ID로 온 요청은 `404`다 |
+| `mcp.limits.max-sessions` | `1000` | 서버가 한꺼번에 들고 있는 session 수의 상한이다. 넘으면 새 `initialize`가 `503`이다 |
+
+`404`의 본문은 1.9에서 본 `Session not found`다.
+`503`의 본문은 `id` 없는 JSON-RPC 오류 `-32603`과 `Max number of sessions reached`다.
+
+**만료 시각을 재는 방법**
+
+transport는 session마다 그 session ID가 붙은 POST나 GET을 마지막으로 받은 시각을 적어 둔다.
+그리고 `session-idle-timeout` 간격으로 돌면서, 마지막 요청 뒤 그 시간이 지난 session을 지운다.
+검사가 주기적이라서, 쉬는 session은 정한 시간의 1\~2배 사이에 사라진다.
+열어 둔 GET stream은 요청으로 세지 않는다.
+그래서 agent가 GET stream을 열어 두어도, tool 호출 없이 30분이 지나면 그 session은 끝난다.
+
+**상한은 서버 전체의 수다**
+
+`max-sessions`는 사용자마다 따로 세지 않고, 서버가 가진 session을 모두 센다.
+그래서 사용자 한 명이 `initialize`를 되풀이해 상한을 채우면, 다른 사용자의 `initialize`도 `503`을 받는다.
+그 session들이 만료로 지워져야 자리가 다시 빈다.
+상한은 이 공격의 피해를 서버 메모리 고갈 대신 만료 시간 동안의 `503`으로 줄일 뿐이다.
+사용자마다 상한을 두려면 token의 `sub`로 session을 세는 filter를 따로 만든다.
+
+**만료 뒤 agent의 첫 tool 호출**
+
+official의 agent에서 30분 넘게 tool 호출이 없으면, 다음 tool 호출은 끝난 session으로 나가 `404`를 받는다.
+MCP Java SDK client는 `404`를 받으면 그 session을 버리고, 뒤에서 `initialize`를 다시 보낸다.
+하지만 실패한 tool 호출은 다시 보내지 않으므로, 그대로 두면 사용자는 오래 쉰 뒤 첫 질문에서 tool 오류를 받는다.
+그래서 agent는 MCP tool을 `SessionRetryingToolCallback`으로 감싸, session이 없어 실패한 호출을 같은 입력으로 다시 보낸다.
+
+여러 사용자가 같이 쓰는 client에는 문제가 하나 더 있다.
+SDK가 뒤에서 보내는 `initialize`는 채팅 요청 밖에서 나가서, transport context에 사용자가 없다.
+그래서 6.8의 customizer는 token을 붙이지 못하고, 이 `initialize`는 `401`을 받는다.
+다시 보낸 호출이 이 `initialize`가 끝나기 전에 나가면, 그 `initialize`를 기다렸다가 같은 `401`로 끝난다.
+`SessionRetryingToolCallback`은 이 실패도 알아보고 한 번 더 부르고, 그 호출이 채팅한 사용자의 token으로 새 session을 연다.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant R as SessionRetryingToolCallback
+    participant C as MCP client (SDK)
+    participant M as MCP Server
+    R->>C: getStock 호출
+    C->>M: POST tools/call + token + 옛 session ID
+    M-->>C: 404 Session not found
+    C-->>R: 실패 (session 없음)
+    C->>M: DELETE 옛 session (token 없음)
+    M-->>C: 401
+    C->>M: POST initialize (token 없음)
+    M-->>C: 401
+    R->>C: 같은 입력으로 다시 부른다
+    C->>M: POST initialize + 사용자의 token
+    M-->>C: 200 + 새 Mcp-Session-Id
+    C->>M: POST tools/call + token + 새 session ID
+    M-->>C: 200 tool 결과
+    C-->>R: tool 결과
+```
+
+[다이어그램 그림으로 보기](diagrams/06-mcp-call-and-validation-3.png)
+
+(5)\~(8)은 SDK가 뒤에서 보내는 요청이라, 다시 부른 호출(9)과 순서가 섞일 수 있다.
+`notifications/initialized`는 줄여 그렸다.
+
+만료마다 MCP Server는 token 없는 `DELETE`와 `initialize`를 하나씩 받아 `401`로 답한다.
+agent 로그에도 처음 실패한 호출 때문에 SDK와 Spring AI가 남기는 `ERROR` 줄과 stack trace가 있다.
+그 뒤에 `MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool=getStock)`가 찍히고 다시 부른 호출이 성공하면, 사용자에게는 정상 답이 간다.
+token 없는 두 요청은 앱 종료 때의 `DELETE`(6.7)와 같은 이유로 생기고, [부록: 준수표](reference-compliance.md#남은-위반)에 남은 위반으로 적었다.
+
+**다시 보내지 않는 실패와 한계**
+
+다시 보내는 실패는 tool이 실행되지 않았다고 볼 수 있는 경우뿐이다.
+timeout, 연결 오류, `isError` 결과는 MCP Server가 이미 tool을 실행했을 수 있어서 다시 보내지 않는다.
+`403`과 token을 붙인 요청의 `401`은 다시 보내도 같은 답이 오므로 그대로 올린다.
+그래도 SDK는 늦게 온 `404`가 지금 session의 것인지 옛 session의 것인지 가리지 않고 지금 session을 닫는다.
+그래서 만료 직후 여러 사용자의 호출 셋 이상이 겹치면, 이미 실행된 호출이 한 번 더 갈 수 있다.
+official의 tool은 조회뿐이라 두 번 실행되어도 결과가 같다.
+
+**chat-memory의 agent**
+
+사용자마다 client를 두는 [chat-memory](../mcp-security-authn-chat-memory/README.md)의 agent는 client 주인의 token을 붙이므로, SDK가 뒤에서 보내는 `initialize`도 성공한다.
+그래도 실패한 호출은 다시 보내지 않으므로 같은 이름의 감싸기를 쓴다.
+chat-memory의 MCP Server는 session 묶음의 만료를 transport의 만료와 같은 값(기본 1시간)으로 맞춘다.
+
+## 6.10 official 코드에서 보기
 
 **`SecurityConfig`: resource server**
 
@@ -523,7 +626,56 @@ public void doFilter(ServletRequest servletRequest, ServletResponse servletRespo
 
 `SUPPORTED_VERSIONS`는 SDK가 아는 네 버전(`2024-11-05`, `2025-03-26`, `2025-06-18`, `2025-11-25`)이다.
 
-## 6.10 직접 해 보기
+**`McpTransportConfig`: session 상한·만료와 오류 본문**
+
+Spring AI에는 session 상한과 만료를 정하는 설정이 없고, transport의 builder에만 있다.
+그래서 `McpTransportConfig`는 자동 구성 대신 transport bean을 직접 만든다.
+자동 구성의 transport bean은 같은 타입의 bean이 없을 때만 만들어진다.
+
+```java
+@Bean
+public WebMvcStreamableServerTransportProvider webMvcStreamableServerTransportProvider(
+        @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper, McpServerStreamableHttpProperties properties,
+        McpLimitProperties limits) {
+    return WebMvcStreamableServerTransportProvider.builder()
+            .jsonMapper(new JacksonMcpJsonMapper(jsonMapper))
+            .mcpEndpoint(properties.getMcpEndpoint())
+            .keepAliveInterval(properties.getKeepAliveInterval())
+            .disallowDelete(properties.isDisallowDelete())
+            .maxSessions(limits.maxSessions())                   // mcp.limits.max-sessions
+            .sessionIdleTimeout(limits.sessionIdleTimeout())     // mcp.limits.session-idle-timeout
+            .build();
+}
+
+@Bean
+public RouterFunction<ServerResponse> webMvcStreamableServerRouterFunction(
+        WebMvcStreamableServerTransportProvider transport,
+        @Qualifier("mcpServerJsonMapper") JsonMapper jsonMapper) {
+    return transport.getRouterFunction().filter(new TransportErrorResponseFilter(jsonMapper));
+}
+```
+
+앞의 네 builder 호출은 자동 구성과 같고, 6.4에서 본 대로 검증기는 넣지 않는다.
+이 bean이 없으면 transport의 상한은 100,000이고 만료가 없어서, 한 번 찬 상한은 다시 비지 않는다.
+두 값은 `McpLimitProperties`가 `mcp.limits` 아래에서 읽고, 0 이하면 앱이 뜨지 않는다.
+
+router bean은 transport의 오류 응답에서 Java 예외 정보를 뺀다.
+Spring AI의 transport는 처리하지 못한 요청에 SDK의 예외 객체 `McpError`를 본문으로 쓰고, Spring MVC는 그 객체를 stack trace까지 JSON으로 만든다.
+`TransportErrorResponseFilter`는 상태 코드는 그대로 두고, 본문을 `code`와 `message`만 남긴 `id` 없는 JSON-RPC 오류로 바꾼다(1.9의 두 본문).
+자동 구성은 이름이 `webMvcStreamableServerRouterFunction`인 bean이 없을 때만 router를 만든다.
+그래서 이 bean의 이름을 바꾸면 filter 없는 자동 구성의 router도 함께 등록되고, 어느 router가 답할지는 bean 순서에 달린다.
+
+**agent의 `ChatClientConfig`: 다시 보내는 tool**
+
+```java
+toolCallbackProvider.ifAvailable(provider -> configured.defaultTools(SessionRetryingToolCallback.wrap(provider)));
+```
+
+`wrap`은 provider의 tool마다 `SessionRetryingToolCallback`을 씌운다.
+tool 목록은 부를 때마다 provider에서 받는다.
+provider는 처음 불릴 때 `initialize`를 하므로, 그 일을 bean을 만들 때가 아니라 login한 사용자의 채팅 안으로 미루기 위해서다.
+
+## 6.11 직접 해 보기
 
 ```bash
 cd practice/mcp-security-authn-official
@@ -559,7 +711,13 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 `practice/mcp-security-authn-official/logs/shop-agent.log`에 `토큰을 헤더에 붙였다 (사용자=user)`가 남는다.
 `practice/mcp-security-authn-official/logs/shop-mcp-server.log`의 tool 호출 줄에는 MCP Server가 token에서 읽은 사용자(`사용자=user`)가 찍힌다.
 
-## 6.11 정리
+session 만료는 기다리는 시간을 줄여 보면 된다.
+`shop-mcp-server/src/main/resources/application.yml`의 `mcp.limits.session-idle-timeout`을 `1m`으로 바꾸고 `./stop.sh`와 `./run.sh`로 다시 띄운다.
+채팅으로 재고를 한 번 묻고, 2분 넘게 기다렸다가 다시 묻는다.
+두 번째 답도 정상으로 오고, `shop-agent.log`에는 `MCP session이 없어 같은 tool 호출을 다시 보낸다`가 남는다.
+확인한 뒤에는 설정을 `30m`으로 되돌린다.
+
+## 6.12 정리
 
 - client는 모든 HTTP 요청의 `Authorization` header에 `Bearer`로 access token을 넣는다. session 안의 요청도 매번 넣는다.
 - official의 MCP Server는 `Origin`·`Host` → token → `MCP-Protocol-Version` → session 순서로 검사한다. `Origin`·`Host`는 token이 없어도 `403`·`421`이다.
@@ -567,8 +725,9 @@ browser로 `http://localhost:8110`에 들어가 `user`/`password`로 login하고
 - token은 `jwks_uri`의 public key로 signature를, `issuer-uri`로 `iss`를, `audiences`로 `aud`를 확인한다. 다른 `aud`의 token은 `401 invalid_token`이다.
 - session ID는 인증을 대신하지 않는다. official은 요청마다 token을 보지만 session을 사용자에 묶지는 않고, chat-memory practice는 묶는다.
 - agent는 요청마다 그 사용자의 token을 찾아 붙인다. reactor thread로 `SecurityContext`를 옮기는 설정이 빠지면 오류 없이 token만 빠진다.
+- MCP Server는 오래 쓰지 않은 session을 끝내고 그 ID에 `404`로 답하며, 서버 전체의 session 수에 상한을 둔다. agent는 끝난 session 때문에 실패한 tool 호출을 다시 보내, 사용자의 token으로 새 session을 연다.
 
-## 6.12 명세 근거
+## 6.13 명세 근거
 
 | 내용 | 명세 | 요구 수준 |
 |---|---|---|

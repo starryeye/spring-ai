@@ -11,7 +11,7 @@ client는 요청마다 `_meta`에 버전·capability·client 정보를 넣고, H
 명세가 왜 이렇게 바뀌었는지는 [9장](09-versions.md#97-initialize와-session의-제거-2026-07-28)에서 보았다.
 
 10\~13장의 practice는 요청 형식이 2025-11-25였다.
-그 practice가 쓰는 MCP Java SDK 2.0과 Spring AI 2.0이 2026-07-28을 모르기 때문이다([9장](09-versions.md#98-official이-따르는-기준)).
+그 practice가 쓰는 MCP Java SDK 2.1과 Spring AI 2.0이 2026-07-28을 모르기 때문이다([9장](09-versions.md#98-official이-따르는-기준)).
 MCP Java SDK 2.2.0-M1에는 2026-07-28 서버가 들어 있어서, 이 practice의 MCP Server는 그 서버 위에 10\~13장의 장치를 그대로 얹는다.
 SDK에는 아직 2026-07-28 client가 없으므로, agent는 MCP를 부르는 부분만 직접 만든 client로 바꾼다.
 Spring AI `ChatClient`와 ollama 모델은 13장과 같다.

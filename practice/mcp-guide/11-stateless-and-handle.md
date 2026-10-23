@@ -467,10 +467,16 @@ tool이 사용자를 `McpTransportContext` 인자로 받으면 사용자를 쓴�
 
 **`TransportErrorResponseFilter`: 오류 본문에서 내부 정보를 뺀다**
 
-transport는 읽을 수 없는 본문에 SDK의 `McpError`를 그대로 JSON으로 만들어 답하고, 그 안에는 서버의 class 이름과 줄 번호가 든 stack trace가 있다.
-그래서 `McpTransportConfig`는 transport의 router도 직접 등록해 `TransportErrorResponseFilter`를 끼우고, 이 filter는 `code`와 `message`만 남긴다.
+transport는 처리하지 못한 요청에 SDK의 예외 객체 `McpError`를 본문으로 쓴다.
+Spring MVC는 그 객체를 서버의 class 이름과 줄 번호가 든 stack trace까지 JSON으로 만든다.
+그래서 `McpTransportConfig`는 transport의 router도 직접 등록해 `TransportErrorResponseFilter`를 끼우고, 이 filter는 상태 코드는 그대로 두고 `code`와 `message`만 남긴다.
+`id`나 `jsonrpc`가 틀린 본문은 JSON-RPC 메시지로 읽히지 않아 `400`과 `-32600`(Invalid Request)이 된다.
+메시지로는 읽혀도 처리하다 예외가 나면 `500`과 `-32603`이다.
+`params`의 모양이 틀린 `prompts/get`이 그 예다.
+official의 streamable transport에도 같은 filter가 있다([6장](06-mcp-call-and-validation.md#610-official-코드에서-보기)).
+
 `ToolScopeFilter`는 `params`·`name`·`arguments`·`_meta`의 형식이 틀린 `tools/call`을 transport에 넘기지 않고 `400`과 `-32602`로 끝내며, tool 호출 횟수에도 세지 않는다.
-그런 호출은 transport에서 stack trace가 든 `500`이 되거나, filter와 SDK가 tool 이름을 다르게 읽게 하기 때문이다(10장의 parser differential).
+그런 호출은 transport에서 `500`이 되거나, filter와 SDK가 tool 이름을 다르게 읽게 하기 때문이다(10장의 parser differential).
 
 **`McpCaller`: token의 사용자**
 
@@ -599,7 +605,8 @@ public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSessi
 
 **local-client: `McpCalls`**
 
-`McpCalls#run`은 `basketId(created)`(11.8)로 꺼낸 handle을 지역 변수에 두고, step-up 뒤 `callOnce`가 다시 부르는 호출까지 모두 같은 `basketId`를 넘긴다.
+`McpCalls#run`은 `basketId(created)`(11.8)로 꺼낸 handle을 지역 변수에 두고, 뒤의 호출마다 같은 `basketId`를 넘긴다.
+`checkout`이 `403`을 받으면 SDK가 같은 JSON-RPC 메시지를 새 token으로 다시 보내므로([10장 client 코드](10-scope-and-step-up.md#109-client-코드에서-보기)), 다시 보낸 `checkout`에도 같은 `basketId`가 들어 있다.
 
 ## 11.11 다루지 않는 것
 

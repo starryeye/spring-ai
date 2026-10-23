@@ -135,7 +135,7 @@ tool마다 필요한 scope(10장의 `@RequiredScope`)를 이 표와 맞춰 보�
 **두 목록의 순서가 같은 이유**
 
 손님의 목록은 점원의 목록에서 `updateStock`만 뺀 것이고, 같은 token으로 한 번 더 받은 목록도 순서가 같다.
-MCP Server는 원래 목록에서 숨길 tool만 빼고 순서는 건드리지 않는다.
+MCP Server는 원래 목록에서 숨길 tool만 빼고 순서는 건드리지 않는다(12.10).
 2026-07-28은 tool 집합이 바뀌지 않았으면 늘 같은 순서로 돌려주라고 권한다.
 그래야 client가 목록을 믿고 cache할 수 있고, tool을 모델 context에 넣을 때 prompt cache도 잘 맞는다는 것이다.
 prompt cache는 앞부분이 같은 prompt의 계산을 다시 쓰는 기능이라, tool 정의의 순서만 바뀌어도 다른 prompt가 된다.
@@ -332,7 +332,7 @@ agent는 목록을 한동안 그대로 쓰므로, 그사이 MCP Server의 목록
 `McpTransportConfig`의 역할 표에서 `user`를 빼고 MCP Server만 다시 띄우면, agent에 남은 점원의 목록에는 `updateStock`이 그대로 있다.
 모델이 이 tool을 부르면 MCP Server는 12.4의 "모르는 tool" 오류로 답한다.
 
-Spring AI 2.0.1에서는 이 JSON-RPC 오류가 tool loop를 그대로 빠져나가, 그대로 두면 채팅 stream이 오류로 끝난다.
+Spring AI 2.0.2에서는 이 JSON-RPC 오류가 tool loop를 그대로 빠져나가, 그대로 두면 채팅 stream이 오류로 끝난다.
 그래서 agent는 목록의 callback마다 `UnknownToolAwareToolCallback`으로 감싸, "모르는 tool" 오류가 오면 그 token의 목록을 버리고 오류를 tool 결과로 돌려준다(12.11).
 그러면 모델은 `Unknown tool: invalid_tool_name`을 tool 결과로 받고 turn은 이어진다.
 그 turn은 받아 둔 목록을 계속 쓰고, 다음 질문에서 목록을 새로 받는다.
@@ -402,10 +402,38 @@ public boolean hidden(String subject, String tool) {
 그 tool의 scope(10장의 `ToolScopeRegistry`가 `@RequiredScope`에서 모은 값)를 사용자의 역할(`roleOf`)이 받을 수 없으면 숨긴다.
 등록되지 않은 이름은 숨긴 tool이 아니고, SDK가 "모르는 tool"로 답한다.
 
-**`ToolVisibilityTransport`: SDK handler를 감싼다**
+**`toolVisibilityListFilter`: SDK의 tool filter로 목록을 거른다**
 
-MCP Java SDK와 Spring AI에는 사용자마다 `tools/list` 결과를 거르는 hook이 없다.
-Spring AI의 stateless transport `WebMvcStatelessServerTransport`는 `final`이라 상속할 수도 없다.
+MCP Java SDK는 2.1.0부터 server에 tool filter(`McpSyncListFilter`)를 더할 수 있다.
+filter는 요청의 `McpTransportContext`와 tool 하나를 받아, 이 요청의 `tools/list`에 그 tool을 넣을지 정한다.
+Spring AI 2.0.2는 `McpStatelessSyncServerCustomizer` bean을 자동 구성의 server builder에 적용한다.
+그래서 `McpTransportConfig`는 server를 직접 만들지 않고, 이 bean 하나로 filter를 더한다.
+
+```java
+@Bean
+public McpStatelessSyncServerCustomizer toolVisibilityListFilter(ToolVisibility visibility) {
+    return builder -> builder.addToolFilter(
+            (context, tool) -> !visibility.hidden(McpCaller.subject(context).orElse(null), tool.name()));
+}
+```
+
+`subject`는 11장의 `contextExtractor`가 검증한 JWT에서 꺼내 둔 `sub`다.
+token에 `sub`가 없으면 `null`이고, `ToolVisibility`는 이 요청을 손님으로 본다.
+SDK는 filter를 통과한 tool을 등록한 순서 그대로 돌려주므로, 목록의 순서는 12.3에서 본 대로 바뀌지 않는다.
+filter가 예외를 던지면 SDK는 `tools/list` 전체를 내부 오류(`-32603`)로 바꾸므로, filter는 예외를 던지지 않게 만든다.
+
+**`ToolVisibilityTransport`: 숨긴 tool의 호출을 막는다**
+
+tool filter는 `tools/list`에만 적용되고, `tools/call`은 거치지 않는다.
+SDK의 `McpSyncListFilter` 설명도, 목록에서 숨긴 tool을 이름으로 부르면 그대로 실행되므로 권한은 따로 확인하라고 적는다.
+12.1의 표처럼 숨기는 일과 부를 때 막는 일은 따로 해야 하고, SDK의 tool filter는 그 가운데 숨기는 일만 맡는다.
+
+이 practice에서는 이 차이가 곧 authorization 우회다.
+`ToolScopeFilter`는 숨긴 tool의 scope를 보지 않고 transport로 넘긴다(아래).
+그래서 호출을 막는 곳이 따로 없으면, 손님 token으로 부른 `updateStock`이 scope 검사 없이 실행되어 재고가 바뀐다.
+숨긴 tool의 호출은 transport를 감싼 `ToolVisibilityTransport`가 SDK보다 먼저 막는다.
+
+Spring AI의 stateless transport `WebMvcStatelessServerTransport`는 `final`이라 상속할 수 없다.
 그래서 같은 interface `McpStatelessServerTransport`를 구현한 transport로 원래 transport를 감싼다.
 SDK server가 `setMcpHandler`로 넘기는 요청 handler를 다시 감싸 원래 transport에 넘기고, 감싼 handler는 다음 일을 한다.
 
@@ -426,19 +454,13 @@ public Mono<McpSchema.JSONRPCResponse> handleRequest(McpTransportContext context
     if (!McpSchema.METHOD_TOOLS_LIST.equals(request.method())) {
         return response;
     }
-    return response.map(r -> {
-        if (!(r.result() instanceof McpSchema.ListToolsResult list)) {
-            return r;
-        }
-        List<McpSchema.Tool> visible = visibility.visible(subject, list.tools());
-        /* tools/list 로그를 남기고, visible에 list의 nextCursor와 meta를 더한 새 결과로 답한다 */
-    });
+    return response.doOnNext(r -> { /* SDK가 거른 목록의 수로 tools/list 로그를 남긴다 */ });
 }
 ```
 
-`subject`는 11장의 `contextExtractor`가 검증한 JWT에서 꺼내 둔 `sub`다.
-token에 `sub`가 없으면 `null`이고, `ToolVisibility`는 이 요청을 손님으로 본다.
-`UNKNOWN_TOOL_MESSAGE`는 SDK 2.0.1이 없는 tool에 쓰는 `Unknown tool: invalid_tool_name`이고, SDK를 올리면 다시 확인할 값이다.
+`tools/list`의 응답은 바꾸지 않는다.
+filter는 tool마다 불리므로, 요청마다 한 줄인 목록 로그(12.3)는 요청마다 한 번 지나는 이 handler에서 남긴다.
+`UNKNOWN_TOOL_MESSAGE`는 SDK 2.1.0이 없는 tool에 쓰는 `Unknown tool: invalid_tool_name`이고, SDK를 올리면 다시 확인할 값이다.
 
 숨긴 tool의 호출을 tool마다 감싸 막지 않는 데는 이유가 있다.
 SDK는 이름으로 tool을 찾은 뒤에 인자를 검증하고, 찾지 못한 이름에만 "모르는 tool"로 답한다.
@@ -514,7 +536,7 @@ public List<ToolCallback> callbacks(Authentication user) {
 
 **agent: `UnknownToolAwareToolCallback`**
 
-Spring AI 2.0.1의 `SyncMcpToolCallback`은 JSON-RPC 오류(`McpError`)를 감싸지 않고 그대로 던지고, tool loop는 `ToolExecutionException`만 tool 결과로 바꾼다.
+Spring AI 2.0.2의 `SyncMcpToolCallback`은 JSON-RPC 오류(`McpError`)를 감싸지 않고 그대로 던지고, tool loop는 `ToolExecutionException`만 tool 결과로 바꾼다.
 `call`은 감싼 `SyncMcpToolCallback`이 던진 `McpError` 가운데 "모르는 tool"만 잡는다.
 잡으면 `onUnknownTool`로 목록을 버리고 `new ToolExecutionException(getToolDefinition(), ex)`를 던지며, 다른 `McpError`는 그대로 던진다.
 `-32602`는 인자 오류에도 쓰이므로, `isUnknownTool`은 `code`와 함께 `message`가 `Unknown tool: invalid_tool_name`인지 본다.
@@ -545,7 +567,7 @@ public Flux<ServerSentEvent<String>> chat(@RequestBody String message, HttpSessi
 `ChatEvents.of`는 채팅 stream이 오류로 끝나면 step-up 오류(10장)를 먼저 찾고, 다음으로 목록에 없는 tool의 오류를 찾는다.
 두 경우 모두 `ChatController`가 넘긴 `restore`로 끊긴 turn을 대화 기억에서 되돌린 뒤, 각각 `step-up`과 `tool-unavailable` event를 보낸다.
 `unavailableTool`은 원인 사슬에서 메시지가 `No ToolCallback found for tool name: `로 시작하는 `IllegalStateException`을 찾고, 뒤의 tool 이름을 꺼낸다.
-Spring AI 2.0.1에는 이 경우를 위한 예외 타입이 따로 없어서 메시지로 알아보므로, Spring AI를 올리면 다시 확인한다.
+Spring AI 2.0.2에는 이 경우를 위한 예외 타입이 따로 없어서 메시지로 알아보므로, Spring AI를 올리면 다시 확인한다.
 
 **local-client: `McpCalls.ToolList`**
 
@@ -617,6 +639,7 @@ docs/superpowers/captures/mcp-visibility-walkthrough.sh > /tmp/visibility-walkth
 - 모델은 목록에 있는 tool만 부르므로, 지금 token의 scope로 목록을 거르면 step-up이 시작될 `403`도 사라진다.
 - 그래서 "이 사용자가 언젠가 받을 수 있는가"로 숨길지를 정하고, "지금 token에 있는가"는 부를 때 `403`으로 묻는다. 권한은 MCP Server가 알고, scope는 token에 있다.
 - 숨긴 tool의 호출에는 정말 없는 tool과 똑같은 JSON-RPC 오류로 답해, 그런 tool이 있다는 사실도 알리지 않는다. 검사는 보이는 tool인지를 tool의 scope보다 먼저 본다.
+- 목록을 거르는 SDK의 tool filter는 `tools/call`을 막지 않는다. 숨긴 tool의 scope 검사를 건너뛰는 서버는 호출을 막는 곳을 따로 두어야, 숨긴 tool이 이름만으로 실행되지 않는다.
 - 목록이 사용자마다 다르면 client는 access token별로 cache한다. 2025-11-25 서버는 `ttlMs`를 주지 않으므로 client가 TTL을 정하고, token이 바뀌거나 "모르는 tool" 오류가 오면 다시 받는다.
 - web agent는 낡은 목록의 "모르는 tool" 오류를 모델에게 돌려주고, 목록에 없는 이름의 호출은 turn을 되돌려 안내한다.
 

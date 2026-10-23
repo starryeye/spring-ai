@@ -57,10 +57,10 @@ http://localhost:9010/oauth2/authorize
   ?response_type=code
   &client_id=official-shop-agent
   &scope=openid%20profile
-  &state=3C1allspIhMjSc_tqFWW7iOvhCzryvgD9hh08ZbYJ3E%3D
+  &state=s5oswhb4Ro7wOIwVxjMk6Ihr3aiIJIq1OCrhGAkBXeI%3D
   &redirect_uri=http://localhost:8110/login/oauth2/code/authserver
-  &nonce=V3Gtfe-0MM7KwPlkMwvEMubJLZbwE7nlpfPWwqTh924
-  &code_challenge=n50xckCBjg8zTfB43CXrPe9u72P70qaOkqzpvm2BNzg
+  &nonce=FGHDpDKrMEmSHXi5OVlXgjeHRG9QHRlX5wTV4DHvWQ4
+  &code_challenge=zWfBiN4qJfVaGae5w4GuoPPE8gQptu0nImXEg6VZv0k
   &code_challenge_method=S256
   &resource=http://localhost:8111/mcp
 ```
@@ -184,8 +184,8 @@ callback 주소에는 누구나 요청을 보낼 수 있다.
 
 ```text
 http://localhost:8110/login/oauth2/code/authserver
-  ?code=26wTEdfg5_89...
-  &state=rp0_FhLUTGKRwkDGY5qLuB97B6UmpDHcVyMmTyztvpw%3D
+  ?code=Tk-5MYwEBFCQ...
+  &state=A1IvLyZ_9_TAQW0AzcxFck87ADMGqbHjUSi_73y0VF8%3D
   &iss=http%3A%2F%2Flocalhost%3A9010
 ```
 
@@ -238,7 +238,7 @@ Authorization: Basic <base64(official-shop-agent:official-shop-agent-secret)>
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code
-&code=vWGE6LOgdELv...
+&code=cLR1reKObkxD...
 &redirect_uri=http%3A%2F%2Flocalhost%3A8110%2Flogin%2Foauth2%2Fcode%2Fauthserver
 &code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
 &resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
@@ -246,9 +246,9 @@ grant_type=authorization_code
 
 ```json
 {
-  "access_token": "eyJraWQiOiIwNGRlZDhl...",
-  "refresh_token": "ySnltAsyLyJt...",
-  "id_token": "eyJraWQiOiIwNGRlZDhl...",
+  "access_token": "eyJraWQiOiI3YWI2Zjg1...",
+  "refresh_token": "Oq2kdtVjLVcR...",
+  "id_token": "eyJraWQiOiI3YWI2Zjg1...",
   "scope": "openid profile",
   "token_type": "Bearer",
   "expires_in": 299
@@ -298,8 +298,8 @@ access token의 payload는 다음과 같다.
   "sub": "user",
   "aud": "http://localhost:8111/mcp",
   "scope": ["openid", "profile"],
-  "iat": 1792507711,
-  "exp": 1792508011,
+  "iat": 1792783628,
+  "exp": 1792783928,
   "...": "그 밖의 field는 생략"
 }
 ```
@@ -394,7 +394,7 @@ Authorization: Basic <base64(official-shop-agent:official-shop-agent-secret)>
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token
-&refresh_token=ySnltAsyLyJt...
+&refresh_token=Oq2kdtVjLVcR...
 &resource=http%3A%2F%2Flocalhost%3A8111%2Fmcp
 ```
 
