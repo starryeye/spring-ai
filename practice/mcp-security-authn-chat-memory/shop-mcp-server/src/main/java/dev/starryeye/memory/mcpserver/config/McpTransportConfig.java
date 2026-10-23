@@ -48,7 +48,13 @@ public class McpTransportConfig {
 	 * 상한은 서버 전체의 session 수라서 사용자마다 따로 세지 않는다.
 	 * 그래서 한 사용자가 상한을 채우면 다른 사용자의 {@code initialize}도 {@code 503}이 된다.
 	 * 만료가 그 자리를 다시 비운다.
-	 * 다만 Spring AI 2.0.2의 만료 검사는 DELETE와 겹치면 멈출 수 있고, 그러면 재시작 전까지 상한이 다시 비지 않는다.
+	 * 다만 Spring AI 2.0.2의 만료 검사는 session을 꺼낸 뒤 지우기 전에 같은 session의 DELETE가 먼저 끝나면 {@code NullPointerException}으로 멈춘다.
+	 * 멈춘 검사는 다시 돌지 않는다.
+	 * 그래서 재시작 전까지 session이 만료되지 않고, 상한이 차면 모든 {@code initialize}가 {@code 503}이다.
+	 * token이 있는 client는 DELETE를 보낼 때를 스스로 고르므로, 검사가 도는 때에 맞춰 DELETE를 몰아 보내 이 멈춤을 일부러 일으킬 수 있다.
+	 * 멈추면 Reactor가 ERROR 로그를 남긴다.
+	 * logger는 {@code reactor.core.publisher.Operators}, 메시지는 {@code Operator called default onErrorDropped}, 원인은 {@code NullPointerException}이다.
+	 * transport 기본값은 만료가 없어 한 번 찬 상한이 다시 비지 않으므로, 이 위험이 기본값보다 나쁜 것은 아니다.
 	 *
 	 * <p>만료된 session으로 온 요청은 {@code 404}다.
 	 * client는 이 응답을 받으면 새 session을 연다.

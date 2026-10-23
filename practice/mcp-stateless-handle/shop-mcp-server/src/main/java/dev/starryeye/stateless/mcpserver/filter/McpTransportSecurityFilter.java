@@ -19,10 +19,10 @@ import java.util.List;
  *
  * <p>검사 규칙은 SDK의 {@link DefaultServerTransportSecurityValidator}를 그대로 쓴다.
  * Spring AI transport의 기본 validator는 아무것도 막지 않아, 이 filter가 유일한 검사다.
- * Spring Security가 먼저 돌면 token 없는 요청은 401로 끝나고 이 검사까지 오지 않는다.
+ * Spring Security가 먼저 돌면 token 없는 요청은 401로 끝나고 Origin·Host 검사까지 오지 않는다.
  * 그래서 이 filter는 security filter chain 앞에 서서, token과 상관없이 잘못된 {@code Origin}은 403으로,
  * 잘못된 {@code Host}는 421로 막는다.
- * 응답 본문은 SDK transport와 같은 평문 메시지다.
+ * 응답 본문은 Spring AI transport가 validator 예외에 쓰는 것과 같은 평문 메시지다.
  */
 public class McpTransportSecurityFilter extends OncePerRequestFilter {
 
