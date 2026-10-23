@@ -62,6 +62,20 @@ class ToolListVisibilityTest {
 		assertThat(customer).isEqualTo(staff.stream().filter(name -> !name.equals("updateStock")).toList());
 	}
 
+	/**
+	 * 목록 filter는 요청마다 사용자를 {@code McpTransportContext}에서 꺼낸다.
+	 * filter가 예외를 던지면 SDK가 {@code tools/list} 전체를 내부 오류로 바꾸므로, {@code sub}가 없어도 던지면 안 된다.
+	 * 사용자를 모르는 요청은 손님이다.
+	 */
+	@Test
+	void sub_없는_token의_목록은_손님_목록이다() throws Exception {
+		List<String> customer = 목록(토큰("user2", "products:read"));
+
+		List<String> unknownUser = 목록(토큰(null, "products:read"));
+
+		assertThat(unknownUser).doesNotContain("updateStock").isEqualTo(customer);
+	}
+
 	@Test
 	void 같은_사용자는_몇_번을_받아도_같은_순서다() throws Exception {
 		String token = 토큰("user2", "products:read");

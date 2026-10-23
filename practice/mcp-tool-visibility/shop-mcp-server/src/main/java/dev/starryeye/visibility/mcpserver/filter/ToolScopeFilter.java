@@ -46,6 +46,10 @@ import java.util.stream.Collectors;
  * 숨긴 tool은 scope를 늘려도 쓸 수 없어서 step-up을 시작하지 않고, scope를 보지 않은 채 transport로 넘어간다.
  * 그러면 {@code ToolVisibilityTransport}가 정말 없는 tool과 같은 "모르는 tool" 오류로 답한다.
  *
+ * <p>이 건너뜀은 {@code ToolVisibilityTransport}의 호출 guard와 한 쌍이다.
+ * 숨긴 tool을 목록에서 빼는 SDK의 tool filter는 {@code tools/call}에 적용되지 않으므로, 이 건너뜀을 받아 줄 곳이 guard뿐이다.
+ * guard가 없으면 scope를 보지 않은 숨긴 tool 호출이 그대로 실행된다.
+ *
  * <p>tool 이름은 JSON-RPC 본문의 {@code params.name}에 있어 본문을 읽어야 한다.
  * MCP 2026-07-28은 이 이름을 {@code Mcp-Name} header로도 보내게 해서, 서버는 본문 없이 같은 검사를 할 수 있다.
  * 지금 SDK는 2025-11-25라 본문을 읽는다.
