@@ -11,8 +11,8 @@ web agent는 이렇게 사용자마다 다른 목록을 access token별로 cache
 | 바뀐 곳 | stateless | 이 practice | 안내서 절 |
 |---|---|---|---|
 | MCP Server의 사용자 권한 | 없다. tool을 부를 때 token의 scope만 본다 | `McpTransportConfig`가 역할 표를 만들고, 그 표에서 `user`만 점원(`STAFF`)이다. `ToolVisibility`는 역할마다 받을 수 있는 scope와 tool의 `@RequiredScope`로 숨길 tool을 정한다 | [12장 1단계](../mcp-guide/12-tool-visibility.md#123-1단계-역할로-거른-toolslist), [12장 권한을 판단하는 곳](../mcp-guide/12-tool-visibility.md#126-권한을-판단하는-곳) |
-| MCP Server의 `tools/list` | scope와 상관없이 누구에게나 tool 7개를 모두 보여 준다 | `ToolVisibilityTransport`가 SDK handler를 감싸 결과를 역할로 거른다. 점원은 7개, 손님은 `updateStock`을 뺀 6개를 SDK가 준 순서대로 받는다 | [12장 1단계](../mcp-guide/12-tool-visibility.md#123-1단계-역할로-거른-toolslist) |
-| 숨긴 tool의 `tools/call` | 숨긴 tool이 없다 | `ToolVisibilityTransport`가 SDK보다 먼저 "모르는 tool" JSON-RPC 오류로 답한다. HTTP `200`이고 `WWW-Authenticate`가 없으며, 본문은 정말 없는 tool에 SDK가 주는 오류와 같다 | [12장 2단계](../mcp-guide/12-tool-visibility.md#124-2단계-숨긴-tool을-부르면) |
+| MCP Server의 `tools/list` | scope와 상관없이 누구에게나 tool 7개를 모두 보여 준다 | SDK의 tool filter(`McpTransportConfig#toolVisibilityListFilter`)가 역할로 거른다. 점원은 7개, 손님은 `updateStock`을 뺀 6개를 등록 순서대로 받는다 | [12장 1단계](../mcp-guide/12-tool-visibility.md#123-1단계-역할로-거른-toolslist) |
+| 숨긴 tool의 `tools/call` | 숨긴 tool이 없다 | `ToolVisibilityTransport`가 SDK보다 먼저 "모르는 tool" JSON-RPC 오류로 답한다. tool filter는 목록만 거르므로, 이 감싸기가 없으면 숨긴 tool도 이름으로 불러 실행된다. HTTP `200`이고 `WWW-Authenticate`가 없으며, 본문은 정말 없는 tool에 SDK가 주는 오류와 같다 | [12장 2단계](../mcp-guide/12-tool-visibility.md#124-2단계-숨긴-tool을-부르면) |
 | `ToolScopeFilter`의 scope 검사 순서 | 기본 scope, tool의 scope 순이다 | 기본 scope, 보이는 tool인지, tool의 scope 순이다. 숨긴 tool은 scope를 보지 않고 transport로 넘기므로, 손님의 `updateStock`은 `403`이 아니라 "모르는 tool"이 된다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up) |
 | `updateStock`·`checkout`의 tool 설명 | 권한에 관한 문장이 없다 | 설명 끝에 `처음 부르면 사용자에게 재고 변경 권한(products:write)을 묻는다.`와 `처음 부르면 사용자에게 주문 권한(orders:write)을 묻는다.`가 있다. 지금 token에 scope가 없어도 모델이 이 tool을 피하지 않게 하려는 문장이다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up) |
 | `auth-server` | 포트 9040, client `stateless-shop-agent`, cookie `STATELESSAUTHSESSIONID`다 | 포트 9050, client `visibility-shop-agent`, cookie `VISIBILITYAUTHSESSIONID`다. 계정과 scope 등록은 같고, 점원·손님 역할은 모른다 | [12장 권한을 판단하는 곳](../mcp-guide/12-tool-visibility.md#126-권한을-판단하는-곳) |
@@ -26,7 +26,7 @@ web agent는 이렇게 사용자마다 다른 목록을 access token별로 cache
 그 클래스들은 package 이름(`dev.starryeye.visibility.*`)과 포트·client_id·cookie 같은 설정 값만 다르다.
 PRM의 `scopes_supported`와 `401`의 `scope`는 stateless처럼 `products:read`뿐이다.
 
-MCP 요청 형식은 stateless와 같은 2025-11-25이고, 버전도 Spring Boot 4.1.1, Spring AI 2.0.1, MCP Java SDK 2.0.1로 같다.
+MCP 요청 형식은 stateless와 같은 2025-11-25이고, 버전도 Spring Boot 4.1.2, Spring AI 2.0.2, MCP Java SDK 2.1.0으로 같다.
 목록을 사용자마다 달리하는 방법은 2026-07-28 server/tools 규칙을 따른다.
 목록 cache는 2026-07-28 Caching 가운데, 사용자마다 다른 결과를 다른 access token과 나누지 않는다는 규칙을 미리 따른다.
 2026-07-28이 더한 `ttlMs`·`cacheScope` field는 서버가 보내지 않으므로, cache 시간은 agent가 정한다.
@@ -166,9 +166,9 @@ package는 `shop-mcp-server`가 `mcpserver`, `shop-agent`가 `agent`, `local-cli
 | module | 클래스 | 하는 일 | 안내서 |
 |---|---|---|---|
 | `shop-mcp-server` | `ToolVisibility` | 역할 `STAFF`·`CUSTOMER`와 역할마다 받을 수 있는 scope를 둔다. 등록된 tool의 scope를 그 역할이 받을 수 없으면 숨기고, 표에 없는 사용자는 손님으로 본다 | [12장 1단계](../mcp-guide/12-tool-visibility.md#123-1단계-역할로-거른-toolslist), [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
-| | `McpTransportConfig` | 역할 표(`user` → `STAFF`)로 `ToolVisibility` bean을 만든다. `ToolVisibilityTransport`를 `@Primary` bean으로 두고 `ToolScopeFilter`에도 `ToolVisibility`를 넘기며, router에는 stateless처럼 `TransportErrorResponseFilter`를 끼운다 | [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
-| | `ToolVisibilityTransport` | SDK server가 transport에 넘기는 handler를 감싸 `tools/list` 결과를 역할로 거른다. 숨긴 tool의 `tools/call`에는 SDK가 tool을 찾기 전에 "모르는 tool" 오류로 답한다 | [12장 2단계](../mcp-guide/12-tool-visibility.md#124-2단계-숨긴-tool을-부르면), [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
-| | `ToolScopeFilter` | 기본 scope 다음에 보이는 tool인지 본다. 숨긴 tool이면 tool의 scope를 보지 않고 transport로 넘긴다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up), [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
+| | `McpTransportConfig` | 역할 표(`user` → `STAFF`)로 `ToolVisibility` bean을 만들고, `McpStatelessSyncServerCustomizer` bean(`toolVisibilityListFilter`)으로 SDK의 tool filter를 더한다. `ToolVisibilityTransport`를 `@Primary` bean으로 두고 `ToolScopeFilter`에도 `ToolVisibility`를 넘기며, router에는 stateless처럼 `TransportErrorResponseFilter`를 끼운다 | [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
+| | `ToolVisibilityTransport` | SDK server가 transport에 넘기는 handler를 감싸, 숨긴 tool의 `tools/call`에 SDK가 tool을 찾기 전에 "모르는 tool" 오류로 답한다. `tools/list` 응답은 바꾸지 않고, 보인 tool 수만 로그에 남긴다 | [12장 2단계](../mcp-guide/12-tool-visibility.md#124-2단계-숨긴-tool을-부르면), [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
+| | `ToolScopeFilter` | 기본 scope 다음에 보이는 tool인지 본다. 숨긴 tool이면 tool의 scope를 보지 않고 transport로 넘기므로, `ToolVisibilityTransport`가 그 호출을 막아야 한다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up), [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
 | | `McpCaller` | token에 `sub`가 없으면 사용자를 transport context에 넣지 않아, 그 요청을 손님으로 다루게 한다. `subject(...)`는 transport context에서 `sub`를 꺼낸다 | [12장 서버 코드](../mcp-guide/12-tool-visibility.md#1210-서버-코드에서-보기) |
 | | `ProductTools`, `BasketTools` | `updateStock`과 `checkout`의 설명 끝에, 처음 부르면 권한을 묻는다는 문장을 둔다 | [12장 3단계](../mcp-guide/12-tool-visibility.md#125-3단계-받을-수-있는-tool은-그대로-step-up) |
 | `shop-agent` | `application.yml` | `spring.ai.mcp.client.toolcallback.enabled: false`로 자동 구성의 tool provider를 끈다. MCP client bean(`mcpSyncClients`)은 그대로 남는다 | [12장 client 코드](../mcp-guide/12-tool-visibility.md#1211-client-코드에서-보기) |

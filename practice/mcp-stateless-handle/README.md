@@ -9,7 +9,7 @@ web agent에서는 모델이, `local-client`에서는 코드가 앞선 tool 결�
 
 | 바뀐 곳 | authz | 이 practice | 안내서 절 |
 |---|---|---|---|
-| MCP Server의 session | `protocol: STREAMABLE`이다. `initialize` 응답에 `Mcp-Session-Id`를 주고, GET stream과 session을 끝내는 `DELETE`를 받는다 | `protocol: STATELESS`다. `Mcp-Session-Id`가 없고, GET `/mcp`는 `405`, DELETE `/mcp`는 경로가 없어 `404`다 | [11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답) |
+| MCP Server의 session | `protocol: STREAMABLE`이다. `initialize` 응답에 `Mcp-Session-Id`를 주고, GET stream과 session을 끝내는 `DELETE`를 받는다. session에는 상한과 만료(`mcp.limits.*`)가 있다 | `protocol: STATELESS`다. `Mcp-Session-Id`가 없고, GET `/mcp`는 `405`, DELETE `/mcp`는 경로가 없어 `404`다 | [11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답) |
 | MCP Server의 응답 형식 | `tools/call`의 응답은 `text/event-stream`이고, event `id`가 session ID다 | `tools/call`의 응답도 `initialize`처럼 `application/json` 본문 하나다. SSE event가 없으므로 event `id`도 없다 | [11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답) |
 | MCP Server가 tool을 부른 사용자를 아는 방법 | tool은 로그에 남길 사용자 이름만 `SecurityContextHolder`에서 읽는다 | transport의 `contextExtractor`가 요청마다 token의 `sub`·`client_id`를 `McpTransportContext`에 넣는다. 장바구니 tool은 이 값을 `McpCaller`로 꺼낸다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | MCP Server의 장바구니 저장소 | 없다 | `BasketStore`가 장바구니를 메모리에 `<sub>:<handle>` key로 둔다. 장바구니는 만든 뒤 30분이 지나면 만료되고, 사용자마다 열린 장바구니는 5개, 한 장바구니에 같은 상품은 99개까지다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다) |
@@ -17,13 +17,14 @@ web agent에서는 모델이, `local-client`에서는 코드가 앞선 tool 결�
 | MCP Server의 tool 결과 | tool이 문자열을 돌려주고, Spring AI가 그 문자열을 text content 하나인 결과로 만든다 | 장바구니 tool은 `CallToolResult`를 직접 만든다. handle과 주문 번호는 `structuredContent`에도 넣고, 쓸 수 없는 장바구니는 `isError: true`인 tool 결과로 알린다 | [11장 2단계](../mcp-guide/11-stateless-and-handle.md#114-2단계-handle을-만들고-넘긴다), [handle과 소유권](#handle과-소유권) |
 | `auth-server`의 scope 등록 | 두 client에 `products:read`와 `products:write`가 있다 | `orders:write`(주문)를 더한다. 이 scope는 `products:read`를 포함하지 않으므로, client는 authz처럼 가진 scope와 합쳐 요청한다 | [11장 시퀀스 다이어그램](../mcp-guide/11-stateless-and-handle.md#112-시퀀스-다이어그램), [10장 합친 scope](../mcp-guide/10-scope-and-step-up.md#105-3단계-합친-scope로-다시-authorization을-받는다) |
 | `auth-server`의 login 계정 | `user` 하나다 | `user2`가 더 있다. 다른 사용자가 남의 handle을 쓰면 어떻게 되는지 보는 데 쓴다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다) |
-| MCP Server의 오류 응답 | transport 오류 본문에 `McpError`와 Java stack trace가 담긴다 | `TransportErrorResponseFilter`가 `code`·`message`만 남긴다. 형식이 틀린 `tools/call`은 `ToolScopeFilter`가 `400`·`-32602`로 먼저 끝낸다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
+| MCP Server의 오류 응답 | `TransportErrorResponseFilter`가 transport 오류 본문에 `code`·`message`만 남긴다. 형식이 틀린 `tools/call`도 transport에 넘긴다 | 같은 일을 하는 filter를 stateless transport의 router에 끼운다. 형식이 틀린 `tools/call`은 `ToolScopeFilter`가 `400`·`-32602`로 먼저 끝낸다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | agent의 MCP client | 모든 사용자가 client 하나를 같이 쓰고, 요청마다 그 사용자의 token을 붙인다 | 코드는 같다. 서버에 session이 없어서, 요청마다 붙는 token만으로 사용자가 정해진다 | [session 없는 서버](#session-없는-서버), [6장 session과 사용자](../mcp-guide/06-mcp-call-and-validation.md#67-session과-사용자) |
+| agent의 tool 다시 보내기 | `SessionRetryingToolCallback`이 MCP Server가 session을 지워 실패한 tool 호출을 다시 보낸다 | 없다. 서버에 session이 없어 끝날 session도 없다 | [session 없는 서버](#session-없는-서버), [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한) |
 | agent의 대화 기억 | 없다. 질문마다 새 대화다 | `ChatMemoryConfig`가 사용자(`sub`)마다 최근 메시지 20개를 기억한다. 대화 기억 advisor를 tool loop 안쪽에 두어 tool 호출과 결과까지 남긴다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | agent의 system prompt | 상품과 재고를 물으면 tool로 실제 데이터를 조회해 답하게 한다 | 앞선 tool 결과의 `basketId`를 이어 쓰고, 장바구니가 없거나 찾을 수 없음·만료·이미 주문이라는 결과가 오면 `createBasket`으로 새로 만들게 한다. `checkout`은 사용자가 주문이나 결제를 분명히 부탁할 때만 부르게 한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | agent의 step-up | `403`이면 consent 카드를 보내고, consent 뒤 browser가 같은 질문을 다시 보낸다 | 같다. 그리고 step-up으로 끊긴 turn을 대화 기억에서 되돌려, 다시 보낸 질문이 끊기기 전의 기억에서 시작하게 한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
 | agent의 화면 | 대화를 비우는 버튼이 없다 | "새 대화" 버튼이 `POST /api/chat/reset`으로 그 사용자의 대화 기억을 지운다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
-| `local-client`의 MCP 호출 | `getStock(p1)` 뒤에 `updateStock(p1, 10)`을 부르고, `403`이면 `products:write`로 step-up한다 | `getStock(p1)` 뒤에 장바구니를 만들어 두 상품을 담고, 모르는 handle로 `getBasket`을 불러 오류를 본다. 마지막 `checkout`이 `403`을 받으면 `orders:write`로 step-up한 뒤 같은 호출을 새 요청으로 다시 보낸다 | [11장 사용자 기기의 앱](../mcp-guide/11-stateless-and-handle.md#118-사용자-기기의-앱-코드가-handle을-들고-다닌다) |
+| `local-client`의 MCP 호출 | `getStock(p1)` 뒤에 `updateStock(p1, 10)`을 부르고, `403`이면 `products:write`로 step-up한다 | `getStock(p1)` 뒤에 장바구니를 만들어 두 상품을 담고, 모르는 handle로 `getBasket`을 불러 오류를 본다. 마지막 `checkout`이 `403`을 받으면 `orders:write`로 step-up하고, SDK가 같은 호출을 새 token으로 다시 보낸다 | [11장 사용자 기기의 앱](../mcp-guide/11-stateless-and-handle.md#118-사용자-기기의-앱-코드가-handle을-들고-다닌다) |
 
 MCP Server의 `401`의 `scope`와 PRM, token 검증, `Origin`·`Host`·`MCP-Protocol-Version` 검사는 authz와 같은 클래스다.
 scope 검사(`ToolScopeFilter`)는 형식이 틀린 `tools/call`을 거르는 검사가 더 있고, 나머지는 authz와 같다.
@@ -36,7 +37,7 @@ tool 목록도 authz처럼 scope와 상관없이 모두에게 같다.
 
 MCP 요청 형식은 authz와 같은 2025-11-25다.
 2025-11-25에서 session ID를 줄지는 서버가 정하므로, session을 쓰지 않는 서버도 이 버전 그대로 돈다.
-버전은 Spring Boot 4.1.1, Spring AI 2.0.1, MCP Java SDK 2.0.1이다(authz는 4.1.0, 2.0.0, 2.0.0).
+버전은 authz와 같은 Spring Boot 4.1.2, Spring AI 2.0.2, MCP Java SDK 2.1.0이다.
 
 ### session 없는 서버
 
@@ -189,7 +190,7 @@ MCP Server에는 authz에 없는 하위 package 두 개가 더 있다.
 | | `UserConfig` | login 계정 `user`와 `user2`를 둔다. 비밀번호는 둘 다 `password`다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다) |
 | `shop-mcp-server` | `application.yml` | `spring.ai.mcp.server.protocol: STATELESS`로 session 없는 transport를 쓴다 | [11장 1단계](../mcp-guide/11-stateless-and-handle.md#113-1단계-session-없는-서버의-요청과-응답) |
 | | `McpTransportConfig` | Spring AI 자동 구성 대신 `WebMvcStatelessServerTransport` bean을 직접 만들어 `contextExtractor`에 `McpCaller::context`를 넣고, router에 `TransportErrorResponseFilter`를 끼운다. `BasketStore` bean도 만든다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
-| | `TransportErrorResponseFilter` | transport가 `McpError`로 끝낸 응답을 `code`·`message`만 남긴 JSON-RPC 오류로 바꿔, 본문에 stack trace가 나가지 않게 한다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
+| | `TransportErrorResponseFilter` | transport가 `McpError`로 끝낸 응답을 `code`·`message`만 남긴 JSON-RPC 오류로 바꿔, 본문에 stack trace가 나가지 않게 한다. authz의 것과 같은 일을 stateless transport의 router에서 한다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `McpCaller` | Spring Security가 검증한 JWT에서 `sub`와 `client_id`를 꺼내 `McpTransportContext`에 넣는다. tool은 같은 클래스로 이 값을 꺼내고, 인증이 없으면 예외를 던진다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `BasketStore` | 장바구니를 `<sub>:<handle>` key로 메모리에 두고, handle을 만든다. 만료(30분), 사용자당 개수(5개), 상품당 수량(99개)을 지키고, 같은 장바구니를 두 번 주문하지 못하게 한다 | [11장 3단계](../mcp-guide/11-stateless-and-handle.md#115-3단계-handle을-사용자에게-묶는다), [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | | `BasketException`, `BasketView` | 장바구니를 쓸 수 없는 이유와 모델이 읽을 문장을 정한다. `BasketView`는 tool에 돌려주는 장바구니 내용(handle, 만료 시각, 담은 상품)이다 | [handle과 소유권](#handle과-소유권) |

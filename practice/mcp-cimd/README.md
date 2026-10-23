@@ -36,7 +36,7 @@ web agent는 ChatGPT형(`private_key_jwt`)과 Claude형(`none`) 두 client type 
 scope, 역할 표, 역할별 tool 목록, step-up 흐름은 [visibility](../mcp-tool-visibility/README.md#숨기기와-step-up)와 같다.
 다만 Claude형은 consent를 저장하지 않으므로, step-up의 consent 화면에서 이미 허락한 scope까지 모두 다시 고른다.
 
-MCP 요청 형식은 visibility와 같은 2025-11-25이고, 버전도 Spring Boot 4.1.1, Spring AI 2.0.1, MCP Java SDK 2.0.1로 같다.
+MCP 요청 형식은 visibility와 같은 2025-11-25이고, 버전도 Spring Boot 4.1.2, Spring AI 2.0.2, MCP Java SDK 2.1.0으로 같다.
 CIMD 규칙은 2026-07-28 Client Registration을 따른다.
 
 ### 두 client type
