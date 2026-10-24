@@ -272,6 +272,12 @@ class McpAuthorizationStandardTest {
 	}
 
 	@Test
+	void typ이_application_at_jwt인_토큰도_받는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("application/at+jwt"), null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
 	void typ의_대소문자는_가리지_않는다() throws Exception {
 		this.mockMvc.perform(mcp(typ이_있는_토큰("AT+JWT"), null, HOST))
 				.andExpect(status().isOk());

@@ -232,7 +232,7 @@ official의 access token은 JWT라서, MCP Server는 Authorization Server에 묻
 | `iss` | `issuer-uri`와 글자 그대로 같다 | 믿지 않는 Authorization Server가 발급한 token이 통과한다 |
 | `aud` | MCP Server 자신의 이름(`http://localhost:8111/mcp`)이 들어 있다 | 다른 서비스용 token이 통과한다 |
 | `exp` | 현재 시각이 `exp` 전이다 | 새어 나간 token을 기한 없이 쓸 수 있다 |
-| header의 `typ` | 없거나 `JWT`나 `at+jwt`다 | 다른 용도로 만든 JWT가 access token으로 통과할 수 있다 |
+| header의 `typ` | 없거나 `JWT`·`at+jwt`·`application/at+jwt`다 | 다른 용도로 만든 JWT가 access token으로 통과할 수 있다 |
 
 **signature: `jwks_uri`의 public key**
 
@@ -315,7 +315,8 @@ agent는 만료가 가까운 token을 refresh token으로 새로 받아 붙인�
 
 `typ`은 token의 첫 부분(header)에 있는 JWT의 종류 표시다.
 official의 Authorization Server는 `typ`을 넣지 않고, RFC 9068 형식으로 token을 만드는 Authorization Server는 `at+jwt`를 넣는다(5장).
-MCP Server는 두 경우를 모두 받으려고 `typ`이 없거나 `JWT`나 `at+jwt`인 token을 받는다.
+RFC 9068은 `application/at+jwt`라는 긴 이름도 같은 뜻으로 인정한다.
+MCP Server는 이 경우를 모두 받으려고 `typ`이 없거나 `JWT`·`at+jwt`·`application/at+jwt`인 token을 받는다.
 그 밖의 값은 `401 invalid_token`이다.
 
 **`403 insufficient_scope`와 step-up**
@@ -601,7 +602,7 @@ Spring Boot는 이 bean을 `issuer-uri`와 `audiences`의 검증기와 함께 de
 ```java
 @Bean
 public JwtTypeValidator accessTokenTypeValidator() {
-    JwtTypeValidator validator = new JwtTypeValidator("JWT", "at+jwt");
+    JwtTypeValidator validator = new JwtTypeValidator("JWT", "at+jwt", "application/at+jwt");
     validator.setAllowEmpty(true);                                  // typ이 없는 token도 받는다
     return validator;
 }
@@ -745,7 +746,7 @@ session 만료는 기다리는 시간을 줄여 보면 된다.
 - official의 MCP Server는 `Origin`·`Host` → token → `MCP-Protocol-Version` → session 순서로 검사한다. `Origin`·`Host`는 token이 없어도 `403`·`421`이다.
 - 원격에 배포하면 허용 `Host`를 앱이 실제로 받는 `Host`로 바꾸고(proxy가 그대로 넘기면 client가 부르는 이름), 허용 `Origin`은 browser에서 직접 부르는 page가 있을 때만 그 origin을 더한다.
 - token은 `jwks_uri`의 public key로 signature를, `issuer-uri`로 `iss`를, `audiences`로 `aud`를 확인한다. 다른 `aud`의 token은 `401 invalid_token`이다.
-- header의 `typ`은 없거나 `JWT`나 `at+jwt`여야 한다. 그 밖의 값은 `401 invalid_token`이다.
+- header의 `typ`은 없거나 `JWT`·`at+jwt`·`application/at+jwt`여야 한다. 그 밖의 값은 `401 invalid_token`이다.
 - session ID는 인증을 대신하지 않는다. official은 요청마다 token을 보지만 session을 사용자에 묶지는 않고, chat-memory practice는 묶는다.
 - agent는 요청마다 그 사용자의 token을 찾아 붙인다. reactor thread로 `SecurityContext`를 옮기는 설정이 빠지면 오류 없이 token만 빠진다.
 - MCP Server는 오래 쓰지 않은 session을 끝내고 그 ID에 `404`로 답하며, 서버 전체의 session 수에 상한을 둔다. agent는 끝난 session 때문에 실패한 tool 호출을 다시 보내, 사용자의 token으로 새 session을 연다.

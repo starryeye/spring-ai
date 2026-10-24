@@ -65,7 +65,7 @@ public class SecurityConfig {
      * access token header의 {@code typ}으로 받을 값을 정한다.
      * Spring Security의 기본 검증기는 {@code typ}이 없거나 {@code JWT}인 token만 받는다.
      * 그러면 RFC 9068 형식의 {@code typ: at+jwt} token을 {@code 401 invalid_token}으로 거절한다.
-     * 그래서 {@code at+jwt}도 받는다.
+     * 그래서 RFC 9068이 정한 {@code at+jwt}와 {@code application/at+jwt}도 받는다.
      * 이 검증기가 bean으로 있으면 Boot는 기본 검증기를 더하지 않고 이 검증기를 쓴다.
      * 위 filter chain에 넘기는 decoder가 Boot가 만든 것이라 이 검증기가 그대로 적용된다.
      * issuer 검증은 Boot가 설정에서 만들어 그대로 더하고, audience 검증은 module이 decoder를 감싸 맡는다.
@@ -73,7 +73,7 @@ public class SecurityConfig {
      */
     @Bean
     public JwtTypeValidator accessTokenTypeValidator() {
-        JwtTypeValidator validator = new JwtTypeValidator("JWT", "at+jwt");
+        JwtTypeValidator validator = new JwtTypeValidator("JWT", "at+jwt", "application/at+jwt");
         validator.setAllowEmpty(true);
         return validator;
     }

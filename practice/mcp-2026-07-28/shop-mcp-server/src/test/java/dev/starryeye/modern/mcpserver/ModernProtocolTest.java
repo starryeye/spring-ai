@@ -475,6 +475,14 @@ class ModernProtocolTest {
 	}
 
 	@Test
+	void typ이_application_at_jwt인_token도_받는다() {
+		Response response = client()
+				.listTools(TestTokens.typedToken("application/at+jwt", "user", resource(), "products:read"));
+
+		assertThat(response.status()).isEqualTo(200);
+	}
+
+	@Test
 	void typ의_대소문자는_가리지_않는다() {
 		Response response = client().listTools(TestTokens.typedToken("AT+JWT", "user", resource(), "products:read"));
 

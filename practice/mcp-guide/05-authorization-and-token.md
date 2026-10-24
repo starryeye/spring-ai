@@ -351,9 +351,9 @@ RFC 9068을 따르는 resource server는 token을 받으면 다음을 확인한�
 5. `exp`가 지나지 않았는지 본다. 시계 차이를 위한 여유는 몇 분 안으로 둔다.
 
 official의 MCP Server는 2\~5를 한다(6장).
-1은 `typ`이 `at+jwt`인 token도 받는 모양으로 한다.
+1은 `typ`이 `at+jwt`나 `application/at+jwt`인 token도 받는 모양으로 한다.
 Spring Security의 기본 검증기는 `typ`이 없거나 `JWT`인 token만 받아서, `typ: at+jwt`인 token을 `401 invalid_token`으로 거절한다.
-그래서 `SecurityConfig`는 `JwtTypeValidator`를 bean으로 두어, `typ`이 없거나 `JWT`나 `at+jwt`인 token을 받게 한다.
+그래서 `SecurityConfig`는 `JwtTypeValidator`를 bean으로 두어, `typ`이 없거나 `JWT`·`at+jwt`·`application/at+jwt`인 token을 받게 한다.
 Spring Boot는 이 bean을 검증기 목록에 더한다.
 Spring Security는 그 목록에 `JwtTypeValidator`가 있으면 기본 `typ` 검증기를 더하지 않는다.
 `issuer-uri`와 `audiences`의 검증은 설정에서 만들어 그대로 더한다.
@@ -364,7 +364,7 @@ Spring Security는 그 목록에 `JwtTypeValidator`가 있으면 기본 `typ` �
 이 검증은 RFC 9068의 1번보다 넓다.
 지금의 Authorization Server가 `typ`을 넣지 않아서, `typ`이 없는 token과 `JWT`인 token도 받아야 하기 때문이다.
 그래서 `typ`은 access token과 ID token을 가르지 못하고, 그 일은 `aud` 검증이 한다.
-`typ`이 `at+jwt`인 token만 받으려면 `JwtValidators.createAtJwtValidator()`로 검증기를 만든다.
+`typ`이 `at+jwt`나 `application/at+jwt`인 token만 받으려면 `JwtValidators.createAtJwtValidator()`로 검증기를 만든다.
 이 검증기는 1·2·3·5와 꼭 있어야 하는 claim을 한 번에 확인하고, issuer와 audience는 builder에 넣는다.
 `typ`이 없는 token과 `client_id`나 `jti`가 없는 token은 거절하므로, Authorization Server도 RFC 9068 형식으로 token을 만들 때 쓴다.
 
@@ -508,7 +508,7 @@ public client의 consent 화면과 `invalid_scope`는 `docs/superpowers/captures
 - token request와 refresh request에도 `resource`를 넣는다. access token의 `aud`는 MCP Server이고, ID token의 `aud`는 `client_id`다.
 - JWT access token의 표준 형식은 RFC 9068이다.
   official의 token은 `typ`과 `client_id`가 없고 `scope`가 배열이다.
-  MCP Server는 `typ`이 없거나 `JWT`나 `at+jwt`인 token을 받고, 그 밖의 값은 거절한다.
+  MCP Server는 `typ`이 없거나 `JWT`·`at+jwt`·`application/at+jwt`인 token을 받고, 그 밖의 값은 거절한다.
 
 ## 5.14 명세 근거
 

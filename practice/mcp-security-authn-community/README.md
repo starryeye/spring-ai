@@ -109,7 +109,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 | official | module이 하는 일 또는 확장점 | 이 practice가 얹은 것 |
 |---|---|---|
 | `SecurityConfig`의 filter chain | `McpServerSecurityAutoConfiguration`은 `issuer-uri`만으로 filter chain을 만들지만, audience 검증을 켜는 설정이 없다 | `SecurityConfig`가 filter chain을 직접 정의하고 `McpServerOAuth2Configurer`를 적용한다 |
-| `issuer-uri`로 만든 JWT decoder(signature, `iss`, `exp`) | `McpServerOAuth2Configurer#jwtDecoder`에 넘긴 decoder를 쓴다. 넘기지 않으면 `NimbusJwtDecoder.withIssuerLocation(...)`으로 만든다 | Boot가 `issuer-uri`로 만든 `JwtDecoder`를 넘긴다. `SecurityConfig`의 `JwtTypeValidator` bean이 이 decoder의 `typ` 검증을 `at+jwt`도 받게 정한다 |
+| `issuer-uri`로 만든 JWT decoder(signature, `iss`, `exp`) | `McpServerOAuth2Configurer#jwtDecoder`에 넘긴 decoder를 쓴다. 넘기지 않으면 `NimbusJwtDecoder.withIssuerLocation(...)`으로 만든다 | Boot가 `issuer-uri`로 만든 `JwtDecoder`를 넘긴다. `SecurityConfig`의 `JwtTypeValidator` bean이 이 decoder의 `typ` 검증을 `at+jwt`와 `application/at+jwt`도 받게 정한다 |
 | `audiences` 설정의 `aud` 검증 | `validateAudienceClaim(true)`면 `AudienceValidationJwtDecoder`가 decoder를 감싼다. 비교할 값은 요청 URL로 계산한다 | 이 설정을 켠다([Host 검증과 audience 계산](#host-검증과-audience-계산)) |
 | PRM(`protectedResourceMetadata`) | `McpServerOAuth2Configurer`가 PRM endpoint를 켠다 | `protectedResourceMetadataCustomizer`로 `authorization_servers`, `resource_name`, mTLS 미사용을 정한다 |
 | `401`의 `resource_metadata`(`resourceMetadataEntryPoint`) | module의 `BearerResourceMetadataTokenAuthenticationEntryPoint`는 URL 값을 따옴표로 감싸지 않는다 | `oauth2ResourceServer(...)`로 official과 같은 entry point를 넣는다. `:`와 `/`가 든 값은 따옴표로 감싼다([RFC 9110 §11.2](https://www.rfc-editor.org/rfc/rfc9110#section-11.2)) |
