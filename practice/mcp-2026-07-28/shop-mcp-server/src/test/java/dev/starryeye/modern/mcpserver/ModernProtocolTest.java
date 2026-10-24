@@ -453,6 +453,42 @@ class ModernProtocolTest {
 		assertThat(metadata.json().get("resource").asString()).isEqualTo(resource());
 	}
 
+	/*
+	 * RFC 9068 Authorization Server는 access token header의 typ에 at+jwt를 넣는다.
+	 * 이 서버의 Authorization Server는 typ을 넣지 않으므로, typ이 없는 token도 받아야 한다.
+	 * 그 밖의 값은 access token이 아닌 JWT일 수 있어 거절한다.
+	 */
+
+	@Test
+	void typ이_at_jwt인_token도_받는다() {
+		Response response = client().listTools(TestTokens.typedToken("at+jwt", "user", resource(), "products:read"));
+
+		assertThat(response.status()).isEqualTo(200);
+		assertThat(이름들(response.json().get("result").get("tools"))).containsExactlyInAnyOrderElementsOf(ALL_TOOLS);
+	}
+
+	@Test
+	void typ이_JWT인_token도_받는다() {
+		Response response = client().listTools(TestTokens.typedToken("JWT", "user", resource(), "products:read"));
+
+		assertThat(response.status()).isEqualTo(200);
+	}
+
+	@Test
+	void typ의_대소문자는_가리지_않는다() {
+		Response response = client().listTools(TestTokens.typedToken("AT+JWT", "user", resource(), "products:read"));
+
+		assertThat(response.status()).isEqualTo(200);
+	}
+
+	@Test
+	void typ이_그_밖의_값인_token은_401이다() {
+		Response response = client().listTools(TestTokens.typedToken("foo", "user", resource(), "products:read"));
+
+		assertThat(response.status()).isEqualTo(401);
+		assertThat(response.header("WWW-Authenticate")).contains("error=\"invalid_token\"");
+	}
+
 	@Test
 	void aud가_다른_token은_401이다() {
 		// 같은 Authorization Server가 발급했지만 다른 resource에 쓰라고 받은 token이다.

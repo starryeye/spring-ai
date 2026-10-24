@@ -104,6 +104,14 @@ class McpAuthorizationStandardTest {
 	}
 
 	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key) {
+		return 토큰(issuer, audience, subject, expiresAt, key, null);
+	}
+
+	/**
+	 * header의 {@code typ}을 정해 token을 만든다.
+	 * {@code type}이 {@code null}이면 {@code typ}을 넣지 않는다.
+	 */
+	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key, String type) {
 		NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.issuer(issuer)
@@ -112,8 +120,15 @@ class McpAuthorizationStandardTest {
 				.issuedAt(expiresAt.minusSeconds(600))
 				.expiresAt(expiresAt)
 				.build();
-		return encoder.encode(JwtEncoderParameters.from(
-				JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims)).getTokenValue();
+		JwsHeader.Builder header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID);
+		if (type != null) {
+			header.type(type);
+		}
+		return encoder.encode(JwtEncoderParameters.from(header.build(), claims)).getTokenValue();
+	}
+
+	static String typ이_있는_토큰(String type) {
+		return 토큰(ISSUER, RESOURCE, "user", Instant.now().plusSeconds(300), KEY, type);
 	}
 
 	static final String INITIALIZE = """
@@ -235,6 +250,39 @@ class McpAuthorizationStandardTest {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.result.protocolVersion").value("2025-11-25"))
 				.andExpect(header().exists("Mcp-Session-Id"));
+	}
+
+	/*
+	 * RFC 9068 Authorization Server는 access token header의 typ에 at+jwt를 넣는다.
+	 * 이 서버의 Authorization Server는 typ을 넣지 않으므로, typ이 없는 token도 받아야 한다.
+	 * 그 밖의 값은 access token이 아닌 JWT일 수 있어 거절한다.
+	 */
+
+	@Test
+	void typ이_at_jwt인_토큰도_받는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("at+jwt"), null, HOST))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.result.protocolVersion").value("2025-11-25"));
+	}
+
+	@Test
+	void typ이_JWT인_토큰도_받는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("JWT"), null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void typ의_대소문자는_가리지_않는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("AT+JWT"), null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void typ이_그_밖의_값인_토큰은_거부한다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("foo"), null, HOST))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						org.hamcrest.Matchers.containsString("error=\"invalid_token\"")));
 	}
 
 	@Test
