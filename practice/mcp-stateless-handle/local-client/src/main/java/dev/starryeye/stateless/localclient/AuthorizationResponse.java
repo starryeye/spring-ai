@@ -6,8 +6,8 @@ import java.util.Objects;
 /**
  * callback으로 돌아온 authorization response를 확인하고 code를 꺼낸다.
  *
- * <p>확인 순서: `state`(내가 보낸 요청의 응답인가) → `iss`(내가 보낸 Authorization Server의 응답인가,
- * RFC 9207) → `error` → `code`. `iss`는 오류 응답에서도 확인한다.
+ * <p>확인 순서: `state`(내가 보낸 요청의 응답인가) → `iss`(내가 보낸 Authorization Server의 응답인가, RFC 9207) → `error` → `code`.
+ * `iss`는 오류 응답에서도 확인한다.
  */
 public final class AuthorizationResponse {
 

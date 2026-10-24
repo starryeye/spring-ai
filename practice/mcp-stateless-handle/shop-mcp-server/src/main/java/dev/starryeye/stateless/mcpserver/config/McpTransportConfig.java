@@ -33,9 +33,12 @@ import java.util.List;
  * MCP endpoint에만 적용하는 servlet filter 세 개를 등록한다.
  *
  * <ul>
- *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다. Spring Security보다 먼저 돈다.</li>
- *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 본다. 인증 뒤, 버전 검사 앞에서 돈다.</li>
- *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다. scope 검사 뒤에 돈다.</li>
+ *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다.
+ *   Spring Security보다 먼저 돈다.</li>
+ *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 본다.
+ *   인증 뒤, 버전 검사 앞에서 돈다.</li>
+ *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다.
+ *   scope 검사 뒤에 돈다.</li>
  * </ul>
  *
  * <p>stateless transport bean은 사용자를 읽는 {@code contextExtractor}를 넣으려고 직접 만든다.
@@ -85,14 +88,18 @@ public class McpTransportConfig {
 		return registration;
 	}
 
-	/** 장바구니 저장소다. 만료 계산은 {@link Clock}으로 한다(테스트가 시간을 돌릴 수 있게). */
+	/**
+	 * 장바구니 저장소다.
+	 * 만료 계산은 {@link Clock}으로 한다(테스트가 시간을 돌릴 수 있게).
+	 */
 	@Bean
 	public BasketStore basketStore() {
 		return new BasketStore(Clock.systemUTC());
 	}
 
 	/**
-	 * tool별 scope 표다. tool bean을 손으로 넘기지 않고 ApplicationContext의 모든 bean에서 찾는다.
+	 * tool별 scope 표다.
+	 * tool bean을 손으로 넘기지 않고 ApplicationContext의 모든 bean에서 찾는다.
 	 * 새 tool bean을 더하고 여기에 넣는 것을 잊어도 그 tool의 scope가 빠지지 않는다.
 	 */
 	@Bean

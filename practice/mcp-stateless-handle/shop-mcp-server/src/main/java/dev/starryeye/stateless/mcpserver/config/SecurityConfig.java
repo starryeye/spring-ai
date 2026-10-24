@@ -47,10 +47,11 @@ public class SecurityConfig {
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
 										.tlsClientCertificateBoundAccessTokens(false)
-										// 처음 요청할 조회 scope만 알린다. 쓰기 scope는 필요할 때 403으로 알린다
-										// (Security Best Practices — Scope Minimization: scopes_supported에 모든 scope를 넣지 않는다).
+										// 처음 요청할 조회 scope만 알린다.
+										// 쓰기 scope는 필요할 때 403으로 알린다 (Security Best Practices — Scope Minimization: scopes_supported에 모든 scope를 넣지 않는다).
 										.scope(ToolScopeRegistry.BASE_SCOPE))))
-				// stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
+				// stateless resource server다.
+				// token으로만 인증하므로 CSRF token을 쓰지 않는다.
 				.csrf(csrf -> csrf.disable())
 				.build();
 	}

@@ -22,9 +22,9 @@ import java.util.regex.Pattern;
  * <p>step-up 중의 실패(consent 취소 등)는 채팅 화면으로 돌려보낸다.
  *
  * <p>예외 메시지에는 callback 요청에 누군가 넣은 값(예: {@code iss mismatch}의 {@code iss})이 들어 있을 수 있다.
- * 그래서 응답 본문에는 고정 문장과 OAuth 오류 코드만 쓴다. 오류 코드도 callback의 {@code error} parameter에서
- * 올 수 있으므로 OAuth 오류 코드 모양일 때만 쓴다. 자세한 이유는 로그에 남기되, 줄바꿈 같은 제어 문자를 바꾸고
- * 길이를 잘라 가짜 로그 줄을 끼워 넣지 못하게 한다.
+ * 그래서 응답 본문에는 고정 문장과 OAuth 오류 코드만 쓴다.
+ * 오류 코드도 callback의 {@code error} parameter에서 올 수 있으므로 OAuth 오류 코드 모양일 때만 쓴다.
+ * 자세한 이유는 로그에 남기되, 줄바꿈 같은 제어 문자를 바꾸고 길이를 잘라 가짜 로그 줄을 끼워 넣지 못하게 한다.
  */
 public class LoginFailureHandler implements AuthenticationFailureHandler {
 
@@ -40,7 +40,8 @@ public class LoginFailureHandler implements AuthenticationFailureHandler {
 			AuthenticationException exception) throws IOException {
 		StepUpState state = StepUpState.existing(request.getSession(false));
 		if (state != null && state.isPending()) {
-			// iss mismatch(mix-up) 같은 심각한 실패도 이 갈래를 탄다. 조용히 넘기지 않고 warn으로 남긴다.
+			// iss mismatch(mix-up) 같은 심각한 실패도 이 갈래를 탄다.
+			// 조용히 넘기지 않고 warn으로 남긴다.
 			log.warn("step-up이 끝나지 않았다({}): {}", state.finish(), forLog(exception.getMessage()));
 			response.sendRedirect(request.getContextPath() + "/");
 			return;
