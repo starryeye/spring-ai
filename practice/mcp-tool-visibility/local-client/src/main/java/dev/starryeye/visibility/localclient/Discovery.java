@@ -17,7 +17,8 @@ import java.util.regex.Pattern;
  * <ol>
  *   <li>token 없이 `initialize`를 보내 `401`의 `resource_metadata`와 `scope`를 받는다</li>
  *   <li>PRM을 읽고 `resource`가 부른 주소와 같은지 본다</li>
- *   <li>`authorization_servers`가 이 client가 등록된 issuer인지 본다. 아니면 더 요청하지 않는다</li>
+ *   <li>`authorization_servers`가 이 client가 등록된 issuer인지 본다.
+ *   아니면 더 요청하지 않는다</li>
  *   <li>Authorization Server Metadata를 읽고 `issuer`, PKCE `S256`, endpoint 주소를 확인한다</li>
  *   <li>처음 요청할 scope를 고른다({@link ScopeSelection})</li>
  * </ol>
@@ -69,7 +70,8 @@ public class Discovery {
 			if (!(prm.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
 				throw new LocalClientException("PRM에 authorization_servers가 없다");
 			}
-			// 등록된 issuer가 목록 어디에 있든 상관없다. 순서는 신뢰의 근거가 아니다.
+			// 등록된 issuer가 목록 어디에 있든 상관없다.
+			// 순서는 신뢰의 근거가 아니다.
 			if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
 				throw new LocalClientException("이 client는 %s에 등록돼 있는데, PRM의 authorization_servers는 %s뿐이다"
 						.formatted(trustedIssuer, servers));
@@ -164,7 +166,10 @@ public class Discovery {
 				origin + path + OPENID_CONFIGURATION);
 	}
 
-	/** browser로 열 주소와 code를 보낼 주소는 https만 받는다. 개발용 loopback 주소만 http를 허용한다. */
+	/**
+	 * browser로 열 주소와 code를 보낼 주소는 https만 받는다.
+	 * 개발용 loopback 주소만 http를 허용한다.
+	 */
 	private static String requireEndpoint(Map<String, Object> metadata, String name) {
 		if (!(metadata.get(name) instanceof String url)) {
 			throw new LocalClientException("metadata에 %s가 없다".formatted(name));
@@ -188,7 +193,8 @@ public class Discovery {
 
 	/**
 	 * {@code localhost}, 127.0.0.0/8의 IPv4 literal, {@code ::1}이면 loopback이다.
-	 * agent의 {@code McpAuthorizationDiscovery}와 같은 규칙이다. DNS를 조회하지 않고 host 문자열로만 본다.
+	 * agent의 {@code McpAuthorizationDiscovery}와 같은 규칙이다.
+	 * DNS를 조회하지 않고 host 문자열로만 본다.
 	 */
 	static boolean isLoopback(String host) {
 		String lower = host.toLowerCase(Locale.ROOT);

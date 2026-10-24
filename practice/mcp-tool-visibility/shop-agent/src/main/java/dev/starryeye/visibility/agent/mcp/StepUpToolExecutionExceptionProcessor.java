@@ -12,7 +12,8 @@ import java.util.Optional;
  *
  * <p>Spring AI는 tool 예외를 문장으로 바꿔 LLM에게 돌려준다.
  * 그러면 LLM은 "권한이 없습니다" 같은 답을 지어낼 뿐 사용자는 권한을 줄 기회를 얻지 못한다.
- * 그래서 이 예외만 채팅 응답까지 올린다. 나머지는 {@code delegate}가 처리한다.
+ * 그래서 이 예외만 채팅 응답까지 올린다.
+ * 나머지는 {@code delegate}가 처리한다.
  */
 public class StepUpToolExecutionExceptionProcessor implements ToolExecutionExceptionProcessor {
 

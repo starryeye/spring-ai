@@ -158,7 +158,10 @@ class HiddenToolCallTest {
 		assertThat(hiddenError.get("message")).isEqualTo(unknownError.get("message"));
 	}
 
-	/** 오류 응답은 모두 JSON-RPC 모양이라 {@code error}에 code와 message가 있다. 예외 객체({@code jsonRpcError})가 나오면 안 된다. */
+	/**
+	 * 오류 응답은 모두 JSON-RPC 모양이라 {@code error}에 code와 message가 있다.
+	 * 예외 객체({@code jsonRpcError})가 나오면 안 된다.
+	 */
 	private static JsonNode jsonRpc오류(MockHttpServletResponse response) throws Exception {
 		JsonNode body = JSON.readTree(response.getContentAsString(StandardCharsets.UTF_8));
 		JsonNode error = body.get("error");

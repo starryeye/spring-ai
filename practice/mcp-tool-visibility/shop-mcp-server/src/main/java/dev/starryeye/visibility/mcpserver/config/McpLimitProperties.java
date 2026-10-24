@@ -5,9 +5,11 @@ import org.springframework.util.Assert;
 import org.springframework.util.unit.DataSize;
 
 /**
- * MCP endpoint로 들어오는 요청의 상한이다. 정하지 않은 값은 기본값을 쓴다.
+ * MCP endpoint로 들어오는 요청의 상한이다.
+ * 정하지 않은 값은 기본값을 쓴다.
  *
- * @param maxRequestBody scope filter가 tool 이름을 읽으려고 메모리에 올리는 본문의 상한. 넘으면 {@code 413}이다. 기본 1 MiB
+ * @param maxRequestBody scope filter가 tool 이름을 읽으려고 메모리에 올리는 본문의 상한.
+ *        넘으면 {@code 413}이다. 기본 1 MiB
  * @param toolCallsPerMinute 사용자(token의 {@code sub})마다 1분 동안 부를 수 있는 {@code tools/call} 수.
  *        넘으면 {@code 429}와 {@code Retry-After}다. 기본 60
  */

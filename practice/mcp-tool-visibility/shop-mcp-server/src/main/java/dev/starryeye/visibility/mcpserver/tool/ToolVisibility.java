@@ -10,7 +10,8 @@ import java.util.Set;
  * 그래서 "이 사용자가 언젠가 받을 수 있는 scope인가"로 숨길지를 정한다.
  * 받을 수 없으면 숨기고, 받을 수 있지만 아직 없으면 보여 준 뒤 부를 때 {@code 403}으로 step-up한다.
  *
- * <p>권한은 MCP Server가 자기 표로 판단한다. token은 누구인지({@code sub})만 알려 준다.
+ * <p>권한은 MCP Server가 자기 표로 판단한다.
+ * token은 누구인지({@code sub})만 알려 준다.
  * tool별 scope는 {@link ToolScopeRegistry}의 것을 그대로 쓴다.
  */
 public final class ToolVisibility {
@@ -45,7 +46,8 @@ public final class ToolVisibility {
 
 	/**
 	 * 등록된 tool인데 역할이 그 scope를 받을 수 없으면 숨긴다.
-	 * 등록되지 않은 이름은 숨긴 tool이 아니다. SDK가 "모르는 tool"로 답한다.
+	 * 등록되지 않은 이름은 숨긴 tool이 아니다.
+	 * SDK가 "모르는 tool"로 답한다.
 	 */
 	public boolean hidden(String subject, String tool) {
 		return this.registry.all().containsKey(tool)

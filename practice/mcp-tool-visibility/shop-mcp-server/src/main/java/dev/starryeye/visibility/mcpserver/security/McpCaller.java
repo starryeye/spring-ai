@@ -10,7 +10,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * tool을 부른 사용자다. token의 {@code sub}와 {@code client_id}다.
+ * tool을 부른 사용자다.
+ * token의 {@code sub}와 {@code client_id}다.
  *
  * <p>stateless transport는 요청마다 {@link #context(ServerRequest)}로 이 값을 {@link McpTransportContext}에 넣는다.
  * tool 메서드는 {@code McpTransportContext} 인자로 받아 {@link #from(McpTransportContext)}로 꺼낸다.
@@ -54,7 +55,10 @@ public record McpCaller(String subject, String clientId) {
 		return new McpCaller(subject, Objects.toString(context.get(CLIENT_ID), ""));
 	}
 
-	/** stateless transport가 넣어 둔 token의 sub다. 인증이 없으면 비어 있다. */
+	/**
+	 * stateless transport가 넣어 둔 token의 sub다.
+	 * 인증이 없으면 비어 있다.
+	 */
 	public static Optional<String> subject(McpTransportContext context) {
 		return (context.get(SUBJECT) instanceof String subject && !subject.isBlank())
 				? Optional.of(subject) : Optional.empty();
