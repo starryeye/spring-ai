@@ -82,7 +82,9 @@ class DiscoveryTest {
 		prm(this.mcp.origin() + "/other", this.as.origin());
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("resource");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("PRM의 resource가 부른 주소와 다르다 (받은 값: " + this.mcp.origin()
+						+ "/other, 기대한 값: " + resource() + ")");
 	}
 
 	@Test
@@ -100,8 +102,8 @@ class DiscoveryTest {
 
 			assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
 					.isInstanceOf(LocalClientException.class)
-					.hasMessageContaining(this.as.origin())
-					.hasMessageContaining(untrusted.origin());
+					.hasMessage("PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: "
+							+ this.as.origin() + ", authorization_servers: [" + untrusted.origin() + "])");
 			assertThat(untrusted.requests).isEmpty();
 		}
 	}
@@ -144,7 +146,9 @@ class DiscoveryTest {
 		metadata("http://evil.example", this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("issuer");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("metadata의 issuer가 요청한 issuer와 다르다 (받은 값: http://evil.example, 기대한 값: "
+						+ this.as.origin() + ")");
 	}
 
 	@Test
@@ -164,7 +168,8 @@ class DiscoveryTest {
 		metadata(this.as.origin(), "http://evil.example/authorize", "[\"S256\"]");
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("authorization_endpoint");
+				.isInstanceOf(LocalClientException.class).hasMessage(
+						"metadata의 authorization_endpoint field가 https도, loopback 주소의 http도 아니다: http://evil.example/authorize");
 	}
 
 	@Test
@@ -172,7 +177,8 @@ class DiscoveryTest {
 		this.mcp.on("POST", "/mcp", FakeServer.Reply.status(200));
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("401");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("token 없는 요청에 401이 아닌 응답이 왔다 (status: 200)");
 	}
 
 	@Test

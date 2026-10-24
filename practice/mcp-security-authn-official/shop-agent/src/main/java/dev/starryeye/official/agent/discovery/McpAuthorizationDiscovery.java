@@ -102,13 +102,13 @@ public class McpAuthorizationDiscovery {
 		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl);
 
 		if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
-			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
+			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers가 없다: " + resourceUrl);
 		}
 		// 목록의 순서는 신뢰의 근거가 아니다. credentials가 등록된 issuer가 어디에 있든 그것을 쓴다.
 		// 없으면 목록의 어떤 Authorization Server에도 요청하지 않는다(local-client의 Discovery와 같은 규칙).
 		if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
 			throw new McpDiscoveryException(
-					"자격증명은 %s 에 등록된 것인데 PRM 이 가리키는 인가 서버는 %s 다 — 메타데이터를 요청하지 않는다"
+					"자격증명을 등록한 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: %s, authorization_servers: %s) — 메타데이터를 요청하지 않는다"
 							.formatted(trustedIssuer, servers));
 		}
 		String issuer = trustedIssuer;
@@ -162,10 +162,10 @@ public class McpAuthorizationDiscovery {
 			target = URI.create(resourceMetadata);
 		}
 		catch (IllegalArgumentException ex) {
-			throw new McpDiscoveryException("챌린지의 resource_metadata 가 URL 이 아니다: " + resourceMetadata, ex);
+			throw new McpDiscoveryException("챌린지의 resource_metadata가 URL이 아니다: " + resourceMetadata, ex);
 		}
 		if (!sameOrigin(target, URI.create(resourceUrl))) {
-			throw new McpDiscoveryException("챌린지의 resource_metadata(%s) 가 MCP Server(%s) 와 다른 origin 이다 — 따라가지 않는다"
+			throw new McpDiscoveryException("챌린지의 resource_metadata가 MCP Server와 다른 origin을 가리킨다 — 따라가지 않는다 (resource_metadata: %s, MCP Server: %s)"
 					.formatted(resourceMetadata, resourceUrl));
 		}
 	}
@@ -190,7 +190,7 @@ public class McpAuthorizationDiscovery {
 	 */
 	private static Map<String, Object> verifyResource(Map<String, Object> metadata, String expected) {
 		if (!expected.equals(metadata.get("resource"))) {
-			throw new McpDiscoveryException("메타데이터의 resource(%s) 가 요청한 리소스(%s) 와 다르다"
+			throw new McpDiscoveryException("메타데이터의 resource가 요청한 리소스와 다르다 (받은 값: %s, 기대한 값: %s)"
 					.formatted(metadata.get("resource"), expected));
 		}
 		return metadata;
@@ -205,7 +205,7 @@ public class McpAuthorizationDiscovery {
 					.body(INITIALIZE)
 					.exchange((request, response) -> {
 						if (response.getStatusCode().value() != 401) {
-							throw new McpDiscoveryException("토큰 없는 요청에 401 이 아니라 %s 가 왔다: %s"
+							throw new McpDiscoveryException("토큰 없는 요청에 401이 아닌 응답이 왔다 (status: %s): %s"
 									.formatted(response.getStatusCode(), resourceUrl));
 						}
 						String header = response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE);
@@ -217,7 +217,7 @@ public class McpAuthorizationDiscovery {
 					});
 		}
 		catch (RestClientException ex) {
-			throw new McpDiscoveryException("%s 에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
+			throw new McpDiscoveryException("%s에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
 		}
 	}
 
@@ -228,13 +228,13 @@ public class McpAuthorizationDiscovery {
 				continue;
 			}
 			if (!issuer.equals(metadata.get("issuer"))) {
-				throw new McpDiscoveryException("메타데이터의 issuer(%s) 가 요청한 인가 서버(%s) 와 다르다"
+				throw new McpDiscoveryException("메타데이터의 issuer가 요청한 인가 서버와 다르다 (받은 값: %s, 기대한 값: %s)"
 						.formatted(metadata.get("issuer"), issuer));
 			}
 			// MCP 2025-11-25 Authorization: client는 S256 지원을 확인하고, 지원하지 않으면 진행하지 않는다.
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
-				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
+				throw new McpDiscoveryException("인가 서버가 PKCE S256을 광고하지 않는다: " + issuer);
 			}
 			// MCP Security Best Practices: authorization URL을 열기 전에 scheme을 확인하고,
 			// http라면 loopback 주소인지 확인한다(MUST).
@@ -266,7 +266,7 @@ public class McpAuthorizationDiscovery {
 		boolean allowed = host != null
 				&& ("https".equalsIgnoreCase(scheme) || ("http".equalsIgnoreCase(scheme) && isLoopback(host)));
 		if (!allowed) {
-			throw new McpDiscoveryException("인가 서버 메타데이터의 %s 가 https URL 도, loopback 주소의 http URL 도 아니다: %s"
+			throw new McpDiscoveryException("인가 서버 메타데이터의 %s field가 https URL도, loopback 주소의 http URL도 아니다: %s"
 					.formatted(name, value));
 		}
 	}
@@ -300,7 +300,7 @@ public class McpAuthorizationDiscovery {
 							? response.bodyTo(JSON_OBJECT) : null);
 		}
 		catch (RestClientException ex) {
-			throw new McpDiscoveryException("%s 를 읽지 못했다: %s".formatted(url, ex.getMessage()), ex);
+			throw new McpDiscoveryException("메타데이터를 읽지 못했다: %s (%s)".formatted(url, ex.getMessage()), ex);
 		}
 	}
 

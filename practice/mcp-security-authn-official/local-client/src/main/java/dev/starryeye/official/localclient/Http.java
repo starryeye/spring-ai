@@ -17,7 +17,7 @@ final class Http {
 			return http.send(request, HttpResponse.BodyHandlers.ofString());
 		}
 		catch (HttpTimeoutException ex) {
-			throw new LocalClientException(request.uri() + "에서 응답이 시간 안에 오지 않았다", ex);
+			throw new LocalClientException("응답이 시간 안에 오지 않았다: " + request.uri(), ex);
 		}
 		catch (IOException ex) {
 			throw new LocalClientException(request.uri() + "에 연결하지 못했다", ex);

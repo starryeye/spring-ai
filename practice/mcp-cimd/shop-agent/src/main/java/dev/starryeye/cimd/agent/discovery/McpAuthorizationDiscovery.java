@@ -115,7 +115,7 @@ public class McpAuthorizationDiscovery {
 		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl, challenge.resourceMetadata());
 
 		if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
-			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
+			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers가 없다: " + resourceUrl);
 		}
 		// 고를 기준(credentials가 묶인 issuer)이 없으니 MCP Server가 맨 앞에 둔 값을 쓴다.
 		// 한계가 둘 있다. 첫 값이 CIMD나 문서의 인증 방식을 받지 않아도 다음 값을 시도하지 않고 멈춘다.
@@ -180,7 +180,7 @@ public class McpAuthorizationDiscovery {
 	 */
 	private static Map<String, Object> verifyResource(Map<String, Object> metadata, String expected) {
 		if (!expected.equals(metadata.get("resource"))) {
-			throw new McpDiscoveryException("메타데이터의 resource(%s) 가 요청한 리소스(%s) 와 다르다"
+			throw new McpDiscoveryException("메타데이터의 resource가 요청한 리소스와 다르다 (받은 값: %s, 기대한 값: %s)"
 					.formatted(metadata.get("resource"), expected));
 		}
 		return metadata;
@@ -195,7 +195,7 @@ public class McpAuthorizationDiscovery {
 					.body(INITIALIZE)
 					.exchange((request, response) -> {
 						if (response.getStatusCode().value() != 401) {
-							throw new McpDiscoveryException("토큰 없는 요청에 401 이 아니라 %s 가 왔다: %s"
+							throw new McpDiscoveryException("토큰 없는 요청에 401이 아닌 응답이 왔다 (status: %s): %s"
 									.formatted(response.getStatusCode(), resourceUrl));
 						}
 						String header = response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE);
@@ -208,7 +208,7 @@ public class McpAuthorizationDiscovery {
 					});
 		}
 		catch (RestClientException ex) {
-			throw new McpDiscoveryException("%s 에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
+			throw new McpDiscoveryException("%s에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
 		}
 	}
 
@@ -226,10 +226,10 @@ public class McpAuthorizationDiscovery {
 			target = URI.create(resourceMetadata);
 		}
 		catch (IllegalArgumentException ex) {
-			throw new McpDiscoveryException("챌린지의 resource_metadata 가 URL 이 아니다: " + resourceMetadata, ex);
+			throw new McpDiscoveryException("챌린지의 resource_metadata가 URL이 아니다: " + resourceMetadata, ex);
 		}
 		if (!sameOrigin(target, URI.create(resourceUrl))) {
-			throw new McpDiscoveryException("챌린지의 resource_metadata(%s) 가 MCP Server(%s) 와 다른 origin 이다 — 따라가지 않는다"
+			throw new McpDiscoveryException("챌린지의 resource_metadata가 MCP Server와 다른 origin을 가리킨다 — 따라가지 않는다 (resource_metadata: %s, MCP Server: %s)"
 					.formatted(resourceMetadata, resourceUrl));
 		}
 	}
@@ -255,13 +255,13 @@ public class McpAuthorizationDiscovery {
 				continue;
 			}
 			if (!issuer.equals(metadata.get("issuer"))) {
-				throw new McpDiscoveryException("메타데이터의 issuer(%s) 가 요청한 인가 서버(%s) 와 다르다"
+				throw new McpDiscoveryException("메타데이터의 issuer가 요청한 인가 서버와 다르다 (받은 값: %s, 기대한 값: %s)"
 						.formatted(metadata.get("issuer"), issuer));
 			}
 			// MCP 2025-11-25 Authorization: client는 S256 지원을 확인하고, 지원하지 않으면 진행하지 않는다.
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
-				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
+				throw new McpDiscoveryException("인가 서버가 PKCE S256을 광고하지 않는다: " + issuer);
 			}
 			// MCP 2026-07-28 Client Registration: 문서 주소를 client_id로 쓰려면 Authorization Server가 CIMD를 알려야 한다.
 			// 알리지 않는 서버에 그대로 가면 모르는 client로 거절당한다.
@@ -272,7 +272,7 @@ public class McpAuthorizationDiscovery {
 			// 문서에 선언한 인증 방식을 받지 않는 서버면 token request가 거절된다.
 			if (!(metadata.get("token_endpoint_auth_methods_supported") instanceof List<?> authMethods)
 					|| !authMethods.contains(authenticationMethod.getValue())) {
-				throw new McpDiscoveryException("Authorization Server가 token endpoint 인증 방식 %s를 받지 않는다: %s"
+				throw new McpDiscoveryException("Authorization Server가 token endpoint 인증 방식을 받지 않는다 (요청한 방식: %s, issuer: %s)"
 						.formatted(authenticationMethod.getValue(), issuer));
 			}
 			// MCP Security Best Practices: authorization URL을 열기 전에 scheme을 확인하고,
@@ -305,7 +305,7 @@ public class McpAuthorizationDiscovery {
 		boolean allowed = host != null
 				&& ("https".equalsIgnoreCase(scheme) || ("http".equalsIgnoreCase(scheme) && isLoopback(host)));
 		if (!allowed) {
-			throw new McpDiscoveryException("인가 서버 메타데이터의 %s 가 https URL 도, loopback 주소의 http URL 도 아니다: %s"
+			throw new McpDiscoveryException("인가 서버 메타데이터의 %s field가 https URL도, loopback 주소의 http URL도 아니다: %s"
 					.formatted(name, value));
 		}
 	}
@@ -339,7 +339,7 @@ public class McpAuthorizationDiscovery {
 							? response.bodyTo(JSON_OBJECT) : null);
 		}
 		catch (RestClientException ex) {
-			throw new McpDiscoveryException("%s 를 읽지 못했다: %s".formatted(url, ex.getMessage()), ex);
+			throw new McpDiscoveryException("메타데이터를 읽지 못했다: %s (%s)".formatted(url, ex.getMessage()), ex);
 		}
 	}
 

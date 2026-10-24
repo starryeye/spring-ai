@@ -89,7 +89,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
             McpAuthorizationProperties properties, OAuth2ClientProperties clientProperties,
             Duration timeout, Duration backoff, Clock clock) {
         Assert.state(clientProperties.getRegistration().size() == 1,
-                "spring.security.oauth2.client.registration 은 정확히 하나여야 한다");
+                "spring.security.oauth2.client.registration은 정확히 하나여야 한다");
         Map.Entry<String, OAuth2ClientProperties.Registration> registration =
                 clientProperties.getRegistration().entrySet().iterator().next();
         this.discovery = discovery;
@@ -148,7 +148,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
             return this.inFlight;
         }
         if (this.lastFailure != null && this.clock.instant().isBefore(this.retryAt)) {
-            throw new McpDiscoveryException("discovery가 실패해 %s까지 다시 시도하지 않는다: %s"
+            throw new McpDiscoveryException("discovery가 실패해 %s 전에는 다시 시도하지 않는다: %s"
                     .formatted(this.retryAt, this.lastFailure.getMessage()), this.lastFailure);
         }
         CompletableFuture<Discovered> attempt = CompletableFuture.supplyAsync(this::discover, DISCOVERY_THREAD)

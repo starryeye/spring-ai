@@ -115,7 +115,7 @@ class UserToolCatalogTest {
 	@Test
 	void discover가_실패하면_목록을_받지_않고_다음에_다시_묻는다() {
 		given(this.client.discover("token-a"))
-				.willThrow(new McpProtocolMismatchException(200, null, "MCP Server가 2026-07-28을 지원하지 않는다"))
+				.willThrow(new McpProtocolMismatchException(200, null, "MCP Server가 이 client의 protocol version을 지원하지 않는다"))
 				.willReturn(null);
 
 		assertThatThrownBy(() -> this.catalog.callbacks(사용자("a")))
