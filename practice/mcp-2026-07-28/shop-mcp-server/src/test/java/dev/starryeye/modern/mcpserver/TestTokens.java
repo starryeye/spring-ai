@@ -74,6 +74,19 @@ public final class TestTokens {
 	 */
 	public static String token(String issuer, String subject, String audience, Instant expiresAt, RSAKey key,
 			String... scopes) {
+		return sign(null, issuer, subject, audience, expiresAt, key, scopes);
+	}
+
+	/**
+	 * header의 {@code typ}을 정해 token을 만든다.
+	 * 나머지는 {@link #token(String, String, String...)}과 같다.
+	 */
+	public static String typedToken(String type, String subject, String audience, String... scopes) {
+		return sign(type, ISSUER, subject, audience, Instant.now().plusSeconds(300), KEY, scopes);
+	}
+
+	private static String sign(String type, String issuer, String subject, String audience, Instant expiresAt,
+			RSAKey key, String[] scopes) {
 		JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
 				.issuer(issuer)
 				.audience(List.of(audience))
@@ -84,9 +97,12 @@ public final class TestTokens {
 		if (subject != null) {
 			claims.subject(subject);
 		}
+		JwsHeader.Builder header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID);
+		if (type != null) {
+			header.type(type);
+		}
 		NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
-		return encoder.encode(JwtEncoderParameters.from(
-				JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims.build())).getTokenValue();
+		return encoder.encode(JwtEncoderParameters.from(header.build(), claims.build())).getTokenValue();
 	}
 
 	/**
