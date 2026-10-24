@@ -60,7 +60,7 @@ public class Discovery {
 			}
 			// 등록된 issuer가 목록 어디에 있든 상관없다. 순서는 신뢰의 근거가 아니다.
 			if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
-				throw new LocalClientException("이 client가 등록된 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: %s, authorization_servers: %s)"
+				throw new LocalClientException("PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: %s, authorization_servers: %s)"
 						.formatted(trustedIssuer, servers));
 			}
 			Map<String, Object> metadata = authorizationServerMetadata(trustedIssuer);

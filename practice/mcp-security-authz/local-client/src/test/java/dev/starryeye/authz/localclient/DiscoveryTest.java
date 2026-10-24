@@ -102,7 +102,7 @@ class DiscoveryTest {
 
 			assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
 					.isInstanceOf(LocalClientException.class)
-					.hasMessage("이 client가 등록된 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: "
+					.hasMessage("PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: "
 							+ this.as.origin() + ", authorization_servers: [" + untrusted.origin() + "])");
 			assertThat(untrusted.requests).isEmpty();
 		}

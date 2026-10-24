@@ -145,7 +145,7 @@ public class DiscoveredClientRegistrationRepository implements ClientRegistratio
 			return this.inFlight;
 		}
 		if (this.lastFailure != null && this.clock.instant().isBefore(this.retryAt)) {
-			throw new McpDiscoveryException("discovery가 실패해 다시 시도하지 않는다 (%s 이후에 시도한다): %s"
+			throw new McpDiscoveryException("discovery가 실패해 %s 전에는 다시 시도하지 않는다: %s"
 					.formatted(this.retryAt, this.lastFailure.getMessage()), this.lastFailure);
 		}
 		CompletableFuture<Discovered> attempt = CompletableFuture.supplyAsync(this::discover, DISCOVERY_THREAD)
