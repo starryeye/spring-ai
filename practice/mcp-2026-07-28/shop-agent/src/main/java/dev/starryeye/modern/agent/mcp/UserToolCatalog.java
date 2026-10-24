@@ -70,7 +70,8 @@ public class UserToolCatalog {
 	private volatile boolean discovered;
 
 	/**
-	 * @param accessToken 사용자의 지금 access token을 꺼낸다. 만료된 token이면 refresh한 값을 준다
+	 * @param accessToken 사용자의 지금 access token을 꺼낸다.
+	 *        만료된 token이면 refresh한 값을 준다
 	 */
 	public UserToolCatalog(ModernMcpClient client, Function<Authentication, String> accessToken, Clock clock) {
 		this.client = client;

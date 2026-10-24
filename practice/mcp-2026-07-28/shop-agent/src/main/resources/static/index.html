@@ -31,7 +31,8 @@
     const card = document.getElementById('card');
     const cardText = document.getElementById('card-text');
     const cardButton = document.getElementById('card-button');
-    // consent 화면에 다녀오는 동안 질문을 잠시 둔다. 돌아오면 한 번만 다시 보낸다.
+    // consent 화면에 다녀오는 동안 질문을 잠시 둔다.
+    // 돌아오면 한 번만 다시 보낸다.
     const PENDING = 'shop-agent.pending-message';
 
     // csrf.spa()가 넣어 둔 XSRF-TOKEN cookie를 읽어 X-XSRF-TOKEN header로 되돌려 보낸다.
@@ -40,7 +41,8 @@
         return match ? {'X-XSRF-TOKEN': decodeURIComponent(match[1])} : {};
     }
 
-    // SSE event 하나(빈 줄로 나뉜 덩어리)를 읽는다. data는 항상 JSON이다.
+    // SSE event 하나(빈 줄로 나뉜 덩어리)를 읽는다.
+    // data는 항상 JSON이다.
     function handle(block, message) {
         let event = 'message';
         const data = [];
@@ -136,7 +138,8 @@
     send.addEventListener('click', ask);
     q.addEventListener('keydown', e => { if (e.key === 'Enter') ask(); });
 
-    // 대화 기억을 지운다. 장바구니 handle을 기억하는 대화도 함께 사라진다.
+    // 대화 기억을 지운다.
+    // 장바구니 handle을 기억하는 대화도 함께 사라진다.
     reset.addEventListener('click', async () => {
         sessionStorage.removeItem(PENDING);
         card.hidden = true;

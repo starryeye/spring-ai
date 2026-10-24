@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
-# agent가 어느 제품처럼 붙을지 고른다. chatgpt면 private_key_jwt, claude면 none(public client)이다.
+# agent가 어느 제품처럼 붙을지 고른다.
+# chatgpt면 private_key_jwt, claude면 none(public client)이다.
 CLIENT_TYPE="${1:-chatgpt}"
 case "$CLIENT_TYPE" in
   chatgpt|claude) ;;
@@ -14,8 +15,8 @@ case "$CLIENT_TYPE" in
     ;;
 esac
 
-# Java 21 확보 (시스템 기본은 17). sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수
-# 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
+# Java 21 확보 (시스템 기본은 17).
+# sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
   JAVA21_HOME=$(find "$HOME/.sdkman/candidates/java" -maxdepth 1 -type d -name '21.*' 2>/dev/null | sort -V | tail -1)
   if [ -n "$JAVA21_HOME" ]; then
@@ -61,7 +62,8 @@ make_certs() {
       -rfc -file certs/client-metadata.crt 2>/dev/null
   fi
   if [ ! -f certs/client-metadata-trust.p12 ]; then
-    # Authorization Server가 문서 host를 믿을 때 쓰는 truststore다. 위 인증서 하나만 담는다.
+    # Authorization Server가 문서 host를 믿을 때 쓰는 truststore다.
+    # 위 인증서 하나만 담는다.
     "$keytool" -importcert -noprompt -alias client-metadata -file certs/client-metadata.crt \
       -storetype PKCS12 -keystore certs/client-metadata-trust.p12 -storepass changeit 2>/dev/null
   fi
@@ -86,7 +88,8 @@ start() {
   ( cd "$dir" && nohup ./gradlew bootRun -q "$@" > "../logs/$dir.log" 2>&1 < /dev/null & disown 2>/dev/null || true )
 }
 
-# $1 로그 이름(logs/<이름>.log), $2 주소, 나머지는 curl 인자. 응답이 오면(상태 코드와 상관없이) 준비된 것으로 본다.
+# $1 로그 이름(logs/<이름>.log), $2 주소, 나머지는 curl 인자.
+# 응답이 오면(상태 코드와 상관없이) 준비된 것으로 본다.
 wait_for() {
   local name="$1" url="$2"
   shift 2

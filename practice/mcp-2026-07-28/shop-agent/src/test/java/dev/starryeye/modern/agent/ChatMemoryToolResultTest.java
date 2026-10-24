@@ -106,7 +106,10 @@ class ChatMemoryToolResultTest {
 
 	List<Prompt> prompts = new CopyOnWriteArrayList<>();
 
-	/** tool 호출마다 다른 id를 주려고 둔 counter다. id가 겹치면, 서로 다른 대화의 기억이 값만으로 우연히 같아 보인다. */
+	/**
+	 * tool 호출마다 다른 id를 주려고 둔 counter다.
+	 * id가 겹치면, 서로 다른 대화의 기억이 값만으로 우연히 같아 보인다.
+	 */
 	AtomicInteger toolCallSequence = new AtomicInteger();
 
 	static ChatResponse 응답(AssistantMessage message) {
@@ -165,7 +168,8 @@ class ChatMemoryToolResultTest {
 		묻는다("memory-a", "장바구니 만들어 줘");
 
 		List<Message> remembered = this.chatMemory.get("memory-a");
-		// anySatisfy는 순서와 중복을 보지 않는다. 여기서는 정확히 이 네 개가 이 순서로 있어야 한다.
+		// anySatisfy는 순서와 중복을 보지 않는다.
+		// 여기서는 정확히 이 네 개가 이 순서로 있어야 한다.
 		assertThat(remembered).extracting(Message::getMessageType)
 				.containsExactly(MessageType.USER, MessageType.ASSISTANT, MessageType.TOOL, MessageType.ASSISTANT);
 		assertThat(remembered.get(1)).isInstanceOfSatisfying(AssistantMessage.class,

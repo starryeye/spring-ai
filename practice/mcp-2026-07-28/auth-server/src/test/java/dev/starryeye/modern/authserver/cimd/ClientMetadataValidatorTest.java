@@ -33,7 +33,8 @@ class ClientMetadataValidatorTest {
 		document.put("token_endpoint_auth_method", "private_key_jwt");
 		document.put("token_endpoint_auth_signing_alg", "RS256");
 		document.put("jwks_uri", "https://localhost:8182/oauth/jwks.json");
-		// ChatGPT 문서에 실제로 있는 확장 field다. 표준 field가 아니므로 무시한다.
+		// ChatGPT 문서에 실제로 있는 확장 field다.
+		// 표준 field가 아니므로 무시한다.
 		document.put("token_endpoint_auth_methods_supported", List.of("none", "private_key_jwt"));
 		return document;
 	}

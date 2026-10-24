@@ -51,7 +51,8 @@ public class ModernToolCallback implements ToolCallback {
 	private final ToolDefinition definition;
 
 	/**
-	 * @param accessToken 부를 때마다 지금의 access token을 준다. 목록을 받은 뒤 refresh된 token도 그대로 쓴다
+	 * @param accessToken 부를 때마다 지금의 access token을 준다.
+	 *        목록을 받은 뒤 refresh된 token도 그대로 쓴다
 	 * @param onUnknownTool MCP Server가 이 tool을 모른다고 답하면 부른다
 	 */
 	public ModernToolCallback(McpSchema.Tool tool, ModernMcpClient client, Supplier<String> accessToken,

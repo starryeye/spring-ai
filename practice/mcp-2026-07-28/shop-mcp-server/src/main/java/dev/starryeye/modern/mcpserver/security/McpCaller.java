@@ -12,7 +12,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * tool을 부른 사용자다. token의 {@code sub}와 {@code client_id}다.
+ * tool을 부른 사용자다.
+ * token의 {@code sub}와 {@code client_id}다.
  *
  * <p>MCP transport는 요청마다 {@link #context(HttpServletRequest)}로 이 값을 {@link McpTransportContext}에 넣는다.
  * tool 저장소는 {@code McpRequestContext.transportContext()}로 받아 {@link #from(McpTransportContext)}로 꺼낸다.

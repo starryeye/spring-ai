@@ -16,7 +16,10 @@ import java.util.Map;
  */
 public final class ToolScopeRegistry {
 
-	/** {@code tools/list}를 포함한 모든 MCP 요청에 필요한 기본 scope다. 가장 위험이 낮은 조회 권한이다. */
+	/**
+	 * {@code tools/list}를 포함한 모든 MCP 요청에 필요한 기본 scope다.
+	 * 가장 위험이 낮은 조회 권한이다.
+	 */
 	public static final String BASE_SCOPE = "products:read";
 
 	private final Map<String, String> scopeByTool;

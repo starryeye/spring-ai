@@ -18,11 +18,11 @@ import java.util.Base64;
 /**
  * public client에게도 refresh token을 만든다.
  *
- * <p>Spring의 {@code OAuth2RefreshTokenGenerator}는 public client({@code none})의 authorization code 요청이면
- * refresh token을 만들지 않는다. 새어 나간 refresh token을 누구든 쓸 수 있기 때문이다.
+ * <p>Spring의 {@code OAuth2RefreshTokenGenerator}는 public client({@code none})의 authorization code 요청이면 refresh token을 만들지 않는다.
+ * 새어 나간 refresh token을 누구든 쓸 수 있기 때문이다.
  * OAuth 2.1은 rotation이나 sender-constrained token을 조건으로 public client에게도 refresh token을 허용한다.
- * 이 서버는 CIMD client의 {@code reuseRefreshTokens(false)}로 rotation을 하므로, 그 client의 grant에
- * {@code refresh_token}이 있으면 만든다. Claude는 public client로 붙으면서 refresh token rotation을 요구한다.
+ * 이 서버는 CIMD client의 {@code reuseRefreshTokens(false)}로 rotation을 하므로, 그 client의 grant에 {@code refresh_token}이 있으면 만든다.
+ * Claude는 public client로 붙으면서 refresh token rotation을 요구한다.
  * rotation이 조건이므로, {@code reuseRefreshTokens(true)}인 public client에게는 만들지 않는다.
  */
 public final class PublicClientRefreshTokenGenerator implements OAuth2TokenGenerator<OAuth2RefreshToken> {
@@ -56,7 +56,10 @@ public final class PublicClientRefreshTokenGenerator implements OAuth2TokenGener
 				issuedAt.plus(client.getTokenSettings().getRefreshTokenTimeToLive()));
 	}
 
-	/** 이 grant의 client 인증이 {@code none}이면 public client다. Spring 기본 generator와 같은 기준이다. */
+	/**
+	 * 이 grant의 client 인증이 {@code none}이면 public client다.
+	 * Spring 기본 generator와 같은 기준이다.
+	 */
 	private static boolean isPublicClient(OAuth2TokenContext context) {
 		return context.getAuthorizationGrant() != null
 				&& context.getAuthorizationGrant().getPrincipal() instanceof OAuth2ClientAuthenticationToken clientPrincipal

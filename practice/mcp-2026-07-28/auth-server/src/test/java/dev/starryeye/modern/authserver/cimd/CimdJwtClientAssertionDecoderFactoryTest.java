@@ -121,7 +121,10 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 		return jwt.serialize();
 	}
 
-	/** 시간과 jti를 정해 만든 assertion이다. {@code jti}가 null이면 넣지 않는다. */
+	/**
+	 * 시간과 jti를 정해 만든 assertion이다.
+	 * {@code jti}가 null이면 넣지 않는다.
+	 */
 	static String assertion(String clientId, Instant issuedAt, Duration lifetime, String jti) throws JOSEException {
 		JWTClaimsSet.Builder claims = new JWTClaimsSet.Builder()
 				.issuer(clientId)
@@ -188,7 +191,10 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 
 	static final String CLIENT_C = "https://c.example/client.json";
 
-	/** client별 기록 상한과 전체 기록 상한을 작게 잡은 factory다. 시간은 {@code clock}으로 움직인다. */
+	/**
+	 * client별 기록 상한과 전체 기록 상한을 작게 잡은 factory다.
+	 * 시간은 {@code clock}으로 움직인다.
+	 */
 	static CimdJwtClientAssertionDecoderFactory 상한이_작은_factory(MutableClock clock, int perClient, int total) {
 		return new CimdJwtClientAssertionDecoderFactory(uri -> FetchedDocument
 				.of(new JWKSet(key.toPublicJWK()).toString().getBytes(StandardCharsets.UTF_8), null), clock, perClient, total);
@@ -208,7 +214,8 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 		CimdJwtClientAssertionDecoderFactory small = 상한이_작은_factory(clock, 1, 10);
 
 		받는다(small, CLIENT_A, assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "a1"));
-		// A의 기록이 가득 찼다. 기록하지 못한 assertion을 받으면 되풀이를 막지 못하므로 A의 새 assertion은 거절한다.
+		// A의 기록이 가득 찼다.
+		// 기록하지 못한 assertion을 받으면 되풀이를 막지 못하므로 A의 새 assertion은 거절한다.
 		거절한다(small, CLIENT_A, assertion(CLIENT_A, clock.instant(), Duration.ofSeconds(60), "a2"));
 		// 다른 client는 A가 상한을 채운 것과 상관없이 받는다.
 		assertThat(받는다(small, CLIENT_B, assertion(CLIENT_B, clock.instant(), Duration.ofSeconds(60), "b1")))
@@ -230,14 +237,16 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 
 		받는다(small, CLIENT_A, a);
 		받는다(small, CLIENT_B, b);
-		// 전체 기록이 가득 찼어도 새 assertion은 받는다. 메모리를 지키려고 만료가 가장 이른 A의 기록을 지운다.
+		// 전체 기록이 가득 찼어도 새 assertion은 받는다.
+		// 메모리를 지키려고 만료가 가장 이른 A의 기록을 지운다.
 		assertThat(받는다(small, CLIENT_C, c)).isNotNull();
 		assertThat(small.usedAssertionCount()).isEqualTo(2);
 
 		// 남은 기록의 재사용은 그대로 막는다.
 		거절한다(small, CLIENT_B, b);
 		거절한다(small, CLIENT_C, c);
-		// 일찍 지운 A의 기록은 되풀이를 막지 못한다. 다른 client의 인증을 막지 않으려고 받아들인 대가다.
+		// 일찍 지운 A의 기록은 되풀이를 막지 못한다.
+		// 다른 client의 인증을 막지 않으려고 받아들인 대가다.
 		assertThat(받는다(small, CLIENT_A, a)).isNotNull();
 		assertThat(small.usedAssertionCount()).isEqualTo(2);
 	}
@@ -279,7 +288,8 @@ class CimdJwtClientAssertionDecoderFactoryTest {
 
 	@Test
 	void aud가_token_endpoint면_거절한다() throws Exception {
-		// RFC 7523bis: aud는 issuer 하나여야 한다. endpoint 주소를 aud로 쓰는 옛 방식은 받지 않는다.
+		// RFC 7523bis: aud는 issuer 하나여야 한다.
+		// endpoint 주소를 aud로 쓰는 옛 방식은 받지 않는다.
 		String tokenEndpoint = assertion(key, ISSUER + "/oauth2/token");
 
 		assertThatExceptionOfType(JwtException.class)
