@@ -193,8 +193,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void authorization_servers_의_어디에_있든_자격증명의_issuer_를_고른다() {
-		// 순서는 신뢰의 근거가 아니다. 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고,
-		// 목록의 다른 Authorization Server에는 요청하지 않는다.
+		// 순서는 신뢰의 근거가 아니다.
+		// 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고, 목록의 다른 Authorization Server에는 요청하지 않는다.
 		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
 		챌린지("Bearer resource_metadata=\"" + prm + "\"");
 		응답(prm, """
@@ -232,7 +232,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void authorization_endpoint_가_loopback_이_아닌_http_URL_이면_진행하지_않는다() {
-		// MCP Security Best Practices — http 는 loopback 주소에만 허용된다(MUST). 스킴만 보는 검사로는 막을 수 없는 URL 이다.
+		// MCP Security Best Practices — http 는 loopback 주소에만 허용된다(MUST).
+		// 스킴만 보는 검사로는 막을 수 없는 URL 이다.
 		챌린지("Bearer resource_metadata=\"http://localhost:8141/.well-known/oauth-protected-resource/mcp\"");
 		응답("http://localhost:8141/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
 		응답("http://localhost:9030/.well-known/oauth-authorization-server",
@@ -292,7 +293,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void 응답을_읽지_못하면_원인을_담아_실패한다() {
-		// 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
+		// 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다.
+		// 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
 		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
 		챌린지("Bearer resource_metadata=\"" + prm + "\"");
 		응답(prm, "{");
@@ -304,7 +306,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void 연결만_받고_응답하지_않는_서버는_read_timeout_까지만_기다린다() throws Exception {
-		// backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다. 시간 제한이 없으면 discovery가 끝나지 않는다.
+		// backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다.
+		// 시간 제한이 없으면 discovery가 끝나지 않는다.
 		try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
 			McpAuthorizationDiscovery discovery = new McpAuthorizationDiscovery(RestClient.builder()
 					.requestFactory(McpAuthorizationDiscovery.requestFactory(Duration.ofSeconds(1), Duration.ofMillis(300)))

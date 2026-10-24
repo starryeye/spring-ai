@@ -56,7 +56,8 @@ public final class McpCalls {
 					+ (content instanceof McpSchema.TextContent text ? text.text() : content)));
 		}
 		catch (RuntimeException ex) {
-			// step-up에서 난 LocalClientException은 SDK를 거치며 감싸일 수 있다. 원인 사슬에서 찾아 그대로 올린다.
+			// step-up에서 난 LocalClientException은 SDK를 거치며 감싸일 수 있다.
+			// 원인 사슬에서 찾아 그대로 올린다.
 			for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
 				if (cause instanceof LocalClientException localClient) {
 					throw localClient;

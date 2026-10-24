@@ -35,7 +35,10 @@ public record BearerChallenge(String error, List<String> scopes) {
         return Optional.of(new BearerChallenge(parameters.get("error"), scopes));
     }
 
-    /** step-up을 시작할 challenge인지 본다. 필요한 scope를 알려 주지 않으면 무엇을 요청할지 모른다. */
+    /**
+     * step-up을 시작할 challenge인지 본다.
+     * 필요한 scope를 알려 주지 않으면 무엇을 요청할지 모른다.
+     */
     public boolean insufficientScope() {
         return "insufficient_scope".equals(this.error) && !this.scopes.isEmpty();
     }

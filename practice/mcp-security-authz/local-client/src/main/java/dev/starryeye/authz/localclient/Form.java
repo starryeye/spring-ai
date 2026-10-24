@@ -7,7 +7,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/** `application/x-www-form-urlencoded` 문자열과 map 사이를 바꾼다. query string에도 쓴다. */
+/**
+ * `application/x-www-form-urlencoded` 문자열과 map 사이를 바꾼다.
+ * query string에도 쓴다.
+ */
 final class Form {
 
 	private Form() {

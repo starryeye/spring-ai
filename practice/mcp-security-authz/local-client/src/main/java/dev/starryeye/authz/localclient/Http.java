@@ -6,7 +6,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 
-/** 요청을 보내고 본문을 문자열로 받는다. 연결 실패와 timeout은 {@link LocalClientException}으로 바꾼다. */
+/**
+ * 요청을 보내고 본문을 문자열로 받는다.
+ * 연결 실패와 timeout은 {@link LocalClientException}으로 바꾼다.
+ */
 final class Http {
 
 	private Http() {

@@ -39,7 +39,8 @@ import java.util.stream.Collectors;
  * {@code tools/call}은 그 tool에 필요한 scope도 있어야 한다.
  * 모자라면 {@code 403}과 {@code WWW-Authenticate: Bearer error="insufficient_scope", scope="…"}로 답한다
  * (RFC 6750 §3.1, MCP 2025-11-25 Authorization — Scope Challenge Handling).
- * challenge에는 이 요청에 필요한 scope만 적는다. scope 목록 전체를 알리지 않는다.
+ * challenge에는 이 요청에 필요한 scope만 적는다.
+ * scope 목록 전체를 알리지 않는다.
  *
  * <p>tool 이름은 JSON-RPC 본문의 {@code params.name}에 있어 본문을 읽어야 한다.
  * MCP 2026-07-28은 이 이름을 {@code Mcp-Name} header로도 보내게 해서, 서버는 본문 없이 같은 검사를 할 수 있다.
@@ -76,7 +77,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private final JsonMapper jsonMapper;
 
-	/** {@code 403} challenge에 넣을 PRM 주소다. 요청의 {@code Host}가 아니라 설정에서 만든 값이다. */
+	/**
+	 * {@code 403} challenge에 넣을 PRM 주소다.
+	 * 요청의 {@code Host}가 아니라 설정에서 만든 값이다.
+	 */
 	private final String resourceMetadataUrl;
 
 	/** 메모리에 올려 읽는 본문의 상한(바이트)이다. */
@@ -97,14 +101,15 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		// JWT가 아닌 인증은 scope가 없는 것으로 본다. 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로
-		// 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
+		// JWT가 아닌 인증은 scope가 없는 것으로 본다.
+		// 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
 		JwtAuthenticationToken token =
 				(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken jwt) ? jwt
 						: null;
 		Set<String> granted = (token != null) ? grantedScopes(token) : Set.of();
 
-		// 본문을 버퍼링하기 전에 기본 scope부터 본다. 기본 scope가 없으면 tool 이름을 알 필요도 없다.
+		// 본문을 버퍼링하기 전에 기본 scope부터 본다.
+		// 기본 scope가 없으면 tool 이름을 알 필요도 없다.
 		if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {
 			insufficientScope(response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
 			return;
@@ -140,7 +145,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				return;
 			}
 
-			// transport로 넘길 tool 호출만 센다. 이름이 없거나 모르는 tool의 호출도 transport가 처리하므로 센다.
+			// transport로 넘길 tool 호출만 센다.
+			// 이름이 없거나 모르는 tool의 호출도 transport가 처리하므로 센다.
 			if (isToolCall(message)) {
 				String subject = Objects.toString(token.getToken().getSubject(), "");
 				Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(subject);
@@ -177,7 +183,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * {@code Content-Type}의 charset을 돌려준다. header가 없으면 UTF-8이다.
+	 * {@code Content-Type}의 charset을 돌려준다.
+	 * header가 없으면 UTF-8이다.
 	 * media type을 읽을 수 없거나(모르는 charset 이름 포함) {@link BodyRejected}로 거절한다.
 	 */
 	private static Charset charset(HttpServletRequest request) {
@@ -233,7 +240,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * 사용자의 tool 호출이 상한을 넘었다. transport로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
+	 * 사용자의 tool 호출이 상한을 넘었다.
+	 * transport로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
 	 * {@code Retry-After}는 다시 시도할 수 있을 때까지 남은 시간을 초 단위로 올림한 값이다.
 	 */
 	private void tooManyToolCalls(HttpServletResponse response, String subject, Duration retryAfter)
@@ -252,7 +260,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	 */
 	private void rejectBody(HttpServletResponse response, int status, int code, String message) throws IOException {
 		response.setStatus(status);
-		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
+		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다.
+		// 그래서 charset을 적는다.
 		response.setContentType("application/json;charset=UTF-8");
 		ObjectNode body = this.jsonMapper.createObjectNode();
 		body.put("jsonrpc", "2.0");
@@ -263,7 +272,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 		response.getWriter().write(this.jsonMapper.writeValueAsString(body));
 	}
 
-	/** {@link #parseAsTransportWill}이 본문을 거절할 때 쓰는 사유다. JSON-RPC 오류의 {@code code}와 {@code message}가 된다. */
+	/**
+	 * {@link #parseAsTransportWill}이 본문을 거절할 때 쓰는 사유다.
+	 * JSON-RPC 오류의 {@code code}와 {@code message}가 된다.
+	 */
 	private static final class BodyRejected extends RuntimeException {
 
 		private final int code;

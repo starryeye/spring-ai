@@ -24,7 +24,10 @@ import java.util.function.Supplier;
  */
 public class SecurityMcpTransportContextProvider implements Supplier<McpTransportContext> {
 
-    /** context에 인증을 담을 때 쓰는 key다. customizer가 같은 key로 꺼낸다. */
+    /**
+     * context에 인증을 담을 때 쓰는 key다.
+     * customizer가 같은 key로 꺼낸다.
+     */
     public static final String AUTHENTICATION_KEY = Authentication.class.getName();
 
     private static final Logger log = LoggerFactory.getLogger(SecurityMcpTransportContextProvider.class);

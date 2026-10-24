@@ -85,8 +85,8 @@ class StepUpAuthorizationRequestResolverTest {
     }
 
     /**
-     * resolver는 {@code request.getUserPrincipal()}이 아니라 {@code SecurityContextHolder}를
-     * 읽는다. 여기서 넣은 인증 정보는 다음 테스트로 새지 않도록 반드시 지운다.
+     * resolver는 {@code request.getUserPrincipal()}이 아니라 {@code SecurityContextHolder}를 읽는다.
+     * 여기서 넣은 인증 정보는 다음 테스트로 새지 않도록 반드시 지운다.
      */
     @AfterEach
     void 인증_정보와_로그_수집을_정리한다() {
@@ -184,7 +184,8 @@ class StepUpAuthorizationRequestResolverTest {
     void anonymous_인증은_scope를_더하지_않는다() {
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken("key", "anonymousUser",
                 List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))));
-        // anonymous 사용자 이름으로 token을 둔다. anonymous 검사를 빼면 extra:granted가 섞여 이 테스트가 실패한다.
+        // anonymous 사용자 이름으로 token을 둔다.
+        // anonymous 검사를 빼면 extra:granted가 섞여 이 테스트가 실패한다.
         토큰을_저장한다("anonymousUser", "openid", "products:read", "extra:granted");
         MockHttpServletRequest request = 요청("products:write");
         StepUpState.of(request.getSession()).challenge(List.of("products:write"));
@@ -207,7 +208,8 @@ class StepUpAuthorizationRequestResolverTest {
 
     @Test
     void session에_step_up_상태가_없으면_원래_scope로_login하고_그_이유를_남긴다() {
-        // session이 만료되면 challenge 기록도 사라진다. step_up 값만 보고 scope를 더하지 않는다.
+        // session이 만료되면 challenge 기록도 사라진다.
+        // step_up 값만 보고 scope를 더하지 않는다.
         OAuth2AuthorizationRequest login = this.resolver.resolve(요청("products:write"));
 
         assertThat(login).isSameAs(ORIGINAL);
@@ -228,7 +230,8 @@ class StepUpAuthorizationRequestResolverTest {
     @Test
     void 인증된_채_step_up_없이_다시_login해도_받은_scope를_유지한다() {
         인증한다("user");
-        // products:write는 앞선 step-up으로 받은 scope다. discovery가 고른 원래 요청에는 없다.
+        // products:write는 앞선 step-up으로 받은 scope다.
+        // discovery가 고른 원래 요청에는 없다.
         토큰을_저장한다("user", "openid", "products:read", "products:write");
         MockHttpServletRequest request = 요청(null);
         StepUpState state = StepUpState.of(request.getSession());
@@ -239,7 +242,8 @@ class StepUpAuthorizationRequestResolverTest {
         assertThat(login.getScopes()).containsExactlyInAnyOrder("openid", "products:read", "products:write");
         assertThat(login.getAuthorizationRequestUri()).contains("products:write");
         assertThat(login.getAdditionalParameters()).containsEntry("resource", "http://localhost:8141/mcp");
-        // step-up이 아니므로 기다림을 시작하지 않는다. 다음 login 성공도 step-up 결과로 보지 않는다.
+        // step-up이 아니므로 기다림을 시작하지 않는다.
+        // 다음 login 성공도 step-up 결과로 보지 않는다.
         assertThat(state.isPending()).isFalse();
     }
 

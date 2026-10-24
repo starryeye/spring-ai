@@ -19,13 +19,14 @@ import java.util.concurrent.TimeoutException;
 /**
  * browser가 login을 마치고 돌아올 callback 주소를 이 기기 안에 연다.
  *
- * <p>`127.0.0.1`의 비어 있는 포트를 운영체제에서 받는다. Authorization Server는 loopback redirect URI의
- * 포트를 비교하지 않으므로, 등록된 `http://127.0.0.1:8123/callback`과 포트가 달라도 된다(RFC 8252 7.3절).
+ * <p>`127.0.0.1`의 비어 있는 포트를 운영체제에서 받는다.
+ * Authorization Server는 loopback redirect URI의 포트를 비교하지 않으므로,
+ * 등록된 `http://127.0.0.1:8123/callback`과 포트가 달라도 된다(RFC 8252 7.3절).
  *
  * <p>`GET /callback`이고 `state`가 이번 authorization request의 값과 같은 요청만 결과로 쓴다.
- * 같은 기기의 다른 process나 browser의 다른 페이지도 이 포트에 요청을 보낼 수 있으므로, 처음 온 요청을
- * 결과로 확정하면 그런 요청 하나로 정상 login을 끝내 버릴 수 있다. 그래서 method가 다르거나 `state`가
- * 없거나 다른 요청은 `400`으로 답하고 계속 기다린다. `/callback`이 아닌 경로(`/favicon.ico` 등)는 404다.
+ * 같은 기기의 다른 process나 browser의 다른 페이지도 이 포트에 요청을 보낼 수 있으므로, 처음 온 요청을 결과로 확정하면 그런 요청 하나로 정상 login을 끝내 버릴 수 있다.
+ * 그래서 method가 다르거나 `state`가 없거나 다른 요청은 `400`으로 답하고 계속 기다린다.
+ * `/callback`이 아닌 경로(`/favicon.ico` 등)는 404다.
  */
 public final class LoopbackCallbackServer implements AutoCloseable {
 

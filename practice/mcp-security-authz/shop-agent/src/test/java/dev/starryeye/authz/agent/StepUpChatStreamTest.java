@@ -56,7 +56,10 @@ class StepUpChatStreamTest {
             .inputSchema("{\"type\":\"object\"}")
             .build();
 
-    /** MCP Server가 {@code 403 insufficient_scope}를 준 것처럼 던진다. transport 단계라 tool 이름은 모른다. */
+    /**
+     * MCP Server가 {@code 403 insufficient_scope}를 준 것처럼 던진다.
+     * transport 단계라 tool 이름은 모른다.
+     */
     static final ToolCallback 권한이_모자란_updateStock = new ToolCallback() {
 
         @Override
@@ -126,7 +129,8 @@ class StepUpChatStreamTest {
                 .satisfies(error -> {
                     StepUpRequiredException stepUp = StepUpRequiredException.find(error).orElseThrow();
                     assertThat(stepUp.scopes()).containsExactly("products:write");
-                    // transport는 tool 이름을 모른다. 이름이 있으면 우리 processor가 이 경로에 있었다는 뜻이다.
+                    // transport는 tool 이름을 모른다.
+                    // 이름이 있으면 우리 processor가 이 경로에 있었다는 뜻이다.
                     assertThat(stepUp.tool()).isEqualTo("updateStock");
                 });
         // 예외는 이미 흘려보낸 답변 토막 뒤에 온다.
