@@ -46,6 +46,6 @@ public record DiscoveredAuthorization(String resource, String issuer,
 		if (this.authorizationServerMetadata.get(name) instanceof String value) {
 			return value;
 		}
-		throw new McpDiscoveryException("인가 서버 메타데이터에 %s 가 없다: %s".formatted(name, this.issuer));
+		throw new McpDiscoveryException("인가 서버 메타데이터에 %s field가 없다: %s".formatted(name, this.issuer));
 	}
 }

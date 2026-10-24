@@ -53,7 +53,7 @@ public class OAuth2TokenAttachingRequestCustomizer implements McpSyncHttpClientR
                 .build());
 
         if (authorizedClient == null) {
-            log.debug("{} 의 authorized client 가 없다 — token 을 붙이지 않는다 ({} {})",
+            log.debug("{}의 authorized client가 없다 — token을 붙이지 않는다 ({} {})",
                     this.owner.getName(), method, endpoint);
             return;
         }

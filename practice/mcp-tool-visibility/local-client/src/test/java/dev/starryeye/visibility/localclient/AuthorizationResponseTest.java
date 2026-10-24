@@ -31,13 +31,17 @@ class AuthorizationResponseTest {
 	void iss가_다르면_멈춘다() {
 		assertThatThrownBy(() -> AuthorizationResponse.code(
 				Map.of("code", "abc", "state", "s1", "iss", "http://evil.example"), "s1", this.server))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("iss");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("callback의 iss가 요청한 issuer와 다르다. 다른 Authorization Server의 응답이다 "
+						+ "(받은 iss: http://evil.example, 기대한 issuer: " + this.server.issuer() + ")");
 	}
 
 	@Test
 	void iss를_보낸다고_광고했는데_없으면_멈춘다() {
 		assertThatThrownBy(() -> AuthorizationResponse.code(Map.of("code", "abc", "state", "s1"), "s1", this.server))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("iss");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("callback의 iss가 요청한 issuer와 다르다. 다른 Authorization Server의 응답이다 "
+						+ "(받은 iss: null, 기대한 issuer: " + this.server.issuer() + ")");
 	}
 
 	@Test

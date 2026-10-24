@@ -120,7 +120,8 @@ class DiscoveredClientRegistrationRepositoryTest {
 		// login하지 않은 요청이 몰려도 MCP Server로 요청이 다시 나가지 않는다.
 		this.clock.advance(Duration.ofSeconds(9));
 		assertThatExceptionOfType(McpDiscoveryException.class)
-				.isThrownBy(() -> repository.findByRegistrationId("authserver"));
+				.isThrownBy(() -> repository.findByRegistrationId("authserver"))
+				.withMessage("discovery가 실패해 다시 시도하지 않는다 (2026-10-15T00:00:10Z 이후에 시도한다): 서버가 아직 뜨지 않았다");
 		then(this.discovery).should(times(1)).discover(anyString(), anyString());
 
 		// backoff가 지나면 다시 시도하고, 성공한 결과는 기억한다.

@@ -110,7 +110,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("issuer");
+                .withMessage("메타데이터의 issuer가 요청한 인가 서버와 다르다 (받은 값: http://evil.example, 기대한 값: " + ISSUER + ")");
     }
 
     @Test
@@ -123,7 +123,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("S256");
+                .withMessage("인가 서버가 PKCE S256을 광고하지 않는다: " + ISSUER);
     }
 
     @Test
@@ -137,7 +137,8 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("http://evil.example");
+                .withMessage("자격증명을 등록한 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: " + ISSUER
+                        + ", authorization_servers: [http://evil.example]) — 메타데이터를 요청하지 않는다");
         this.server.verify();
     }
 
@@ -165,7 +166,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("authorization_endpoint");
+                .withMessage("인가 서버 메타데이터의 authorization_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: javascript:alert(1)");
     }
 
     @Test
@@ -177,7 +178,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("token_endpoint");
+                .withMessage("인가 서버 메타데이터의 token_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: file:///etc/passwd");
     }
 
     @Test
@@ -190,7 +191,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("authorization_endpoint");
+                .withMessage("인가 서버 메타데이터의 authorization_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: http://evil.example/oauth2/authorize");
     }
 
     @Test
@@ -218,7 +219,8 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("origin");
+                .withMessage("챌린지의 resource_metadata가 MCP Server와 다른 origin을 가리킨다 — 따라가지 않는다 (resource_metadata: "
+                        + elsewhere + ", MCP Server: " + RESOURCE + ")");
         this.server.verify();
     }
 

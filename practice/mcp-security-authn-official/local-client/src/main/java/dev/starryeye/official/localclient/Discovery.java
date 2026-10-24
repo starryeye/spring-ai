@@ -60,7 +60,7 @@ public class Discovery {
 			}
 			// 등록된 issuer가 목록 어디에 있든 상관없다. 순서는 신뢰의 근거가 아니다.
 			if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
-				throw new LocalClientException("이 client는 %s에 등록돼 있는데, PRM의 authorization_servers는 %s뿐이다"
+				throw new LocalClientException("이 client가 등록된 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: %s, authorization_servers: %s)"
 						.formatted(trustedIssuer, servers));
 			}
 			Map<String, Object> metadata = authorizationServerMetadata(trustedIssuer);
@@ -107,7 +107,7 @@ public class Discovery {
 				.POST(HttpRequest.BodyPublishers.ofString(INITIALIZE))
 				.build());
 		if (response.statusCode() != 401) {
-			throw new LocalClientException("token 없는 요청에 401이 아니라 %d가 왔다".formatted(response.statusCode()));
+			throw new LocalClientException("token 없는 요청에 401이 아닌 응답이 왔다 (status: %d)".formatted(response.statusCode()));
 		}
 		return response.headers().firstValue("WWW-Authenticate")
 				.map(RESOURCE_METADATA::matcher)
@@ -118,7 +118,7 @@ public class Discovery {
 
 	private static Map<String, Object> requireResource(Map<String, Object> metadata, String expected) {
 		if (!expected.equals(metadata.get("resource"))) {
-			throw new LocalClientException("PRM의 resource(%s)가 부른 주소(%s)와 다르다"
+			throw new LocalClientException("PRM의 resource가 부른 주소와 다르다 (받은 값: %s, 기대한 값: %s)"
 					.formatted(metadata.get("resource"), expected));
 		}
 		return metadata;
@@ -131,7 +131,7 @@ public class Discovery {
 				continue;
 			}
 			if (!issuer.equals(metadata.get("issuer"))) {
-				throw new LocalClientException("metadata의 issuer(%s)가 %s가 아니다".formatted(metadata.get("issuer"), issuer));
+				throw new LocalClientException("metadata의 issuer가 요청한 issuer와 다르다 (받은 값: %s, 기대한 값: %s)".formatted(metadata.get("issuer"), issuer));
 			}
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
@@ -157,21 +157,21 @@ public class Discovery {
 	/** browser로 열 주소와 code를 보낼 주소는 https만 받는다. 개발용 loopback 주소만 http를 허용한다. */
 	private static String requireEndpoint(Map<String, Object> metadata, String name) {
 		if (!(metadata.get(name) instanceof String url)) {
-			throw new LocalClientException("metadata에 %s가 없다".formatted(name));
+			throw new LocalClientException("metadata에 %s field가 없다".formatted(name));
 		}
 		URI uri;
 		try {
 			uri = URI.create(url);
 		}
 		catch (IllegalArgumentException ex) {
-			throw new LocalClientException("%s가 주소 형식이 아니다: %s".formatted(name, url), ex);
+			throw new LocalClientException("metadata의 %s field가 주소 형식이 아니다: %s".formatted(name, url), ex);
 		}
 		String scheme = uri.getScheme();
 		String host = uri.getHost();
 		boolean allowed = "https".equalsIgnoreCase(scheme)
 				|| ("http".equalsIgnoreCase(scheme) && host != null && isLoopback(host));
 		if (!allowed) {
-			throw new LocalClientException("%s가 https도, loopback 주소의 http도 아니다: %s".formatted(name, url));
+			throw new LocalClientException("metadata의 %s field가 https도, loopback 주소의 http도 아니다: %s".formatted(name, url));
 		}
 		return url;
 	}
