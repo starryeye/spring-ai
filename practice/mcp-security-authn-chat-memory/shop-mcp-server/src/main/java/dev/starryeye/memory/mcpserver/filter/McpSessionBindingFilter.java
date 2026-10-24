@@ -29,18 +29,21 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@code DELETE}로 session이 끝나면 묶음을 지운다.
  *
  * <p>{@code DELETE} 없이 사라진 client의 묶음이 쌓이지 않도록, 묶음마다 마지막으로 쓴 시각을 둔다.
- * {@link #DEFAULT_IDLE_TIMEOUT} 동안 쓰지 않은 묶음은 지운다.
+ * 생성자에 넘긴 {@code idleTimeout} 동안 쓰지 않은 묶음은 지운다.
  * 요청을 처리할 때 {@link #SWEEP_INTERVAL}에 한 번 map 전체를 훑는다.
- * 묶음이 없는 session ID로 온 요청은 끝난 session으로 보고 {@code 404}로 답한다(MCP: 끝낸 session ID에는 404).
+ *
+ * <p>{@code idleTimeout}은 transport의 session 만료와 같은 {@code mcp.limits.session-idle-timeout}이다.
+ * 묶음이 더 오래 남으면 transport가 지운 session의 묶음이 쌓이고, 더 일찍 지워지면 transport에 남은 session을 쓸 수 없다.
+ * 다만 transport는 만료를 주기적으로 검사해서 쉬는 session을 정한 시간의 두 배까지 들고 있을 수 있다.
+ * 그 사이에는 이 filter가 먼저 {@code 404}로 답한다.
+ *
+ * <p>묶음이 없는 session ID로 온 요청은 끝난 session으로 보고 {@code 404}로 답한다(MCP: 끝낸 session ID에는 404).
  * transport에 넘기면, 묶음만 지워지고 transport에 남은 session을 다른 사용자가 이어 쓸 수 있기 때문이다.
  * client는 {@code 404}를 받으면 새 {@code initialize}로 다시 연다.
  */
 public class McpSessionBindingFilter extends OncePerRequestFilter {
 
 	static final String SESSION_ID_HEADER = "Mcp-Session-Id";
-
-	/** 이 시간 동안 쓰지 않은 묶음은 지운다. */
-	static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofHours(1);
 
 	/** map 전체 정리는 이 간격보다 자주 하지 않는다. */
 	static final Duration SWEEP_INTERVAL = Duration.ofMinutes(1);
@@ -53,8 +56,9 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 
 	private final AtomicReference<Instant> nextSweep;
 
-	public McpSessionBindingFilter() {
-		this(Clock.systemUTC(), DEFAULT_IDLE_TIMEOUT);
+	/** @param idleTimeout 이 시간 동안 쓰지 않은 묶음은 지운다. */
+	public McpSessionBindingFilter(Duration idleTimeout) {
+		this(Clock.systemUTC(), idleTimeout);
 	}
 
 	McpSessionBindingFilter(Clock clock, Duration idleTimeout) {

@@ -110,16 +110,19 @@ class McpAuthorizationStandardTest {
 	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key,
 			List<String> scopes) {
 		NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
-		JwtClaimsSet claims = JwtClaimsSet.builder()
+		JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
 				.issuer(issuer)
-				.subject(subject)
 				.audience(List.of(audience))
 				.issuedAt(expiresAt.minusSeconds(600))
 				.expiresAt(expiresAt)
-				.claim("scope", scopes)
-				.build();
+				.claim("scope", scopes);
+		// subject가 null이면 sub claim을 아예 넣지 않는다.
+		// 사용자를 모르는 token을 만들 때 쓴다.
+		if (subject != null) {
+			claims.subject(subject);
+		}
 		return encoder.encode(JwtEncoderParameters.from(
-				JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims)).getTokenValue();
+				JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims.build())).getTokenValue();
 	}
 
 	static final String INITIALIZE = """

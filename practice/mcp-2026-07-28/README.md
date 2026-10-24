@@ -12,7 +12,7 @@ Authorization Server, ChatGPT형·Claude형 두 client type, discovery, login과
 | 바뀐 곳 | cimd | 이 practice | 안내서 절 |
 |---|---|---|---|
 | MCP 요청 형식 | 2025-11-25다. `initialize`로 버전과 capability를 한 번 협상한다 | 2026-07-28이다. 요청마다 `_meta`와 header 세 개를 보내고, 서버가 받는 버전은 `server/discover`로 묻는다 | [14장 1단계](../mcp-guide/14-modern-protocol.md#143-1단계-token-없는-첫-요청), [14장 2단계](../mcp-guide/14-modern-protocol.md#144-2단계-serverdiscover로-서버가-받는-버전을-묻는다) |
-| MCP Server transport | Spring AI MCP server starter와 MCP Java SDK 2.0.1이다 | Spring AI 없이 SDK 2.2.0-M1의 `McpServer`와 `HttpServletMcpTransport`를 `/mcp` servlet으로 등록한다. header와 본문의 대조, `_meta`와 버전 검사, 본문 상한(`413`)을 SDK transport가 맡는다 | [14장 서버 코드](../mcp-guide/14-modern-protocol.md#1410-서버-코드에서-보기) |
+| MCP Server transport | Spring AI MCP server starter와 MCP Java SDK 2.1.0이다 | Spring AI 없이 SDK 2.2.0-M1의 `McpServer`와 `HttpServletMcpTransport`를 `/mcp` servlet으로 등록한다. header와 본문의 대조, `_meta`와 버전 검사, 본문 상한(`413`)을 SDK transport가 맡는다 | [14장 서버 코드](../mcp-guide/14-modern-protocol.md#1410-서버-코드에서-보기) |
 | tool 정의 | `@McpTool` 메서드에 `@RequiredScope`를 붙인다 | `ShopTools`가 이름·설명·입력 schema·scope·handler를 `ShopTool` record로 적는다. 목록, 숨김, 실행은 `ShopToolRepository`가 맡는다 | [14장 서버 코드](../mcp-guide/14-modern-protocol.md#1410-서버-코드에서-보기) |
 | scope filter | 본문을 읽어 tool 이름을 찾고, 기본 scope가 모자라면 그것만 먼저 알린다 | 본문을 읽지 않고 `Mcp-Method`·`Mcp-Name` header만 본다. 기본 scope와 tool scope가 모두 모자라면 한 challenge에 함께 적는다 | [14장 5단계](../mcp-guide/14-modern-protocol.md#147-5단계-scope가-모자라면-한-challenge에-모은다), [14장 확인](../mcp-guide/14-modern-protocol.md#148-mcp-server가-확인하는-것) |
 | 실행하는 tool 이름 | filter와 transport가 같은 규칙으로 본문을 읽게 맞춘다 | `ShopToolRepository`는 SDK가 본문에서 그대로 꺼낸 이름이 `Mcp-Name`과 같을 때만 실행한다. 문자열이 아닌 이름으로 header 대조를 건너뛰는 호출을 막는다 | [14장 확인](../mcp-guide/14-modern-protocol.md#148-mcp-server가-확인하는-것) |
@@ -38,9 +38,9 @@ cimd에 있던 다음 클래스는 이 practice에 없다.
 | | `StepUpAuthorizationErrorHandler`, `StepUpToolExecutionExceptionProcessor` | `ModernMcpClient`가 `403`을 `StepUpRequiredException`으로 바꾸고, `ModernToolCallback`이 그대로 던진다 |
 | | `UnknownToolAwareToolCallback` | 모르는 tool 오류를 받으면 목록을 버리는 일은 `ModernToolCallback`이 한다 |
 
-버전은 Spring Boot 4.1.1이다.
+버전은 Spring Boot 4.1.2이다.
 MCP Server는 Spring AI 없이 `io.modelcontextprotocol.sdk:mcp:2.2.0-M1`을 쓴다.
-agent는 Spring AI 2.0.1(`ChatClient`와 ollama)과, schema 타입용 `mcp-core`·`mcp-json-jackson3` 2.2.0-M1을 쓴다.
+agent는 Spring AI 2.0.2(`ChatClient`와 ollama)와, schema 타입용 `mcp-core`·`mcp-json-jackson3` 2.2.0-M1을 쓴다.
 
 ## 실행
 

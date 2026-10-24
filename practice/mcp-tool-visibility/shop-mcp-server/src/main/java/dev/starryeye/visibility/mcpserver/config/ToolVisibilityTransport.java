@@ -16,23 +16,29 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 /**
- * SDK server와 WebMvc transport 사이에 끼어, {@code tools/list} 결과를 사용자 역할로 거른다(안내서 12장).
+ * SDK server와 WebMvc transport 사이에 끼어, 숨긴 tool의 {@code tools/call}에 "모르는 tool"로 답한다(안내서 12장).
  *
- * <p>SDK와 Spring AI에는 사용자마다 목록을 거르는 hook이 없다.
- * {@code WebMvcStatelessServerTransport}는 {@code final}이라 상속할 수 없어서 감싼다.
- * server가 생성될 때 넘기는 handler를 감싸, 결과가 JSON으로 바뀌기 전에 {@code ListToolsResult}를 거른다.
+ * <p>{@code tools/list}를 거르는 일은 SDK의 tool filter가 한다({@link McpTransportConfig#toolVisibilityListFilter}).
+ * 그 filter는 목록에서만 tool을 뺀다.
+ * 숨긴 tool도 이름으로 부르면 SDK가 찾아서 실행하고, 그 전에 입력 검증을 먼저 돌려 그런 tool이 있다는 사실을 알린다.
+ * 그래서 호출은 SDK가 tool을 찾기 전에 여기서 막는다.
+ * 이 호출 guard는 {@code ToolScopeFilter}가 숨긴 tool의 scope 검사를 건너뛰는 것과 한 쌍이다.
+ * guard가 없으면 scope를 보지 않은 호출이 그대로 실행되어, 조회 scope만 가진 손님 token으로도 재고가 바뀐다.
  *
- * <p>숨긴 tool의 {@code tools/call}도 여기서 답한다.
- * tool spec을 감싸면 SDK가 입력 검증을 먼저 돌려서 그런 tool이 있다는 사실을 알게 되므로,
- * SDK가 tool을 찾기 전에 handler에서 답한다.
+ * <p>{@code WebMvcStatelessServerTransport}는 {@code final}이라 상속할 수 없어서 감싼다.
+ * server가 생성될 때 넘기는 handler를 감싸, SDK가 tool을 찾기 전에 답한다.
  * 답은 SDK가 정말 없는 tool에 주는 오류와 같아서, 호출한 쪽은 숨긴 tool과 없는 tool을 구별할 수 없다.
+ *
+ * <p>목록 로그는 한 요청에 한 줄이어야 한다.
+ * SDK의 tool filter는 tool마다 불리므로, 요청마다 한 번 지나는 이 handler에서 남긴다.
+ * {@code tools/list}의 응답은 바꾸지 않고, SDK가 거른 결과의 수만 남긴다.
  */
 public final class ToolVisibilityTransport implements McpStatelessServerTransport {
 
 	private static final Logger log = LoggerFactory.getLogger(ToolVisibilityTransport.class);
 
 	/**
-	 * SDK 2.0.1이 없는 tool에 주는 message다(이름은 넣지 않는 고정 문자열이다).
+	 * SDK 2.1.0이 없는 tool에 주는 message다(이름은 넣지 않는 고정 문자열이다).
 	 * 숨긴 tool도 이 값으로 답해야 정말 없는 tool과 구별되지 않는다.
 	 * SDK를 올리면 다시 확인한다.
 	 */
@@ -98,17 +104,11 @@ public final class ToolVisibilityTransport implements McpStatelessServerTranspor
 			if (!McpSchema.METHOD_TOOLS_LIST.equals(request.method())) {
 				return response;
 			}
-			return response.map(r -> {
-				if (!(r.result() instanceof McpSchema.ListToolsResult list)) {
-					return r;
+			return response.doOnNext(r -> {
+				if (r.result() instanceof McpSchema.ListToolsResult list) {
+					log.info("tools/list — 사용자={}, 역할={}, 보인 tool={}/{}", subject, visibility.roleOf(subject),
+							list.tools().size(), visibility.toolCount());
 				}
-				List<McpSchema.Tool> visible = visibility.visible(subject, list.tools());
-				log.info("tools/list — 사용자={}, 역할={}, 보인 tool={}/{}", subject, visibility.roleOf(subject),
-						visible.size(), list.tools().size());
-				return McpSchema.JSONRPCResponse.result(r.id(), McpSchema.ListToolsResult.builder(visible)
-						.nextCursor(list.nextCursor())
-						.meta(list.meta())
-						.build());
 			});
 		}
 

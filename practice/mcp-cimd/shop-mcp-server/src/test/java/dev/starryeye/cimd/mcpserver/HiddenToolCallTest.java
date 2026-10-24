@@ -103,6 +103,22 @@ class HiddenToolCallTest {
 		assertThat(this.productRepository.findById("p1").orElseThrow().stock()).isEqualTo(before);
 	}
 
+	/**
+	 * 사용자를 모르는 요청은 손님이다.
+	 * 목록 filter와 호출 guard가 같은 판정을 쓰므로, {@code sub}가 없는 token으로도 숨긴 tool은 실행되지 않는다.
+	 */
+	@Test
+	void sub_없는_token은_products_write가_있어도_숨긴_tool을_부를_수_없다() throws Exception {
+		int before = this.productRepository.findById("p1").orElseThrow().stock();
+
+		String body = 응답(토큰(null, "products:read", "products:write"),
+				호출("updateStock", "{\"productId\":\"p1\",\"quantity\":" + (before + 7) + "}"))
+				.getContentAsString(StandardCharsets.UTF_8);
+
+		assertThat(body).contains("\"message\":\"Unknown tool: invalid_tool_name\"");
+		assertThat(this.productRepository.findById("p1").orElseThrow().stock()).isEqualTo(before);
+	}
+
 	@Test
 	void 숨긴_tool은_인자가_틀려도_모르는_tool이다() throws Exception {
 		// 입력 검증이 먼저 돌면 그런 tool이 있다는 것을 알게 된다.

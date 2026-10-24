@@ -14,6 +14,8 @@ module의 소스와 문서는 [spring-ai-community/mcp-security](https://github.
   그래서 `Host` 검사가 audience 검증의 전제가 된다([Host 검증과 audience 계산](#host-검증과-audience-계산)).
 - agent는 PRM을 요청하기 전에 그 URL의 scheme을 module의 검증기로 확인한다([준수표](../mcp-guide/reference-compliance.md#준수표)의 27번).
 - MCP Server가 `Origin`이나 `Host`를 거절할 때 본문이 JSON-RPC 오류 형식이다.
+- MCP Server의 session에는 상한과 만료를 두지 않는다(transport 기본값).
+  그래서 agent에도 끝난 session의 tool 호출을 다시 보내는 감싸기가 없다([6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한)).
 - 포트와 client_id가 official과 달라서 두 practice를 함께 띄울 수 있다.
 
 ## 구성
@@ -27,7 +29,8 @@ module의 소스와 문서는 [spring-ai-community/mcp-security](https://github.
 issuer는 `http://localhost:9000`이고, MCP Server의 resource는 `http://localhost:8101/mcp`다.
 agent의 redirect URI는 `http://localhost:8100/login/oauth2/code/authserver`이고, login 계정은 official과 같은 `user`/`password`다.
 session cookie 이름은 `AUTHSERVERSESSIONID`와 `SHOPAGENTSESSIONID`다.
-세 앱은 Spring Boot 4.1.0의 servlet 앱이고, `127.0.0.1`에서만 연결을 받는다.
+세 앱은 Spring Boot 4.1.2의 servlet 앱이고, `127.0.0.1`에서만 연결을 받는다.
+MCP Server와 agent는 official과 같은 Spring AI 2.0.2(MCP Java SDK 2.1.0)를 쓴다.
 
 ## module 소개
 
@@ -113,6 +116,7 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 | `McpTransportSecurityFilter`, `McpTransportConfig`(`Origin`·`Host` 검사) | `allowedOrigins`를 주면 `OriginValidationFilter`를 `CorsFilter` 뒤, 인증 filter 앞에 넣는다 | 허용 `Origin`은 `http://localhost:8101`이고, 허용 `Host`는 `localhost:8101`과 `127.0.0.1:8101`이다 |
 | `McpProtocolVersionFilter` | 대응하는 기능이 없다 | 같은 클래스를 `McpProtocolVersionFilterConfig`가 MCP endpoint에만 등록한다. Spring Security 뒤에서 돈다 |
 | session을 사용자에 묶지 않는다 | `McpServerOAuth2Configurer#sessionBinding(...)`이 있다 | 켜지 않는다. agent가 MCP client 하나를 모든 사용자와 같이 쓰기 때문이다 |
+| `McpTransportConfig`의 transport bean(session 상한·만료)과 router bean(`TransportErrorResponseFilter`) | module은 transport와 router를 만들지 않는다 | router bean만 같은 이름으로 만들어 `TransportErrorResponseFilter`를 끼운다. transport는 Spring AI 자동 구성의 것이라 session 상한은 100,000이고 만료가 없다 |
 | `ProductTools`, `ProductRepository` | 없음 | 같은 클래스 |
 
 **`shop-agent`** — package `dev.starryeye.community.agent`
@@ -126,7 +130,8 @@ access token의 `aud`는 client_id로 남고, ID token의 `aud`는 `resource`가
 | `SecurityMcpTransportContextProvider` | `McpOAuth2ClientAutoConfiguration`이 `AuthenticationMcpTransportContextProvider`를 MCP client에 넣는다 | 없음 |
 | `application.yml`의 `spring.reactor.context-propagation: auto` | `AuthenticationMcpTransportContextProvider.writeToReactorContext()` | `ChatController`가 `.contextWrite(...)`로 요청 thread의 인증을 reactor context에 넣는다 |
 | `SecurityConfig`, `ResourceIndicators`, `AuthorizationResponseIssuerFilter`, `LoginFailureHandler` | 이 practice가 쓰는 자동 구성은 login과 authorization request를 다루지 않는다 | 같은 클래스 |
-| `DiscoveredAuthorization`, `McpAuthorizationProperties`, `McpDiscoveryException`, `ChatClientConfig` | 없음 | 같은 클래스 |
+| `DiscoveredAuthorization`, `McpAuthorizationProperties`, `McpDiscoveryException` | 없음 | 같은 클래스 |
+| `ChatClientConfig`, `SessionRetryingToolCallback` | 없음 | `ChatClientConfig`는 MCP tool을 감싸지 않고 기본 tool로 넣는다. 서버가 session을 스스로 끝내지 않아 다시 보낼 일이 서버를 다시 띄울 때뿐이다 |
 
 ## module이 하지 않는 것
 
@@ -236,6 +241,7 @@ package는 `auth-server`가 `dev.starryeye.community.authserver`, `shop-mcp-serv
 | | `ResourceAudienceTokenCustomizer` | access token의 `aud`를 `resource`로 정하고, ID token의 `aud`를 client_id로 되돌린다 | [5장 token의 내용](../mcp-guide/05-authorization-and-token.md#58-token의-내용-access-token과-id-token) |
 | `shop-mcp-server` | `SecurityConfig` | `McpServerOAuth2Configurer`로 token 검증, audience 검증, PRM, `401` entry point, `Origin`·`Host` 검사를 설정한다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증) |
 | | `McpProtocolVersionFilterConfig` | `McpProtocolVersionFilter`를 MCP endpoint에만 등록한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
+| | `McpTransportConfig`, `TransportErrorResponseFilter` | Spring AI 자동 구성 transport의 router를 같은 이름의 bean으로 바꿔 `TransportErrorResponseFilter`를 끼운다. 오류 응답의 본문에 Java stack trace가 나가지 않는다 | [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
 | `shop-agent` | `McpAuthorizationDiscovery` | challenge와 PRM은 module에 맡기되 그 사이에서 `resource_metadata`의 origin을 확인하고, 그 뒤의 issuer 비교와 Authorization Server Metadata 확인을 한다. module의 URL 검증기는 scheme과 경로의 `..`만 보기 때문이다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기) |
 | | `McpSecurityConfig` | discovery, client 등록 정보, `resource`를 넣는 token request client, authorized client manager를 등록한다. 모든 앱이 `http://localhost`라서 PRM URL 검증기로 loopback `http`도 받는 `DefaultUrlValidator(true)`를 넘기고, 운영에서는 `https`만 받는 기본값 `DefaultUrlValidator()`를 쓴다 | [5장 official 코드](../mcp-guide/05-authorization-and-token.md#511-official-코드에서-보기) |
 | | `ChatController` | `.contextWrite(...)`로 요청 thread의 인증을 reactor context에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |

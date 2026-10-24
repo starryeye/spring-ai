@@ -16,6 +16,7 @@ login부터 MCP 호출까지의 흐름은 official과 같은 클래스로 만들
 | MCP session | 사용자에 묶지 않는다 | `McpSessionBindingFilter`가 session을 연 사용자에 묶는다([MCP Server의 session 묶기](#mcp-server의-session-묶기)) |
 | MCP 요청에 붙이는 token | 요청을 일으킨 사용자를 transport context에서 찾아 그 token을 붙인다 | client를 연 사용자(주인)의 token을 붙인다([token을 client 주인에게 묶는 이유](#token을-client-주인에게-묶는-이유)) |
 | session 종료 `DELETE` | 앱이 끝날 때 token 없이 나간다 | logout, HTTP session 종료, 앱 종료 때 주인의 token을 붙여 보낸다([client를 닫는 때](#client를-닫는-때)) |
+| MCP session의 만료 | 30분(`mcp.limits.session-idle-timeout`) 동안 쓰지 않으면 끝난다 | 1시간이다. session 묶음도 같은 값으로 만료된다([MCP Server의 session 묶기](#mcp-server의-session-묶기)) |
 
 `auth-server`는 login 계정을 두는 `UserConfig`만 다르다.
 MCP Server의 token 검증과 `Origin`·`Host`·`MCP-Protocol-Version` 검사, agent의 discovery·login·token request는 official과 같은 클래스다.
@@ -137,12 +138,14 @@ client는 그 사용자의 첫 채팅 때 만들고, 곧바로 `initialize`를 �
 | 요청의 `Mcp-Session-Id`가 다른 사용자에 묶여 있을 때 | method와 상관없이 `403`으로 거절한다. 다른 사용자는 남의 session을 `DELETE`로 끝낼 수도 없다 |
 | 묶은 사용자의 `DELETE`가 `2xx`로 끝났을 때 | 묶음을 푼다. 그 뒤 이 session ID로 오는 요청은 `404`다 |
 | 요청의 session ID가 누구에게도 묶여 있지 않을 때 | `404`로 답하고 transport에 넘기지 않는다. 처음 보는 ID, 끝낸 session, 만료된 묶음이 여기에 든다 |
-| 묶음을 1시간 쓰지 않았을 때 | 묶음을 지운다. 요청을 처리할 때 1분에 한 번 오래된 묶음을 정리한다 |
+| 묶음을 `mcp.limits.session-idle-timeout`(기본 1시간) 동안 쓰지 않았을 때 | 묶음을 지운다. 요청을 처리할 때 1분에 한 번 오래된 묶음을 정리한다 |
 
 한 사용자가 여러 session을 열면 session마다 그 사용자에 묶이고, 묶음은 서버 메모리의 map에 있다.
-1시간 쓰지 않은 묶음을 지우는 것은 agent가 `DELETE` 없이 끝나면 묶음이 계속 쌓이기 때문이다.
+쓰지 않은 묶음을 지우는 것은 agent가 `DELETE` 없이 끝나면 묶음이 계속 쌓이기 때문이다.
+묶음과 transport session의 만료 값이 다르면, 둘 중 하나가 쓸 수 없는 묶음이나 session을 쌓는다.
+그래서 묶음의 만료는 transport의 session 만료와 같은 설정 값을 쓴다.
 묶음이 없는 session을 filter가 직접 `404`로 끝내는 것은, 묶음만 지우고 transport에 넘기면 SDK에 남은 session을 다른 사용자가 이어 쓸 수 있기 때문이다.
-SDK client는 `404`를 받으면 다음 요청부터 다시 `initialize`한 새 session을 쓴다.
+SDK client는 `404`를 받으면 다시 `initialize`한 새 session을 쓰고, 실패한 tool 호출은 `SessionRetryingToolCallback`이 다시 보낸다([6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한)).
 
 ### token을 client 주인에게 묶는 이유
 
@@ -211,13 +214,10 @@ client는 `closeGracefully()`로 닫고, 이때 SDK가 session 종료 `DELETE`�
 logout도 HTTP session을 끝내지만, client는 map에서 이미 지워져 있어 두 번 닫히지 않는다.
 그 사용자의 다음 채팅은 새 client를 열고, 새 `initialize`로 새 session을 받는다.
 
-이 방식에는 대가가 두 가지 있다.
-
-- client는 사용자 이름마다 하나다.
-  한 browser에서 logout하면, 같은 사용자가 다른 browser에서 진행 중인 채팅은 끝까지 그 client를 쓰고 끝난 뒤 닫힌다.
-  그 browser의 다음 채팅은 새 client를 열고 새 session을 받는다.
-- MCP Server의 묶음은 1시간 쓰지 않으면 지워지지만, SDK transport의 session 자체는 만료되지 않는다(Spring AI 2.0.0).
-  agent가 `DELETE` 없이 끝나면, 그 session은 묶음이 지워진 뒤에도 MCP Server가 내려갈 때까지 SDK 메모리에 남는다.
+이 방식에는 대가가 하나 있다.
+client는 사용자 이름마다 하나다.
+그래서 한 browser에서 logout하면, 같은 사용자가 다른 browser에서 진행 중인 채팅은 끝까지 그 client를 쓰고 끝난 뒤 닫힌다.
+그 browser의 다음 채팅은 새 client를 열고 새 session을 받는다.
 
 ## 실행
 
@@ -265,13 +265,15 @@ package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `mcpserver`, `sho
 | | `ChatMemoryConfig` | `MessageWindowChatMemory`로 대화마다 최근 메시지를 `chat.memory.max-messages`개(기본 20개)까지 둔다 | [대화 기억](#대화-기억) |
 | | `ChatClientConfig` | `MessageChatMemoryAdvisor`를 기본 advisor로 둔다. MCP tool은 기본 tool로 두지 않는다 | [대화 기억](#대화-기억) |
 | | `ChatController` | 요청마다 `conversationId`를 만들고, 그 사용자 client를 빌려 tool을 LLM에 넘긴다. 답 stream이 끝나면 돌려준다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
-| | `UserMcpClients` | 사용자 이름마다 `McpSyncClient`를 하나 만들어 첫 채팅 때 map 밖에서 `initialize`한다. logout, HTTP session 종료, 앱 종료 때 닫되, 빌려 간 채팅이 있으면 끝난 뒤 닫는다 | [client를 닫는 때](#client를-닫는-때) |
+| | `UserMcpClients` | 사용자 이름마다 `McpSyncClient`를 하나 만들어 첫 채팅 때 map 밖에서 `initialize`한다. tool은 `SessionRetryingToolCallback`으로 감싸고, logout, HTTP session 종료, 앱 종료 때 닫되 빌려 간 채팅이 있으면 끝난 뒤 닫는다 | [client를 닫는 때](#client를-닫는-때) |
+| | `SessionRetryingToolCallback` | MCP Server가 session을 지워 실패한 tool 호출을 한 번 다시 보낸다. SDK가 뒤에서 보내는 `initialize`에도 주인의 token이 붙어서, official과 달리 사용자 없는 `initialize`의 `401`을 따로 다루지 않는다 | [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한) |
 | | `McpSecurityConfig` | `UserMcpClients` bean과 client마다의 transport, `HttpSessionEventPublisher`를 등록한다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
 | | `OAuth2TokenAttachingRequestCustomizer` | client를 만들 때 받은 주인의 token을 모든 MCP 요청에 붙인다 | [token을 client 주인에게 묶는 이유](#token을-client-주인에게-묶는-이유) |
 | | `SecurityConfig` | official의 설정에 그 사용자의 client를 닫는 logout handler를 더한다 | [client를 닫는 때](#client를-닫는-때) |
 | | `application.yml` | `spring.ai.mcp.client.enabled: false`로 MCP client 자동 구성을 끈다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
-| `shop-mcp-server` | `McpSessionBindingFilter` | `Mcp-Session-Id`를 token의 `sub`에 묶고, 다른 사용자의 요청을 `403`으로 거절한다. 묶음이 없거나 1시간 쓰지 않은 session ID는 `404`다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
-| | `SecurityConfig` | official의 설정에 `McpSessionBindingFilter`를 더한다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
+| `shop-mcp-server` | `McpSessionBindingFilter` | `Mcp-Session-Id`를 token의 `sub`에 묶고, 다른 사용자의 요청을 `403`으로 거절한다. 묶음이 없거나 `mcp.limits.session-idle-timeout` 동안 쓰지 않은 session ID는 `404`다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
+| | `SecurityConfig` | official의 설정에 `McpSessionBindingFilter`를 더하고, 묶음의 만료에 `McpLimitProperties`의 `session-idle-timeout`을 넘긴다 | [MCP Server의 session 묶기](#mcp-server의-session-묶기) |
+| | `McpTransportConfig`, `McpLimitProperties`, `application.yml` | official과 같은 transport bean이다. `session-idle-timeout`의 기본값만 `1h`이다 | [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한) |
 | `auth-server` | `UserConfig` | login 계정 `alice`/`alice`와 `bob`/`bob`을 둔다 | [구성](#구성) |
 
 ## 직접 확인할 것

@@ -20,11 +20,9 @@ import java.util.Set;
  * 새 scope만이 아니라 지금 가진 scope와 합쳐 요청한다(MCP 2026-07-28).
  * 이미 가진 scope를 서버가 모자라다고 하거나, 이미 한 번 요청했는데도 못 받은 scope면 더 시도하지 않고 멈춘다.
  *
- * <p>{@link #handle}은 성공해도 {@code true}를 돌려주지 않는다. MCP Java SDK 2.0.0은 {@code true}를
- * 받으면 {@code httpRequestCustomizer}를 다시 부르지 않고 옛 token이 들어 있는 요청을 그대로 재시도한다
- * ({@code HttpClientStreamableHttpTransport#sendMessage} 참고). 그래서 성공하면 대신
- * {@link StepUpCompletedException}을 던져, 호출한 쪽({@link McpCalls})이 같은 요청을 새로 만들어
- * 다시 보내게 한다.
+ * <p>{@link #handle}은 새 token을 받으면 `[7]`을 찍고 {@code true}를 돌려준다.
+ * SDK 2.1은 재시도 요청을 새로 만들며 request customizer를 다시 부르므로, 재시도에는 {@link TokenHolder}의 새 token이 붙는다.
+ * SDK 2.0은 이미 만든 요청을 그대로 다시 보내 옛 token이 붙었으므로, 앱이 같은 호출을 직접 다시 불러야 했다.
  */
 public final class StepUp implements McpHttpClientTransportAuthorizationErrorHandler.Sync {
 
@@ -80,6 +78,7 @@ public final class StepUp implements McpHttpClientTransportAuthorizationErrorHan
 			throw new LocalClientException(neededText + " 권한을 받지 못했다");
 		}
 		this.holder.update(token.accessToken(), granted);
-		throw new StepUpCompletedException();
+		this.out.println("[7] 새 token으로 같은 요청을 새로 보낸다");
+		return true;
 	}
 }

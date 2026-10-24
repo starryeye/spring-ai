@@ -12,6 +12,7 @@ import dev.starryeye.visibility.mcpserver.tool.ToolVisibility;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.transport.DefaultServerTransportSecurityValidator;
+import org.springframework.ai.mcp.customizer.McpStatelessSyncServerCustomizer;
 import org.springframework.ai.mcp.server.common.autoconfigure.properties.McpServerStreamableHttpProperties;
 import org.springframework.ai.mcp.server.webmvc.transport.WebMvcStatelessServerTransport;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -45,7 +46,10 @@ import java.util.Map;
  * <p>stateless transport bean은 사용자를 읽는 {@code contextExtractor}를 넣으려고 직접 만든다.
  *
  * <p>학습용 역할 표({@link ToolVisibility})도 여기서 만든다.
- * {@code @Primary}인 transport wrapper는 역할에 따라 {@code tools/list}를 거르고, 숨긴 tool의 호출에 "모르는 tool"로 답한다.
+ * 역할에 따라 {@code tools/list}를 거르는 것은 SDK의 tool filter({@link #toolVisibilityListFilter})고,
+ * 숨긴 tool의 호출에 "모르는 tool"로 답하는 것은 {@code @Primary}인 transport wrapper({@link ToolVisibilityTransport})다.
+ * 둘은 한 쌍이다.
+ * filter는 목록만 거르므로, wrapper가 없으면 숨긴 tool도 이름으로 부르면 실행된다.
  */
 @Configuration
 @EnableConfigurationProperties(McpLimitProperties.class)
@@ -156,6 +160,30 @@ public class McpTransportConfig {
 	}
 
 	/**
+	 * 역할로 거른 {@code tools/list}를 만든다.
+	 * SDK 2.1.0의 tool filter를 Spring AI 2.0.2의 customizer bean으로 등록한다.
+	 * Spring AI가 tool을 모두 더한 뒤에 이 customizer를 적용하므로, 자동 구성의 server를 대신 만들 필요가 없다.
+	 *
+	 * <p>filter는 tool마다 불리고 요청의 {@code McpTransportContext}만 받는다.
+	 * 사용자는 transport가 token에서 꺼내 넣은 {@code sub}를 읽는다.
+	 * SDK는 filter를 {@code filterWhen}으로 적용해 tool 순서를 등록된 순서 그대로 둔다.
+	 * 그래서 client의 목록 cache와 모델의 prompt cache가 흔들리지 않는다.
+	 * filter가 예외를 던지면 SDK가 {@code tools/list} 전체를 내부 오류({@code -32603})로 바꾸므로 던지면 안 된다.
+	 * {@code sub}가 없는 요청은 사용자를 모르는 요청이라, 사용자를 {@code null}로 넘겨 {@link ToolVisibility}가 손님으로 다루게 한다.
+	 *
+	 * <p>이 filter는 {@code tools/list}에만 적용된다.
+	 * {@code tools/call}은 거치지 않으므로,
+	 * 숨긴 tool의 호출은 {@link ToolVisibilityTransport}가 막는다.
+	 */
+	@Bean
+	public McpStatelessSyncServerCustomizer toolVisibilityListFilter(ToolVisibility visibility) {
+		return builder -> builder.addToolFilter(
+				(context, tool) -> !visibility.hidden(McpCaller.subject(context).orElse(null), tool.name()));
+	}
+
+	/**
+	 * 숨긴 tool의 {@code tools/call}만 막는 wrapper다.
+	 * 목록은 {@link #toolVisibilityListFilter}가 거른다.
 	 * 자동 구성의 server는 transport를 {@code McpStatelessServerTransport} 타입으로 받으므로, {@code @Primary}인 이 bean이 간다.
 	 * router는 {@code WebMvcStatelessServerTransport} 타입으로 받으므로 원래 bean이 그대로 간다.
 	 */

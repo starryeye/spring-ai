@@ -41,7 +41,7 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http,
 			@Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
-			OAuth2ResourceServerProperties properties) throws Exception {
+			OAuth2ResourceServerProperties properties, McpLimitProperties limits) throws Exception {
 		String resource = resource(properties);
 		String resourceMetadataUrl = resourceMetadataUrl(resource);
 		return http
@@ -59,7 +59,8 @@ public class SecurityConfig {
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
 										.tlsClientCertificateBoundAccessTokens(false))))
 				// MCP session을 token의 사용자에게 묶는다. 인증과 접근 검사(AuthorizationFilter)를 마친 요청만 이 filter에 닿는다.
-				.addFilterAfter(new McpSessionBindingFilter(), AuthorizationFilter.class)
+				// 묶음은 transport의 session과 같은 시간(mcp.limits.session-idle-timeout)이 지나면 지운다.
+				.addFilterAfter(new McpSessionBindingFilter(limits.sessionIdleTimeout()), AuthorizationFilter.class)
 				// stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
 				.csrf(csrf -> csrf.disable())
 				.build();

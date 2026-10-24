@@ -46,6 +46,10 @@ import java.util.stream.Collectors;
  * 숨긴 tool은 scope를 늘려도 쓸 수 없어서 step-up을 시작하지 않고, scope를 보지 않은 채 transport로 넘어간다.
  * 그러면 {@code ToolVisibilityTransport}가 정말 없는 tool과 같은 "모르는 tool" 오류로 답한다.
  *
+ * <p>이 건너뜀은 {@code ToolVisibilityTransport}의 호출 guard와 한 쌍이다.
+ * 숨긴 tool을 목록에서 빼는 SDK의 tool filter는 {@code tools/call}에 적용되지 않으므로, 이 건너뜀을 받아 줄 곳이 guard뿐이다.
+ * guard가 없으면 scope를 보지 않은 숨긴 tool 호출이 그대로 실행된다.
+ *
  * <p>tool 이름은 JSON-RPC 본문의 {@code params.name}에 있어 본문을 읽어야 한다.
  * MCP 2026-07-28은 이 이름을 {@code Mcp-Name} header로도 보내게 해서, 서버는 본문 없이 같은 검사를 할 수 있다.
  * 지금 SDK는 2025-11-25라 본문을 읽는다.
@@ -61,12 +65,13 @@ import java.util.stream.Collectors;
  *
  * <p>{@code tools/call}의 params가 SDK의 {@code CallToolRequest}로 바뀔 수 없는 모양이면(params가 object가 아니거나,
  * {@code name}이 문자열이 아니거나, {@code arguments}·{@code _meta}가 object가 아니면) transport로 넘기지 않고
- * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다. 넘기면 Spring AI 2.0.1 stateless transport가 {@code 500}과 함께
+ * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다.
+ * 넘기면 Spring AI 2.0.2 stateless transport가 {@code 500}과 함께
  * 예외 객체를 본문에 써서 stack trace가 나간다. {@code name}을 문자열로만 받으면, SDK가 숫자·boolean 이름을 문자열로
  * 바꾸는 것과 이 filter가 이름을 읽는 방식이 어긋날 일도 없다. 이 거절은 속도 제한에서 세지 않는다.
  *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
- * transport(Spring AI 2.0.1의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
+ * transport(Spring AI 2.0.2의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
  * Spring의 {@code StringHttpMessageConverter}는 {@code Content-Type}의 charset(없으면 UTF-8)으로 바이트를 decode하는데,
  * 잘못된 바이트를 만나도 예외를 던지지 않고 대체 문자({@code U+FFFD})로 조용히 바꿔 넣는다.
  * 이 filter가 그 대신 {@code jsonMapper.readTree(byte[])}로 바이트를 직접 읽으면, Jackson은 잘못된 UTF-8 바이트에서 예외를 던진다.
@@ -181,8 +186,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	 * charset이 없으면 UTF-8, 읽을 수 없으면 거절한다.
 	 * decode한 text가 JSON object가 아니면(구문 오류, 배열) {@link BodyRejected}로 거절한다.
 	 */
-	// 이 decode 규칙은 Spring AI 2.0.1 WebMvcStatelessServerTransport의 읽기
-	// (request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다(mcp-spring-webmvc 2.0.1 bytecode로 확인).
+	// 이 decode 규칙은 Spring AI 2.0.2 WebMvcStatelessServerTransport의 읽기
+	// (request.body(String.class) → StringHttpMessageConverter)를 따라 한 것이다(mcp-spring-webmvc 2.0.2 source로 확인).
 	// Spring AI를 올리거나 transport를 바꿀 때 다시 확인한다.
 	private JsonNode parseAsTransportWill(CachedBodyHttpServletRequest request) {
 		Charset charset = charset(request);

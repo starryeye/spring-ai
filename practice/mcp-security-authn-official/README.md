@@ -17,8 +17,9 @@ spring-ai-community의 MCP 보안 module은 쓰지 않는다.
 | `shop-agent` | 8110 | browser 채팅 화면이 있는 agent다. confidential client `official-shop-agent`로 받은 token을 MCP 요청에 붙이고, LLM은 Ollama의 `qwen3:8b`를 쓴다 |
 | `local-client` | 없음 | 명령줄 MCP client다. public client `local-mcp-client`로 discovery부터 MCP 호출까지 혼자 밟고, callback은 `127.0.0.1`의 빈 포트로 받는다 |
 
-세 서버는 Spring Boot 4.1.0의 servlet 앱이고, `127.0.0.1`에서만 연결을 받는다.
-`local-client`는 Spring Boot 없이 Java 21과 MCP Java SDK 2.0.0만 쓴다.
+세 서버는 Spring Boot 4.1.2의 servlet 앱이고, `127.0.0.1`에서만 연결을 받는다.
+MCP Server와 agent는 Spring AI 2.0.2를 쓰고, Spring AI가 MCP Java SDK 2.1.0을 가져온다.
+`local-client`는 Spring Boot 없이 Java 21과 MCP Java SDK 2.1.0만 쓴다.
 module 사이에서 token이 오가는 전체 흐름은 [2장 전체 흐름](../mcp-guide/02-why-oauth.md#25-전체-흐름-시퀀스-다이어그램)에 있다.
 
 `shop-agent`는 흐름을 단순하게 보이려고 Spring AI 자동 구성이 만든 MCP client 하나를 모든 사용자가 같이 쓴다.
@@ -104,10 +105,12 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
-| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증하며, `audiences` 값이 하나가 아니면 서버가 뜨지 않는다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만들며 `/mcp`가 아닌 경로로 온 요청의 `401`에도 같은 PRM 주소를 넣는다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
+| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증하며, `audiences` 값이 하나가 아니면 서버가 뜨지 않는다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만들며 `/mcp`가 아닌 경로로 온 요청의 `401`에도 같은 PRM 주소를 넣는다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
 | `application.yml` | `issuer-uri`와 `audiences`로 token의 `iss`와 `aud`를 확인한다. `server.address: 127.0.0.1`로 이 기기의 연결만 받는다 | [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증), [6장 `127.0.0.1` bind](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
-| `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기) |
+| `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
 | `McpProtocolVersionFilter` | token 검증 뒤에 `MCP-Protocol-Version`을 보고, 모르는 버전을 `400`으로 거절한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
+| `McpTransportConfig`, `McpLimitProperties`, `application.yml`의 `mcp.limits` | transport bean을 직접 만들어 session 상한(`max-sessions`, 기본 1000)과 만료(`session-idle-timeout`, 기본 30분)를 넣는다. 상한을 넘은 `initialize`는 `503`, 만료된 session의 요청은 `404`다 | [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
+| `TransportErrorResponseFilter` | `McpTransportConfig`가 transport의 router에 끼운다. transport의 오류 응답을 상태 코드는 그대로 두고 `code`·`message`만 남긴 JSON-RPC 오류로 바꿔, Java stack trace가 나가지 않게 한다 | [1장 session](../mcp-guide/01-mcp-basics.md#19-session-mcp-session-id), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
 | `ProductTools`, `ProductRepository` | `@McpTool`로 `getStock`·`searchProducts` tool을 만든다. 상품은 메모리에 있다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 
 **`shop-agent`** — package `dev.starryeye.official.agent`
@@ -122,7 +125,8 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 | `AuthorizationResponseIssuerFilter`, `LoginFailureHandler` | callback의 `iss`를 code 교환 전에 확인하고, 어긋나면 `401`로 끝낸다. 응답 본문에는 오류 코드만 쓰고, 자세한 이유는 로그에 남긴다 | [5장 callback 확인](../mcp-guide/05-authorization-and-token.md#56-callback에서-state와-iss를-확인한다) |
 | `SecurityMcpTransportContextProvider`, `OAuth2TokenAttachingRequestCustomizer` | MCP 요청마다 그 요청을 일으킨 사용자의 access token을 `Authorization` header에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 | `application.yml`의 `spring.reactor.context-propagation: auto` | Spring Boot가 Reactor의 자동 context 전파를 켜, reactor thread에 `SecurityContext`를 옮긴다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
-| `ChatClientConfig`, `ChatController` | MCP tool을 `ChatClient`의 기본 tool로 넣고, `/api/chat`의 답을 stream으로 보낸다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
+| `ChatClientConfig`, `ChatController` | MCP tool을 `SessionRetryingToolCallback`으로 감싸 `ChatClient`의 기본 tool로 넣고, `/api/chat`의 답을 stream으로 보낸다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
+| `SessionRetryingToolCallback` | MCP Server가 session을 지워 실패한 tool 호출을 같은 입력으로 다시 보낸다. SDK가 사용자 없이 보낸 `initialize`의 `401`에 걸린 호출도 한 번 더 부른다 | [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한) |
 | `application.yml` | discovery의 출발점 `mcp.authorization.resource-url`과 `credentials-issuer`를 둔다. `initialized: false`로 `initialize`를 첫 채팅까지 미룬다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 
 **`local-client`** — package `dev.starryeye.official.localclient`
@@ -146,7 +150,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 - `AuthorizationServerConfig`는 filter chain을 직접 정의해서 Spring Boot의 기본 Authorization Server 설정이 빠진다.
   그래서 agent의 login에 필요한 OpenID Connect(ID token, `/.well-known/openid-configuration`)를 `.oidc(...)`로 직접 켠다.
 - `shop-mcp-server`의 `SecurityConfig`는 `issuer-uri`를 기본값 없는 `@Value`로 받아서, 이 설정이 없으면 앱이 뜨지 않는다.
-  값이 틀리면 앱은 뜨고, token이 붙은 첫 요청에서 실패한다([6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#69-official-코드에서-보기)).
+  값이 틀리면 앱은 뜨고, token이 붙은 첫 요청에서 실패한다([6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기)).
 - `auth-server`와 `shop-agent`는 session cookie 이름을 `OFFICIALAUTHSESSIONID`와 `OFFICIALAGENTSESSIONID`로 나눈다.
   cookie는 host만 보고 포트를 가리지 않아서([RFC 6265 §8.5](https://www.rfc-editor.org/rfc/rfc6265#section-8.5)), 두 앱이 같은 `JSESSIONID`를 쓰면 한쪽 login이 다른 쪽 session을 덮어쓴다.
 
@@ -175,6 +179,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 | `grep '토큰을 헤더에' logs/shop-agent.log` | `토큰을 헤더에 붙였다 (사용자=user)`가 찍힌다. agent가 MCP 요청마다 그 사용자의 token을 붙인다 |
 | `local-client`에서 `./gradlew -q run` 뒤 login과 consent | terminal에 `[1]`부터 `[5]`까지 찍힌다. `-q`로 실행하면 마지막 줄은 `getStock(p1)`의 결과인 재고 7개다 |
 | `local-client`에서 `./gradlew run --args="--issuer http://localhost:9999"` | discovery에서 `실패: 이 client는 http://localhost:9999에 등록돼 있는데, PRM의 authorization_servers는 [http://localhost:9010]뿐이다`로 멈춘다 |
+| `shop-mcp-server`의 `mcp.limits.session-idle-timeout`을 `1m`으로 바꿔 다시 띄우고, 채팅으로 재고를 물은 뒤 2분 넘게 기다렸다가 다시 묻기 | 두 번째 답도 정상으로 온다. `grep '다시 보낸다' logs/shop-agent.log`에 `MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool=…)`가 찍힌다 |
 
 token이 필요한 요청은 캡처 스크립트로 한 단계씩 기록해 본다.
 스크립트는 login과 token 발급을 curl로 대신 한다.

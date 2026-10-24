@@ -393,7 +393,7 @@ browser 대신 curl이 login과 consent를 하는 `docs/superpowers/captures/aut
 |---|---|
 | `[5]`의 `getStock(p1)` | 조회 token으로 충분하다. 재고가 이미 10개인 것은 이 실행 전에 다른 client가 재고를 10개로 바꿔 두었기 때문이다 |
 | 두 번째 `[3]`, `[4]` | step-up의 callback과 token request다. callback 포트가 `51446`으로 바뀌었다 |
-| `[7]` | 새 token으로 같은 `updateStock` 호출을 새 요청으로 보낸다 |
+| `[7]` | handler가 새 token을 받은 뒤 찍는다. 그다음 SDK가 같은 `updateStock` 호출을 새 token으로 다시 보낸다 |
 
 `[3]`, `[4]`가 다시 나오는 것은 step-up이 새로운 절차가 아니기 때문이다.
 step-up은 5장과 7장의 authorization code 흐름을, 합친 scope로 한 번 더 밟는 것이다.
@@ -403,7 +403,7 @@ step-up은 5장과 7장의 authorization code 흐름을, 합친 scope로 한 번
 
 `StepUp`은 SDK의 authorization error handler라서, `tools/call`이 아직 끝나지 않은 사이에 browser를 열고 login을 기다린다.
 그래서 `local-client`는 MCP 요청과 `initialize`의 시간 제한을 login 제한(5분)에 20초를 더한 값으로 둔다.
-새 token을 받으면 같은 tool 호출을 새 요청으로 다시 보낸다(10.9).
+새 token을 받으면 SDK가 같은 tool 호출을 새 요청으로 다시 보낸다(10.9).
 
 ## 10.8 서버 코드에서 보기
 
@@ -552,19 +552,29 @@ public boolean handle(HttpRequestSnapshot requestSnapshot, HttpResponse.Response
     Set<String> granted = token.grantedScopes(scopes);                       // 응답에 scope가 없으면 요청한 scope
     /* granted에 needed가 모두 있지 않으면(일부 허락) 같은 LocalClientException으로 멈춘다 */
     this.holder.update(token.accessToken(), granted);
-    throw new StepUpCompletedException();                                    // true 대신: 새 요청으로 다시 보내게 한다
+    this.out.println("[7] 새 token으로 같은 요청을 새로 보낸다");
+    return true;                                                             // SDK가 같은 요청을 새로 만들어 다시 보낸다
 }
 ```
 
 `missing`이 비었으면 서버가 이미 가진 scope를 모자라다고 한 것이고, `attempted`와 겹치면 이미 한 번 요청했는데도 받지 못한 것이다.
 두 경우 모두 다시 시도해도 달라지지 않으므로 멈춘다.
 
-handler가 `true`를 돌려주면 SDK는 이미 만들어 둔 요청을 그대로 다시 보낸다.
-`Authorization` header를 붙이는 customizer가 다시 불리지 않아서, 옛 token이 붙은 채로 가고 또 `403`을 받는다.
-그래서 `StepUp`은 새 token을 `TokenHolder`에 넣은 뒤, `true` 대신 `StepUpCompletedException`을 던진다.
-`McpCalls#callOnce`는 원인 사슬에서 `StepUpCompletedException`을 찾으면 `[7]`을 찍고 같은 호출을 한 번만 다시 부른다.
 official의 `local-client`는 transport의 기본 요청에 `Authorization` header를 한 번 넣는다(7장).
-이 practice에서는 token이 실행 도중에 바뀌므로, `McpCalls`의 customizer가 요청을 만들 때마다 `TokenHolder`에서 지금 token을 읽는다.
+이 practice에서는 token이 실행 도중에 바뀌므로, `McpCalls`가 등록한 customizer가 요청을 만들 때마다 `TokenHolder`에서 지금 token을 읽는다.
+handler가 `true`를 돌려주면 SDK는 같은 JSON-RPC 메시지로 HTTP 요청을 새로 만들어 다시 보낸다.
+요청을 새로 만들 때 이 customizer가 다시 불리므로, 다시 보낸 요청에는 `StepUp`이 방금 넣은 새 token이 붙는다.
+그래서 `McpCalls`에는 재시도 코드가 없다.
+
+SDK는 한 요청에 handler를 한 번만 부른다(`maxRetries()`의 기본값 1).
+새 token으로 다시 보낸 요청이 또 `403`을 받으면 handler를 다시 부르지 않고 오류를 올리고, 앱은 `실패: MCP 호출이 실패했다: …`를 찍고 끝난다.
+같은 실행에서 다른 요청이 같은 scope로 `403`을 받으면, handler는 위의 규칙으로 browser를 다시 열지 않고 멈춘다.
+
+MCP Java SDK 2.0에서는 이 방법이 통하지 않았다.
+2.0은 handler가 `true`를 돌려주면 이미 만든 요청을 그대로 다시 보냈다.
+customizer가 다시 불리지 않아 옛 token이 그대로 붙었고, 다시 보낸 요청도 `403`을 받았다.
+그래서 그때의 `local-client`는 `true` 대신 예외를 던지고, 앱이 같은 호출을 직접 한 번 더 불렀다.
+2.1.0부터는 재시도마다 요청을 새로 만들기 때문에, handler는 새 token을 받아 두고 `true`만 돌려주면 된다.
 
 ## 10.10 시점별 scope 한눈에 보기
 

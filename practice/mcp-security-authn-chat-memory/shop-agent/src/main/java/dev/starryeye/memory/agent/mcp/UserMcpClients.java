@@ -37,6 +37,8 @@ import java.util.function.Function;
  * 그래서 다른 탭에서 logout해도, 진행 중인 채팅의 다음 {@code tools/call}이 닫힌 transport로 나가지 않는다.
  *
  * <p>client는 만들 때 받은 {@link Authentication}(주인)의 token만 붙인다({@link OAuth2TokenAttachingRequestCustomizer}).
+ * tool은 {@link SessionRetryingToolCallback}으로 감싸 준다.
+ * MCP Server가 session을 지운 뒤 첫 tool 호출이 실패하면 같은 호출을 한 번 다시 보낸다.
  */
 public class UserMcpClients implements DisposableBean {
 
@@ -130,7 +132,9 @@ public class UserMcpClients implements DisposableBean {
             client.closeGracefully();
             throw ex;
         }
-        return new UserClient(client, SyncMcpToolCallbackProvider.builder().mcpClients(client).build());
+        // MCP Server가 오래 쓰지 않은 session을 지운 뒤에도 첫 tool 호출이 성공하도록 tool을 감싼다.
+        return new UserClient(client,
+                SessionRetryingToolCallback.wrap(SyncMcpToolCallbackProvider.builder().mcpClients(client).build()));
     }
 
     /** 채팅 하나가 빌린 client다. 한 번만 돌려준다. */

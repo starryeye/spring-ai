@@ -19,7 +19,7 @@ import java.util.Set;
 /**
  * MCP 2025-11-25 Transports 명세의 "Protocol Version Header" 절을 구현한다.
  *
- * <p>Spring AI MCP 2.0.0의 {@code WebMvcStreamableServerTransportProvider}는 이 header를 전혀 검증하지 않는다.
+ * <p>Spring AI MCP 2.0.2의 {@code WebMvcStreamableServerTransportProvider}는 이 header를 전혀 검증하지 않는다.
  * 지원하지 않는 값을 보내도 200이 돌아온다.
  * SDK가 하지 않는 이 검증을 filter로 채운다.
  *
@@ -36,7 +36,7 @@ import java.util.Set;
  *
  * <p>지원 버전 목록은 SDK가 아는 버전 전부다({@link ProtocolVersions}).
  * initialize에서는 client가 요청한 버전이 이 목록에 있으면 그 버전으로, 없으면 {@code 2025-11-25}로 정한다
- * (Spring AI 2.0.0 transport가 알리는 목록도 이와 같다).
+ * (Spring AI 2.0.2 transport가 알리는 목록도 이와 같다).
  * 이 practice의 client는 {@code 2025-11-25}를 요청하므로 실제로 쓰이는 버전은 그것 하나다.
  * 하지만 header 검증이 묻는 것은 "이 서버가 이해할 수 있는 protocol 버전인가"다.
  * "이 session에서 쓰기로 한 버전과 같은가"를 묻는 것이 아니다.

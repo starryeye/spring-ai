@@ -20,10 +20,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 형식이 틀린 JSON-RPC 본문을 token이 있는 사용자가 보내도, 응답에 서버 내부 정보(stack trace, class 이름)가 나오지 않는지 본다.
  *
- * <p>Spring AI 2.0.1의 stateless transport는 처리하지 못한 요청에 예외 객체({@code McpError})를 그대로 본문으로 써서,
- * Spring MVC가 그 {@code stackTrace}까지 JSON으로 직렬화했다.
+ * <p>Spring AI 2.0.2의 stateless transport는 처리하지 못한 요청에 예외 객체({@code McpError})를 그대로 본문으로 써서,
+ * Spring MVC가 그 {@code stackTrace}까지 JSON으로 직렬화한다.
  * {@code tools/call}의 형식 오류는 scope filter가 transport 앞에서 {@code 400}으로 끝내고,
  * 그 밖에 transport가 끝내는 오류는 router filter가 JSON-RPC 오류만 남긴다.
+ *
+ * <p>깨진 {@code id}나 {@code jsonrpc}는 MCP Java SDK 2.1.0의 Jackson 3 mapper가 변환 오류({@code JacksonException})를
+ * {@code IllegalArgumentException}으로 감싼다.
+ * transport는 이 예외를 형식 오류로 보고 {@code 400}과 {@code -32600}으로 답한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -101,10 +105,10 @@ class MalformedMessageTest {
 	@Test
 	void id나_jsonrpc가_틀린_본문도_내부_정보_없는_JSON_RPC_오류다() throws Exception {
 		String params = ",\"params\":{\"name\":\"getStock\",\"arguments\":{\"productId\":\"p1\"}}}";
-		내부_정보_없는_오류다("id object", "{\"jsonrpc\":\"2.0\",\"id\":{\"a\":1},\"method\":\"tools/call\"" + params, 500,
-				-32603);
-		내부_정보_없는_오류다("id 배열", "{\"jsonrpc\":\"2.0\",\"id\":[1],\"method\":\"tools/call\"" + params, 500, -32603);
-		내부_정보_없는_오류다("jsonrpc 없음", "{\"id\":2,\"method\":\"tools/call\"" + params, 500, -32603);
+		내부_정보_없는_오류다("id object", "{\"jsonrpc\":\"2.0\",\"id\":{\"a\":1},\"method\":\"tools/call\"" + params, 400,
+				-32600);
+		내부_정보_없는_오류다("id 배열", "{\"jsonrpc\":\"2.0\",\"id\":[1],\"method\":\"tools/call\"" + params, 400, -32600);
+		내부_정보_없는_오류다("jsonrpc 없음", "{\"id\":2,\"method\":\"tools/call\"" + params, 400, -32600);
 		내부_정보_없는_오류다("method 없는 응답 모양", "{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{}}", 400, -32600);
 	}
 
