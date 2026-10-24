@@ -122,7 +122,7 @@ public class UserToolCatalog {
 		}
 		McpSchema.DiscoverResult result = this.client.discover(token);
 		this.discovered = true;
-		log.info("MCP Server가 {}을 지원한다 (supportedVersions={})", ModernMcpClient.PROTOCOL_VERSION,
+		log.info("MCP Server가 이 client의 protocol version을 지원한다 (client: {}, supportedVersions={})", ModernMcpClient.PROTOCOL_VERSION,
 				(result != null) ? result.supportedVersions() : "?");
 	}
 

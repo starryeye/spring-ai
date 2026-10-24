@@ -177,7 +177,8 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("origin");
+				.withMessage("챌린지의 resource_metadata가 MCP Server와 다른 origin을 가리킨다 — 따라가지 않는다 (resource_metadata: "
+						+ elsewhere + ", MCP Server: " + RESOURCE + ")");
 		this.server.verify();
 	}
 
@@ -189,7 +190,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("resource");
+				.withMessage("메타데이터의 resource가 요청한 리소스와 다르다 (받은 값: http://evil.example/mcp, 기대한 값: " + RESOURCE + ")");
 	}
 
 	@Test
@@ -213,7 +214,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("issuer");
+				.withMessage("메타데이터의 issuer가 요청한 인가 서버와 다르다 (받은 값: http://evil.example, 기대한 값: " + ISSUER + ")");
 	}
 
 	@Test
@@ -226,7 +227,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("S256");
+				.withMessage("인가 서버가 PKCE S256을 광고하지 않는다: " + ISSUER);
 	}
 
 	@Test
@@ -253,7 +254,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("authorization_endpoint");
+				.withMessage("인가 서버 메타데이터의 authorization_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: javascript:alert(1)");
 	}
 
 	@Test
@@ -265,7 +266,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("token_endpoint");
+				.withMessage("인가 서버 메타데이터의 token_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: file:///etc/passwd");
 	}
 
 	@Test
@@ -279,7 +280,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("authorization_endpoint");
+				.withMessage("인가 서버 메타데이터의 authorization_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: http://evil.example/oauth2/authorize");
 	}
 
 	@Test
@@ -352,7 +353,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
-				.withMessageContaining("private_key_jwt");
+				.withMessage("Authorization Server가 token endpoint 인증 방식을 받지 않는다 (요청한 방식: private_key_jwt, issuer: " + ISSUER + ")");
 	}
 
 	@Test
@@ -367,6 +368,16 @@ class McpAuthorizationDiscoveryTest {
 	}
 
 	@Test
+	void 토큰_없는_요청에_401이_아닌_응답이_오면_멈춘다() {
+		this.server.expect(requestTo(RESOURCE)).andExpect(method(HttpMethod.POST))
+				.andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+		assertThatExceptionOfType(McpDiscoveryException.class)
+				.isThrownBy(() -> this.discovery.discover(RESOURCE, METHOD))
+				.withMessage("토큰 없는 요청에 401이 아닌 응답이 왔다 (status: 200 OK): " + RESOURCE);
+	}
+
+	@Test
 	void 응답을_읽지_못하면_원인을_담아_실패한다() {
 		// 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다.
 		// 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
@@ -376,6 +387,7 @@ class McpAuthorizationDiscoveryTest {
 
 		assertThatExceptionOfType(McpDiscoveryException.class)
 				.isThrownBy(() -> this.discovery.discover(RESOURCE, ClientAuthenticationMethod.NONE))
+				.withMessageStartingWith("메타데이터를 읽지 못했다: " + prm + " (")
 				.withCauseInstanceOf(RestClientException.class);
 	}
 
@@ -392,6 +404,7 @@ class McpAuthorizationDiscoveryTest {
 			long started = System.nanoTime();
 			assertThatExceptionOfType(McpDiscoveryException.class)
 					.isThrownBy(() -> discovery.discover(resource, ClientAuthenticationMethod.NONE))
+					.withMessageStartingWith(resource + "에 token 없이 요청하지 못했다: ")
 					.withCauseInstanceOf(RestClientException.class);
 			assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(3));
 		}

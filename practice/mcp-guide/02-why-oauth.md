@@ -236,7 +236,7 @@ discovery가 있으면 무엇을 설정에 적고 무엇을 실행 중에 알아
 |---|---|---|
 | `shop-agent` | MCP Server 주소(`mcp.authorization.resource-url`), 자기 `client_id`·`client_secret`·redirect URI·scope, credentials를 발급한 issuer(`mcp.authorization.credentials-issuer`) | Authorization Server의 endpoint를 discovery로 알아낸다. PRM이 가리킨 issuer가 `credentials-issuer`와 다르면 멈춘다 |
 | `local-client` | MCP Server 주소(`--resource`), `client_id` `local-mcp-client`, 이 client가 등록된 issuer(`--issuer`) | Authorization Server의 endpoint를 discovery로 알아낸다. callback 포트는 실행할 때 빈 포트를 고른다 |
-| `shop-mcp-server` | 믿는 issuer(`issuer-uri`), 자기 이름(`audiences`) | token signature를 확인할 public key를 Authorization Server의 `jwks_uri`에서 받는다. 요청마다 signature·`iss`·`aud`·`exp`를 확인한다 |
+| `shop-mcp-server` | 믿는 issuer(`issuer-uri`), 자기 이름(`audiences`) | token signature를 확인할 public key를 Authorization Server의 `jwks_uri`에서 받는다. 요청마다 signature·`iss`·`aud`·`exp`·`typ`을 확인한다 |
 | `auth-server` | 등록된 client 둘, token을 발급할 resource 목록(`mcp.authorization.resources`), 사용자 계정 | authorization request의 `resource`가 목록에 있는지, token request의 `resource`가 authorization request와 같은지 본다 |
 | 사용자·browser | 자기 계정(`user`/`password`), agent 주소(`http://localhost:8110`) | consent 화면이 나오면 어느 client가 무엇을 요청하는지 확인한다. browser는 session cookie만 받고 token은 받지 않는다 |
 

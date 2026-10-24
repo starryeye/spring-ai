@@ -83,7 +83,7 @@ public AuthorizationServer discover(String resourceUrl, String trustedIssuer) {
     /* authorization_servers를 servers로 꺼낸다. 비어 있으면 멈춘다 */
     if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
         // 등록된 issuer가 목록에 없으면 metadata도 요청하지 않는다
-        throw new LocalClientException("이 client는 %s에 등록돼 있는데, PRM의 authorization_servers는 %s뿐이다" /* ... */);
+        throw new LocalClientException("PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: %s, authorization_servers: %s)" /* ... */);
     }
     // (5)(6) RFC 8414 → OpenID Connect 순서로 metadata를 읽는다. issuer 일치와 S256을 확인한다
     Map<String, Object> metadata = authorizationServerMetadata(trustedIssuer);
@@ -369,7 +369,7 @@ MCP Server가 보는 사용자는 `local-client`가 아니라 token의 `sub`, �
 | 상황 | terminal에 나오는 줄 |
 |---|---|
 | MCP Server가 꺼져 있다 | `실패: http://localhost:8111/mcp에 연결하지 못했다` |
-| `--issuer`가 PRM의 issuer와 다르다 | `실패: 이 client는 http://localhost:9999에 등록돼 있는데, PRM의 authorization_servers는 [http://localhost:9010]뿐이다` |
+| `--issuer`가 PRM의 issuer와 다르다 | `실패: PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: http://localhost:9999, authorization_servers: [http://localhost:9010])` |
 | consent 화면에서 `profile`을 고르지 않고 제출했다 | `실패: Authorization Server가 거절했다: access_denied OAuth 2.0 Parameter: client_id` |
 | 5분 안에 login을 마치지 않았다 | `실패: 300초 안에 login이 끝나지 않았다` |
 

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtTypeValidator;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.UrlUtils;
@@ -35,7 +36,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
                 .with(McpServerOAuth2Configurer.mcpServerOAuth2(), mcp -> {
                     mcp.authorizationServer(issuer);
-                    // Boot가 issuer-uri로 만든 decoder를 그대로 쓴다(signature·iss 검증).
+                    // Boot가 issuer-uri로 만든 decoder를 그대로 쓴다(signature·iss·typ 검증).
                     mcp.jwtDecoder(jwtDecoder);
                     // 요청 URL로 계산한 resource 식별자가 token의 aud에 있는지 본다.
                     mcp.validateAudienceClaim(true);
@@ -60,6 +61,23 @@ public class SecurityConfig {
                 // token으로만 인증하므로 CSRF token을 쓰지 않는다.
                 .csrf(csrf -> csrf.disable())
                 .build();
+    }
+
+    /**
+     * access token header의 {@code typ}으로 받을 값을 정한다.
+     * Spring Security의 기본 검증기는 {@code typ}이 없거나 {@code JWT}인 token만 받는다.
+     * 그러면 RFC 9068 형식의 {@code typ: at+jwt} token을 {@code 401 invalid_token}으로 거절한다.
+     * 그래서 RFC 9068이 정한 {@code at+jwt}와 {@code application/at+jwt}도 받는다.
+     * 이 검증기가 bean으로 있으면 Boot는 기본 검증기를 더하지 않고 이 검증기를 쓴다.
+     * 위 filter chain에 넘기는 decoder가 Boot가 만든 것이라 이 검증기가 그대로 적용된다.
+     * issuer 검증은 Boot가 설정에서 만들어 그대로 더하고, audience 검증은 module이 decoder를 감싸 맡는다.
+     * 그 밖의 {@code typ}은 access token이 아닌 JWT일 수 있어 계속 거절한다.
+     */
+    @Bean
+    public JwtTypeValidator accessTokenTypeValidator() {
+        JwtTypeValidator validator = new JwtTypeValidator("JWT", "at+jwt", "application/at+jwt");
+        validator.setAllowEmpty(true);
+        return validator;
     }
 
     /**

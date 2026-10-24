@@ -173,8 +173,8 @@ public class ModernMcpClient {
 		McpSchema.DiscoverResult result = send(accessToken, McpSchema.METHOD_SERVER_DISCOVER, null,
 				Map.of("_meta", META), McpSchema.DiscoverResult.class);
 		if (!result.supportedVersions().contains(PROTOCOL_VERSION)) {
-			throw new McpProtocolMismatchException(200, null, "MCP Server가 " + PROTOCOL_VERSION
-					+ "을 지원하지 않는다(supportedVersions=" + result.supportedVersions() + ")");
+			throw new McpProtocolMismatchException(200, null, "MCP Server가 이 client의 protocol version을 지원하지 않는다 (client: " + PROTOCOL_VERSION
+					+ ", supportedVersions=" + result.supportedVersions() + ")");
 		}
 		return result;
 	}
@@ -458,7 +458,7 @@ public class ModernMcpClient {
 			throw error(status, error);
 		}
 		if (status / 100 != 2 || rpc == null) {
-			throw new ModernMcpException(status, null, "MCP Server가 JSON-RPC 결과 없이 HTTP " + status + "로 답했다");
+			throw new ModernMcpException(status, null, "MCP Server가 JSON-RPC 결과 없이 답했다 (HTTP status: " + status + ")");
 		}
 		if (!sameId(rpc.id(), id)) {
 			throw new ModernMcpException(status, null, "MCP Server가 다른 요청(id=" + rpc.id() + ")의 결과를 주었다");
@@ -487,7 +487,7 @@ public class ModernMcpClient {
 			return this.json.convertValue(result, type);
 		}
 		catch (IllegalArgumentException ex) {
-			throw new ModernMcpException(status, null, "MCP 결과를 " + type.getSimpleName() + "로 읽지 못했다");
+			throw new ModernMcpException(status, null, "MCP 결과를 읽지 못했다 (대상 type: " + type.getSimpleName() + ")");
 		}
 	}
 

@@ -20,7 +20,7 @@ public final class AuthorizationResponse {
 		}
 		String iss = params.get("iss");
 		if (iss != null ? !iss.equals(server.issuer()) : server.issParameterSupported()) {
-			throw new LocalClientException("callback의 iss(%s)가 %s가 아니다. 다른 Authorization Server의 응답이다"
+			throw new LocalClientException("callback의 iss가 요청한 issuer와 다르다. 다른 Authorization Server의 응답이다 (받은 iss: %s, 기대한 issuer: %s)"
 					.formatted(iss, server.issuer()));
 		}
 		String error = params.get("error");
