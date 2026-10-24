@@ -43,7 +43,8 @@ public class McpSecurityConfig {
     public static final String REGISTRATION_ID = "authserver";
 
     /**
-     * discovery 요청은 login하지 않은 요청에서도 나간다. 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
+     * discovery 요청은 login하지 않은 요청에서도 나간다.
+     * 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
      * Boot가 만든 {@code RestClient.Builder}를 받아 쓰므로 message converter 같은 Boot 설정은 그대로 온다.
      */
     @Bean
@@ -52,7 +53,8 @@ public class McpSecurityConfig {
                 .requestFactory(McpAuthorizationDiscovery.requestFactory(McpAuthorizationDiscovery.CONNECT_TIMEOUT,
                         McpAuthorizationDiscovery.READ_TIMEOUT))
                 .build();
-        // 학습 환경은 localhost HTTP다. 운영에서는 기본값(HTTPS만 허용)을 쓴다.
+        // 학습 환경은 localhost HTTP다.
+        // 운영에서는 기본값(HTTPS만 허용)을 쓴다.
         return new McpAuthorizationDiscovery(
                 new McpMetadataDiscoveryService(restClient, new DefaultUrlValidator(true)), restClient);
     }
@@ -88,8 +90,9 @@ public class McpSecurityConfig {
      * <p>static helper({@link #buildAuthorizedClientManager})와 이름을 같게 두면, 이 bean
      * 메서드가 구체 타입({@code RestClientRefreshTokenTokenResponseClient})을 받는
      * 시그니처가 더 구체적인 것으로 골라져 자기 자신을 다시 부르는 무한 재귀가 된다.
-     * 그 경우 테스트({@code McpSecurityConfig.authorizedClientManager(...)}를 바깥의 static
-     * context에서 부른다)도 "non-static method" 컴파일 오류가 난다. 그래서 이름을 나눠 둔다.
+     * 그 경우 테스트({@code McpSecurityConfig.authorizedClientManager(...)}를
+     * 바깥의 static context에서 부른다)도 "non-static method" 컴파일 오류가 난다.
+     * 그래서 이름을 나눠 둔다.
      */
     @Bean
     public OAuth2AuthorizedClientManager authorizedClientManager(ClientRegistrationRepository registrations,

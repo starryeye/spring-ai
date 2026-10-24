@@ -20,7 +20,8 @@ import java.util.List;
  * <p>이 값이 있어야 MCP Server가 "나에게 발급된 token"만 받을 수 있다.
  * 없으면 같은 Authorization Server를 쓰는 다른 resource의 token도 그대로 통한다(confused deputy).
  *
- * <p>id_token은 원래 건드리지 않아야 한다. id_token의 audience는 client 자신이다.
+ * <p>id_token은 원래 건드리지 않아야 한다.
+ * id_token의 audience는 client 자신이다.
  * 그런데 이 module({@code mcp-authorization-server} 0.1.14)이 기본으로 등록하는
  * {@code ResourceIdentifierAudienceTokenCustomizer}는 token 종류를 가리지 않는다.
  * {@code resource} parameter가 있으면 id_token까지 {@code aud}를 그 값으로 덮어쓴다.
@@ -38,8 +39,8 @@ public class ResourceAudienceTokenCustomizer implements OAuth2TokenCustomizer<Jw
     @Override
     public void customize(JwtEncodingContext context) {
         if (OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
-            // RFC 8707 대상이 아니다. module 기본 customizer가 넣었을 수 있는 aud=resource를
-            // OIDC가 요구하는 client_id로 되돌린다.
+            // RFC 8707 대상이 아니다.
+            // module 기본 customizer가 넣었을 수 있는 aud=resource를 OIDC가 요구하는 client_id로 되돌린다.
             context.getClaims().audience(List.of(context.getRegisteredClient().getClientId()));
             return;
         }
@@ -78,7 +79,10 @@ public class ResourceAudienceTokenCustomizer implements OAuth2TokenCustomizer<Jw
                 ? grant.getAdditionalParameters().get(McpResourceProperties.RESOURCE_PARAMETER) : null;
     }
 
-    /** authorization request에 있던 resource다. refresh_token grant에서도 이 값이 남아 있다. */
+    /**
+     * authorization request에 있던 resource다.
+     * refresh_token grant에서도 이 값이 남아 있다.
+     */
     private static Object authorizedResource(JwtEncodingContext context) {
         OAuth2Authorization authorization = context.getAuthorization();
         if (authorization == null) {

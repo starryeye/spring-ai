@@ -1,6 +1,6 @@
 server:
-  # 서버가 연결을 받을 네트워크 주소. 127.0.0.1 이면 이 기기 안에서만 접속할 수 있다
-  # (MCP 2025-11-25 Transports: 로컬에서 도는 서버는 localhost(127.0.0.1)에만 bind 하는 것이 좋다, SHOULD).
+  # 서버가 연결을 받을 네트워크 주소.
+  # 127.0.0.1 이면 이 기기 안에서만 접속할 수 있다 (MCP 2025-11-25 Transports: 로컬에서 도는 서버는 localhost(127.0.0.1)에만 bind 하는 것이 좋다, SHOULD).
   # 실제 배포에서는 컨테이너·reverse proxy 뒤라면 0.0.0.0(모든 인터페이스)이나 그 네트워크의 인터페이스
   # 주소를 쓰고, 외부에 무엇을 열지는 proxy·방화벽이 정한다.
   address: 127.0.0.1
@@ -38,12 +38,11 @@ spring:
     mcp:
       client:
         enabled: true
-        # SYNC여야 한다. ASYNC면 mcp-client-security 자동설정이 통째로 사라져
-        # token이 안 붙고, 증상은 조용한 401 뿐이다.
+        # SYNC여야 한다.
+        # ASYNC면 mcp-client-security 자동설정이 통째로 사라져 token이 안 붙고, 증상은 조용한 401 뿐이다.
         type: SYNC
-        # 기본값 true면 McpClientAutoConfiguration이 bean 생성 시점에 McpSyncClient.initialize()
-        # 를 즉시 호출한다. 이 시점은 요청 스레드가 아니라 앱 기동 시점이라 인증 정보가 없고,
-        # MCP Server는 무조건 401을 주므로 컨텍스트 초기화 자체가 실패해 앱이 뜨지 않는다.
+        # 기본값 true면 McpClientAutoConfiguration이 bean 생성 시점에 McpSyncClient.initialize() 를 즉시 호출한다.
+        # 이 시점은 요청 스레드가 아니라 앱 기동 시점이라 인증 정보가 없고, MCP Server는 무조건 401을 주므로 컨텍스트 초기화 자체가 실패해 앱이 뜨지 않는다.
         # false로 두면 초기화(핸드셰이크)가 실제 첫 사용 시점(login한 사용자의 요청 처리 중,
         # LifecycleInitializer.withInitialization 경유)까지 지연된다.
         initialized: false
@@ -55,8 +54,8 @@ spring:
     oauth2:
       client:
         registration:
-          # 등록은 정확히 하나여야 한다. 둘 이상이면 transport 커스터마이저가
-          # WARN 한 줄 남기고 아무 것도 하지 않는다.
+          # 등록은 정확히 하나여야 한다.
+          # 둘 이상이면 transport 커스터마이저가 WARN 한 줄 남기고 아무 것도 하지 않는다.
           authserver:
             client-id: shop-agent
             client-secret: shop-agent-secret

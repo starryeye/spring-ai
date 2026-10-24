@@ -47,7 +47,8 @@ class CimdMetadataOverwriteTest {
                 // module의 init()이 cimd(true)로 먼저 넣는 claim이지만, McpAuthorizationStandardConfig의
                 // authorizationServerMetadataCustomizer 호출이 같은 field를 나중에 덮어써 사라진다.
                 .andExpect(jsonPath("$.client_id_metadata_document_supported").doesNotExist())
-                // 반대로 이 클래스가 넣는 claim은 남아 있다. 마지막에 실행되는 쪽이 이겼을 뿐이다.
+                // 반대로 이 클래스가 넣는 claim은 남아 있다.
+                // 마지막에 실행되는 쪽이 이겼을 뿐이다.
                 .andExpect(jsonPath("$.authorization_response_iss_parameter_supported").value(true));
     }
 }
