@@ -75,7 +75,7 @@ sequenceDiagram
         M->>A: GET /oauth2/jwks
         A-->>M: public key (JWK Set)
     end
-    alt signature, iss, aud, exp 중 하나가 틀리다
+    alt signature, iss, aud, exp, typ 중 하나가 틀리다
         M-->>C: 401 error=invalid_token
     end
     Note over M: 3단계 MCP-Protocol-Version, 4단계 session
@@ -94,7 +94,7 @@ sequenceDiagram
 | 단계 | 검사 | 하는 곳 | 실패 응답 | 막는 것 |
 |---|---|---|---|---|
 | 1단계 (2)(3) | `Origin`·`Host` | `McpTransportSecurityFilter` | `403`·`421` | browser를 거쳐 들어오는 요청(DNS rebinding) |
-| 2단계 (4)\~(9) | token의 signature·`iss`·`aud`·`exp` | Spring Security | `401` | token 없는 요청, 위조·만료된 token, 다른 서버용 token |
+| 2단계 (4)\~(9) | token의 signature·`iss`·`aud`·`exp`·`typ` | Spring Security | `401` | token 없는 요청, 위조·만료된 token, 다른 서버용 token, access token이 아닌 JWT |
 | 3단계 (10) | `MCP-Protocol-Version` | `McpProtocolVersionFilter` | `400` | 서버가 모르는 버전을 쓰는 요청 |
 | 4단계 (11)(12) | session | Spring AI의 transport | `400`·`404` | 어느 연결인지 알 수 없는 요청 |
 
@@ -761,7 +761,7 @@ session 만료는 기다리는 시간을 줄여 보면 된다.
 | resource server를 포함해 OAuth에 쓰는 주소는 `https`이고, loopback redirect URI만 `http`를 쓸 수 있다 | [OAuth 2.1 §1.5](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-1.5), [MCP 2025-11-25 Authorization — Communication Security](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#communication-security) | MUST, MAY |
 | `Forwarded` header는 요청이 거쳐 온 누구나 바꿀 수 있으므로, 믿는 proxy가 넣은 값만 믿는다 | [RFC 7239 §8.1](https://www.rfc-editor.org/rfc/rfc7239#section-8.1) | — |
 | MCP Server는 요청을 처리하기 전에 token을 검증하고, 자신을 audience로 발급된 token만 받는다. 유효하지 않거나 만료된 token에는 `401`로 답한다 | [MCP 2025-11-25 Authorization — Token Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#token-handling), [Access Token Privilege Restriction](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#access-token-privilege-restriction), [OAuth 2.1 §5.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2), [RFC 8707 §2](https://www.rfc-editor.org/rfc/rfc8707#section-2) | MUST, MUST NOT |
-| RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
+| RFC 9068이 정한 JWT access token 확인 가운데 이 장에서 본 것은 `typ`, `iss` 일치, `aud`에 자신이 있는지, signature(`alg: none` 거절), `exp`다. 실패하면 `invalid_token`이고 `401`로 답하며, Authorization Server는 metadata의 `jwks_uri`와 `issuer`로 key와 `iss` 값을 알린다 | [RFC 9068 §4](https://www.rfc-editor.org/rfc/rfc9068#section-4), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | MUST, SHOULD |
 | token의 scope가 모자라면 MCP Server는 `403`과 `WWW-Authenticate`의 `error="insufficient_scope"`·`scope`·`resource_metadata`로 답하고, `scope`에는 이 요청에 필요한 scope를 넣는다. 사용자를 대신하는 client는 그 scope로 step-up authorization을 하고(`client_credentials`처럼 자기 권한으로 동작하는 client는 바로 멈춰도 된다), 다시 시도하는 횟수를 제한한다 | [MCP 2025-11-25 Authorization — Scope Challenge Handling](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#scope-challenge-handling), [RFC 6750 §3.1](https://www.rfc-editor.org/rfc/rfc6750#section-3.1) | SHOULD, MAY |
 | 지원하지 않는 `MCP-Protocol-Version`에는 `400`, session ID가 없으면 `400`, 끝난 session에는 `404`로 답한다 | [MCP 2025-11-25 Transports — Protocol Version Header](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#protocol-version-header), [Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MUST, SHOULD |
 | 서버는 session을 언제든 끝낼 수 있고, 끝낸 session의 ID가 붙은 요청에는 `404`로 답한다. `404`를 받은 client는 session ID 없이 새 `initialize`를 보내 session을 다시 시작한다 | [MCP 2025-11-25 Transports — Session Management](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#session-management) | MAY, MUST |
