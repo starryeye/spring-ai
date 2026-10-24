@@ -3,7 +3,8 @@ package dev.starryeye.stateless.mcpserver.basket;
 import java.util.regex.Pattern;
 
 /**
- * 장바구니를 쓸 수 없는 이유다. 메시지는 모델이 읽고 다음 행동을 정할 수 있는 문장이다.
+ * 장바구니를 쓸 수 없는 이유다.
+ * 메시지는 모델이 읽고 다음 행동을 정할 수 있는 문장이다.
  *
  * <p>다른 사용자의 handle은 그 사용자의 key로 찾으므로 "모르는 handle"과 같은 {@link Reason#NOT_FOUND}가 된다.
  * 그래서 만료·결제 완료를 따로 알려도 다른 사용자는 handle이 있는지 알 수 없다.

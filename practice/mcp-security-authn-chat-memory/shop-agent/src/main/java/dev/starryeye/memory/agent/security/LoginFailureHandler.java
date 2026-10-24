@@ -20,9 +20,9 @@ import java.util.regex.Pattern;
  * 그래서 실패를 알리고 멈춘다.
  *
  * <p>예외 메시지에는 callback 요청에 누군가 넣은 값(예: {@code iss mismatch}의 {@code iss})이 들어 있을 수 있다.
- * 그래서 응답 본문에는 고정 문장과 OAuth 오류 코드만 쓴다. 오류 코드도 callback의 {@code error} parameter에서
- * 올 수 있으므로 OAuth 오류 코드 모양일 때만 쓴다. 자세한 이유는 로그에 남기되, 줄바꿈 같은 제어 문자를 바꾸고
- * 길이를 잘라 가짜 로그 줄을 끼워 넣지 못하게 한다.
+ * 그래서 응답 본문에는 고정 문장과 OAuth 오류 코드만 쓴다.
+ * 오류 코드도 callback의 {@code error} parameter에서 올 수 있으므로 OAuth 오류 코드 모양일 때만 쓴다.
+ * 자세한 이유는 로그에 남기되, 줄바꿈 같은 제어 문자를 바꾸고 길이를 잘라 가짜 로그 줄을 끼워 넣지 못하게 한다.
  */
 public class LoginFailureHandler implements AuthenticationFailureHandler {
 

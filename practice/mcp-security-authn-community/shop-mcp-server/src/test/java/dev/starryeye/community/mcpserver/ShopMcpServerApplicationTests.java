@@ -55,8 +55,8 @@ class ShopMcpServerApplicationTests {
 
 	@Test
 	void 아무_경로나_토큰_없이는_거부된다() throws Exception {
-		// 상태 코드만 보면 보안 module이 빠지고 Boot 기본 Basic 인증이 대신 막아도
-		// 그대로 통과한다. scheme까지 확인해야 이 module이 실제로 연결됐다는 증거가 된다.
+		// 상태 코드만 보면 보안 module이 빠지고 Boot 기본 Basic 인증이 대신 막아도 그대로 통과한다.
+		// scheme까지 확인해야 이 module이 실제로 연결됐다는 증거가 된다.
 		// Host header가 허용 목록과 같아야 421(Invalid Host header)이 아니라 401을 받는다.
 		mockMvc.perform(post("/").header("Host", "localhost:8101"))
 				.andExpect(status().isUnauthorized())

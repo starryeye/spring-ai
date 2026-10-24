@@ -14,15 +14,17 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * stateless transport의 오류 응답에서 예외 객체를 빼고, id 없는 JSON-RPC 오류({@code code}와 {@code message})만 남긴다.
  *
- * <p>Spring AI 2.0.2의 {@code WebMvcStatelessServerTransport}는 처리하지 못한 요청에
- * {@code ServerResponse.status(...).body(McpError)}로 답한다. Spring MVC는 이 예외 객체를 JSON bean으로 직렬화하므로,
+ * <p>Spring AI 2.0.2의 {@code WebMvcStatelessServerTransport}는 처리하지 못한 요청에 {@code ServerResponse.status(...).body(McpError)}로 답한다.
+ * Spring MVC는 이 예외 객체를 JSON bean으로 직렬화하므로,
  * 본문에 {@code stackTrace}(class·method·line 번호)가 그대로 나간다(mcp-spring-webmvc 2.0.2 source와 실행으로 확인).
  * token이 있는 사용자는 누구나 형식이 틀린 본문 하나로 이 응답을 받을 수 있다.
- * {@code tools/call}의 형식 오류는 {@code ToolScopeFilter}가 먼저 막지만, 다른 method의 params나 JSON-RPC 틀(id, jsonrpc)이
- * 틀린 경우까지 모두 앞에서 거르기는 어렵다. 그래서 transport가 내는 오류 응답 전체를 여기서 한 번 더 감싼다.
+ * {@code tools/call}의 형식 오류는 {@code ToolScopeFilter}가 먼저 막지만,
+ * 다른 method의 params나 JSON-RPC 틀(id, jsonrpc)이 틀린 경우까지 모두 앞에서 거르기는 어렵다.
+ * 그래서 transport가 내는 오류 응답 전체를 여기서 한 번 더 감싼다.
  *
- * <p>상태 코드는 transport가 정한 그대로 둔다. transport의 오류 {@code message}는 고정 문장이라 내부 정보가 없어 그대로 옮기고,
- * {@code data}는 옮기지 않는다. Spring AI를 올리면 이 가정을 다시 확인한다.
+ * <p>상태 코드는 transport가 정한 그대로 둔다.
+ * transport의 오류 {@code message}는 고정 문장이라 내부 정보가 없어 그대로 옮기고, {@code data}는 옮기지 않는다.
+ * Spring AI를 올리면 이 가정을 다시 확인한다.
  */
 final class TransportErrorResponseFilter implements HandlerFilterFunction<ServerResponse, ServerResponse> {
 

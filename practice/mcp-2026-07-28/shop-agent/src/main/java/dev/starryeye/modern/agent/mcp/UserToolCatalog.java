@@ -70,7 +70,8 @@ public class UserToolCatalog {
 	private volatile boolean discovered;
 
 	/**
-	 * @param accessToken 사용자의 지금 access token을 꺼낸다. 만료된 token이면 refresh한 값을 준다
+	 * @param accessToken 사용자의 지금 access token을 꺼낸다.
+	 *        만료된 token이면 refresh한 값을 준다
 	 */
 	public UserToolCatalog(ModernMcpClient client, Function<Authentication, String> accessToken, Clock clock) {
 		this.client = client;
@@ -121,7 +122,7 @@ public class UserToolCatalog {
 		}
 		McpSchema.DiscoverResult result = this.client.discover(token);
 		this.discovered = true;
-		log.info("MCP Server가 {}을 지원한다 (supportedVersions={})", ModernMcpClient.PROTOCOL_VERSION,
+		log.info("MCP Server가 이 client의 protocol version을 지원한다 (client: {}, supportedVersions={})", ModernMcpClient.PROTOCOL_VERSION,
 				(result != null) ? result.supportedVersions() : "?");
 	}
 

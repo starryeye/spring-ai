@@ -105,7 +105,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 
 | 클래스 | 하는 일 | 안내서 |
 |---|---|---|
-| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증하며, `audiences` 값이 하나가 아니면 서버가 뜨지 않는다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만들며 `/mcp`가 아닌 경로로 온 요청의 `401`에도 같은 PRM 주소를 넣는다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
+| `SecurityConfig` | 모든 요청에 token을 요구하고 JWT로 검증하며, `audiences` 값이 하나가 아니면 서버가 뜨지 않는다. `JwtTypeValidator` bean으로 header의 `typ`이 없거나 `JWT`·`at+jwt`·`application/at+jwt`인 token을 받는다. PRM과 `401`의 `resource_metadata`를 켜고, 두 값의 이름은 요청의 `Host`가 아니라 `audiences` 설정으로 만들며 `/mcp`가 아닌 경로로 온 요청의 `401`에도 같은 PRM 주소를 넣는다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
 | `application.yml` | `issuer-uri`와 `audiences`로 token의 `iss`와 `aud`를 확인한다. `server.address: 127.0.0.1`로 이 기기의 연결만 받는다 | [6장 token 검증](../mcp-guide/06-mcp-call-and-validation.md#65-2단계-token-검증), [6장 `127.0.0.1` bind](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사) |
 | `McpTransportConfig`, `McpTransportSecurityFilter` | `Origin`과 `Host`를 Spring Security보다 먼저 검사해 `403`·`421`로 거절한다 | [6장 Origin·Host 검사](../mcp-guide/06-mcp-call-and-validation.md#64-1단계-originhost-검사), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
 | `McpProtocolVersionFilter` | token 검증 뒤에 `MCP-Protocol-Version`을 보고, 모르는 버전을 `400`으로 거절한다 | [6장 버전과 session 검사](../mcp-guide/06-mcp-call-and-validation.md#66-34단계-mcp-protocol-version과-session-검사) |
@@ -178,7 +178,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 | `grep '호출' logs/shop-mcp-server.log` | `사용자=user`가 찍힌다. MCP Server가 보는 사용자는 agent가 아니라 login한 사람이다 |
 | `grep '토큰을 헤더에' logs/shop-agent.log` | `토큰을 헤더에 붙였다 (사용자=user)`가 찍힌다. agent가 MCP 요청마다 그 사용자의 token을 붙인다 |
 | `local-client`에서 `./gradlew -q run` 뒤 login과 consent | terminal에 `[1]`부터 `[5]`까지 찍힌다. `-q`로 실행하면 마지막 줄은 `getStock(p1)`의 결과인 재고 7개다 |
-| `local-client`에서 `./gradlew run --args="--issuer http://localhost:9999"` | discovery에서 `실패: 이 client는 http://localhost:9999에 등록돼 있는데, PRM의 authorization_servers는 [http://localhost:9010]뿐이다`로 멈춘다 |
+| `local-client`에서 `./gradlew run --args="--issuer http://localhost:9999"` | discovery에서 `실패: PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: http://localhost:9999, authorization_servers: [http://localhost:9010])`로 멈춘다 |
 | `shop-mcp-server`의 `mcp.limits.session-idle-timeout`을 `1m`으로 바꿔 다시 띄우고, 채팅으로 재고를 물은 뒤 2분 넘게 기다렸다가 다시 묻기 | 두 번째 답도 정상으로 온다. `grep '다시 보낸다' logs/shop-agent.log`에 `MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool=…)`가 찍힌다 |
 
 token이 필요한 요청은 캡처 스크립트로 한 단계씩 기록해 본다.

@@ -46,12 +46,14 @@ import java.util.regex.Pattern;
  * code_verifier만 틀린 token request가 그 예다.
  * 그러면 client는 "credentials를 다시 보내라"는 잘못된 신호를 받는다.
  *
- * <p>이 클래스에는 practice 고유의 값이 없다. 다른 practice에서도 package만 바꿔 그대로 쓸 수 있다.
+ * <p>이 클래스에는 practice 고유의 값이 없다.
+ * 다른 practice에서도 package만 바꿔 그대로 쓸 수 있다.
  */
 public class ClientAuthenticationChallengeFailureHandler implements AuthenticationFailureHandler {
 
-	// RFC 7230 §3.2.6의 token 문법이다. scheme token에 공백·따옴표·제어 문자가 섞여 header에 그대로
-	// 들어가는 것을 막는다. 문법에 맞지 않으면 알 수 없는 scheme으로 보고 기본값을 쓴다.
+	// RFC 7230 §3.2.6의 token 문법이다.
+	// scheme token에 공백·따옴표·제어 문자가 섞여 header에 그대로 들어가는 것을 막는다.
+	// 문법에 맞지 않으면 알 수 없는 scheme으로 보고 기본값을 쓴다.
 	private static final Pattern TOKEN = Pattern.compile("^[!#$%&'*+\\-.^_`|~0-9A-Za-z]+$");
 
 	private static final String DEFAULT_SCHEME = "Basic";

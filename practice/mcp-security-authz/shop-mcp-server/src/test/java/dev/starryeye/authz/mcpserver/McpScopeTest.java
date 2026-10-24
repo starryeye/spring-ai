@@ -90,7 +90,10 @@ class McpScopeTest {
 						"resource_metadata=\"" + McpAuthorizationStandardTest.RESOURCE_METADATA + "\"")));
 	}
 
-	/** scope filter는 본문을 메모리에 올려 읽는다. 기본 상한 1 MiB를 넘는 본문은 읽기 전에 {@code 413}으로 끝낸다. */
+	/**
+	 * scope filter는 본문을 메모리에 올려 읽는다.
+	 * 기본 상한 1 MiB를 넘는 본문은 읽기 전에 {@code 413}으로 끝낸다.
+	 */
 	@Test
 	void 본문이_기본_상한_1MiB를_넘으면_413이다() throws Exception {
 		String body = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"pad\":\""
@@ -117,21 +120,20 @@ class McpScopeTest {
 
 	@Test
 	void filter가_읽은_본문을_transport가_다시_읽는다() throws Exception {
-		// session 없이 보낸 tools/call이다. transport가 본문을 읽고 나서야 session을 확인하므로,
-		// "Session ID missing"은 본문이 transport까지 온전히 전달됐다는 뜻이다.
+		// session 없이 보낸 tools/call이다.
+		// transport가 본문을 읽고 나서야 session을 확인하므로, "Session ID missing"은 본문이 transport까지 온전히 전달됐다는 뜻이다.
 		this.mockMvc.perform(mcp(토큰("products:read", "products:write"), UPDATE_STOCK))
 				.andExpect(status().isBadRequest())
 				.andExpect(content().string(containsString("Session ID missing")));
 	}
 
 	/**
-	 * parser differential 회귀 시험이다. session까지 만들어 둔 상태에서, 유효하지 않은 UTF-8 바이트가 섞인
-	 * 재고 변경 요청을 조회 scope token으로 보낸다.
+	 * parser differential 회귀 시험이다.
+	 * session까지 만들어 둔 상태에서, 유효하지 않은 UTF-8 바이트가 섞인 재고 변경 요청을 조회 scope token으로 보낸다.
 	 *
-	 * <p>filter가 transport와 다른 규칙으로 본문을 읽으면(예전처럼 decode 예외를 "JSON 아님"으로 삼켰다면)
-	 * 이 요청은 scope 검사를 피해 그대로 transport까지 가고, transport는 같은 바이트를 대체 문자로 채워 읽어
-	 * 여전히 유효한 JSON으로 보고 실행해 버린다. 지금은 filter가 transport와 같은 방식으로 decode하므로
-	 * 200이 될 수 없고, 재고도 그대로다.
+	 * <p>filter가 transport와 다른 규칙으로 본문을 읽으면(예전처럼 decode 예외를 "JSON 아님"으로 삼켰다면) 이 요청은 scope 검사를 피해 그대로 transport까지 가고,
+	 * transport는 같은 바이트를 대체 문자로 채워 읽어 여전히 유효한 JSON으로 보고 실행해 버린다.
+	 * 지금은 filter가 transport와 같은 방식으로 decode하므로 200이 될 수 없고, 재고도 그대로다.
 	 */
 	@Test
 	void 유효하지_않은_UTF8_바이트가_섞인_재고_변경_요청은_세션이_있어도_재고를_바꾸지_못한다() throws Exception {

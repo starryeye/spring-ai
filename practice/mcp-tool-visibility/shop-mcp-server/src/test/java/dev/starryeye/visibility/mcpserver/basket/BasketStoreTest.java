@@ -99,7 +99,8 @@ class BasketStoreTest {
 	void int를_넘는_수량을_더해도_수량이_음수로_바뀌지_않는다() {
 		String handle = this.store.create("user").handle();
 
-		// int끼리 더하면 넘쳐서 음수가 된다. 그런 수량으로 결제하면 재고가 오히려 는다.
+		// int끼리 더하면 넘쳐서 음수가 된다.
+		// 그런 수량으로 결제하면 재고가 오히려 는다.
 		assertThat(이유(() -> this.store.addItem("user", handle, "p1", Integer.MAX_VALUE)))
 				.isEqualTo(BasketException.Reason.QUANTITY);
 		assertThat(이유(() -> this.store.addItem("user", handle, "p1", Integer.MAX_VALUE)))

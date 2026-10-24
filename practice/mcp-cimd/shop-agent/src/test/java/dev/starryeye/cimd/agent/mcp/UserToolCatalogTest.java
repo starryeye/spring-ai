@@ -51,7 +51,10 @@ class UserToolCatalogTest {
 
 	시계 clock = new 시계();
 
-	/** 사용자 이름 → 지금 그 사용자의 access token이다. step-up은 값을 바꿔 흉내 낸다. */
+	/**
+	 * 사용자 이름 → 지금 그 사용자의 access token이다.
+	 * step-up은 값을 바꿔 흉내 낸다.
+	 */
 	Map<String, String> tokens = new HashMap<>(Map.of("a", "token-a", "b", "token-b"));
 
 	/** 목록을 받을 때마다 그때의 token을 남긴다. */
@@ -140,7 +143,8 @@ class UserToolCatalogTest {
 		this.catalog.callbacks(사용자("b"));
 		this.onUnknownToolByToken.get("token-b");  // 참조만 하고 아직 실행하지 않는다.
 
-		// a의 runnable을 실행한다. a의 목록을 버려야 하고 b는 그대로 둔다.
+		// a의 runnable을 실행한다.
+		// a의 목록을 버려야 하고 b는 그대로 둔다.
 		aOnUnknownTool.run();
 
 		this.catalog.callbacks(사용자("a"));  // a는 다시 받는다.

@@ -29,7 +29,10 @@ import java.util.Map;
  */
 public final class McpCalls {
 
-	/** 이 사용자가 만든 적 없는 handle이다. 형식은 맞지만 서버에 없다. */
+	/**
+	 * 이 사용자가 만든 적 없는 handle이다.
+	 * 형식은 맞지만 서버에 없다.
+	 */
 	static final String UNKNOWN_BASKET = "bsk_" + "A".repeat(22);
 
 	private McpCalls() {
@@ -67,7 +70,8 @@ public final class McpCalls {
 			}
 			print(out, "getStock(p1)", call(client, "getStock", Map.of("productId", "p1")));
 
-			// handle은 서버가 만든다. 이 앱은 받은 handle을 다음 호출의 인자로 넘긴다(안내서 11장).
+			// handle은 서버가 만든다.
+			// 이 앱은 받은 handle을 다음 호출의 인자로 넘긴다(안내서 11장).
 			McpSchema.CallToolResult created = call(client, "createBasket", Map.of());
 			print(out, "createBasket", created);
 			String basketId = basketId(created);
@@ -76,17 +80,20 @@ public final class McpCalls {
 			print(out, "addItem(p9, 2)", call(client, "addItem",
 					Map.of("basketId", basketId, "productId", "p9", "quantity", 2)));
 			print(out, "getBasket", call(client, "getBasket", Map.of("basketId", basketId)));
-			// 만든 적 없는 handle은 "찾을 수 없다"다. 가진 것만으로는 쓸 수 없다.
+			// 만든 적 없는 handle은 "찾을 수 없다"다.
+			// 가진 것만으로는 쓸 수 없다.
 			print(out, "getBasket(모르는 ID)",
 					call(client, "getBasket", Map.of("basketId", UNKNOWN_BASKET)));
 			// 주문은 orders:write가 필요하다.
 			// 조회 token이면 403 → 그 자리에서 step-up → SDK가 새 token으로 다시 보낸다.
 			print(out, "checkout", call(client, "checkout", Map.of("basketId", basketId)));
-			// step-up으로 token이 바뀌었으면 목록을 다시 받는다. 새 요청이라 customizer가 새 token을 붙인다.
+			// step-up으로 token이 바뀌었으면 목록을 다시 받는다.
+			// 새 요청이라 customizer가 새 token을 붙인다.
 			tools.printIfTokenChanged();
 		}
 		catch (RuntimeException ex) {
-			// step-up에서 난 LocalClientException은 SDK를 거치며 감싸일 수 있다. 원인 사슬에서 찾아 그대로 올린다.
+			// step-up에서 난 LocalClientException은 SDK를 거치며 감싸일 수 있다.
+			// 원인 사슬에서 찾아 그대로 올린다.
 			for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
 				if (cause instanceof LocalClientException localClient) {
 					throw localClient;
@@ -132,7 +139,8 @@ public final class McpCalls {
 	}
 
 	/**
-	 * 숨긴 tool 호출은 HTTP 200의 JSON-RPC 오류다. SDK는 이것을 {@link McpError}로 던진다.
+	 * 숨긴 tool 호출은 HTTP 200의 JSON-RPC 오류다.
+	 * SDK는 이것을 {@link McpError}로 던진다.
 	 * 바깥의 {@code catch}가 모든 예외를 {@link LocalClientException}으로 바꾸므로, 이 호출 바로 둘레에서 잡아 이어 간다.
 	 */
 	private static void callHidden(McpSyncClient client, PrintStream out) {
@@ -150,7 +158,10 @@ public final class McpCalls {
 		return client.callTool(McpSchema.CallToolRequest.builder(tool).arguments(arguments).build());
 	}
 
-	/** tool 결과를 한 줄씩 찍는다. {@code isError}면 앞에 {@code [오류]}를 붙인다. */
+	/**
+	 * tool 결과를 한 줄씩 찍는다.
+	 * {@code isError}면 앞에 {@code [오류]}를 붙인다.
+	 */
 	private static void print(PrintStream out, String label, McpSchema.CallToolResult result) {
 		String prefix = Boolean.TRUE.equals(result.isError()) ? "[오류] " : "";
 		result.content().forEach(content -> out.println("    " + label + ": " + prefix

@@ -428,8 +428,8 @@ class ModernMcpClientTest {
 
 		assertThatThrownBy(() -> this.client.discover("token-a"))
 				.isInstanceOf(McpProtocolMismatchException.class)
-				.hasMessageContaining("2026-07-28")
-				.hasMessageContaining("2025-11-25");
+				.hasMessage("MCP Server가 이 client의 protocol version을 지원하지 않는다 "
+						+ "(client: 2026-07-28, supportedVersions=[2025-11-25])");
 	}
 
 	@Test
@@ -438,6 +438,7 @@ class ModernMcpClientTest {
 
 		assertThatThrownBy(() -> this.client.listTools("token-a", null))
 				.isExactlyInstanceOf(ModernMcpException.class)
+				.hasMessage("MCP Server가 JSON-RPC 결과 없이 답했다 (HTTP status: 401)")
 				.satisfies(error -> {
 					assertThat(((ModernMcpException) error).httpStatus()).isEqualTo(401);
 					assertThat(((ModernMcpException) error).jsonRpcCode()).isNull();

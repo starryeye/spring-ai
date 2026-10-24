@@ -65,7 +65,10 @@ class ShopAgentApplicationTests {
     /** 가짜 MCP Server가 받은 {@code Authorization} header다. */
     static final List<String> RECEIVED_AUTHORIZATION = new CopyOnWriteArrayList<>();
 
-    /** MCP client가 실제로 보내는 요청을 받아 보는 가짜 MCP Server다. 무엇을 받든 401로 답한다. */
+    /**
+     * MCP client가 실제로 보내는 요청을 받아 보는 가짜 MCP Server다.
+     * 무엇을 받든 401로 답한다.
+     */
     static final HttpServer FAKE_MCP_SERVER = startFakeMcpServer();
 
     static HttpServer startFakeMcpServer() {
@@ -156,7 +159,8 @@ class ShopAgentApplicationTests {
 
     @Test
     void OAuth2_client_등록은_문서_주소를_client_id로_쓴다() {
-        // McpSecurityConfig.REGISTRATION_ID로 찾는다. 이 값이 login 경로와 맞지 않으면 null이 나온다.
+        // McpSecurityConfig.REGISTRATION_ID로 찾는다.
+        // 이 값이 login 경로와 맞지 않으면 null이 나온다.
         ClientRegistration registration = registration();
 
         assertThat(registration).isNotNull();
@@ -182,15 +186,16 @@ class ShopAgentApplicationTests {
 
     @Test
     void 채팅_화면_포트에서는_문서를_주지_않는다() throws Exception {
-        // 문서는 https 문서 서버에서만 준다. 채팅 화면 쪽에서는 다른 주소처럼 login부터 요구한다.
+        // 문서는 https 문서 서버에서만 준다.
+        // 채팅 화면 쪽에서는 다른 주소처럼 login부터 요구한다.
         this.mockMvc.perform(get("/oauth/client.json"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrlPattern("/oauth2/authorization/**"));
     }
 
     /**
-     * servlet 요청 없이 Authentication만으로 token을 꺼낼 수 있어야
-     * reactor thread에서 token을 붙일 수 있다. manager 타입이 바뀌면 그 성질이 깨진다.
+     * servlet 요청 없이 Authentication만으로 token을 꺼낼 수 있어야 reactor thread에서 token을 붙일 수 있다.
+     * manager 타입이 바뀌면 그 성질이 깨진다.
      * bean은 사용자별로 refresh를 한 번에 하나씩 하는 manager이고, 그 안의 manager는
      * {@code AuthorizedClientServiceOAuth2AuthorizedClientManager}다.
      * {@code TokenRefreshTest}가 같은 bean 메서드로 만든 manager를 servlet 요청 없이 불러 refresh까지 확인한다.
@@ -201,8 +206,8 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * MCP tool 호출은 reactor의 thread에서 돈다. 거기서도 SecurityContext가 보여야
-     * {@code SecurityMcpTransportContextProvider}가 사용자를 읽고 token이 붙는다(6장 "조용히 401").
+     * MCP tool 호출은 reactor의 thread에서 돈다.
+     * 거기서도 SecurityContext가 보여야 {@code SecurityMcpTransportContextProvider}가 사용자를 읽고 token이 붙는다(6장 "조용히 401").
      * 이 전파는 {@code main()}이 아니라 설정({@code spring.reactor.context-propagation: auto})으로 켜므로
      * 테스트 context에서도 켜져 있어야 한다.
      */
@@ -247,7 +252,8 @@ class ShopAgentApplicationTests {
 
         SecurityContextHolder.getContext().setAuthentication(alice);
         try {
-            // 가짜 MCP Server는 401로 답하므로 initialize는 실패한다. 보낸 요청의 header만 본다.
+            // 가짜 MCP Server는 401로 답하므로 initialize는 실패한다.
+            // 보낸 요청의 header만 본다.
             catchThrowable(() -> this.mcpSyncClients.get(0).initialize());
         }
         finally {

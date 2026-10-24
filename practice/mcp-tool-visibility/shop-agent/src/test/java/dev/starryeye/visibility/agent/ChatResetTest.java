@@ -38,7 +38,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ChatResetTest {
 
-	/** Boot 4.1의 {@code @AutoConfigureMockMvc}는 springSecurity()를 붙이지 않는다. {@code @WithMockUser}에 필요하다. */
+	/**
+	 * Boot 4.1의 {@code @AutoConfigureMockMvc}는 springSecurity()를 붙이지 않는다.
+	 * {@code @WithMockUser}에 필요하다.
+	 */
 	@TestConfiguration
 	static class SecurityMockMvcSupport {
 

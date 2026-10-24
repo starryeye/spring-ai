@@ -22,7 +22,8 @@ import java.util.Set;
  * <p>Spring AI 2.0.2의 {@code WebMvcStatelessServerTransport}는 이 header를 읽지 않는다.
  * MCP SDK 2.1.0 server도 검증하지 못한다.
  * transport가 server에 넘기는 것은 JSON-RPC message와 {@code McpTransportContext}뿐이다.
- * 그래서 지원하지 않는 값을 보내도 200이 돌아온다. transport와 SDK가 하지 않는 이 검증을 filter로 채운다.
+ * 그래서 지원하지 않는 값을 보내도 200이 돌아온다.
+ * transport와 SDK가 하지 않는 이 검증을 filter로 채운다.
  *
  * <p>명세가 정한 규칙은 두 가지다.
  * <ul>
@@ -36,8 +37,9 @@ import java.util.Set;
  * </ul>
  *
  * <p>지원 버전 목록은 SDK가 아는 버전 전부다({@link ProtocolVersions}).
- * initialize에서 정하는 버전은 이 목록과 조금 다르다. stateless transport가 알리는 {@code 2025-03-26}·{@code 2025-06-18}·
- * {@code 2025-11-25} 가운데 client가 요청한 버전이 있으면 그 버전으로, 없으면 {@code 2025-11-25}로 정한다(MCP SDK 2.1.0).
+ * initialize에서 정하는 버전은 이 목록과 조금 다르다.
+ * stateless transport가 알리는 {@code 2025-03-26}·{@code 2025-06-18}·{@code 2025-11-25} 가운데
+ * client가 요청한 버전이 있으면 그 버전으로, 없으면 {@code 2025-11-25}로 정한다(MCP SDK 2.1.0).
  * 이 practice의 client는 {@code 2025-11-25}를 요청하므로 실제로 쓰이는 버전은 그것 하나다.
  * 하지만 header 검증이 묻는 것은 "이 서버가 이해할 수 있는 protocol 버전인가"다.
  * "이 session에서 쓰기로 한 버전과 같은가"를 묻는 것이 아니다.
@@ -75,7 +77,8 @@ public class McpProtocolVersionFilter implements Filter {
 		String version = request.getHeader(HEADER_NAME);
 		if (version != null && !SUPPORTED_VERSIONS.contains(version)) {
 			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-			// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
+			// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다.
+			// 그래서 charset을 적는다.
 			response.setContentType("application/json;charset=UTF-8");
 			// SDK의 다른 오류 응답처럼 id 없는 JSON-RPC 오류 형식을 쓴다
 			// (명세: "The HTTP response body MAY comprise a JSON-RPC error response

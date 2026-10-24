@@ -19,7 +19,8 @@ import java.util.Set;
  *
  * <p>사용자는 consent 화면에서 새 scope를 체크하지 않을 수 있다.
  * 그러면 Authorization Server는 이전 scope만 담은 token을 준다(MCP Security Best Practices — down-scoping).
- * 그 경우도 login은 성공이므로 채팅 화면으로 돌아간다. 다음 {@code 403}에는 카드 대신 거절 안내가 나간다.
+ * 그 경우도 login은 성공이므로 채팅 화면으로 돌아간다.
+ * 다음 {@code 403}에는 카드 대신 거절 안내가 나간다.
  */
 public class StepUpLoginSuccessHandler extends SavedRequestAwareAuthenticationSuccessHandler {
 

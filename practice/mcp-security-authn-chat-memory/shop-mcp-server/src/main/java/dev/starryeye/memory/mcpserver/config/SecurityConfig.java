@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.jwt.JwtTypeValidator;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
@@ -24,13 +25,14 @@ import java.util.List;
  * <ul>
  *   <li>RFC 9728 Protected Resource Metadata(PRM) — client가 Authorization Server를 찾는 출발점이다</li>
  *   <li>401 challenge의 {@code resource_metadata} — PRM의 위치를 알려 준다</li>
- *   <li>token 검증 — signature, {@code iss}(issuer-uri), {@code aud}(audiences 설정)를 본다</li>
+ *   <li>token 검증 — signature, {@code iss}(issuer-uri), {@code aud}(audiences 설정), header의 {@code typ}을 본다</li>
  *   <li>MCP session을 token의 사용자에게 묶는다 — {@link McpSessionBindingFilter}</li>
  * </ul>
  *
  * <p>PRM의 {@code resource}와 {@code resource_metadata}는 요청의 {@code Host}가 아니라 설정한 주소({@code audiences})로 만든다.
- * Spring의 기본값은 요청 URL로 만든다. 그러면 {@code Host}를 바꾼 요청에 다른 서버 주소를 광고하고,
- * reverse proxy 뒤에서는 scheme도 틀린다. token의 {@code aud}로 검증하는 값과 같은 하나를 쓰면 셋이 어긋날 일이 없다.
+ * Spring의 기본값은 요청 URL로 만든다.
+ * 그러면 {@code Host}를 바꾼 요청에 다른 서버 주소를 광고하고, reverse proxy 뒤에서는 scheme도 틀린다.
+ * token의 {@code aud}로 검증하는 값과 같은 하나를 쓰면 셋이 어긋날 일이 없다.
  * 다만 PRM의 {@code resource}는 요청한 PRM 주소의 경로 모양을 따른다({@link #withConfiguredOrigin}).
  */
 @Configuration
@@ -58,16 +60,35 @@ public class SecurityConfig {
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
 										.tlsClientCertificateBoundAccessTokens(false))))
-				// MCP session을 token의 사용자에게 묶는다. 인증과 접근 검사(AuthorizationFilter)를 마친 요청만 이 filter에 닿는다.
+				// MCP session을 token의 사용자에게 묶는다.
+				// 인증과 접근 검사(AuthorizationFilter)를 마친 요청만 이 filter에 닿는다.
 				// 묶음은 transport의 session과 같은 시간(mcp.limits.session-idle-timeout)이 지나면 지운다.
 				.addFilterAfter(new McpSessionBindingFilter(limits.sessionIdleTimeout()), AuthorizationFilter.class)
-				// stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
+				// stateless resource server다.
+				// token으로만 인증하므로 CSRF token을 쓰지 않는다.
 				.csrf(csrf -> csrf.disable())
 				.build();
 	}
 
 	/**
-	 * 이 서버가 지키는 resource의 식별자다. token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
+	 * access token header의 {@code typ}으로 받을 값을 정한다.
+	 * Spring Security의 기본 검증기는 {@code typ}이 없거나 {@code JWT}인 token만 받는다.
+	 * 그러면 RFC 9068 형식의 {@code typ: at+jwt} token을 {@code 401 invalid_token}으로 거절한다.
+	 * 그래서 RFC 9068이 정한 {@code at+jwt}와 {@code application/at+jwt}도 받는다.
+	 * 이 검증기가 bean으로 있으면 Boot는 기본 검증기를 더하지 않고 이 검증기를 쓴다.
+	 * issuer와 audience 검증은 Boot가 설정에서 만들어 그대로 더한다.
+	 * 그 밖의 {@code typ}은 access token이 아닌 JWT일 수 있어 계속 거절한다.
+	 */
+	@Bean
+	public JwtTypeValidator accessTokenTypeValidator() {
+		JwtTypeValidator validator = new JwtTypeValidator("JWT", "at+jwt", "application/at+jwt");
+		validator.setAllowEmpty(true);
+		return validator;
+	}
+
+	/**
+	 * 이 서버가 지키는 resource의 식별자다.
+	 * token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
 	 * 이 서버의 resource는 MCP endpoint 하나라서 값도 하나여야 한다.
 	 */
 	private static String resource(OAuth2ResourceServerProperties properties) {

@@ -101,7 +101,8 @@ class McpAuthorizationDiscoveryTest {
                 {"resource":"http://localhost:8131","authorization_servers":["http://localhost:9020"]}""");
         응답("http://localhost:9020/.well-known/oauth-authorization-server", AUTHORIZATION_SERVER_METADATA);
 
-        // 루트형이면 resource는 서버 루트다. client는 서버가 선언한 값을 그대로 쓴다.
+        // 루트형이면 resource는 서버 루트다.
+        // client는 서버가 선언한 값을 그대로 쓴다.
         assertThat(this.discovery.discover(RESOURCE, ISSUER).resource()).isEqualTo("http://localhost:8131");
         this.server.verify();
     }
@@ -119,7 +120,8 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("origin");
+                .withMessage("챌린지의 resource_metadata가 MCP Server와 다른 origin을 가리킨다 — 따라가지 않는다 (resource_metadata: "
+                        + elsewhere + ", MCP Server: " + RESOURCE + ")");
         this.server.verify();
     }
 
@@ -131,7 +133,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("resource");
+                .withMessage("메타데이터의 resource가 요청한 리소스와 다르다 (받은 값: http://evil.example/mcp, 기대한 값: " + RESOURCE + ")");
     }
 
     @Test
@@ -155,7 +157,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("issuer");
+                .withMessage("메타데이터의 issuer가 요청한 인가 서버와 다르다 (받은 값: http://evil.example, 기대한 값: " + ISSUER + ")");
     }
 
     @Test
@@ -168,28 +170,29 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("S256");
+                .withMessage("인가 서버가 PKCE S256을 광고하지 않는다: " + ISSUER);
     }
 
     @Test
     void PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다() {
         // PRM이 가리키는 주소로 곧장 GET하면 공격자가 고른 주소로 요청이 나간다(SSRF).
-        // credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다. 기대하지 않은 요청이
-        // 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
+        // credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다.
+        // 기대하지 않은 요청이 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
         챌린지("Bearer resource_metadata=\"http://localhost:8131/.well-known/oauth-protected-resource/mcp\"");
         응답("http://localhost:8131/.well-known/oauth-protected-resource/mcp", """
                 {"resource":"http://localhost:8131/mcp","authorization_servers":["http://evil.example"]}""");
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("http://evil.example");
+                .withMessage("자격증명을 등록한 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: " + ISSUER
+                        + ", authorization_servers: [http://evil.example]) — 메타데이터를 요청하지 않는다");
         this.server.verify();
     }
 
     @Test
     void authorization_servers_의_어디에_있든_자격증명의_issuer_를_고른다() {
-        // 순서는 신뢰의 근거가 아니다. 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고,
-        // 목록의 다른 Authorization Server에는 요청하지 않는다.
+        // 순서는 신뢰의 근거가 아니다.
+        // 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고, 목록의 다른 Authorization Server에는 요청하지 않는다.
         String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
         챌린지("Bearer resource_metadata=\"" + prm + "\"");
         응답(prm, """
@@ -210,7 +213,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("authorization_endpoint");
+                .withMessage("인가 서버 메타데이터의 authorization_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: javascript:alert(1)");
     }
 
     @Test
@@ -222,12 +225,13 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("token_endpoint");
+                .withMessage("인가 서버 메타데이터의 token_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: file:///etc/passwd");
     }
 
     @Test
     void authorization_endpoint_가_loopback_이_아닌_http_URL_이면_진행하지_않는다() {
-        // MCP Security Best Practices — http는 loopback 주소에만 허용된다(MUST). scheme만 보는 검사로는 막을 수 없는 URL이다.
+        // MCP Security Best Practices — http는 loopback 주소에만 허용된다(MUST).
+        // scheme만 보는 검사로는 막을 수 없는 URL이다.
         챌린지("Bearer resource_metadata=\"http://localhost:8131/.well-known/oauth-protected-resource/mcp\"");
         응답("http://localhost:8131/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
         응답("http://localhost:9020/.well-known/oauth-authorization-server",
@@ -235,7 +239,7 @@ class McpAuthorizationDiscoveryTest {
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
-                .withMessageContaining("authorization_endpoint");
+                .withMessage("인가 서버 메타데이터의 authorization_endpoint field가 https URL도, loopback 주소의 http URL도 아니다: http://evil.example/oauth2/authorize");
     }
 
     @Test
@@ -251,20 +255,33 @@ class McpAuthorizationDiscoveryTest {
     }
 
     @Test
+    void 토큰_없는_요청에_401이_아닌_응답이_오면_멈춘다() {
+        this.server.expect(requestTo(RESOURCE)).andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThatExceptionOfType(McpDiscoveryException.class)
+                .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+                .withMessage("토큰 없는 요청에 401이 아닌 응답이 왔다 (status: 200 OK): " + RESOURCE);
+    }
+
+    @Test
     void 응답을_읽지_못하면_원인을_담아_실패한다() {
-        // 연결 실패·시간 초과·깨진 본문은 RestClientException으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
+        // 연결 실패·시간 초과·깨진 본문은 RestClientException으로 온다.
+        // 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
         String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
         챌린지("Bearer resource_metadata=\"" + prm + "\"");
         응답(prm, "{");
 
         assertThatExceptionOfType(McpDiscoveryException.class)
                 .isThrownBy(() -> this.discovery.discover(RESOURCE, ISSUER))
+                .withMessageStartingWith("메타데이터를 읽지 못했다: " + prm + " (")
                 .withCauseInstanceOf(RestClientException.class);
     }
 
     @Test
     void 연결만_받고_응답하지_않는_서버는_read_timeout_까지만_기다린다() throws Exception {
-        // backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다. 시간 제한이 없으면 discovery가 끝나지 않는다.
+        // backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다.
+        // 시간 제한이 없으면 discovery가 끝나지 않는다.
         try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             McpAuthorizationDiscovery discovery = new McpAuthorizationDiscovery(RestClient.builder()
                     .requestFactory(McpAuthorizationDiscovery.requestFactory(Duration.ofSeconds(1), Duration.ofMillis(300)))
@@ -274,6 +291,7 @@ class McpAuthorizationDiscoveryTest {
             long started = System.nanoTime();
             assertThatExceptionOfType(McpDiscoveryException.class)
                     .isThrownBy(() -> discovery.discover(resource, ISSUER))
+                    .withMessageStartingWith(resource + "에 token 없이 요청하지 못했다: ")
                     .withCauseInstanceOf(RestClientException.class);
             assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(3));
         }

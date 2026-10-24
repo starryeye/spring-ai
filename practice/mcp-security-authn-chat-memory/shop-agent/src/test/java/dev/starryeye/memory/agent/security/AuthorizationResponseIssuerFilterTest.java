@@ -84,7 +84,8 @@ class AuthorizationResponseIssuerFilterTest {
 
         assertThat(this.chain.getRequest()).isNull();
         assertThat(this.response.getStatus()).isEqualTo(401);
-        // 저장해 둔 authorization request도 버린다. 같은 state로 다시 시도하지 못하게 한다.
+        // 저장해 둔 authorization request도 버린다.
+        // 같은 state로 다시 시도하지 못하게 한다.
         assertThat(this.authorizationRequests.loadAuthorizationRequest(this.request)).isNull();
     }
 

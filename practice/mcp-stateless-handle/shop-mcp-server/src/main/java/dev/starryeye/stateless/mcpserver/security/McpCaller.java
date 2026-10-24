@@ -8,7 +8,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * tool을 부른 사용자다. token의 {@code sub}와 {@code client_id}다.
+ * tool을 부른 사용자다.
+ * token의 {@code sub}와 {@code client_id}다.
  *
  * <p>stateless transport는 요청마다 {@link #context(ServerRequest)}로 이 값을 {@link McpTransportContext}에 넣는다.
  * tool 메서드는 {@code McpTransportContext} 인자로 받아 {@link #from(McpTransportContext)}로 꺼낸다.
@@ -21,7 +22,10 @@ public record McpCaller(String subject, String clientId) {
 
 	static final String CLIENT_ID = "client_id";
 
-	/** Spring Security가 검증한 token을 읽는다. 인증이 없으면 빈 context다. */
+	/**
+	 * Spring Security가 검증한 token을 읽는다.
+	 * 인증이 없으면 빈 context다.
+	 */
 	public static McpTransportContext context(ServerRequest request) {
 		return request.principal()
 				.filter(JwtAuthenticationToken.class::isInstance)

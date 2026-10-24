@@ -55,7 +55,8 @@ public class ChatController {
         // 모델이 이 사용자의 목록에 없는 tool을 불러 끊길 때도 같은 이유로 기억을 되돌린다.
         // 그래서 turn을 시작하기 전 기억을 복사해 두고, 두 경우 모두 그대로 되돌린다.
         List<Message> before = List.copyOf(this.chatMemory.get(conversationId));
-        // 이 사용자의 tool 목록이다. 요청 thread에서 꺼내야 목록을 새로 받을 때 이 사용자의 token이 붙는다.
+        // 이 사용자의 tool 목록이다.
+        // 요청 thread에서 꺼내야 목록을 새로 받을 때 이 사용자의 token이 붙는다.
         List<ToolCallback> tools = this.toolCatalog.callbacks(authentication);
         Flux<String> content = this.chatClient.prompt()
                 .user(message)

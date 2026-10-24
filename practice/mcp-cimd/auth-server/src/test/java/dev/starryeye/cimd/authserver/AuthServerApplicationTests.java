@@ -27,8 +27,9 @@ class AuthServerApplicationTests {
 	}
 
 	/**
-	 * oauth2Login은 openid scope로 id_token을 받는다. 그 흐름이 성립하려면
-	 * OIDC discovery 문서가 있어야 한다. AuthorizationServerConfig가 oidc()를 켠다.
+	 * oauth2Login은 openid scope로 id_token을 받는다.
+	 * 그 흐름이 성립하려면 OIDC discovery 문서가 있어야 한다.
+	 * AuthorizationServerConfig가 oidc()를 켠다.
 	 */
 	@Test
 	void OIDC_메타데이터를_공개한다() throws Exception {

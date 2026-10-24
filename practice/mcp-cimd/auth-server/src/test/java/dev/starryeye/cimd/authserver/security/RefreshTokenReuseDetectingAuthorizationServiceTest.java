@@ -106,8 +106,10 @@ class RefreshTokenReuseDetectingAuthorizationServiceTest {
 	}
 
 	/**
-	 * 다른 thread에서 refresh token으로 grant를 찾는다. lock을 기다리면 그 thread는 WAITING이 된다.
-	 * 기다리지 않고 끝나면 TERMINATED다. 둘 중 하나가 될 때까지 기다린다.
+	 * 다른 thread에서 refresh token으로 grant를 찾는다.
+	 * lock을 기다리면 그 thread는 WAITING이 된다.
+	 * 기다리지 않고 끝나면 TERMINATED다.
+	 * 둘 중 하나가 될 때까지 기다린다.
 	 */
 	static void lock을_기다리거나_끝날_때까지_기다린다(Thread thread) throws InterruptedException {
 		long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
@@ -145,7 +147,8 @@ class RefreshTokenReuseDetectingAuthorizationServiceTest {
 		winner.start();
 		assertThat(winnerFound.await(5, TimeUnit.SECONDS)).isTrue();
 
-		// 늦은 쪽: 같은 token으로 찾는다. Spring은 찾은 뒤 저장할 때까지 lock이 없어서, 그대로 두면 둘 다 성공한다.
+		// 늦은 쪽: 같은 token으로 찾는다.
+		// Spring은 찾은 뒤 저장할 때까지 lock이 없어서, 그대로 두면 둘 다 성공한다.
 		AtomicReference<OAuth2Authorization> loserSaw = new AtomicReference<>();
 		Thread loser = new Thread(() -> loserSaw.set(this.service.findByToken("first", OAuth2TokenType.REFRESH_TOKEN)));
 		loser.start();
@@ -187,7 +190,8 @@ class RefreshTokenReuseDetectingAuthorizationServiceTest {
 		rotator.start();
 		assertThat(rotatorFound.await(5, TimeUnit.SECONDS)).isTrue();
 
-		// 그 사이 버린 token(first)이 온다. 바로 지우면, 이어지는 저장이 grant를 다시 살린다.
+		// 그 사이 버린 token(first)이 온다.
+		// 바로 지우면, 이어지는 저장이 grant를 다시 살린다.
 		Thread reuse = new Thread(() -> this.service.findByToken("first", OAuth2TokenType.REFRESH_TOKEN));
 		reuse.start();
 		lock을_기다리거나_끝날_때까지_기다린다(reuse);

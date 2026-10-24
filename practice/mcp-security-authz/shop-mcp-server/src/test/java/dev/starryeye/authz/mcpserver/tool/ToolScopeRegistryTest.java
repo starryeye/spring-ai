@@ -35,8 +35,8 @@ class ToolScopeRegistryTest {
 	}
 
 	/**
-	 * 표에 넣을 bean을 손으로 고르지 않는다. 새 tool bean을 만들고 표에 넣는 것을 잊어도,
-	 * Spring AI가 그 tool을 등록하는 것과 같이 표에도 들어간다.
+	 * 표에 넣을 bean을 손으로 고르지 않는다.
+	 * 새 tool bean을 만들고 표에 넣는 것을 잊어도, Spring AI가 그 tool을 등록하는 것과 같이 표에도 들어간다.
 	 */
 	@Test
 	void context의_모든_bean에서_McpTool_메서드를_찾는다() {

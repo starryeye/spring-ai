@@ -74,7 +74,8 @@ public class McpProtocolVersionFilter implements Filter {
 		String version = request.getHeader(HEADER_NAME);
 		if (version != null && !SUPPORTED_VERSIONS.contains(version)) {
 			response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-			// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
+			// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다.
+			// 그래서 charset을 적는다.
 			response.setContentType("application/json;charset=UTF-8");
 			// SDK의 다른 오류 응답처럼 id 없는 JSON-RPC 오류 형식을 쓴다
 			// (명세: "The HTTP response body MAY comprise a JSON-RPC error response

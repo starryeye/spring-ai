@@ -5,7 +5,10 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 
-/** 기본 browser로 주소를 연다. 열 수 없는 환경이면 주소를 붙여 넣으라고 알린다. */
+/**
+ * 기본 browser로 주소를 연다.
+ * 열 수 없는 환경이면 주소를 붙여 넣으라고 알린다.
+ */
 final class Browser {
 
 	private Browser() {

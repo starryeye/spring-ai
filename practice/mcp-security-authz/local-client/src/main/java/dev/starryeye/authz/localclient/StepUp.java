@@ -62,8 +62,8 @@ public final class StepUp implements McpHttpClientTransportAuthorizationErrorHan
 		String neededText = String.join(" ", needed);
 		Set<String> missing = new LinkedHashSet<>(needed);
 		missing.removeAll(this.holder.scopes());
-		// missing이 비었다는 건 서버가 이미 가진 scope를 모자라다고 한 것이고, attempted와 겹친다는 건 그
-		// scope를 이미 한 번 요청했는데도 못 받은 것이다. 두 경우 다 다시 시도해도 달라지지 않는다.
+		// missing이 비었다는 건 서버가 이미 가진 scope를 모자라다고 한 것이고, attempted와 겹친다는 건 그 scope를 이미 한 번 요청했는데도 못 받은 것이다.
+		// 두 경우 다 다시 시도해도 달라지지 않는다.
 		if (missing.isEmpty() || !Collections.disjoint(missing, this.attempted)) {
 			throw new LocalClientException(neededText + " 권한을 받지 못했다");
 		}

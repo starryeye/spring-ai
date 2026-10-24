@@ -20,7 +20,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 서버가 실제로 내놓는 tool과 scope 표({@link ToolScopeRegistry})가 같은지 본다.
  *
- * <p>표에 없는 tool은 기본 scope만 요구한다. 그래서 표에서 빠진 쓰기 tool은 조회 token으로도 불린다(fail-open).
+ * <p>표에 없는 tool은 기본 scope만 요구한다.
+ * 그래서 표에서 빠진 쓰기 tool은 조회 token으로도 불린다(fail-open).
  * 표를 만드는 방식이 Spring AI가 tool을 등록하는 방식과 어긋나면 이 테스트가 깨진다.
  */
 @SpringBootTest
@@ -49,7 +50,8 @@ class ToolScopeCoverageTest {
 		String body = this.mockMvc.perform(McpScopeTest.mcp(token, TOOLS_LIST).header("Mcp-Session-Id", sessionId))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-		// Streamable HTTP는 응답을 SSE event 하나로 보낸다. data 줄이 JSON-RPC 응답이다.
+		// Streamable HTTP는 응답을 SSE event 하나로 보낸다.
+		// data 줄이 JSON-RPC 응답이다.
 		String json = body.lines()
 				.filter(line -> line.startsWith("data:"))
 				.map(line -> line.substring("data:".length()))

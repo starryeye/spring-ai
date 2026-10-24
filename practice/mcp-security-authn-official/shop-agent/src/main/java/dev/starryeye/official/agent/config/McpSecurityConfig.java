@@ -46,7 +46,8 @@ public class McpSecurityConfig {
     public static final String REGISTRATION_ID = "authserver";
 
     /**
-     * discovery 요청은 login하지 않은 요청에서도 나간다. 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
+     * discovery 요청은 login하지 않은 요청에서도 나간다.
+     * 그래서 연결과 응답에 시간 제한을 둔 request factory를 쓴다.
      * Boot가 만든 {@code RestClient.Builder}를 받아 쓰므로 message converter 같은 Boot 설정은 그대로 온다.
      */
     @Bean
@@ -74,7 +75,10 @@ public class McpSecurityConfig {
         return new InMemoryOAuth2AuthorizedClientService(clientRegistrationRepository);
     }
 
-    /** login(code 교환) 때 token request를 보내는 client다. resource를 함께 보낸다. */
+    /**
+     * login(code 교환) 때 token request를 보내는 client다.
+     * resource를 함께 보낸다.
+     */
     @Bean
     public RestClientAuthorizationCodeTokenResponseClient authorizationCodeTokenResponseClient(
             DiscoveredClientRegistrationRepository registrations) {
@@ -84,7 +88,10 @@ public class McpSecurityConfig {
         return tokenResponseClient;
     }
 
-    /** access token이 만료된 뒤 refresh 요청을 보내는 client다. 여기에도 resource가 필요하다. */
+    /**
+     * access token이 만료된 뒤 refresh 요청을 보내는 client다.
+     * 여기에도 resource가 필요하다.
+     */
     @Bean
     public RestClientRefreshTokenTokenResponseClient refreshTokenTokenResponseClient(
             DiscoveredClientRegistrationRepository registrations) {

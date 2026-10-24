@@ -18,18 +18,20 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 /**
  * {@link PublicClientRefreshTokenAuthenticationConverter}가 만든 refresh 요청의 public client 인증을 마친다.
  *
- * <p>client는 문서에 {@code none}을 선언했어야 한다. {@code private_key_jwt}를 선언한 client가
- * {@code client_id}만으로 오면 거절한다. 그렇지 않으면 key 없이 그 client 행세를 할 수 있다.
+ * <p>client는 문서에 {@code none}을 선언했어야 한다.
+ * {@code private_key_jwt}를 선언한 client가 {@code client_id}만으로 오면 거절한다.
+ * 그렇지 않으면 key 없이 그 client 행세를 할 수 있다.
  *
  * <p>지금 문서만 보면 문서를 {@code none}으로 바꾼 쪽이 {@code private_key_jwt}로 받은 grant를 key 없이 이어 갈 수 있다.
  * 그래서 refresh token의 grant가 이 client의 것이면, grant를 받을 때 기록한 인증 방식
- * ({@link AuthenticationMethodRecordingAuthorizationService})도 {@code none}이어야 한다. 기록이 없어도 거절한다.
- * grant를 찾지 못했거나 다른 client의 grant면 여기서 판단하지 않는다. Spring의
- * {@code OAuth2RefreshTokenAuthenticationProvider}가 이어서 {@code invalid_grant}로 끝낸다.
+ * ({@link AuthenticationMethodRecordingAuthorizationService})도 {@code none}이어야 한다.
+ * 기록이 없어도 거절한다.
+ * grant를 찾지 못했거나 다른 client의 grant면 여기서 판단하지 않는다.
+ * Spring의 {@code OAuth2RefreshTokenAuthenticationProvider}가 이어서 {@code invalid_grant}로 끝낸다.
  * rotation으로 이미 버린 token이면 이 조회에서 {@link RefreshTokenReuseDetectingAuthorizationService}가 grant를 끊는다.
  *
- * <p>authorization code 요청은 맡지 않는다. Spring의 public client 인증은 그 단계에서 PKCE를 검사하므로,
- * 이 provider가 대신 인증하면 PKCE 검사를 건너뛰게 된다.
+ * <p>authorization code 요청은 맡지 않는다.
+ * Spring의 public client 인증은 그 단계에서 PKCE를 검사하므로, 이 provider가 대신 인증하면 PKCE 검사를 건너뛰게 된다.
  */
 public final class PublicClientRefreshTokenAuthenticationProvider implements AuthenticationProvider {
 

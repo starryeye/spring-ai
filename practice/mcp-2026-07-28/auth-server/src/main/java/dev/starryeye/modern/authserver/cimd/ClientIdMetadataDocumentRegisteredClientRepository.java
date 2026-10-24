@@ -20,16 +20,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * CIMD client 저장소다. 미리 등록한 client는 없고, 문서 주소가 곧 client_id다.
+ * CIMD client 저장소다.
+ * 미리 등록한 client는 없고, 문서 주소가 곧 client_id다.
  *
  * <p>처음 보는 client_id를 만나면 주소를 검사하고, 문서를 가져와 검사한 뒤 {@link RegisteredClient}로 바꾼다.
  * 문서는 HTTP cache header를 따라 cache하되 상한을 둔다(CIMD draft §4.4).
- * 가져오지 못했거나 잘못된 문서는 cache하지 않는다. client가 문서를 고치면 다음 요청에서 바로 다시 가져온다.
+ * 가져오지 못했거나 잘못된 문서는 cache하지 않는다.
+ * client가 문서를 고치면 다음 요청에서 바로 다시 가져온다.
  *
- * <p>{@code id}도 문서 주소로 둔다. Spring은 저장한 authorization의 client를 {@link #findById}로 다시 찾는데,
- * 그때도 같은 문서에서 같은 client를 만들 수 있어야 하기 때문이다.
- * 인증 방식은 문서의 {@code token_endpoint_auth_method} 하나뿐이다. 그래서 {@code private_key_jwt}를 선언한 client는
- * {@code none}으로 인증할 수 없다.
+ * <p>{@code id}도 문서 주소로 둔다.
+ * Spring은 저장한 authorization의 client를 {@link #findById}로 다시 찾는데, 그때도 같은 문서에서 같은 client를 만들 수 있어야 하기 때문이다.
+ * 인증 방식은 문서의 {@code token_endpoint_auth_method} 하나뿐이다.
+ * 그래서 {@code private_key_jwt}를 선언한 client는 {@code none}으로 인증할 수 없다.
  */
 public final class ClientIdMetadataDocumentRegisteredClientRepository implements RegisteredClientRepository {
 
@@ -45,7 +47,10 @@ public final class ClientIdMetadataDocumentRegisteredClientRepository implements
 	 */
 	private static final int MAX_CACHE_ENTRIES = 1000;
 
-	/** 로그 한 줄에 남기는 외부 값의 최대 길이다. 문서와 요청의 값은 그대로 믿을 수 없다. */
+	/**
+	 * 로그 한 줄에 남기는 외부 값의 최대 길이다.
+	 * 문서와 요청의 값은 그대로 믿을 수 없다.
+	 */
 	private static final int MAX_LOG_VALUE_LENGTH = 200;
 
 	private final ClientIdUrlValidator urlValidator;

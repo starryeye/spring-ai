@@ -82,14 +82,15 @@ class DiscoveryTest {
 		prm(this.mcp.origin() + "/other", this.as.origin());
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("resource");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("PRM의 resource가 부른 주소와 다르다 (받은 값: " + this.mcp.origin()
+						+ "/other, 기대한 값: " + resource() + ")");
 	}
 
 	@Test
 	void PRM이_모르는_Authorization_Server를_가리키면_metadata를_요청하지_않는다() throws Exception {
-		// PRM이 가리키는 곳이 실제로 응답할 수 있는 server여도(공격자가 진짜 Authorization Server 흉내를 낼 수도 있으니)
-		// 신뢰하는 issuer가 아니면 그 server에는 요청 자체를 보내지 않아야 한다. 그래야 `if` 검사를 지워도
-		// as.requests만 보는 부실한 assertion으로는 잡지 못하는 실수를 막을 수 있다.
+		// PRM이 가리키는 곳이 실제로 응답할 수 있는 server여도(공격자가 진짜 Authorization Server 흉내를 낼 수도 있으니) 신뢰하는 issuer가 아니면 그 server에는 요청 자체를 보내지 않아야 한다.
+		// 그래야 `if` 검사를 지워도 as.requests만 보는 부실한 assertion으로는 잡지 못하는 실수를 막을 수 있다.
 		try (FakeServer untrusted = new FakeServer()) {
 			challenge();
 			prm(resource(), untrusted.origin());
@@ -100,8 +101,8 @@ class DiscoveryTest {
 
 			assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
 					.isInstanceOf(LocalClientException.class)
-					.hasMessageContaining(this.as.origin())
-					.hasMessageContaining(untrusted.origin());
+					.hasMessage("PRM의 authorization_servers에 이 client가 등록된 issuer가 없다 (등록된 issuer: "
+							+ this.as.origin() + ", authorization_servers: [" + untrusted.origin() + "])");
 			assertThat(untrusted.requests).isEmpty();
 		}
 	}
@@ -144,7 +145,9 @@ class DiscoveryTest {
 		metadata("http://evil.example", this.as.origin() + "/oauth2/authorize", "[\"S256\"]");
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("issuer");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("metadata의 issuer가 요청한 issuer와 다르다 (받은 값: http://evil.example, 기대한 값: "
+						+ this.as.origin() + ")");
 	}
 
 	@Test
@@ -164,7 +167,8 @@ class DiscoveryTest {
 		metadata(this.as.origin(), "http://evil.example/authorize", "[\"S256\"]");
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("authorization_endpoint");
+				.isInstanceOf(LocalClientException.class).hasMessage(
+						"metadata의 authorization_endpoint field가 https도, loopback 주소의 http도 아니다: http://evil.example/authorize");
 	}
 
 	@Test
@@ -172,7 +176,8 @@ class DiscoveryTest {
 		this.mcp.on("POST", "/mcp", FakeServer.Reply.status(200));
 
 		assertThatThrownBy(() -> this.discovery.discover(resource(), this.as.origin()))
-				.isInstanceOf(LocalClientException.class).hasMessageContaining("401");
+				.isInstanceOf(LocalClientException.class)
+				.hasMessage("token 없는 요청에 401이 아닌 응답이 왔다 (status: 200)");
 	}
 
 	@Test
@@ -186,7 +191,8 @@ class DiscoveryTest {
 
 	@Test
 	void loopback은_localhost_127_0_0_0_8의_IPv4_literal_IPv6_1만이다() {
-		// agent의 McpAuthorizationDiscovery와 같은 규칙이다. octet은 0~255만, 앞에 0을 붙인 표기는 받지 않는다.
+		// agent의 McpAuthorizationDiscovery와 같은 규칙이다.
+		// octet은 0~255만, 앞에 0을 붙인 표기는 받지 않는다.
 		assertThat(List.of("localhost", "LOCALHOST", "127.0.0.1", "127.1.2.3", "127.255.255.255", "::1", "[::1]"))
 				.allMatch(Discovery::isLoopback);
 		assertThat(List.of("127.999.999.999", "127.0.0.256", "127.00.0.1", "128.0.0.1", "127.0.0",

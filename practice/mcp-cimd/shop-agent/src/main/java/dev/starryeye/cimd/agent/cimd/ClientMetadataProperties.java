@@ -5,8 +5,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * agent가 client 문서를 올리는 곳과 signature key의 위치다.
  *
- * @param baseUrl 문서 주소의 앞부분. client_id가 {@code https}이고 path가 있어야 하므로 {@code https}다
- * @param port 문서 서버가 여는 포트. 테스트는 0으로 OS가 고르게 한다
+ * @param baseUrl 문서 주소의 앞부분.
+ *        client_id가 {@code https}이고 path가 있어야 하므로 {@code https}다
+ * @param port 문서 서버가 여는 포트.
+ *        테스트는 0으로 OS가 고르게 한다
  * @param tlsBundle 문서 서버의 인증서가 든 Spring Boot SSL bundle 이름
  * @param signingKeyStore {@code private_key_jwt}에 쓰는 RSA key가 든 PKCS12 파일의 주소({@code file:}, {@code classpath:})
  * @param signingKeyStorePassword 위 파일의 비밀번호

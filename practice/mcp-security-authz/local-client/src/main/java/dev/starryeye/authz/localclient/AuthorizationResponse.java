@@ -6,8 +6,8 @@ import java.util.Objects;
 /**
  * callback으로 돌아온 authorization response를 확인하고 code를 꺼낸다.
  *
- * <p>확인 순서: `state`(내가 보낸 요청의 응답인가) → `iss`(내가 보낸 Authorization Server의 응답인가,
- * RFC 9207) → `error` → `code`. `iss`는 오류 응답에서도 확인한다.
+ * <p>확인 순서: `state`(내가 보낸 요청의 응답인가) → `iss`(내가 보낸 Authorization Server의 응답인가, RFC 9207) → `error` → `code`.
+ * `iss`는 오류 응답에서도 확인한다.
  */
 public final class AuthorizationResponse {
 
@@ -20,7 +20,7 @@ public final class AuthorizationResponse {
 		}
 		String iss = params.get("iss");
 		if (iss != null ? !iss.equals(server.issuer()) : server.issParameterSupported()) {
-			throw new LocalClientException("callback의 iss(%s)가 %s가 아니다. 다른 Authorization Server의 응답이다"
+			throw new LocalClientException("callback의 iss가 요청한 issuer와 다르다. 다른 Authorization Server의 응답이다 (받은 iss: %s, 기대한 issuer: %s)"
 					.formatted(iss, server.issuer()));
 		}
 		String error = params.get("error");

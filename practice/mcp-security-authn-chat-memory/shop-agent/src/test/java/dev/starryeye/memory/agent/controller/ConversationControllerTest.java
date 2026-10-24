@@ -58,7 +58,8 @@ class ConversationControllerTest {
 	 * 이 연결이 없으면 {@code SecurityContextHolderFilter}가 요청마다 저장소(session·요청 속성)에서 context를 다시 읽는다.
 	 * 그러면 {@code @WithMockUser}가 thread에 넣어 둔 인증을 덮어써서, 모든 요청이 302로
 	 * {@code /oauth2/authorization/authserver}에 redirect된다.
-	 * 아래 customizer가 그 연결을 대신 붙인다. 테스트 메서드는 건드리지 않는다.
+	 * 아래 customizer가 그 연결을 대신 붙인다.
+	 * 테스트 메서드는 건드리지 않는다.
 	 */
 	@TestConfiguration
 	static class SecurityMockMvcSupport {
@@ -70,8 +71,8 @@ class ConversationControllerTest {
 	}
 
 	/**
-	 * index.html의 흐름을 따른다. 페이지가 준 {@code XSRF-TOKEN} cookie를 되돌려 보내고,
-	 * 그 값을 {@code X-XSRF-TOKEN} header에 넣는다.
+	 * index.html의 흐름을 따른다.
+	 * 페이지가 준 {@code XSRF-TOKEN} cookie를 되돌려 보내고, 그 값을 {@code X-XSRF-TOKEN} header에 넣는다.
 	 * spring-security-test의 {@code csrf()}는 context의 {@code CsrfFilter} 저장소를 바꾼다.
 	 * 그 변경이 같은 context를 쓰는 다른 테스트에 번지므로 쓰지 않는다({@code ChatControllerTest}와 같은 방식).
 	 */
@@ -94,8 +95,8 @@ class ConversationControllerTest {
 		chatMemory.add("alice:default", List.of(
 				new UserMessage("내 이름은 앨리스야"),
 				new AssistantMessage("반가워요 앨리스님")));
-		// bob의 namespace에도 대화를 넣어 둔다. 이것이 없으면 아래 테스트는 ConversationId.of가
-		// Authentication을 아예 무시해도(곧 격리가 전혀 없어도) 통과해 버린다.
+		// bob의 namespace에도 대화를 넣어 둔다.
+		// 이것이 없으면 아래 테스트는 ConversationId.of가 Authentication을 아예 무시해도(곧 격리가 전혀 없어도) 통과해 버린다.
 		// bob의 key에 넣은 데이터가 없어서 "격리됨"과 "그냥 없음"을 구분하지 못하기 때문이다.
 		chatMemory.add("bob:default", List.of(
 				new UserMessage("내 이름은 밥이야"),
@@ -113,10 +114,10 @@ class ConversationControllerTest {
 	}
 
 	/**
-	 * 이 practice의 핵심이다. bob이 같은 label("default")로 조회해도 alice의 대화가 아니라
-	 * 자기 대화를 얻는다.
-	 * bob의 namespace에도 데이터를 넣어 두는 이유가 있다. 넣어 두지 않으면 {@code ConversationId.of}가
-	 * {@code Authentication}을 완전히 무시해도(격리가 전혀 없어도) 이 테스트가 통과한다.
+	 * 이 practice의 핵심이다.
+	 * bob이 같은 label("default")로 조회해도 alice의 대화가 아니라 자기 대화를 얻는다.
+	 * bob의 namespace에도 데이터를 넣어 두는 이유가 있다.
+	 * 넣어 두지 않으면 {@code ConversationId.of}가 {@code Authentication}을 완전히 무시해도(격리가 전혀 없어도) 이 테스트가 통과한다.
 	 * bob의 key가 처음부터 비어 있으니 "격리됨"과 "그냥 없음"을 구분할 수 없다.
 	 */
 	@Test
@@ -185,7 +186,10 @@ class ConversationControllerTest {
 				.andExpect(status().isForbidden());
 	}
 
-	/** 위 테스트의 대조군이다. 페이지가 준 CSRF token을 넣어 보내면 같은 요청이 정상으로 통과한다. */
+	/**
+	 * 위 테스트의 대조군이다.
+	 * 페이지가 준 CSRF token을 넣어 보내면 같은 요청이 정상으로 통과한다.
+	 */
 	@Test
 	@WithMockUser(username = "alice")
 	void CSRF_토큰과_함께_지우면_204() throws Exception {

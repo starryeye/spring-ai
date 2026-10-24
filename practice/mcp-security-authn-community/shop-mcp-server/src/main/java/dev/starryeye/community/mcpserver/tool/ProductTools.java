@@ -75,7 +75,8 @@ public class ProductTools {
     }
 
     /**
-     * 누가 이 tool을 불렀는지 로그에 남긴다. 안내서 6장과 README의 "직접 확인할 것"이 이 값을 본다.
+     * 누가 이 tool을 불렀는지 로그에 남긴다.
+     * 안내서 6장과 README의 "직접 확인할 것"이 이 값을 본다.
      * token의 {@code sub}가 그대로 principal 이름이 된다.
      * 그래서 agent가 아니라 <em>사용자</em>가 찍히는 것을 이 practice에서 확인할 수 있다.
      */

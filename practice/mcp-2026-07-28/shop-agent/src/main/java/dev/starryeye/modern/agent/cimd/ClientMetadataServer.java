@@ -87,7 +87,10 @@ public final class ClientMetadataServer implements SmartLifecycle {
 		return this.server != null;
 	}
 
-	/** 실제로 연 포트다. 설정이 0이면 OS가 고른 포트다. */
+	/**
+	 * 실제로 연 포트다.
+	 * 설정이 0이면 OS가 고른 포트다.
+	 */
 	public synchronized int port() {
 		return address().getPort();
 	}
@@ -110,7 +113,8 @@ public final class ClientMetadataServer implements SmartLifecycle {
 			}
 			byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
 			exchange.getResponseHeaders().set("Content-Type", "application/json");
-			// Authorization Server는 이 값만큼 문서를 cache한다. 문서를 바꾸면 길어야 5분 뒤에 반영된다.
+			// Authorization Server는 이 값만큼 문서를 cache한다.
+			// 문서를 바꾸면 길어야 5분 뒤에 반영된다.
 			exchange.getResponseHeaders().set("Cache-Control", "max-age=300");
 			exchange.sendResponseHeaders(200, bytes.length);
 			try (OutputStream out = exchange.getResponseBody()) {

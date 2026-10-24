@@ -6,7 +6,8 @@ import java.util.Map;
  * discovery 결과다.
  * MCP Server가 선언한 resource 식별자와, 그 resource를 지키는 Authorization Server의 metadata를 담는다.
  *
- * @param resource PRM의 {@code resource}. authorization request와 token request의 {@code resource}로 그대로 쓴다
+ * @param resource PRM의 {@code resource}.
+ *        authorization request와 token request의 {@code resource}로 그대로 쓴다
  * @param issuer PRM이 가리킨 Authorization Server
  * @param authorizationServerMetadata RFC 8414 또는 OpenID Connect Discovery 문서
  */
@@ -42,6 +43,6 @@ public record DiscoveredAuthorization(String resource, String issuer, Map<String
 		if (this.authorizationServerMetadata.get(name) instanceof String value) {
 			return value;
 		}
-		throw new McpDiscoveryException("인가 서버 메타데이터에 %s 가 없다: %s".formatted(name, this.issuer));
+		throw new McpDiscoveryException("인가 서버 메타데이터에 %s field가 없다: %s".formatted(name, this.issuer));
 	}
 }

@@ -6,7 +6,11 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** 테스트 중에 client를 바꿔 끼울 수 있는 저장소다. 문서가 바뀌는 상황을 흉내 낸다. id와 client_id는 같다고 본다. */
+/**
+ * 테스트 중에 client를 바꿔 끼울 수 있는 저장소다.
+ * 문서가 바뀌는 상황을 흉내 낸다.
+ * id와 client_id는 같다고 본다.
+ */
 final class MutableRegisteredClientRepository implements RegisteredClientRepository {
 
 	private final Map<String, RegisteredClient> clients = new ConcurrentHashMap<>();

@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
-# agent가 어느 제품처럼 붙을지 고른다. chatgpt면 private_key_jwt, claude면 none(public client)이다.
+# agent가 어느 제품처럼 붙을지 고른다.
+# chatgpt면 private_key_jwt, claude면 none(public client)이다.
 CLIENT_TYPE="${1:-chatgpt}"
 case "$CLIENT_TYPE" in
   chatgpt|claude) ;;
@@ -14,8 +15,8 @@ case "$CLIENT_TYPE" in
     ;;
 esac
 
-# Java 21 확보 (시스템 기본은 17). sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수
-# 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
+# Java 21 확보 (시스템 기본은 17).
+# sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
   JAVA21_HOME=$(find "$HOME/.sdkman/candidates/java" -maxdepth 1 -type d -name '21.*' 2>/dev/null | sort -V | tail -1)
   if [ -n "$JAVA21_HOME" ]; then
@@ -23,14 +24,14 @@ if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q 
   fi
 fi
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
-  echo "[실패] Java 21 을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME 을 Java 21 로 직접 지정하세요." >&2
+  echo "[실패] Java 21을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME을 Java 21로 직접 지정하세요." >&2
   exit 1
 fi
 echo "JAVA_HOME=${JAVA_HOME}"
 
 # ollama 준비
 if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "ollama 를 시작합니다..."
+  echo "ollama를 시작합니다..."
   ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
   for _ in $(seq 1 30); do
     curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
@@ -61,7 +62,8 @@ make_certs() {
       -rfc -file certs/client-metadata.crt 2>/dev/null
   fi
   if [ ! -f certs/client-metadata-trust.p12 ]; then
-    # Authorization Server가 문서 host를 믿을 때 쓰는 truststore다. 위 인증서 하나만 담는다.
+    # Authorization Server가 문서 host를 믿을 때 쓰는 truststore다.
+    # 위 인증서 하나만 담는다.
     "$keytool" -importcert -noprompt -alias client-metadata -file certs/client-metadata.crt \
       -storetype PKCS12 -keystore certs/client-metadata-trust.p12 -storepass changeit 2>/dev/null
   fi
@@ -78,7 +80,7 @@ start() {
   local dir="$1" port="$2"
   shift 2
   if lsof -ti tcp:"$port" -sTCP:LISTEN > /dev/null 2>&1; then
-    echo "  [건너뜀] $dir — 포트 $port 가 이미 사용 중입니다"
+    echo "  [건너뜀] $dir — 이미 사용 중인 포트: $port"
     return
   fi
   echo "  [기동] $dir (:$port)"
@@ -86,7 +88,8 @@ start() {
   ( cd "$dir" && nohup ./gradlew bootRun -q "$@" > "../logs/$dir.log" 2>&1 < /dev/null & disown 2>/dev/null || true )
 }
 
-# $1 로그 이름(logs/<이름>.log), $2 주소, 나머지는 curl 인자. 응답이 오면(상태 코드와 상관없이) 준비된 것으로 본다.
+# $1 로그 이름(logs/<이름>.log), $2 주소, 나머지는 curl 인자.
+# 응답이 오면(상태 코드와 상관없이) 준비된 것으로 본다.
 wait_for() {
   local name="$1" url="$2"
   shift 2
@@ -97,7 +100,7 @@ wait_for() {
     fi
     sleep 1
   done
-  echo "  [실패] $url 이 뜨지 않았습니다. logs/$name.log 마지막 20줄:"
+  echo "  [실패] 서버가 뜨지 않았습니다: $url — logs/$name.log 마지막 20줄:"
   tail -20 "logs/$name.log" || true
   return 1
 }
@@ -125,7 +128,7 @@ wait_for shop-agent https://localhost:8182/oauth/client.json --cacert certs/clie
 if [ "$AGENT_ALREADY_RUNNING" = "1" ]; then
   echo
   echo "준비되었습니다. 다만 shop-agent는 이미 떠 있어서 client type을 바꾸지 않았습니다."
-  echo "  지금 agent의 client type은 이번에 고른 값($CLIENT_TYPE)과 다를 수 있습니다."
+  echo "  지금 agent의 client type은 이번에 고른 값과 다를 수 있습니다 (이번에 고른 값: $CLIENT_TYPE)."
   echo "  바꾸려면 ./stop.sh 뒤에 ./run.sh $CLIENT_TYPE 순서로 실행하세요."
 else
   echo
@@ -134,7 +137,7 @@ fi
 
 cat <<EOF
 
-  브라우저에서 http://localhost:8180/ 을 엽니다.
+  브라우저에서 열 주소: http://localhost:8180/
   로그인: user / password (점원), user2 / password (손님)
 
   agent가 올린 client 문서:

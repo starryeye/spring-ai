@@ -109,6 +109,15 @@ class McpAuthorizationStandardTest {
 
 	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key,
 			List<String> scopes) {
+		return 토큰(issuer, audience, subject, expiresAt, key, scopes, null);
+	}
+
+	/**
+	 * header의 {@code typ}을 정해 token을 만든다.
+	 * {@code type}이 {@code null}이면 {@code typ}을 넣지 않는다.
+	 */
+	static String 토큰(String issuer, String audience, String subject, Instant expiresAt, RSAKey key,
+			List<String> scopes, String type) {
 		NimbusJwtEncoder encoder = new NimbusJwtEncoder(new ImmutableJWKSet<>(new JWKSet(key)));
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.issuer(issuer)
@@ -118,8 +127,15 @@ class McpAuthorizationStandardTest {
 				.expiresAt(expiresAt)
 				.claim("scope", scopes)
 				.build();
-		return encoder.encode(JwtEncoderParameters.from(
-				JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build(), claims)).getTokenValue();
+		JwsHeader.Builder header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID);
+		if (type != null) {
+			header.type(type);
+		}
+		return encoder.encode(JwtEncoderParameters.from(header.build(), claims)).getTokenValue();
+	}
+
+	static String typ이_있는_토큰(String type) {
+		return 토큰(ISSUER, RESOURCE, "user", Instant.now().plusSeconds(300), KEY, List.of("products:read"), type);
 	}
 
 	static final String INITIALIZE = """
@@ -244,6 +260,56 @@ class McpAuthorizationStandardTest {
 				.andExpect(header().exists("Mcp-Session-Id"));
 	}
 
+	/*
+	 * RFC 9068 Authorization Server는 access token header의 typ에 at+jwt를 넣는다.
+	 * 이 서버의 Authorization Server는 typ을 넣지 않으므로, typ이 없는 token도 받아야 한다.
+	 * 그 밖의 값은 access token이 아닌 JWT일 수 있어 거절한다.
+	 */
+
+	@Test
+	void typ이_없는_토큰도_받는다() throws Exception {
+		// 이 서버의 Authorization Server는 typ을 넣지 않는다.
+		String token = 토큰(ISSUER, RESOURCE);
+		org.junit.jupiter.api.Assertions.assertNull(com.nimbusds.jwt.SignedJWT.parse(token).getHeader().getType());
+		this.mockMvc.perform(mcp(token, null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void typ이_at_jwt인_토큰도_받는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("at+jwt"), null, HOST))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.result.protocolVersion").value("2025-11-25"));
+	}
+
+	@Test
+	void typ이_JWT인_토큰도_받는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("JWT"), null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void typ이_application_at_jwt인_토큰도_받는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("application/at+jwt"), null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void typ의_대소문자는_가리지_않는다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("AT+JWT"), null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void typ이_그_밖의_값인_토큰은_거부한다() throws Exception {
+		this.mockMvc.perform(mcp(typ이_있는_토큰("foo"), null, HOST))
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string("WWW-Authenticate",
+						org.hamcrest.Matchers.containsString("error=\"invalid_token\"")))
+				// iss·aud·exp가 아니라 typ 검사에서 거절됐다.
+				.andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString("typ")));
+	}
+
 	@Test
 	void aud_가_다른_토큰은_거부한다() throws Exception {
 		// 같은 Authorization Server가 발급했지만 다른 청중(client 자신)을 향한 token이다.
@@ -262,7 +328,8 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 만료된_토큰은_거부한다() throws Exception {
-		// Spring JwtTimestampValidator 의 기본 clock skew 는 60초다. 그보다 오래 지난 token 을 쓴다.
+		// Spring JwtTimestampValidator 의 기본 clock skew 는 60초다.
+		// 그보다 오래 지난 token 을 쓴다.
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().minusSeconds(120), KEY), null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
@@ -330,8 +397,8 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
-				// 오류 본문을 바이트 단위로 고정한다. docs/superpowers/captures/2026-09-12-official.txt의
-				// "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
+				// 오류 본문을 바이트 단위로 고정한다.
+				// docs/superpowers/captures/2026-09-12-official.txt의 "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
 				// filter가 본문을 Jackson tree로 직렬화하므로, field 순서나 공백이 바뀌면 이 단정이 실패한다.
 				.andExpect(content().string(
 						"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
@@ -348,9 +415,8 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 따옴표가_든_MCP_Protocol_Version_헤더_값도_구조가_깨지지_않는_JSON으로_응답한다() throws Exception {
-		// 문자열 연결로 오류 메시지를 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고
-		// 임의의 최상위 멤버를 주입할 수 있었다. jsonPath 평가 자체가 본문이 유효한
-		// JSON임을 증명하고, injected field 부재가 주입이 통하지 않음을 증명한다.
+		// 문자열 연결로 오류 메시지를 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고 임의의 최상위 멤버를 주입할 수 있었다.
+		// jsonPath 평가 자체가 본문이 유효한 JSON임을 증명하고, injected field 부재가 주입이 통하지 않음을 증명한다.
 		String 악성_헤더_값 = "x\"},\"injected\":{\"a\":\"b";
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), 악성_헤더_값))
 				.andExpect(status().isBadRequest())

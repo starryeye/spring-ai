@@ -63,7 +63,8 @@ class PublicClientRefreshTokenGeneratorTest {
 		RegisteredClient client = publicClient(true);
 		DefaultOAuth2TokenContext context = context(client, OAuth2TokenType.REFRESH_TOKEN);
 
-		// Spring의 기본 generator는 같은 요청에 refresh token을 만들지 않는다. 이 class가 다른 점이다.
+		// Spring의 기본 generator는 같은 요청에 refresh token을 만들지 않는다.
+		// 이 class가 다른 점이다.
 		assertThat(new OAuth2RefreshTokenGenerator().generate(context)).isNull();
 
 		OAuth2RefreshToken token = this.generator.generate(context);

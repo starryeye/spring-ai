@@ -24,7 +24,8 @@ public final class ResourceMetadataUrl {
 	}
 
 	/**
-	 * 이 서버가 지키는 resource의 식별자다. token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
+	 * 이 서버가 지키는 resource의 식별자다.
+	 * token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
 	 * 이 서버의 resource는 MCP endpoint 하나라서 값도 하나여야 한다.
 	 */
 	public static String resource(OAuth2ResourceServerProperties properties) {

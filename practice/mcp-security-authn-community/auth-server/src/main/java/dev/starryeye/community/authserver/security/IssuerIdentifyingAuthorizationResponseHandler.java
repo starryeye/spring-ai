@@ -64,7 +64,8 @@ public class IssuerIdentifyingAuthorizationResponseHandler
                 (exception instanceof OAuth2AuthorizationCodeRequestAuthenticationException codeRequestException)
                         ? codeRequestException.getAuthorizationCodeRequestAuthentication() : null;
 
-        // redirect_uri를 믿을 수 없으면 redirect하지 않는다. redirect하면 open redirector가 된다.
+        // redirect_uri를 믿을 수 없으면 redirect하지 않는다.
+        // redirect하면 open redirector가 된다.
         if (authorizationCodeRequest == null || !StringUtils.hasText(authorizationCodeRequest.getRedirectUri())) {
             response.sendError(HttpStatus.BAD_REQUEST.value(), error.toString());
             return;

@@ -13,7 +13,8 @@ import java.util.Map;
  *
  * <p>문서는 누구나 읽으므로 비밀을 담지 않는다.
  * ChatGPT형은 key로 자신을 증명하므로 {@code jwks_uri}를 넣고, Claude형은 증명할 수단이 없어 {@code none}이다.
- * 두 문서 모두 같은 redirect 주소 하나만 올린다. Authorization Server는 이 목록에 없는 주소로 code를 보내지 않는다.
+ * 두 문서 모두 같은 redirect 주소 하나만 올린다.
+ * Authorization Server는 이 목록에 없는 주소로 code를 보내지 않는다.
  */
 public final class ClientMetadataDocuments {
 

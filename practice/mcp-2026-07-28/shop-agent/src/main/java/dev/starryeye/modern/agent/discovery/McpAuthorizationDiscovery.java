@@ -27,7 +27,8 @@ import java.util.regex.Pattern;
  * <p>순서는 명세가 정해 두었다.
  * <ol>
  *   <li>token 없이 MCP Server를 {@code server/discover}로 불러 401과 {@code WWW-Authenticate}를 받는다</li>
- *   <li>header의 {@code resource_metadata}를 따라간다. MCP Server와 origin이 다르면 따라가지 않고 멈춘다.
+ *   <li>header의 {@code resource_metadata}를 따라간다.
+ *       MCP Server와 origin이 다르면 따라가지 않고 멈춘다.
  *       없으면 경로형 → 루트형 well-known 순서로 찾는다</li>
  *   <li>{@code 401}의 {@code scope}와 PRM의 {@code scopes_supported}로 처음 요청할 scope를 고른다</li>
  *   <li>PRM의 {@code resource}가 부른 URL과 같은지 확인한다(RFC 9728 §3.3)</li>
@@ -58,7 +59,10 @@ public class McpAuthorizationDiscovery {
 
 	private static final Pattern SCOPE = Pattern.compile("(?<![A-Za-z_])scope=\"([^\"]*)\"");
 
-	/** 401 challenge에서 읽은 값이다. 둘 다 없을 수 있다. */
+	/**
+	 * 401 challenge에서 읽은 값이다.
+	 * 둘 다 없을 수 있다.
+	 */
 	private record Challenge(String resourceMetadata, String scope) {
 	}
 
@@ -99,13 +103,15 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * discovery 요청에 쓸 request factory다. JDK {@link HttpClient}로 보내고 연결과 응답에 시간 제한을 둔다.
+	 * discovery 요청에 쓸 request factory다.
+	 * JDK {@link HttpClient}로 보내고 연결과 응답에 시간 제한을 둔다.
 	 *
 	 * <p>{@code RestClient.create()}는 classpath에서 고른 client(이 agent에서는 Reactor Netty)의 기본값을 쓴다.
 	 * 그 기본값에는 응답 전체에 걸리는 시간 제한이 없어서, 응답을 조금씩 흘리는 서버를 끝없이 기다린다.
 	 * Spring의 {@link JdkClientHttpRequestFactory}에서 read timeout은 요청을 보낸 때부터 응답 본문을 다 읽을 때까지 적용된다.
 	 *
-	 * <p>redirect는 따라가지 않는다. JDK {@code HttpClient}의 기본값이지만, 의존성이 바뀌어도 그대로이도록 적어 둔다.
+	 * <p>redirect는 따라가지 않는다.
+	 * JDK {@code HttpClient}의 기본값이지만, 의존성이 바뀌어도 그대로이도록 적어 둔다.
 	 * HTTP/1.1로 고정해 {@code http} 주소에 h2c upgrade를 시도하지 않는다.
 	 */
 	public static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
@@ -120,19 +126,21 @@ public class McpAuthorizationDiscovery {
 	}
 
 	/**
-	 * @param authenticationMethod 문서에 선언한 token endpoint 인증 방식. Authorization Server가 이 방식을 받아야 진행한다
+	 * @param authenticationMethod 문서에 선언한 token endpoint 인증 방식.
+	 *        Authorization Server가 이 방식을 받아야 진행한다
 	 */
 	public DiscoveredAuthorization discover(String resourceUrl, ClientAuthenticationMethod authenticationMethod) {
 		Challenge challenge = challenge(resourceUrl);
 		Map<String, Object> protectedResource = protectedResourceMetadata(resourceUrl, challenge.resourceMetadata());
 
 		if (!(protectedResource.get("authorization_servers") instanceof List<?> servers) || servers.isEmpty()) {
-			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers 가 없다: " + resourceUrl);
+			throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers가 없다: " + resourceUrl);
 		}
 		// 고를 기준(credentials가 묶인 issuer)이 없으니 MCP Server가 맨 앞에 둔 값을 쓴다.
-		// 한계가 둘 있다. 첫 값이 CIMD나 문서의 인증 방식을 받지 않아도 다음 값을 시도하지 않고 멈춘다.
-		// 또 MCP Server가 고른 Authorization Server를 확인 없이 믿는다. 설정한 MCP Server가 PRM에
-		// 다른 Authorization Server를 적으면 사용자는 그 login 화면으로 간다(issuer binding이 없는 CIMD의 성질).
+		// 한계가 둘 있다.
+		// 첫 값이 CIMD나 문서의 인증 방식을 받지 않아도 다음 값을 시도하지 않고 멈춘다.
+		// 또 MCP Server가 고른 Authorization Server를 확인 없이 믿는다.
+		// 설정한 MCP Server가 PRM에 다른 Authorization Server를 적으면 사용자는 그 login 화면으로 간다(issuer binding이 없는 CIMD의 성질).
 		String issuer = String.valueOf(servers.get(0));
 
 		return new DiscoveredAuthorization((String) protectedResource.get("resource"), issuer,
@@ -192,7 +200,7 @@ public class McpAuthorizationDiscovery {
 	 */
 	private static Map<String, Object> verifyResource(Map<String, Object> metadata, String expected) {
 		if (!expected.equals(metadata.get("resource"))) {
-			throw new McpDiscoveryException("메타데이터의 resource(%s) 가 요청한 리소스(%s) 와 다르다"
+			throw new McpDiscoveryException("메타데이터의 resource가 요청한 리소스와 다르다 (받은 값: %s, 기대한 값: %s)"
 					.formatted(metadata.get("resource"), expected));
 		}
 		return metadata;
@@ -209,7 +217,7 @@ public class McpAuthorizationDiscovery {
 					.body(SERVER_DISCOVER)
 					.exchange((request, response) -> {
 						if (response.getStatusCode().value() != 401) {
-							throw new McpDiscoveryException("토큰 없는 요청에 401 이 아니라 %s 가 왔다: %s"
+							throw new McpDiscoveryException("토큰 없는 요청에 401이 아닌 응답이 왔다 (status: %s): %s"
 									.formatted(response.getStatusCode(), resourceUrl));
 						}
 						String header = response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE);
@@ -222,17 +230,17 @@ public class McpAuthorizationDiscovery {
 					});
 		}
 		catch (RestClientException ex) {
-			throw new McpDiscoveryException("%s 에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
+			throw new McpDiscoveryException("%s에 token 없이 요청하지 못했다: %s".formatted(resourceUrl, ex.getMessage()), ex);
 		}
 	}
 
 	/**
 	 * challenge의 {@code resource_metadata}는 설정한 MCP Server와 origin(scheme·host·port)이 같을 때만 따라간다.
 	 *
-	 * <p>RFC 9728은 다른 origin을 금지하지 않는다. 하지만 이 agent는 MCP Server 주소를 설정으로 고정하므로,
-	 * 다른 origin을 가리키는 값을 따라갈 이유가 없다. 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다
-	 * (Security Best Practices — SSRF). host는 {@link URI#getHost()}로 비교하므로
-	 * {@code http://localhost:8111@evil.example/}처럼 userinfo로 꾸민 주소도 다른 origin이다.
+	 * <p>RFC 9728은 다른 origin을 금지하지 않는다.
+	 * 하지만 이 agent는 MCP Server 주소를 설정으로 고정하므로, 다른 origin을 가리키는 값을 따라갈 이유가 없다.
+	 * 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다 (Security Best Practices — SSRF).
+	 * host는 {@link URI#getHost()}로 비교하므로 {@code http://localhost:8111@evil.example/}처럼 userinfo로 꾸민 주소도 다른 origin이다.
 	 */
 	private static void requireSameOrigin(String resourceMetadata, String resourceUrl) {
 		URI target;
@@ -240,10 +248,10 @@ public class McpAuthorizationDiscovery {
 			target = URI.create(resourceMetadata);
 		}
 		catch (IllegalArgumentException ex) {
-			throw new McpDiscoveryException("챌린지의 resource_metadata 가 URL 이 아니다: " + resourceMetadata, ex);
+			throw new McpDiscoveryException("챌린지의 resource_metadata가 URL이 아니다: " + resourceMetadata, ex);
 		}
 		if (!sameOrigin(target, URI.create(resourceUrl))) {
-			throw new McpDiscoveryException("챌린지의 resource_metadata(%s) 가 MCP Server(%s) 와 다른 origin 이다 — 따라가지 않는다"
+			throw new McpDiscoveryException("챌린지의 resource_metadata가 MCP Server와 다른 origin을 가리킨다 — 따라가지 않는다 (resource_metadata: %s, MCP Server: %s)"
 					.formatted(resourceMetadata, resourceUrl));
 		}
 	}
@@ -269,14 +277,14 @@ public class McpAuthorizationDiscovery {
 				continue;
 			}
 			if (!issuer.equals(metadata.get("issuer"))) {
-				throw new McpDiscoveryException("메타데이터의 issuer(%s) 가 요청한 인가 서버(%s) 와 다르다"
+				throw new McpDiscoveryException("메타데이터의 issuer가 요청한 인가 서버와 다르다 (받은 값: %s, 기대한 값: %s)"
 						.formatted(metadata.get("issuer"), issuer));
 			}
 			// MCP 2026-07-28 Authorization Security Considerations — Authorization Code Protection:
 			// client는 PKCE 지원을 metadata로 확인하고, S256이 없으면 진행하지 않는다.
 			if (!(metadata.get("code_challenge_methods_supported") instanceof List<?> methods)
 					|| !methods.contains("S256")) {
-				throw new McpDiscoveryException("인가 서버가 PKCE S256 을 광고하지 않는다: " + issuer);
+				throw new McpDiscoveryException("인가 서버가 PKCE S256을 광고하지 않는다: " + issuer);
 			}
 			// MCP 2026-07-28 Client Registration: 문서 주소를 client_id로 쓰려면 Authorization Server가 CIMD를 알려야 한다.
 			// 알리지 않는 서버에 그대로 가면 모르는 client로 거절당한다.
@@ -287,7 +295,7 @@ public class McpAuthorizationDiscovery {
 			// 문서에 선언한 인증 방식을 받지 않는 서버면 token request가 거절된다.
 			if (!(metadata.get("token_endpoint_auth_methods_supported") instanceof List<?> authMethods)
 					|| !authMethods.contains(authenticationMethod.getValue())) {
-				throw new McpDiscoveryException("Authorization Server가 token endpoint 인증 방식 %s를 받지 않는다: %s"
+				throw new McpDiscoveryException("Authorization Server가 token endpoint 인증 방식을 받지 않는다 (요청한 방식: %s, issuer: %s)"
 						.formatted(authenticationMethod.getValue(), issuer));
 			}
 			// MCP Security Best Practices: authorization URL을 열기 전에 scheme을 확인하고,
@@ -320,7 +328,7 @@ public class McpAuthorizationDiscovery {
 		boolean allowed = host != null
 				&& ("https".equalsIgnoreCase(scheme) || ("http".equalsIgnoreCase(scheme) && isLoopback(host)));
 		if (!allowed) {
-			throw new McpDiscoveryException("인가 서버 메타데이터의 %s 가 https URL 도, loopback 주소의 http URL 도 아니다: %s"
+			throw new McpDiscoveryException("인가 서버 메타데이터의 %s field가 https URL도, loopback 주소의 http URL도 아니다: %s"
 					.formatted(name, value));
 		}
 	}
@@ -332,7 +340,10 @@ public class McpAuthorizationDiscovery {
 				|| LOOPBACK_IPV4.matcher(lower).matches();
 	}
 
-	/** RFC 8414 §3.1과 OpenID Connect Discovery의 경로 규칙이다. MCP는 RFC 8414를 먼저 시도하라고 한다. */
+	/**
+	 * RFC 8414 §3.1과 OpenID Connect Discovery의 경로 규칙이다.
+	 * MCP는 RFC 8414를 먼저 시도하라고 한다.
+	 */
 	private static List<String> metadataUrls(String issuer) {
 		URI uri = URI.create(issuer);
 		String origin = origin(uri);
@@ -354,7 +365,7 @@ public class McpAuthorizationDiscovery {
 							? response.bodyTo(JSON_OBJECT) : null);
 		}
 		catch (RestClientException ex) {
-			throw new McpDiscoveryException("%s 를 읽지 못했다: %s".formatted(url, ex.getMessage()), ex);
+			throw new McpDiscoveryException("메타데이터를 읽지 못했다: %s (%s)".formatted(url, ex.getMessage()), ex);
 		}
 	}
 

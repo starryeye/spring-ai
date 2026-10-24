@@ -46,21 +46,26 @@ import java.util.TreeSet;
  * aud는 RFC 7523bis대로 이 서버의 issuer 하나만 받는다.
  * Spring의 기본 규칙은 issuer와 token·introspection·revocation·PAR endpoint 가운데 하나만 있어도 받는다.
  * 그러면 다른 서버를 audience로 함께 넣은 assertion이나, 다른 서버의 endpoint 주소를 속여 받아 낸 assertion이 통할 수 있다(audience injection).
- * {@code typ} header는 보지 않는다. 7523bis는 {@code client-authentication+jwt}를 권하지만, typ이 없는 assertion을 거절하지 말라고 한다.
+ * {@code typ} header는 보지 않는다.
+ * 7523bis는 {@code client-authentication+jwt}를 권하지만, typ이 없는 assertion을 거절하지 말라고 한다.
  *
  * <p>assertion의 수명과 재사용도 제한한다(RFC 7523 §3은 {@code exp}를 요구하고, 재사용 방지는 서버에 맡긴다).
  * {@code jti}가 있어야 하고, {@code exp}는 지금부터 5분 안이어야 한다.
- * 같은 {@code client_id}와 {@code jti}의 assertion은 만료될 때까지 한 번만 받는다. 새어 나간 assertion을 되풀이해 쓰지 못하게 하기 위해서다.
+ * 같은 {@code client_id}와 {@code jti}의 assertion은 만료될 때까지 한 번만 받는다.
+ * 새어 나간 assertion을 되풀이해 쓰지 못하게 하기 위해서다.
  * Spring의 client({@code NimbusJwtClientAuthenticationParametersConverter})는 assertion마다 UUID {@code jti}를 넣고 60초 뒤를 {@code exp}로 정하므로 그대로 통과한다.
  * 사용 기록은 메모리에 두고, 만료(시간 오차 60초 포함)가 지난 기록은 치운다.
  *
- * <p>기록 수의 상한은 두 가지다. 누구나 문서와 key를 올려 client가 될 수 있으므로, 한 client가 다른 client의 인증을 막지 못하게 나눈다.
+ * <p>기록 수의 상한은 두 가지다.
+ * 누구나 문서와 key를 올려 client가 될 수 있으므로, 한 client가 다른 client의 인증을 막지 못하게 나눈다.
  * client별 상한({@value #MAX_ASSERTIONS_PER_CLIENT})에 닿으면 그 client의 새 assertion만 거절한다(fail-closed).
- * 기록하지 못한 assertion을 받으면 되풀이를 막지 못하기 때문이다. 거절은 상한을 채운 client 자신에게만 돌아간다.
+ * 기록하지 못한 assertion을 받으면 되풀이를 막지 못하기 때문이다.
+ * 거절은 상한을 채운 client 자신에게만 돌아간다.
  * 전체 상한({@value #MAX_USED_ASSERTIONS})은 메모리를 지키기 위한 것이라, 넘어도 거절하지 않는다.
  * 지울 때가 된 기록을 먼저 치우고, 그래도 가득하면 만료가 가장 이른 기록부터 지운다.
- * 그러면 지운 기록의 assertion은 만료 전까지 되풀이를 막지 못한다. client를 여러 개 만든 쪽이 전체 상한을 채우면
- * 다른 client의 짧은 assertion 기록이 먼저 지워진다. 그래도 다른 client의 인증을 막는 것보다 낫다고 보고 이 대가를 받아들인다.
+ * 그러면 지운 기록의 assertion은 만료 전까지 되풀이를 막지 못한다.
+ * client를 여러 개 만든 쪽이 전체 상한을 채우면 다른 client의 짧은 assertion 기록이 먼저 지워진다.
+ * 그래도 다른 client의 인증을 막는 것보다 낫다고 보고 이 대가를 받아들인다.
  * 여러 대로 운영하면 기록을 공유 저장소에 둬야 한다.
  *
  * <p>decoder는 cache하지 않고 검증할 때마다 새로 만든다.
@@ -73,13 +78,22 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 	/** assertion의 {@code exp}가 지금부터 이보다 멀면 거절한다. */
 	static final Duration MAX_ASSERTION_LIFETIME = Duration.ofMinutes(5);
 
-	/** client 하나의 사용 기록 수 상한이다. 닿으면 그 client의 새 assertion만 거절한다. */
+	/**
+	 * client 하나의 사용 기록 수 상한이다.
+	 * 닿으면 그 client의 새 assertion만 거절한다.
+	 */
 	static final int MAX_ASSERTIONS_PER_CLIENT = 1_000;
 
-	/** 전체 사용 기록 수의 상한이다. 메모리를 지키기 위한 값이라, 넘으면 거절하지 않고 만료가 이른 기록부터 지운다. */
+	/**
+	 * 전체 사용 기록 수의 상한이다.
+	 * 메모리를 지키기 위한 값이라, 넘으면 거절하지 않고 만료가 이른 기록부터 지운다.
+	 */
 	static final int MAX_USED_ASSERTIONS = 10_000;
 
-	/** {@link JwtTimestampValidator}의 기본 시간 오차다. 만료된 assertion도 이만큼은 받으므로 기록도 이만큼 더 둔다. */
+	/**
+	 * {@link JwtTimestampValidator}의 기본 시간 오차다.
+	 * 만료된 assertion도 이만큼은 받으므로 기록도 이만큼 더 둔다.
+	 */
 	private static final Duration CLOCK_SKEW = Duration.ofSeconds(60);
 
 	private final ClientMetadataHttp http;
@@ -130,7 +144,8 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 	}
 
 	/**
-	 * claim을 모두 검사한 뒤에만 사용 기록을 남긴다. 다른 검사에 실패한 assertion이 기록을 차지하지 않게 하기 위해서다.
+	 * claim을 모두 검사한 뒤에만 사용 기록을 남긴다.
+	 * 다른 검사에 실패한 assertion이 기록을 차지하지 않게 하기 위해서다.
 	 */
 	OAuth2TokenValidator<Jwt> validator(RegisteredClient client) {
 		String clientId = client.getClientId();
@@ -159,7 +174,8 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 	}
 
 	/**
-	 * 이 {@code client_id}와 {@code jti}를 처음 보면 기록하고 받는다. 기록이 있고 아직 지울 때가 아니면 거절한다.
+	 * 이 {@code client_id}와 {@code jti}를 처음 보면 기록하고 받는다.
+	 * 기록이 있고 아직 지울 때가 아니면 거절한다.
 	 * 기록은 assertion을 더는 받지 않게 되는 시각({@code exp} + 시간 오차)까지 둔다.
 	 */
 	private OAuth2TokenValidatorResult firstUse(String clientId, Jwt jwt) {
@@ -173,7 +189,8 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 	}
 
 	/**
-	 * client별 사용 기록과, 지울 때가 이른 순서로 늘어선 기록 목록이다. 모든 접근을 이 객체로 동기화한다.
+	 * client별 사용 기록과, 지울 때가 이른 순서로 늘어선 기록 목록이다.
+	 * 모든 접근을 이 객체로 동기화한다.
 	 * 기록마다 한 번의 조회와 정렬된 목록의 추가·삭제라서, token request 하나에 드는 비용은 기록 수의 log에 비례한다.
 	 */
 	private static final class UsedAssertions {
@@ -191,7 +208,10 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 
 		private final int maxTotal;
 
-		/** {@code client_id}에서 그 client의 {@code jti}별 기록으로 가는 표다. 기록이 없는 client는 지운다. */
+		/**
+		 * {@code client_id}에서 그 client의 {@code jti}별 기록으로 가는 표다.
+		 * 기록이 없는 client는 지운다.
+		 */
 		private final Map<String, Map<String, Entry>> byClient = new HashMap<>();
 
 		private final TreeSet<Entry> byForgetAt = new TreeSet<>(BY_FORGET_AT);
@@ -239,7 +259,10 @@ public final class CimdJwtClientAssertionDecoderFactory implements JwtDecoderFac
 		return OAuth2TokenValidatorResult.failure(new OAuth2Error(OAuth2ErrorCodes.INVALID_CLIENT, description, null));
 	}
 
-	/** aud에는 이 서버의 issuer 하나만 있어야 한다. issuer는 요청을 받은 Authorization Server의 것이다. */
+	/**
+	 * aud에는 이 서버의 issuer 하나만 있어야 한다.
+	 * issuer는 요청을 받은 Authorization Server의 것이다.
+	 */
 	private static boolean isIssuerOnly(List<String> audience) {
 		String issuer = AuthorizationServerContextHolder.getContext().getIssuer();
 		return audience != null && audience.size() == 1 && audience.get(0).equals(issuer);

@@ -48,7 +48,8 @@ class PublicClientConsentServiceTest {
 
 	@Test
 	void client를_찾지_못하면_public_client처럼_저장하지도_찾지도_않는다() {
-		// CIMD 저장소는 문서를 가져오지 못하면 null을 돌려준다. 이때 confidential client로 보면 consent를 건너뛸 수 있다.
+		// CIMD 저장소는 문서를 가져오지 못하면 null을 돌려준다.
+		// 이때 confidential client로 보면 consent를 건너뛸 수 있다.
 		RegisteredClient unknown = client("unknown-client", ClientAuthenticationMethod.PRIVATE_KEY_JWT);
 
 		this.service.save(consent(unknown));
@@ -65,7 +66,8 @@ class PublicClientConsentServiceTest {
 		OAuth2AuthorizationConsent stored = this.delegate.findById(CONFIDENTIAL_CLIENT.getId(), "user");
 		assertThat(stored.getAuthorities()).extracting(GrantedAuthority::getAuthority)
 				.anyMatch(authority -> authority.startsWith(PublicClientConsentService.REDIRECT_URIS_AUTHORITY_PREFIX));
-		// consent 화면과 Spring은 getScopes()만 본다. hash는 scope가 아니다.
+		// consent 화면과 Spring은 getScopes()만 본다.
+		// hash는 scope가 아니다.
 		assertThat(this.service.findById(CONFIDENTIAL_CLIENT.getId(), "user").getScopes()).containsExactly("profile");
 	}
 
@@ -77,7 +79,8 @@ class PublicClientConsentServiceTest {
 		service.save(consent(CONFIDENTIAL_CLIENT));
 		assertThat(service.findById(CONFIDENTIAL_CLIENT.getId(), "user")).isNotNull();
 
-		// 문서 host를 장악한 쪽이 redirect 주소를 바꿨다. 저장된 consent로 새 주소에 code가 나가면 안 된다.
+		// 문서 host를 장악한 쪽이 redirect 주소를 바꿨다.
+		// 저장된 consent로 새 주소에 code가 나가면 안 된다.
 		clients.put(RegisteredClient.from(CONFIDENTIAL_CLIENT)
 				.redirectUri("https://attacker.example/cb")
 				.build());

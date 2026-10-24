@@ -7,8 +7,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 
 /**
- * 꼭 필요한 설정이다. {@code McpAuthorizationServerAutoConfiguration}이 만드는 Authorization Server
- * filter chain은 {@code OAuth2AuthorizationServerConfigurer#oidc(...)}를 부르지 않는다.
+ * 꼭 필요한 설정이다.
+ * {@code McpAuthorizationServerAutoConfiguration}이 만드는 Authorization Server filter chain은
+ * {@code OAuth2AuthorizationServerConfigurer#oidc(...)}를 부르지 않는다.
  * 그래서 {@code /.well-known/openid-configuration}은 security matcher 범위에는 들어가지만,
  * 실제로 응답하는 filter가 없어 404가 난다.
  * {@code openid} scope로 login하는 {@code oauth2Login} 흐름도 id_token을 받지 못해 실패한다.

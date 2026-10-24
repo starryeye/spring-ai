@@ -9,8 +9,10 @@ import java.util.List;
  * 그래서 {@code 401}의 {@code scope}를 먼저 쓰고, 없으면 PRM의 {@code scopes_supported} 전부를 쓰고,
  * 둘 다 없으면 scope 없이 요청한다.
  *
- * @param scopes 요청할 scope. 비어 있으면 scope parameter를 보내지 않는다
- * @param source 어디서 고른 값인지. 실행 출력에 쓴다
+ * @param scopes 요청할 scope.
+ *        비어 있으면 scope parameter를 보내지 않는다
+ * @param source 어디서 고른 값인지.
+ *        실행 출력에 쓴다
  */
 public record ScopeSelection(List<String> scopes, String source) {
 

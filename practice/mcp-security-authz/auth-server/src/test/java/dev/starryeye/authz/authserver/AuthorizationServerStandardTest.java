@@ -181,10 +181,9 @@ class AuthorizationServerStandardTest {
 	 * 이 값은 원래 authorization request의 state parameter가 아니라, 대기 중인 authorization을 찾기 위해
 	 * 서버가 새로 발급한 값이다.
 	 *
-	 * DefaultConsentPage는 Spring Authorization Server 소스에 "For internal use only"로
-	 * 표시된 비공개 클래스이고, 이 렌더링 결과를 정규식으로 파싱한다. DefaultConsentPage의
-	 * 렌더링 형식이 바뀌면 이 정규식은 값을 찾지 못해 이 테스트가 실패한다. spring-security-test
-	 * 에는 consent 화면 파싱을 위한 공개 지원이 없어 지금은 이 결합을 대체할 방법이 없다.
+	 * DefaultConsentPage는 Spring Authorization Server 소스에 "For internal use only"로 표시된 비공개 클래스이고, 이 렌더링 결과를 정규식으로 파싱한다.
+	 * DefaultConsentPage의 렌더링 형식이 바뀌면 이 정규식은 값을 찾지 못해 이 테스트가 실패한다.
+	 * spring-security-test 에는 consent 화면 파싱을 위한 공개 지원이 없어 지금은 이 결합을 대체할 방법이 없다.
 	 */
 	private static String 동의화면_state(String html) {
 		Matcher matcher = Pattern.compile("name=\"state\" value=\"([^\"]*)\"").matcher(html);
@@ -270,7 +269,10 @@ class AuthorizationServerStandardTest {
 		return 기밀클라이언트_인가(uri.encode().build().toUri(), 동의할_scope(scope));
 	}
 
-	/** 기밀 client 의 authorization request 주소다. PKCE 와 resource 를 넣는다. */
+	/**
+	 * 기밀 client 의 authorization request 주소다.
+	 * PKCE 와 resource 를 넣는다.
+	 */
 	static URI 기밀클라이언트_인가요청_URI(String scope) {
 		return UriComponentsBuilder.fromPath("/oauth2/authorize")
 				.queryParam("response_type", "code")
@@ -303,7 +305,10 @@ class AuthorizationServerStandardTest {
 		return UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build();
 	}
 
-	/** consent 할 scope 다. openid 는 consent 대상이 아니라 뺀다. */
+	/**
+	 * consent 할 scope 다.
+	 * openid 는 consent 대상이 아니라 뺀다.
+	 */
 	static String[] 동의할_scope(String scope) {
 		return Arrays.stream(scope.split(" ")).filter(s -> !"openid".equals(s)).toArray(String[]::new);
 	}
@@ -468,8 +473,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 스킴_토큰에_따옴표가_섞이면_Basic_으로_폴백하고_주입되지_않는다() throws Exception {
-		// RFC 7230 §3.2.6 token 문법에 어긋나는 스킴(따옴표·공백 포함)은 header에 그대로
-		// 옮기면 WWW-Authenticate 값 주입으로 이어질 수 있다. 기본 스킴으로 폴백해야 한다.
+		// RFC 7230 §3.2.6 token 문법에 어긋나는 스킴(따옴표·공백 포함)은 header에 그대로 옮기면 WWW-Authenticate 값 주입으로 이어질 수 있다.
+		// 기본 스킴으로 폴백해야 한다.
 		this.mockMvc.perform(post("/oauth2/token")
 						.header(HttpHeaders.AUTHORIZATION, "Basic\" , evil=\"x not-a-real-credential")
 						.params(인증방법이_허용되지_않는_클라이언트_자격증명()))
@@ -643,9 +648,8 @@ class AuthorizationServerStandardTest {
 
 	@Test
 	void 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다() throws Exception {
-		// redirect_uri 자체가 미등록이면 그 주소로 redirect하지 않는다 — open redirector를
-		// 막기 위한 RFC 6749 §4.1.2.1 요구다. IssuerIdentifyingAuthorizationResponseHandler가
-		// 이 경우 redirectUri가 null로 지워진 예외를 받아 response.sendError로 직접 응답한다.
+		// redirect_uri 자체가 미등록이면 그 주소로 redirect하지 않는다 — open redirector를 막기 위한 RFC 6749 §4.1.2.1 요구다.
+		// IssuerIdentifyingAuthorizationResponseHandler가 이 경우 redirectUri가 null로 지워진 예외를 받아 response.sendError로 직접 응답한다.
 		UriComponentsBuilder uri = UriComponentsBuilder.fromPath("/oauth2/authorize")
 				.queryParam("response_type", "code")
 				.queryParam("client_id", PUBLIC_CLIENT_ID)
@@ -684,9 +688,8 @@ class AuthorizationServerStandardTest {
 	void 루프백_리다이렉트는_등록된_포트와_달라도_허용되고_경로가_다르면_거부된다() throws Exception {
 		// RFC 8252 §7.3 · OAuth 2.1 §8.4.2 — 네이티브 앱은 실행 시점에 OS에서 임시 포트를
 		// 받으므로, Authorization Server는 루프백 IP redirect의 포트를 요청 시점에 정하게 허용해야 한다(MUST).
-		// OAuth2AuthorizationCodeRequestAuthenticationValidator는 호스트가 루프백이면 등록 URI의
-		// 포트를 요청 포트로 바꿔 비교한다. 포트 외의 부분(스킴·호스트·경로)은 정확히 일치해야 한다 —
-		// 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다 test가 확인한다.
+		// OAuth2AuthorizationCodeRequestAuthenticationValidator는 호스트가 루프백이면 등록 URI의 포트를 요청 포트로 바꿔 비교한다.
+		// 포트 외의 부분(스킴·호스트·경로)은 정확히 일치해야 한다 — 경로가 다른 경우는 등록되지_않은_redirect_uri_는_리다이렉트_없이_거부된다 test가 확인한다.
 		String otherPort = "http://127.0.0.1:9999/callback";
 		MvcResult consentPage = this.mockMvc
 				.perform(get(공개클라이언트_인가요청_URI(true, RESOURCE)

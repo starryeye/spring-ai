@@ -26,21 +26,29 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>Authorization Server는 client가 고른 주소로 직접 요청을 보낸다.
  * 그래서 주소가 내부망을 가리키면 거절한다(SSRF, CIMD draft §6.5).
- * 학습 환경의 agent 문서 host 하나만 예외로 둔다. 예외는 scheme·host·port가 모두 같을 때만 적용한다.
+ * 학습 환경의 agent 문서 host 하나만 예외로 둔다.
+ * 예외는 scheme·host·port가 모두 같을 때만 적용한다.
  * 검사한 뒤 실제로 연결할 때 DNS가 다른 주소를 돌려주는 경우(DNS rebinding)는 막지 않는다.
  *
- * <p>host 조회(DNS)에는 시간 제한을 둔다. host는 client가 고르므로, 응답이 느린 DNS 서버를 가리키면 요청 thread가 그동안 묶인다.
+ * <p>host 조회(DNS)에는 시간 제한을 둔다.
+ * host는 client가 고르므로, 응답이 느린 DNS 서버를 가리키면 요청 thread가 그동안 묶인다.
  * JDK의 {@link InetAddress#getAllByName}에는 시간 제한이 없어서, 조회는 별도 thread에서 하고 기다리는 시간만 자른다.
  * 시간을 넘긴 조회 thread는 OS의 조회가 끝날 때까지 남으므로, 조회 thread 수에도 상한을 두고 자리가 없으면 바로 실패한다.
  */
 public final class ClientIdUrlValidator {
 
-	/** 동시에 진행하는 host 조회 thread 수의 상한이다. 느린 DNS가 thread를 끝없이 늘리지 못하게 한다. */
+	/**
+	 * 동시에 진행하는 host 조회 thread 수의 상한이다.
+	 * 느린 DNS가 thread를 끝없이 늘리지 못하게 한다.
+	 */
 	private static final int MAX_RESOLVER_THREADS = 16;
 
 	private static final Duration DEFAULT_RESOLVE_TIMEOUT = Duration.ofSeconds(2);
 
-	/** {@code 64:ff9b::/96}. 앞 12 byte가 정해져 있고, 마지막 4 byte가 IPv4 주소다. */
+	/**
+	 * {@code 64:ff9b::/96}.
+	 * 앞 12 byte가 정해져 있고, 마지막 4 byte가 IPv4 주소다.
+	 */
 	private static final byte[] NAT64_WELL_KNOWN = { 0, 0x64, (byte) 0xff, (byte) 0x9b, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 	/** {@code 64:ff9b:1::/48}. */
@@ -66,7 +74,8 @@ public final class ClientIdUrlValidator {
 	}
 
 	/**
-	 * @param resolveTimeout host 조회를 기다리는 시간. 설정의 연결 시간 제한({@code mcp.cimd.connect-timeout})과 같은 값을 쓴다
+	 * @param resolveTimeout host 조회를 기다리는 시간.
+	 *        설정의 연결 시간 제한({@code mcp.cimd.connect-timeout})과 같은 값을 쓴다
 	 */
 	public ClientIdUrlValidator(String loopbackException, HostResolver resolver, Duration resolveTimeout) {
 		this.loopbackException = (loopbackException == null || loopbackException.isBlank())
@@ -117,7 +126,8 @@ public final class ClientIdUrlValidator {
 	 * {@code 64:ff9b::/96}·{@code 64:ff9b:1::/48}(NAT64), {@code 2002::/16}(6to4), {@code 2001::/32}(Teredo).
 	 * 변환 대역은 담긴 IPv4가 내부 주소여도 겉으로는 공개 IPv6처럼 보이므로 대역 전체를 막는다.
 	 *
-	 * <p>이 blocklist는 완전하지 않다. 대역은 계속 생기고, 검사한 뒤 연결할 때 DNS가 다른 주소를 줄 수도 있다(DNS rebinding).
+	 * <p>이 blocklist는 완전하지 않다.
+	 * 대역은 계속 생기고, 검사한 뒤 연결할 때 DNS가 다른 주소를 줄 수도 있다(DNS rebinding).
 	 * 운영에서는 내부망으로 나갈 수 없는 egress proxy를 거치게 하거나, 검사한 주소로 연결을 고정하는 방법을 쓴다.
 	 */
 	static boolean isInternal(InetAddress address) {

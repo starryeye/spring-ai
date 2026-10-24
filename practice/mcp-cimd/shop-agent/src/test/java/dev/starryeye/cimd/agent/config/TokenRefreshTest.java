@@ -49,7 +49,8 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * 만료된 access token은 refresh로 갱신된다. 갱신 요청에도 resource를 넣어야 token의 aud가 그대로다.
+ * 만료된 access token은 refresh로 갱신된다.
+ * 갱신 요청에도 resource를 넣어야 token의 aud가 그대로다.
  * ChatGPT형은 refresh 요청에도 assertion을 붙이고, Claude형은 client_id만 보낸다.
  */
 class TokenRefreshTest {
@@ -154,7 +155,8 @@ class TokenRefreshTest {
         SignedJWT assertion = SignedJWT.parse(refreshed.form().getFirst("client_assertion"));
         assertThat(assertion.verify(new RSASSAVerifier(signingKey.key().toRSAPublicKey()))).isTrue();
         assertThat(assertion.getJWTClaimsSet().getSubject()).isEqualTo(CHATGPT);
-        // RFC 7523bis: aud는 Authorization Server의 issuer 하나다. typ으로 client assertion임을 밝힌다.
+        // RFC 7523bis: aud는 Authorization Server의 issuer 하나다.
+        // typ으로 client assertion임을 밝힌다.
         assertThat(assertion.getJWTClaimsSet().getAudience()).containsExactly(ISSUER);
         assertThat(assertion.getHeader().getType()).hasToString("client-authentication+jwt");
     }

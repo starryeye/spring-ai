@@ -38,18 +38,25 @@ public class StepUpRequiredException extends RuntimeException {
         return this.scopes;
     }
 
-    /** 권한이 모자랐던 tool 이름이다. transport 단계에서는 알 수 없어 {@code null}일 수 있다. */
+    /**
+     * 권한이 모자랐던 tool 이름이다.
+     * transport 단계에서는 알 수 없어 {@code null}일 수 있다.
+     */
     public String tool() {
         return this.tool;
     }
 
-    /** 원래 예외를 cause로 남긴다. transport에서 던진 자리의 stack trace를 잃지 않기 위해서다. */
+    /**
+     * 원래 예외를 cause로 남긴다.
+     * transport에서 던진 자리의 stack trace를 잃지 않기 위해서다.
+     */
     public StepUpRequiredException withTool(String tool) {
         return new StepUpRequiredException(this.scopes, tool, this);
     }
 
     /**
-     * 원인 사슬에서 이 예외를 찾는다. MCP SDK와 Spring AI가 예외를 감쌀 수 있어서다.
+     * 원인 사슬에서 이 예외를 찾는다.
+     * MCP SDK와 Spring AI가 예외를 감쌀 수 있어서다.
      * {@code initCause}는 자기 자신만 막으므로 A → B → A 같은 고리가 생길 수 있다.
      * 한 번 본 예외를 다시 만나면 멈춘다.
      */

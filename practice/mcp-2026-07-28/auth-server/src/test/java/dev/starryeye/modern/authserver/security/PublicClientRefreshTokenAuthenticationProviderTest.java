@@ -59,7 +59,10 @@ class PublicClientRefreshTokenAuthenticationProviderTest {
 				Map.of("grant_type", "refresh_token", "refresh_token", refreshToken));
 	}
 
-	/** grant를 하나 저장한다. {@code recordedMethod}가 null이면 처음 저장할 때의 인증 방식 기록이 없는 grant다. */
+	/**
+	 * grant를 하나 저장한다.
+	 * {@code recordedMethod}가 null이면 처음 저장할 때의 인증 방식 기록이 없는 grant다.
+	 */
 	void grant(RegisteredClient client, String refreshToken, String recordedMethod) {
 		Instant now = Instant.now();
 		OAuth2Authorization.Builder grant = OAuth2Authorization.withRegisteredClient(client)
@@ -91,7 +94,8 @@ class PublicClientRefreshTokenAuthenticationProviderTest {
 
 	@Test
 	void private_key_jwt로_받은_grant는_지금_문서가_none이어도_public_client로_refresh하지_못한다() {
-		// 문서 host를 장악한 쪽이 문서를 none으로 바꿨다. grant는 private_key_jwt로 받은 것이다.
+		// 문서 host를 장악한 쪽이 문서를 none으로 바꿨다.
+		// grant는 private_key_jwt로 받은 것이다.
 		grant(CLAUDE_CLIENT, "rt-pkjwt", "private_key_jwt");
 
 		invalidClient(refresh(CLAUDE, "rt-pkjwt"));

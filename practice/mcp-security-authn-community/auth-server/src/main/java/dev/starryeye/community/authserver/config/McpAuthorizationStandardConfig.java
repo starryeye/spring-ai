@@ -28,9 +28,9 @@ import java.util.List;
 /**
  * community module의 Authorization Server 자동 구성 위에 MCP authorization 명세의 요구를 더한다.
  *
- * <p>filter chain을 직접 만들지 않는다. 직접 만들면 {@code @ConditionalOnDefaultWebSecurity}
- * 때문에 module의 Authorization Server 설정이 통째로 빠진다. 대신 module이 열어 둔 확장점
- * ({@code Customizer<McpAuthorizationServerConfigurer>})으로 넣는다.
+ * <p>filter chain을 직접 만들지 않는다.
+ * 직접 만들면 {@code @ConditionalOnDefaultWebSecurity} 때문에 module의 Authorization Server 설정이 통째로 빠진다.
+ * 대신 module이 열어 둔 확장점 ({@code Customizer<McpAuthorizationServerConfigurer>})으로 넣는다.
  *
  * <p>module의 {@code ResourceIdentifierAudienceTokenCustomizer}는 access token이면서 {@code openid}가
  * 승인됐을 때만 건너뛰고, ID token에는 {@code aud}를 {@code resource}로 덮어쓴다.
@@ -54,9 +54,8 @@ import java.util.List;
  * <p>같은 이유로 이 클래스의 {@code authorizationServerMetadataCustomizer} 호출은 module
  * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)}와도 부딪힌다
  * (community module({@code mcp-authorization-server} 0.1.14) 확인: {@code cimd(true)}면 init()이 그 메서드로
- * {@code client_id_metadata_document_supported} claim을 먼저 넣는다. 그 뒤
- * {@code this.authServerCustomizer.forEach(...)}로 이 클래스가 등록한
- * customizer가 실행되어 같은 field를 덮어쓴다).
+ * {@code client_id_metadata_document_supported} claim을 먼저 넣는다.
+ * 그 뒤 {@code this.authServerCustomizer.forEach(...)}로 이 클래스가 등록한 customizer가 실행되어 같은 field를 덮어쓴다).
  * 이 프로젝트는 CIMD를 켜지 않으므로(properties로 켜는 경로도 없다) 지금은 문제가 없다.
  * 하지만 {@code McpAuthorizationServerConfigurer#cimd(true)}를 부르는 customizer bean이 더해지는 순간
  * 그 claim은 조용히 사라진다.
@@ -83,7 +82,8 @@ public class McpAuthorizationStandardConfig {
 
     /**
      * 위 세 claim에 넣을 값이다.
-     * 임의로 고른 목록이 아니다. Spring Authorization Server의 {@code JwtClientAssertionDecoderFactory}가
+     * 임의로 고른 목록이 아니다.
+     * Spring Authorization Server의 {@code JwtClientAssertionDecoderFactory}가
      * client_secret_jwt·private_key_jwt client 인증에서 실제로 검증기를 만들 수 있는 알고리즘 전부다.
      * 대칭 key 방식인 {@code MacAlgorithm}(HS256/HS384/HS512) 3종과
      * 비대칭 key 방식인 {@code SignatureAlgorithm}(RS/ES/PS 256/384/512) 9종이다.
@@ -141,12 +141,12 @@ public class McpAuthorizationStandardConfig {
                                         // token endpoint가 이 방식을 받는다고 알린다.
                                         .tokenEndpointAuthenticationMethods(methods ->
                                                 methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD))))
-                        // RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
-                        // WWW-Authenticate를 붙인다. Spring의 기본 handler는 이 부분을 TODO로 남겨 두었다.
+                        // RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는 WWW-Authenticate를 붙인다.
+                        // Spring의 기본 handler는 이 부분을 TODO로 남겨 두었다.
                         .clientAuthentication(clientAuthentication -> clientAuthentication
                                 .errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
-                        // OidcDiscoveryConfig가 oidc()를 켜 둔다. providerConfigurationCustomizer는
-                        // OidcProviderConfigurationEndpointConfigurer의 field 하나에 담긴다
+                        // OidcDiscoveryConfig가 oidc()를 켜 둔다.
+                        // providerConfigurationCustomizer는 OidcProviderConfigurationEndpointConfigurer의 field 하나에 담긴다
                         // (Spring Security(spring-security-config 7.1.0) 소스 확인).
                         // 그래서 token/revocation/introspection 세 claim을 모두 이 한 호출에 모아야 한다.
                         // OidcProviderConfigurationEndpointFilter도 Authorization Server Metadata와 마찬가지로 세

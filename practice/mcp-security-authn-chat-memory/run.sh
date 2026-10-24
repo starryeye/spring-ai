@@ -4,8 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
-# Java 21 확보 (시스템 기본은 17). sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수
-# 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
+# Java 21 확보 (시스템 기본은 17).
+# sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
   JAVA21_HOME=$(find "$HOME/.sdkman/candidates/java" -maxdepth 1 -type d -name '21.*' 2>/dev/null | sort -V | tail -1)
   if [ -n "$JAVA21_HOME" ]; then
@@ -13,14 +13,14 @@ if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q 
   fi
 fi
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
-  echo "[실패] Java 21 을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME 을 Java 21 로 직접 지정하세요." >&2
+  echo "[실패] Java 21을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME을 Java 21로 직접 지정하세요." >&2
   exit 1
 fi
 echo "JAVA_HOME=${JAVA_HOME}"
 
 # ollama 준비
 if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "ollama 를 시작합니다..."
+  echo "ollama를 시작합니다..."
   ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
   for _ in $(seq 1 30); do
     curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
@@ -35,7 +35,7 @@ fi
 start() {
   local dir="$1" port="$2"
   if lsof -ti tcp:"$port" -sTCP:LISTEN > /dev/null 2>&1; then
-    echo "  [건너뜀] $dir — 포트 $port 가 이미 사용 중입니다"
+    echo "  [건너뜀] $dir — 이미 사용 중인 포트: $port"
     return
   fi
   echo "  [기동] $dir (:$port)"
@@ -52,7 +52,7 @@ wait_for() {
     fi
     sleep 1
   done
-  echo "  [실패] $name 이 뜨지 않았습니다. logs/$name.log 마지막 20줄:"
+  echo "  [실패] 서버가 뜨지 않았습니다: $name — logs/$name.log 마지막 20줄:"
   tail -20 "logs/$name.log" || true
   return 1
 }
@@ -71,14 +71,14 @@ cat <<'EOF'
 
 준비되었습니다.
 
-  브라우저에서 http://localhost:8130/ 을 엽니다.
+  브라우저에서 열 주소: http://localhost:8130/
   로그인: alice / alice (또는 bob / bob)
 
   토큰 없이 MCP 서버를 직접 찔러보려면:
     curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8131/mcp \
       -H 'Content-Type: application/json' \
       -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-  → 401 이 나와야 합니다.
+  → 401이 나와야 합니다.
 
   종료: ./stop.sh
 EOF

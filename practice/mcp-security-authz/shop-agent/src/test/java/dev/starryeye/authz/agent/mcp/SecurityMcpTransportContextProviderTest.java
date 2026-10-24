@@ -28,8 +28,9 @@ class SecurityMcpTransportContextProviderTest {
 
     @Test
     void 익명_인증이면_빈_컨텍스트를_준다() {
-        // AnonymousAuthenticationToken.isAuthenticated()는 true다. 그래서 provider가 익명 인증을 따로 거르지 않으면
-        // 익명 사용자도 "인증됨"으로 보고 context에 담는다. 이 테스트는 그 검사가 빠지지 않게 지킨다.
+        // AnonymousAuthenticationToken.isAuthenticated()는 true다.
+        // 그래서 provider가 익명 인증을 따로 거르지 않으면 익명 사용자도 "인증됨"으로 보고 context에 담는다.
+        // 이 테스트는 그 검사가 빠지지 않게 지킨다.
         var anonymous = new AnonymousAuthenticationToken(
                 "key", "anonymousUser", List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS")));
         SecurityContextHolder.getContext().setAuthentication(anonymous);

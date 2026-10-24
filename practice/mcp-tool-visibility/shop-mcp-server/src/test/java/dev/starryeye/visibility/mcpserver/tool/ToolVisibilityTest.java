@@ -43,7 +43,8 @@ class ToolVisibilityTest {
 
 	@Test
 	void 등록되지_않은_이름은_숨긴_tool이_아니다() {
-		// 없는 tool은 SDK가 "모르는 tool"로 답한다. 숨긴 tool도 같은 답을 받게 하므로 여기서는 구분만 한다.
+		// 없는 tool은 SDK가 "모르는 tool"로 답한다.
+		// 숨긴 tool도 같은 답을 받게 하므로 여기서는 구분만 한다.
 		assertThat(this.visibility.hidden("user2", "noSuchTool")).isFalse();
 	}
 

@@ -71,7 +71,10 @@ public class McpTransportConfig {
 		return registration;
 	}
 
-	/** 장바구니 저장소다. 만료 계산은 {@link Clock}으로 한다(테스트가 시간을 돌릴 수 있게). */
+	/**
+	 * 장바구니 저장소다.
+	 * 만료 계산은 {@link Clock}으로 한다(테스트가 시간을 돌릴 수 있게).
+	 */
 	@Bean
 	public BasketStore basketStore() {
 		return new BasketStore(Clock.systemUTC());

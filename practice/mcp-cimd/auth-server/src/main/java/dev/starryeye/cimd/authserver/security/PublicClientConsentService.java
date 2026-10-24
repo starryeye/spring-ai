@@ -29,14 +29,18 @@ import java.util.HexFormat;
  * {@link ConsentableScopeValidator}가 막는다.
  *
  * <p>confidential client의 consent는 감싼 서비스에 맡기되, 그때 문서의 {@code redirect_uris}로 만든 hash를 함께 저장한다.
- * 사용자가 허락한 것은 "그 주소들로 돌아가는 client"다. 문서 host를 손에 넣은 쪽이 redirect 주소를 바꾸면,
- * 저장된 consent만으로 consent 화면 없이 새 주소로 code가 나간다. 그래서 조회할 때 지금 문서의 hash와 다르면
- * 저장된 consent가 없는 것처럼 {@code null}을 돌려주어 consent를 다시 묻는다. hash가 없는 consent도 쓰지 않는다.
+ * 사용자가 허락한 것은 "그 주소들로 돌아가는 client"다.
+ * 문서 host를 손에 넣은 쪽이 redirect 주소를 바꾸면, 저장된 consent만으로 consent 화면 없이 새 주소로 code가 나간다.
+ * 그래서 조회할 때 지금 문서의 hash와 다르면 저장된 consent가 없는 것처럼 {@code null}을 돌려주어 consent를 다시 묻는다.
+ * hash가 없는 consent도 쓰지 않는다.
  * hash는 {@code SCOPE_}로 시작하지 않는 authority라서, consent 화면과 Spring이 보는 {@code getScopes()}에는 섞이지 않는다.
  */
 public class PublicClientConsentService implements OAuth2AuthorizationConsentService {
 
-	/** consent에 함께 저장하는 문서 redirect 주소 목록 hash의 authority 앞부분이다. 뒤에 SHA-256 hex가 붙는다. */
+	/**
+	 * consent에 함께 저장하는 문서 redirect 주소 목록 hash의 authority 앞부분이다.
+	 * 뒤에 SHA-256 hex가 붙는다.
+	 */
 	public static final String REDIRECT_URIS_AUTHORITY_PREFIX = "REDIRECT_URIS_SHA256_";
 
 	private final OAuth2AuthorizationConsentService delegate;
@@ -96,7 +100,10 @@ public class PublicClientConsentService implements OAuth2AuthorizationConsentSer
 		return authority.getAuthority() != null && authority.getAuthority().startsWith(REDIRECT_URIS_AUTHORITY_PREFIX);
 	}
 
-	/** 주소 목록을 정렬해 줄바꿈으로 이은 문자열의 SHA-256이다. 순서만 바뀐 문서는 같은 값이 된다. */
+	/**
+	 * 주소 목록을 정렬해 줄바꿈으로 이은 문자열의 SHA-256이다.
+	 * 순서만 바뀐 문서는 같은 값이 된다.
+	 */
 	private static GrantedAuthority redirectUrisAuthority(RegisteredClient client) {
 		String joined = String.join("\n", client.getRedirectUris().stream().sorted().toList());
 		try {

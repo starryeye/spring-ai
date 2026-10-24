@@ -24,7 +24,8 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     /**
-     * {@code /api/chat}과 {@code DELETE /api/conversations/{label}} 모두 CSRF를 검사한다. 예외는 없다.
+     * {@code /api/chat}과 {@code DELETE /api/conversations/{label}} 모두 CSRF를 검사한다.
+     * 예외는 없다.
      * {@code csrf.spa()}는 JS가 읽을 수 있는 {@code XSRF-TOKEN} cookie를 응답에 넣는다.
      * index.html은 그 값을 {@code X-XSRF-TOKEN} header로 되돌려 보낸다.
      */
