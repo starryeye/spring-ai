@@ -23,14 +23,14 @@ if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q 
   fi
 fi
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
-  echo "[실패] Java 21 을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME 을 Java 21 로 직접 지정하세요." >&2
+  echo "[실패] Java 21을 찾지 못했습니다. \$HOME/.sdkman/candidates/java 아래에 21.x 후보를 설치하거나 JAVA_HOME을 Java 21로 직접 지정하세요." >&2
   exit 1
 fi
 echo "JAVA_HOME=${JAVA_HOME}"
 
 # ollama 준비
 if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "ollama 를 시작합니다..."
+  echo "ollama를 시작합니다..."
   ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
   for _ in $(seq 1 30); do
     curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
@@ -78,7 +78,7 @@ start() {
   local dir="$1" port="$2"
   shift 2
   if lsof -ti tcp:"$port" -sTCP:LISTEN > /dev/null 2>&1; then
-    echo "  [건너뜀] $dir — 포트 $port 가 이미 사용 중입니다"
+    echo "  [건너뜀] $dir — 이미 사용 중인 포트: $port"
     return
   fi
   echo "  [기동] $dir (:$port)"
@@ -97,7 +97,7 @@ wait_for() {
     fi
     sleep 1
   done
-  echo "  [실패] $url 이 뜨지 않았습니다. logs/$name.log 마지막 20줄:"
+  echo "  [실패] 서버가 뜨지 않았습니다: $url — logs/$name.log 마지막 20줄:"
   tail -20 "logs/$name.log" || true
   return 1
 }
@@ -125,7 +125,7 @@ wait_for shop-agent https://localhost:8182/oauth/client.json --cacert certs/clie
 if [ "$AGENT_ALREADY_RUNNING" = "1" ]; then
   echo
   echo "준비되었습니다. 다만 shop-agent는 이미 떠 있어서 client type을 바꾸지 않았습니다."
-  echo "  지금 agent의 client type은 이번에 고른 값($CLIENT_TYPE)과 다를 수 있습니다."
+  echo "  지금 agent의 client type은 이번에 고른 값과 다를 수 있습니다 (이번에 고른 값: $CLIENT_TYPE)."
   echo "  바꾸려면 ./stop.sh 뒤에 ./run.sh $CLIENT_TYPE 순서로 실행하세요."
 else
   echo
@@ -134,7 +134,7 @@ fi
 
 cat <<EOF
 
-  브라우저에서 http://localhost:8180/ 을 엽니다.
+  브라우저에서 열 주소: http://localhost:8180/
   로그인: user / password (점원), user2 / password (손님)
 
   agent가 올린 client 문서:
