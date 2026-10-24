@@ -32,11 +32,11 @@ import java.util.List;
  *
  * <ul>
  *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다.
- *   Spring Security보다 먼저 돈다.</li>
+ *       Spring Security보다 먼저 돈다.</li>
  *   <li>{@link ToolScopeFilter} — token의 scope가 이 요청에 충분한지 본다.
- *   인증 뒤, 버전 검사 앞에서 돈다.</li>
+ *       인증 뒤, 버전 검사 앞에서 돈다.</li>
  *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다.
- *   scope 검사 뒤에 돈다.</li>
+ *       scope 검사 뒤에 돈다.</li>
  * </ul>
  *
  * <p>Streamable HTTP transport bean과 그 router bean은 직접 만든다.

@@ -54,9 +54,8 @@ import java.util.List;
  * <p>같은 이유로 이 클래스의 {@code authorizationServerMetadataCustomizer} 호출은 module
  * 자신의 {@code McpAuthorizationServerConfigurer#init(HttpSecurity)}와도 부딪힌다
  * (community module({@code mcp-authorization-server} 0.1.14) 확인: {@code cimd(true)}면 init()이 그 메서드로
- * {@code client_id_metadata_document_supported} claim을 먼저 넣는다. 그 뒤
- * {@code this.authServerCustomizer.forEach(...)}로 이 클래스가 등록한
- * customizer가 실행되어 같은 field를 덮어쓴다).
+ * {@code client_id_metadata_document_supported} claim을 먼저 넣는다.
+ * 그 뒤 {@code this.authServerCustomizer.forEach(...)}로 이 클래스가 등록한 customizer가 실행되어 같은 field를 덮어쓴다).
  * 이 프로젝트는 CIMD를 켜지 않으므로(properties로 켜는 경로도 없다) 지금은 문제가 없다.
  * 하지만 {@code McpAuthorizationServerConfigurer#cimd(true)}를 부르는 customizer bean이 더해지는 순간
  * 그 claim은 조용히 사라진다.
@@ -147,8 +146,8 @@ public class McpAuthorizationStandardConfig {
                         .clientAuthentication(clientAuthentication -> clientAuthentication
                                 .errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
                         // OidcDiscoveryConfig가 oidc()를 켜 둔다.
-                        // providerConfigurationCustomizer는 OidcProviderConfigurationEndpointConfigurer의
-                        // field 하나에 담긴다 (Spring Security(spring-security-config 7.1.0) 소스 확인).
+                        // providerConfigurationCustomizer는 OidcProviderConfigurationEndpointConfigurer의 field 하나에 담긴다
+                        // (Spring Security(spring-security-config 7.1.0) 소스 확인).
                         // 그래서 token/revocation/introspection 세 claim을 모두 이 한 호출에 모아야 한다.
                         // OidcProviderConfigurationEndpointFilter도 Authorization Server Metadata와 마찬가지로 세
                         // endpoint 모두에 clientAuthenticationMethods()(private_key_jwt·client_secret_jwt 포함)를

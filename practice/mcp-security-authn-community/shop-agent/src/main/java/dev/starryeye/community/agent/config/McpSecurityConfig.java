@@ -90,8 +90,8 @@ public class McpSecurityConfig {
      * <p>static helper({@link #buildAuthorizedClientManager})와 이름을 같게 두면, 이 bean
      * 메서드가 구체 타입({@code RestClientRefreshTokenTokenResponseClient})을 받는
      * 시그니처가 더 구체적인 것으로 골라져 자기 자신을 다시 부르는 무한 재귀가 된다.
-     * 그 경우 테스트({@code McpSecurityConfig.authorizedClientManager(...)}를
-     * 바깥의 static context에서 부른다)도 "non-static method" 컴파일 오류가 난다.
+     * 그 경우 테스트({@code McpSecurityConfig.authorizedClientManager(...)}를 바깥의 static context에서 부른다)도
+     * "non-static method" 컴파일 오류가 난다.
      * 그래서 이름을 나눠 둔다.
      */
     @Bean

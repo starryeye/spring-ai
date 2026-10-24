@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  *   <li>token 없이 `initialize`를 보내 `401`의 `resource_metadata`를 받는다</li>
  *   <li>PRM을 읽고 `resource`가 부른 주소와 같은지 본다</li>
  *   <li>`authorization_servers`가 이 client가 등록된 issuer인지 본다.
- *   아니면 더 요청하지 않는다</li>
+ *       아니면 더 요청하지 않는다</li>
  *   <li>Authorization Server Metadata를 읽고 `issuer`, PKCE `S256`, endpoint 주소를 확인한다</li>
  * </ol>
  */

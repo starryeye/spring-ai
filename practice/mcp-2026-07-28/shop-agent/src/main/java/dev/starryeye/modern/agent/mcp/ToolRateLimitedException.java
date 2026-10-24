@@ -17,7 +17,8 @@ public class ToolRateLimitedException extends ModernMcpException {
 	/**
 	 * @param retryAfter {@code Retry-After}의 초.
 	 *        header가 없거나 초가 아니면 {@code null}
-	 * @param jsonRpcCode 본문 JSON-RPC 오류의 {@code code}. 본문이 없으면 {@code null}
+	 * @param jsonRpcCode 본문 JSON-RPC 오류의 {@code code}.
+	 *        본문이 없으면 {@code null}
 	 * @param message 본문 오류의 {@code message}.
 	 *        모델에게 tool 결과로 간다
 	 */

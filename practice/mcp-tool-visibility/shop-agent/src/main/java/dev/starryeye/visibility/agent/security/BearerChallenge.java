@@ -10,8 +10,10 @@ import java.util.regex.Pattern;
 /**
  * {@code WWW-Authenticate: Bearer …} challenge에서 {@code error}와 {@code scope}를 읽는다(RFC 6750 §3).
  *
- * @param error 예: {@code insufficient_scope}. 없으면 {@code null}
- * @param scopes {@code scope}를 공백으로 나눈 값. 없으면 빈 목록
+ * @param error 예: {@code insufficient_scope}.
+ *        없으면 {@code null}
+ * @param scopes {@code scope}를 공백으로 나눈 값.
+ *        없으면 빈 목록
  */
 public record BearerChallenge(String error, List<String> scopes) {
 

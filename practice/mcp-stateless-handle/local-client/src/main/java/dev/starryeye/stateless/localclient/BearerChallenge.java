@@ -12,8 +12,10 @@ import java.util.regex.Pattern;
  * agent와 같은 규칙이다.
  * module이 서로 의존하지 않아 따로 둔다.
  *
- * @param error 예: {@code insufficient_scope}. 없으면 {@code null}
- * @param scopes {@code scope}를 공백으로 나눈 값. 없으면 빈 목록
+ * @param error 예: {@code insufficient_scope}.
+ *        없으면 {@code null}
+ * @param scopes {@code scope}를 공백으로 나눈 값.
+ *        없으면 빈 목록
  */
 public record BearerChallenge(String error, List<String> scopes) {
 
