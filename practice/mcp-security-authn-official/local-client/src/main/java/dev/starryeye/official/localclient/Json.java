@@ -6,7 +6,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Map;
 
-/** 응답 본문을 JSON object로 읽는다. MCP SDK가 가져오는 Jackson 3을 쓴다. */
+/**
+ * 응답 본문을 JSON object로 읽는다.
+ * MCP SDK가 가져오는 Jackson 3을 쓴다.
+ */
 final class Json {
 
 	private static final JsonMapper MAPPER = JsonMapper.builder().build();

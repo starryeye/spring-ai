@@ -20,7 +20,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * MCP session을 그 session을 연 사용자에게 묶는다(MCP Security Best Practices — Session Hijacking, SHOULD).
  *
- * <p>session ID는 인증을 대신하지 않는다. 모든 요청은 먼저 token으로 인증된다.
+ * <p>session ID는 인증을 대신하지 않는다.
+ * 모든 요청은 먼저 token으로 인증된다.
  * 이 filter는 그 뒤에 돌며, 요청의 {@code Mcp-Session-Id}가 다른 사용자(token의 {@code sub})에게 발급된 것이면
  * 403으로 막는다.
  *
@@ -102,7 +103,10 @@ public class McpSessionBindingFilter extends OncePerRequestFilter {
 		}
 	}
 
-	/** 지금 남아 있는 묶음 수다. 테스트가 정리를 확인할 때 쓴다. */
+	/**
+	 * 지금 남아 있는 묶음 수다.
+	 * 테스트가 정리를 확인할 때 쓴다.
+	 */
 	int bindingCount() {
 		return this.bindings.size();
 	}

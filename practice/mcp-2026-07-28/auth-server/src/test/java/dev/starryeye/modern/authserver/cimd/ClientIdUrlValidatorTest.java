@@ -90,7 +90,8 @@ class ClientIdUrlValidatorTest {
 
 	@Test
 	void 예외_주소는_scheme_host_port가_모두_같을_때만_통과한다() {
-		// 예외 주소는 DNS를 보지 않는다. 표가 비어도 통과해야 한다.
+		// 예외 주소는 DNS를 보지 않는다.
+		// 표가 비어도 통과해야 한다.
 		ClientIdUrlValidator strict = new ClientIdUrlValidator("https://localhost:8182", 주소표(Map.of()));
 		assertThat(strict.validate("https://localhost:8182/oauth/client.json")).isNotNull();
 
@@ -121,13 +122,15 @@ class ClientIdUrlValidatorTest {
 	@Test
 	void 공유_주소와_예약_대역도_내부_주소로_본다() throws UnknownHostException {
 		Map<String, List<String>> ranges = new LinkedHashMap<>();
-		// CGNAT. Alibaba Cloud의 metadata 주소(100.100.100.200)가 여기 있다.
+		// CGNAT.
+		// Alibaba Cloud의 metadata 주소(100.100.100.200)가 여기 있다.
 		ranges.put("100.64.0.0/10", List.of("100.64.0.0", "100.100.100.200", "100.127.255.255"));
 		ranges.put("0.0.0.0/8", List.of("0.0.0.1", "0.255.255.255"));
 		ranges.put("192.0.0.0/24", List.of("192.0.0.1", "192.0.0.255"));
 		ranges.put("198.18.0.0/15", List.of("198.18.0.0", "198.19.255.255"));
 		ranges.put("240.0.0.0/4", List.of("240.0.0.1", "250.1.2.3", "255.255.255.255"));
-		// NAT64는 IPv4 주소를 IPv6 주소 안에 담는다. 10.0.0.1, 127.0.0.1을 담은 주소다.
+		// NAT64는 IPv4 주소를 IPv6 주소 안에 담는다.
+		// 10.0.0.1, 127.0.0.1을 담은 주소다.
 		ranges.put("64:ff9b::/96", List.of("64:ff9b::a00:1", "64:ff9b::7f00:1"));
 		ranges.put("64:ff9b:1::/48", List.of("64:ff9b:1::a00:1", "64:ff9b:1:ffff::1"));
 		// 6to4와 Teredo도 IPv4 주소를 담을 수 있다.
@@ -163,7 +166,8 @@ class ClientIdUrlValidatorTest {
 
 	@Test
 	void host_조회가_시간_제한을_넘으면_기다리지_않고_거절한다() {
-		// 문서 주소의 host는 client가 고른다. 응답이 느린 DNS를 가리키면 그동안 요청 thread가 묶인다.
+		// 문서 주소의 host는 client가 고른다.
+		// 응답이 느린 DNS를 가리키면 그동안 요청 thread가 묶인다.
 		CountDownLatch release = new CountDownLatch(1);
 		HostResolver slow = host -> {
 			try {

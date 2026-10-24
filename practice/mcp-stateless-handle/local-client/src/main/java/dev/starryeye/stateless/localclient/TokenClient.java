@@ -12,8 +12,9 @@ import java.util.Objects;
 /**
  * authorization code를 access token으로 바꾼다.
  *
- * <p>public client라서 client 인증 header가 없다. 본문의 `client_id`와 PKCE `code_verifier`가
- * client_secret의 역할을 한다. `resource`를 다시 보내 이 token의 `aud`를 MCP Server로 정한다.
+ * <p>public client라서 client 인증 header가 없다.
+ * 본문의 `client_id`와 PKCE `code_verifier`가 client_secret의 역할을 한다.
+ * `resource`를 다시 보내 이 token의 `aud`를 MCP Server로 정한다.
  */
 public class TokenClient {
 
@@ -41,7 +42,8 @@ public class TokenClient {
 				.POST(HttpRequest.BodyPublishers.ofString(Form.encode(form)))
 				.build());
 
-		// 상태 코드부터 본다. 본문이 JSON이 아니어도(502 HTML 오류 페이지 등) 상태 코드는 메시지에 남아야 한다.
+		// 상태 코드부터 본다.
+		// 본문이 JSON이 아니어도(502 HTML 오류 페이지 등) 상태 코드는 메시지에 남아야 한다.
 		if (response.statusCode() != 200) {
 			Map<String, Object> body = leniently(response.body());
 			throw new LocalClientException("token 요청이 거절됐다(%d): %s %s".formatted(response.statusCode(),
@@ -57,7 +59,10 @@ public class TokenClient {
 		return new TokenResponse(accessToken, expiresIn, scope);
 	}
 
-	/** 오류 응답의 본문은 JSON이 아닐 수도 있다(예: 502의 HTML 오류 페이지). 그때는 빈 값으로 본다. */
+	/**
+	 * 오류 응답의 본문은 JSON이 아닐 수도 있다(예: 502의 HTML 오류 페이지).
+	 * 그때는 빈 값으로 본다.
+	 */
 	private static Map<String, Object> leniently(String body) {
 		if (body.isBlank()) {
 			return Map.of();

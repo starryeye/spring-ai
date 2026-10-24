@@ -144,7 +144,8 @@ class ChatEventsTest {
     void 원인_사슬이_A_B_A로_돌아도_다른_오류는_그대로_흘려보낸다() {
         RuntimeException a = new RuntimeException("A");
         RuntimeException b = new RuntimeException("B", a);
-        // initCause는 자기 자신만 막는다. A → B → A 같은 고리는 만들 수 있다.
+        // initCause는 자기 자신만 막는다.
+        // A → B → A 같은 고리는 만들 수 있다.
         a.initCause(b);
         AtomicBoolean interrupted = new AtomicBoolean();
 

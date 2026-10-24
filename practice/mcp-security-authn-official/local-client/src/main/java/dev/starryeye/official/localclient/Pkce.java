@@ -9,8 +9,9 @@ import java.util.Base64;
 /**
  * PKCE(RFC 7636)의 verifier와 challenge.
  *
- * <p>public client에는 client_secret이 없다. 누가 authorization code를 가로채도 verifier가 없으면
- * token으로 바꾸지 못하게 하는 것이 PKCE다. challenge는 verifier의 SHA-256을 base64url로 쓴 값이다(S256).
+ * <p>public client에는 client_secret이 없다.
+ * 누가 authorization code를 가로채도 verifier가 없으면 token으로 바꾸지 못하게 하는 것이 PKCE다.
+ * challenge는 verifier의 SHA-256을 base64url로 쓴 값이다(S256).
  */
 public record Pkce(String verifier, String challenge) {
 

@@ -60,7 +60,8 @@ class BasketFlowTest {
 		String basket = 응답(read, 호출("getBasket", "{\"basketId\":\"%s\"}".formatted(handle)));
 		assertThat(basket).contains("p4").doesNotContain("\"isError\":true");
 
-		// 조회 token으로는 결제할 수 없다. 서버는 모자란 scope만 알린다.
+		// 조회 token으로는 결제할 수 없다.
+		// 서버는 모자란 scope만 알린다.
 		this.mockMvc.perform(McpScopeTest.mcp(read, 호출("checkout", "{\"basketId\":\"%s\"}".formatted(handle))))
 				.andExpect(status().isForbidden())
 				.andExpect(header().string("WWW-Authenticate",
@@ -86,7 +87,8 @@ class BasketFlowTest {
 
 		String other = 응답(토큰("user2", "products:read"), 호출("getBasket", "{\"basketId\":\"%s\"}".formatted(handle)));
 
-		// handle은 무작위 base64url이라 "p4"라는 글자가 우연히 들어갈 수 있다. 그래서 장바구니 내용의 표기("[p4]")로 본다.
+		// handle은 무작위 base64url이라 "p4"라는 글자가 우연히 들어갈 수 있다.
+		// 그래서 장바구니 내용의 표기("[p4]")로 본다.
 		assertThat(other).contains("\"isError\":true").contains("찾을 수 없는 장바구니").doesNotContain("[p4]");
 	}
 }

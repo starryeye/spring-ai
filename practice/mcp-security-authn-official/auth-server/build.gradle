@@ -20,8 +20,8 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
-	// 공식 Spring Authorization Server. community 버전의
-	// mcp-authorization-server-spring-boot 를 대체한다.
+	// 공식 Spring Authorization Server.
+	// community 버전의 mcp-authorization-server-spring-boot 를 대체한다.
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'

@@ -17,7 +17,8 @@ import java.util.function.Supplier;
  * 이 값이 있어야 Authorization Server가 {@code aud}를 그 서버로 좁혀 발급한다.
  * 그러면 token을 다른 resource에서 다시 쓸 수 없다.
  *
- * <p>값은 discovery 결과에서 오므로 {@link Supplier}로 받는다. 설정을 만드는 시점에는 아직 값을 모른다.
+ * <p>값은 discovery 결과에서 오므로 {@link Supplier}로 받는다.
+ * 설정을 만드는 시점에는 아직 값을 모른다.
  */
 public final class ResourceIndicators {
 

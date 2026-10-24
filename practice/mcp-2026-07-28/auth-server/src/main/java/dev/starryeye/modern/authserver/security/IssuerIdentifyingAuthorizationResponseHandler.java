@@ -117,8 +117,10 @@ public class IssuerIdentifyingAuthorizationResponseHandler
 	}
 
 	/**
-	 * 오류 코드와 설명만 text로 보인다. HTML이 아니므로 설명에 섞인 값을 escape하지 않아도 된다.
-	 * {@code error_uri}와 {@code state}는 쓰지 않는다. 사용자가 읽을 화면이고, client에게 돌려주는 응답이 아니다.
+	 * 오류 코드와 설명만 text로 보인다.
+	 * HTML이 아니므로 설명에 섞인 값을 escape하지 않아도 된다.
+	 * {@code error_uri}와 {@code state}는 쓰지 않는다.
+	 * 사용자가 읽을 화면이고, client에게 돌려주는 응답이 아니다.
 	 */
 	private static void writeError(HttpServletResponse response, OAuth2Error error) throws IOException {
 		StringBuilder body = new StringBuilder("error=").append(error.getErrorCode()).append('\n');

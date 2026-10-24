@@ -16,7 +16,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class McpCallerTest {
 
-	/** CIMD에서는 client_id가 client 문서의 주소다(안내서 13장). 이 practice의 agent 문서 주소를 쓴다. */
+	/**
+	 * CIMD에서는 client_id가 client 문서의 주소다(안내서 13장).
+	 * 이 practice의 agent 문서 주소를 쓴다.
+	 */
 	static final String CLIENT_ID = "https://localhost:8172/oauth/client.json";
 
 	static ServerRequest 요청(Object principal) {

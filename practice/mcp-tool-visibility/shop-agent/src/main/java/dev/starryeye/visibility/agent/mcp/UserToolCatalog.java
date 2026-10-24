@@ -35,7 +35,10 @@ public class UserToolCatalog {
 
 	private static final Logger log = LoggerFactory.getLogger(UserToolCatalog.class);
 
-	/** 2026-07-28 Caching의 예시 값과 같다. 2026-07-28로 올리면 서버의 {@code ttlMs}를 쓴다. */
+	/**
+	 * 2026-07-28 Caching의 예시 값과 같다.
+	 * 2026-07-28로 올리면 서버의 {@code ttlMs}를 쓴다.
+	 */
 	public static final Duration TTL = Duration.ofMinutes(5);
 
 	/** 지금 thread의 사용자 token으로 {@code tools/list}를 받아 callback으로 만든다. */
@@ -79,7 +82,8 @@ public class UserToolCatalog {
 
 	/**
 	 * 이 사용자의 tool 목록이다.
-	 * 요청 thread에서 부른다. 목록을 새로 받을 때 그 thread의 SecurityContext로 사용자 token이 붙으므로, 호출자는 현재 thread의 Authentication을 넘겨야 한다.
+	 * 요청 thread에서 부른다.
+	 * 목록을 새로 받을 때 그 thread의 SecurityContext로 사용자 token이 붙으므로, 호출자는 현재 thread의 Authentication을 넘겨야 한다.
 	 */
 	public List<ToolCallback> callbacks(Authentication user) {
 		String key = key(this.accessToken.apply(user));

@@ -40,7 +40,8 @@ import java.util.regex.Pattern;
  * (MCP Authorization — Localhost Redirect URI Risks, CIMD draft §6.4).
  *
  * <p>form은 Spring 기본 consent 화면과 같은 field({@code client_id}, {@code state}, {@code scope})로 보낸다.
- * {@code openid}는 consent 대상이 아니므로 체크박스를 두지 않는다. 고른 scope가 있으면 Spring이 다시 붙인다.
+ * {@code openid}는 consent 대상이 아니므로 체크박스를 두지 않는다.
+ * 고른 scope가 있으면 Spring이 다시 붙인다.
  */
 @RestController
 public class ConsentController {
@@ -49,7 +50,10 @@ public class ConsentController {
 
 	private static final OAuth2TokenType STATE = new OAuth2TokenType(OAuth2ParameterNames.STATE);
 
-	/** 각 자리가 0~255이고 앞에 0이 붙지 않은 IPv4 주소다. 이런 문자열만 {@link InetAddress}에 넘겨 이름 조회를 막는다. */
+	/**
+	 * 각 자리가 0~255이고 앞에 0이 붙지 않은 IPv4 주소다.
+	 * 이런 문자열만 {@link InetAddress}에 넘겨 이름 조회를 막는다.
+	 */
 	private static final Pattern IPV4_LITERAL = Pattern
 			.compile("(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)");
 
@@ -123,8 +127,8 @@ public class ConsentController {
 			}
 		}
 		html.append("<p><button type=\"submit\">권한 허락</button></p></form>");
-		// 아무 scope도 고르지 않고 보낸다. public client면 access_denied로 끝나고,
-		// 이미 허락한 scope가 있는 client면 그 scope만으로 code를 받는다(Spring 기본 화면의 Cancel과 같다).
+		// 아무 scope도 고르지 않고 보낸다.
+		// public client면 access_denied로 끝나고, 이미 허락한 scope가 있는 client면 그 scope만으로 code를 받는다(Spring 기본 화면의 Cancel과 같다).
 		html.append("<form method=\"post\" action=\"/oauth2/authorize\">");
 		hidden(html, client.getClientId(), state);
 		html.append("<p><button type=\"submit\">거절</button></p></form>");

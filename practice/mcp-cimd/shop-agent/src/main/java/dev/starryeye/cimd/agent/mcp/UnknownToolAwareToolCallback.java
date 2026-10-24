@@ -34,7 +34,10 @@ public final class UnknownToolAwareToolCallback implements ToolCallback {
 		this.onUnknownTool = onUnknownTool;
 	}
 
-	/** code {@code -32602}는 인자 오류에도 쓰이므로 message까지 본다. null code를 안전하게 다룬다. */
+	/**
+	 * code {@code -32602}는 인자 오류에도 쓰이므로 message까지 본다.
+	 * null code를 안전하게 다룬다.
+	 */
 	public static boolean isUnknownTool(Throwable error) {
 		return error instanceof McpError mcpError && mcpError.getJsonRpcError() != null
 				&& Integer.valueOf(McpSchema.ErrorCodes.INVALID_PARAMS).equals(mcpError.getJsonRpcError().code())

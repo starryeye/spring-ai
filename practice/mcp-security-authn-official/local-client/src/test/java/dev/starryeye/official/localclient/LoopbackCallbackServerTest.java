@@ -52,8 +52,8 @@ class LoopbackCallbackServerTest {
 	@Test
 	void callback_아래의_하위_경로는_handler_안에서_직접_404가_된다() throws Exception {
 		// `/favicon.ico`는 HttpServer에 등록된 context가 아예 없어 handler를 타지 않고도 404가 난다.
-		// `/callback/x`는 `/callback` context와 경로가 겹쳐 handler까지 들어온 뒤, PATH가 정확히 같은지
-		// 보는 handler 자신의 guard에서 404가 나야 한다. 이 guard가 없으면 첫 callback으로 잘못 받아들인다.
+		// `/callback/x`는 `/callback` context와 경로가 겹쳐 handler까지 들어온 뒤, PATH가 정확히 같은지 보는 handler 자신의 guard에서 404가 나야 한다.
+		// 이 guard가 없으면 첫 callback으로 잘못 받아들인다.
 		try (LoopbackCallbackServer server = LoopbackCallbackServer.start("xyz")) {
 			assertThat(get(URI.create(server.redirectUri() + "/x"))).isEqualTo(404);
 
@@ -65,8 +65,8 @@ class LoopbackCallbackServerTest {
 
 	@Test
 	void state가_다르거나_없는_callback은_400이고_정상_callback을_계속_기다린다() throws Exception {
-		// 같은 기기의 다른 process나 browser의 악성 페이지가 loopback 포트를 훑어 먼저 보낸 요청이
-		// login 결과로 확정되면, 정상 login이 "state가 다르다"로 끝난다. 그런 요청은 거절하고 계속 기다린다.
+		// 같은 기기의 다른 process나 browser의 악성 페이지가 loopback 포트를 훑어 먼저 보낸 요청이 login 결과로 확정되면, 정상 login이 "state가 다르다"로 끝난다.
+		// 그런 요청은 거절하고 계속 기다린다.
 		try (LoopbackCallbackServer server = LoopbackCallbackServer.start("xyz")) {
 			assertThat(get(URI.create(server.redirectUri() + "?code=evil&state=other"))).isEqualTo(400);
 			assertThat(get(URI.create(server.redirectUri() + "?code=evil"))).isEqualTo(400);

@@ -61,13 +61,15 @@ public class McpAuthorizationDiscovery {
     }
 
     /**
-     * discovery 요청에 쓸 request factory다. JDK {@link HttpClient}로 보내고 연결과 응답에 시간 제한을 둔다.
+     * discovery 요청에 쓸 request factory다.
+     * JDK {@link HttpClient}로 보내고 연결과 응답에 시간 제한을 둔다.
      *
      * <p>{@code RestClient.create()}는 classpath에서 고른 client(이 agent에서는 Reactor Netty)의 기본값을 쓴다.
      * 그 기본값에는 응답 전체에 걸리는 시간 제한이 없어서, 응답을 조금씩 흘리는 서버를 끝없이 기다린다.
      * Spring의 {@link JdkClientHttpRequestFactory}에서 read timeout은 요청을 보낸 때부터 응답 본문을 다 읽을 때까지 적용된다.
      *
-     * <p>redirect는 따라가지 않는다. JDK {@code HttpClient}의 기본값이지만, 의존성이 바뀌어도 그대로이도록 적어 둔다.
+     * <p>redirect는 따라가지 않는다.
+     * JDK {@code HttpClient}의 기본값이지만, 의존성이 바뀌어도 그대로이도록 적어 둔다.
      * HTTP/1.1로 고정해 {@code http} 주소에 h2c upgrade를 시도하지 않는다.
      */
     public static ClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout) {
@@ -82,8 +84,8 @@ public class McpAuthorizationDiscovery {
     }
 
     /**
-     * @param trustedIssuer credentials가 등록된 Authorization Server. PRM이 다른 곳을 가리키면 그 metadata도
-     *                      요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
+     * @param trustedIssuer credentials가 등록된 Authorization Server.
+     *                      PRM이 다른 곳을 가리키면 그 metadata도 요청하지 않고 멈춘다(MCP 2026-07-28 issuer binding, Security Best Practices — SSRF).
      */
     public DiscoveredAuthorization discover(String resourceUrl, String trustedIssuer) {
         ProtectedResourceMetadata protectedResource;
@@ -107,7 +109,8 @@ public class McpAuthorizationDiscovery {
         if (servers == null || servers.isEmpty()) {
             throw new McpDiscoveryException("보호 리소스 메타데이터에 authorization_servers가 없다: " + resourceUrl);
         }
-        // 목록의 순서는 신뢰의 근거가 아니다. credentials가 등록된 issuer가 어디에 있든 그것을 쓴다.
+        // 목록의 순서는 신뢰의 근거가 아니다.
+        // credentials가 등록된 issuer가 어디에 있든 그것을 쓴다.
         // 없으면 목록의 어떤 Authorization Server에도 요청하지 않는다(local-client의 Discovery와 같은 규칙).
         if (servers.stream().map(String::valueOf).noneMatch(trustedIssuer::equals)) {
             throw new McpDiscoveryException(
@@ -122,10 +125,10 @@ public class McpAuthorizationDiscovery {
     /**
      * challenge의 {@code resource_metadata}는 설정한 MCP Server와 origin(scheme·host·port)이 같을 때만 따라간다.
      *
-     * <p>RFC 9728은 다른 origin을 금지하지 않는다. 하지만 이 agent는 MCP Server 주소를 설정으로 고정하므로,
-     * 다른 origin을 가리키는 값을 따라갈 이유가 없다. 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다
-     * (Security Best Practices — SSRF). host는 {@link URI#getHost()}로 비교하므로
-     * {@code http://localhost:8111@evil.example/}처럼 userinfo로 꾸민 주소도 다른 origin이다.
+     * <p>RFC 9728은 다른 origin을 금지하지 않는다.
+     * 하지만 이 agent는 MCP Server 주소를 설정으로 고정하므로, 다른 origin을 가리키는 값을 따라갈 이유가 없다.
+     * 따라가면 401을 준 쪽이 고른 주소로 agent가 요청을 보낸다 (Security Best Practices — SSRF).
+     * host는 {@link URI#getHost()}로 비교하므로 {@code http://localhost:8111@evil.example/}처럼 userinfo로 꾸민 주소도 다른 origin이다.
      */
     private static void requireSameOrigin(String resourceMetadata, String resourceUrl) {
         URI target;
@@ -211,7 +214,10 @@ public class McpAuthorizationDiscovery {
                 || LOOPBACK_IPV4.matcher(lower).matches();
     }
 
-    /** RFC 8414 §3.1과 OpenID Connect Discovery의 경로 규칙이다. MCP는 RFC 8414를 먼저 시도하라고 한다. */
+    /**
+     * RFC 8414 §3.1과 OpenID Connect Discovery의 경로 규칙이다.
+     * MCP는 RFC 8414를 먼저 시도하라고 한다.
+     */
     private static List<String> metadataUrls(String issuer) {
         URI uri = URI.create(issuer);
         String origin = uri.getScheme() + "://" + uri.getRawAuthority();

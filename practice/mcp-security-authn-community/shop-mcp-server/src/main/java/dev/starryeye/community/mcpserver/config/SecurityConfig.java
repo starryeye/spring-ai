@@ -18,9 +18,9 @@ import java.util.List;
 /**
  * community module의 MCP Server 설정기를 직접 적용한다.
  *
- * <p>자동 구성({@code McpServerSecurityAutoConfiguration})도 같은 설정기를 쓰지만
- * audience 검증을 켜는 방법이 없다. audience 검증이 없으면 같은 Authorization Server가 발급한
- * 다른 resource용 token이 그대로 통과한다. MCP authorization 명세가 MUST로 막는 경우다.
+ * <p>자동 구성({@code McpServerSecurityAutoConfiguration})도 같은 설정기를 쓰지만 audience 검증을 켜는 방법이 없다.
+ * audience 검증이 없으면 같은 Authorization Server가 발급한 다른 resource용 token이 그대로 통과한다.
+ * MCP authorization 명세가 MUST로 막는 경우다.
  * 그래서 여기서 filter chain을 직접 정의한다(자동 구성은 빠진다).
  */
 @Configuration
@@ -45,7 +45,8 @@ public class SecurityConfig {
                             .resourceName("shop-mcp-server")
                             // 이 서버는 mTLS에 묶인 token을 쓰지 않는다(module 기본값은 true).
                             .tlsClientCertificateBoundAccessTokens(false));
-                    // browser에서 직접 부를 일이 없다. 자기 자신 밖의 Origin은 막는다.
+                    // browser에서 직접 부를 일이 없다.
+                    // 자기 자신 밖의 Origin은 막는다.
                     mcp.allowedOrigins(List.of("http://localhost:" + port));
                     mcp.allowedHosts(List.of("localhost:" + port, "127.0.0.1:" + port));
                     // McpServerOAuth2Configurer.init()은 자기 entry point(module의
@@ -56,7 +57,8 @@ public class SecurityConfig {
                     // quoted-string(따옴표)이어야 한다.
                     mcp.oauth2ResourceServer(rs -> rs.authenticationEntryPoint(resourceMetadataEntryPoint()));
                 })
-                // stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
+                // stateless resource server다.
+                // token으로만 인증하므로 CSRF token을 쓰지 않는다.
                 .csrf(csrf -> csrf.disable())
                 .build();
     }

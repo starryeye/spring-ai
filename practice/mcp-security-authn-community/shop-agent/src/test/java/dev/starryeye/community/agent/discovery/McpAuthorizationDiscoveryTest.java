@@ -49,7 +49,8 @@ class McpAuthorizationDiscoveryTest {
         RestClient.Builder builder = RestClient.builder();
         this.server = MockRestServiceServer.bindTo(builder).build();
         RestClient restClient = builder.build();
-        // 학습 환경은 localhost HTTP다. 기본값은 HTTPS만 허용한다.
+        // 학습 환경은 localhost HTTP다.
+        // 기본값은 HTTPS만 허용한다.
         this.discovery = new McpAuthorizationDiscovery(
                 new McpMetadataDiscoveryService(restClient, new DefaultUrlValidator(true)), restClient);
     }
@@ -89,8 +90,8 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void RFC8414_가_없으면_OIDC_디스커버리로_간다() {
-        // metadataUrls()의 RFC 8414 → OpenID Connect Discovery 대체 순서는 community가 복사해 가진 자기
-        // 코드다(McpAuthorizationDiscovery). module이 아니라 이 practice의 회귀를 잡는 테스트다.
+        // metadataUrls()의 RFC 8414 → OpenID Connect Discovery 대체 순서는 community가 복사해 가진 자기 코드다(McpAuthorizationDiscovery).
+        // module이 아니라 이 practice의 회귀를 잡는 테스트다.
         챌린지();
         응답("http://localhost:8101/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
         없음("http://localhost:9000/.well-known/oauth-authorization-server");
@@ -129,8 +130,8 @@ class McpAuthorizationDiscoveryTest {
     @Test
     void PRM_의_Authorization_Server_가_자격증명의_issuer_가_아니면_metadata_를_요청하지_않는다() {
         // PRM이 가리키는 주소로 곧장 GET하면 공격자가 고른 주소로 요청이 나간다(SSRF).
-        // credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다. 기대하지 않은 요청이
-        // 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
+        // credentials가 묶인 issuer가 아니면 그 metadata도 요청하지 않는다.
+        // 기대하지 않은 요청이 나가면 MockRestServiceServer가 AssertionError를 던져 이 테스트가 실패한다.
         챌린지();
         응답("http://localhost:8101/.well-known/oauth-protected-resource/mcp", """
                 {"resource":"http://localhost:8101/mcp","authorization_servers":["http://evil.example"]}""");
@@ -144,8 +145,8 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void authorization_servers_의_어디에_있든_자격증명의_issuer_를_고른다() {
-        // 순서는 신뢰의 근거가 아니다. 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고,
-        // 목록의 다른 Authorization Server에는 요청하지 않는다.
+        // 순서는 신뢰의 근거가 아니다.
+        // 회사 IdP가 두 번째에 있어도 credentials가 등록된 issuer를 쓰고, 목록의 다른 Authorization Server에는 요청하지 않는다.
         String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
         챌린지("Bearer resource_metadata=\"" + prm + "\"");
         응답(prm, """
@@ -183,7 +184,8 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void authorization_endpoint_가_loopback_이_아닌_http_URL_이면_진행하지_않는다() {
-        // MCP Security Best Practices — http는 loopback 주소에만 허용된다(MUST). scheme만 보는 검사로는 막을 수 없는 URL이다.
+        // MCP Security Best Practices — http는 loopback 주소에만 허용된다(MUST).
+        // scheme만 보는 검사로는 막을 수 없는 URL이다.
         챌린지();
         응답("http://localhost:8101/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
         응답("http://localhost:9000/.well-known/oauth-authorization-server",
@@ -274,7 +276,8 @@ class McpAuthorizationDiscoveryTest {
 
     @Test
     void 연결만_받고_응답하지_않는_서버는_read_timeout_까지만_기다린다() throws Exception {
-        // backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다. 시간 제한이 없으면 discovery가 끝나지 않는다.
+        // backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다.
+        // 시간 제한이 없으면 discovery가 끝나지 않는다.
         try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             RestClient restClient = RestClient.builder()
                     .requestFactory(McpAuthorizationDiscovery.requestFactory(Duration.ofSeconds(1), Duration.ofMillis(300)))

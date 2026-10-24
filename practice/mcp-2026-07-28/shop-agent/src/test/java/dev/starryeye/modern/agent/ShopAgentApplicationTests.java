@@ -125,7 +125,8 @@ class ShopAgentApplicationTests {
 
     @Test
     void OAuth2_client_등록은_문서_주소를_client_id로_쓴다() {
-        // McpSecurityConfig.REGISTRATION_ID로 찾는다. 이 값이 login 경로와 맞지 않으면 null이 나온다.
+        // McpSecurityConfig.REGISTRATION_ID로 찾는다.
+        // 이 값이 login 경로와 맞지 않으면 null이 나온다.
         ClientRegistration registration = registration();
 
         assertThat(registration).isNotNull();
@@ -151,15 +152,16 @@ class ShopAgentApplicationTests {
 
     @Test
     void 채팅_화면_포트에서는_문서를_주지_않는다() throws Exception {
-        // 문서는 https 문서 서버에서만 준다. 채팅 화면 쪽에서는 다른 주소처럼 login부터 요구한다.
+        // 문서는 https 문서 서버에서만 준다.
+        // 채팅 화면 쪽에서는 다른 주소처럼 login부터 요구한다.
         this.mockMvc.perform(get("/oauth/client.json"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrlPattern("/oauth2/authorization/**"));
     }
 
     /**
-     * servlet 요청 없이 Authentication만으로 token을 꺼낼 수 있어야
-     * reactor thread에서 token을 붙일 수 있다. manager 타입이 바뀌면 그 성질이 깨진다.
+     * servlet 요청 없이 Authentication만으로 token을 꺼낼 수 있어야 reactor thread에서 token을 붙일 수 있다.
+     * manager 타입이 바뀌면 그 성질이 깨진다.
      * bean은 사용자별로 refresh를 한 번에 하나씩 하는 manager이고, 그 안의 manager는
      * {@code AuthorizedClientServiceOAuth2AuthorizedClientManager}다.
      * {@code TokenRefreshTest}가 같은 bean 메서드로 만든 manager를 servlet 요청 없이 불러 refresh까지 확인한다.

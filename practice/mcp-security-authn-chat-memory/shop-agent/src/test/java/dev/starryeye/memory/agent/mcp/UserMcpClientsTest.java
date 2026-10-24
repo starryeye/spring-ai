@@ -45,7 +45,10 @@ class UserMcpClientsTest {
         return new UsernamePasswordAuthenticationToken(name, "n/a", List.of());
     }
 
-    /** 빌렸다가 바로 돌려준다. 진행 중인 채팅이 없는 상태를 만든다. */
+    /**
+     * 빌렸다가 바로 돌려준다.
+     * 진행 중인 채팅이 없는 상태를 만든다.
+     */
     ToolCallbackProvider 빌렸다_돌려준다(UserMcpClients clients, String name) {
         try (UserMcpClients.Lease lease = clients.acquire(user(name))) {
             return lease.tools();

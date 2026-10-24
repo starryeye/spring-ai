@@ -79,8 +79,9 @@ public final class Main {
 	}
 
 	/**
-	 * Java 21부터 {@link HttpClient}는 {@link AutoCloseable}이다. 흐름이 끝나면 성공·실패와 상관없이 닫아
-	 * selector thread와 연결을 정리한다. 테스트가 만든 client를 확인할 수 있게 만드는 쪽을 인자로 받는다.
+	 * Java 21부터 {@link HttpClient}는 {@link AutoCloseable}이다.
+	 * 흐름이 끝나면 성공·실패와 상관없이 닫아 selector thread와 연결을 정리한다.
+	 * 테스트가 만든 client를 확인할 수 있게 만드는 쪽을 인자로 받는다.
 	 */
 	static void run(Options options, PrintStream out, Supplier<HttpClient> httpClients) {
 		try (HttpClient http = httpClients.get()) {

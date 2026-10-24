@@ -97,7 +97,8 @@ class ClientMetadataServerTest {
 
 	@Test
 	void handshake만_하고_아무것도_보내지_않는_연결이_있어도_다른_요청은_바로_받는다() throws Exception {
-		// browser의 preconnect가 이렇다. Authorization Server는 2초 안에 문서를 받지 못하면 client를 거절한다.
+		// browser의 preconnect가 이렇다.
+		// Authorization Server는 2초 안에 문서를 받지 못하면 client를 거절한다.
 		try (SSLSocket idle = (SSLSocket) TestTls.client().getSocketFactory()
 				.createSocket("localhost", this.server.port())) {
 			idle.startHandshake();

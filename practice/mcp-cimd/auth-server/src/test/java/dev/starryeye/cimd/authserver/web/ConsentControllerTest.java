@@ -94,7 +94,8 @@ class ConsentControllerTest {
 		assertThat(html).contains("name=\"state\" value=\"local-state\"");
 		assertThat(html).contains("name=\"client_id\" value=\"" + CHATGPT + "\"");
 		assertThat(html).contains("name=\"scope\" value=\"products:read\"");
-		// openid는 consent 대상이 아니다. 허락한 scope가 있으면 Spring이 다시 붙인다.
+		// openid는 consent 대상이 아니다.
+		// 허락한 scope가 있으면 Spring이 다시 붙인다.
 		assertThat(html).doesNotContain("value=\"openid\"");
 	}
 
@@ -139,7 +140,10 @@ class ConsentControllerTest {
 				.doesNotContain(PublicClientConsentService.REDIRECT_URIS_AUTHORITY_PREFIX);
 	}
 
-	/** redirect 주소 하나만 가진 client의 화면이다. 주소의 host 표시와 loopback 경고를 따로 확인할 때 쓴다. */
+	/**
+	 * redirect 주소 하나만 가진 client의 화면이다.
+	 * 주소의 host 표시와 loopback 경고를 따로 확인할 때 쓴다.
+	 */
 	String 화면_redirect(String redirectUri) throws Exception {
 		String clientId = "https://opaque.example/client.json";
 		RegisteredClient opaque = client(clientId, "Opaque", redirectUri);
@@ -189,7 +193,8 @@ class ConsentControllerTest {
 
 	@Test
 	void 다른_client의_state면_redirect_host를_보여_주지_않는다() throws Exception {
-		// web-state는 WEB client가 시작한 authorization의 state다. CHATGPT 화면에 붙여 와도 그 host가 나오면 안 된다.
+		// web-state는 WEB client가 시작한 authorization의 state다.
+		// CHATGPT 화면에 붙여 와도 그 host가 나오면 안 된다.
 		String html = 화면(CHATGPT, "openid products:read", "web-state");
 
 		assertThat(html).doesNotContain("app.example.com").doesNotContain("허락하면 돌아갈 주소");

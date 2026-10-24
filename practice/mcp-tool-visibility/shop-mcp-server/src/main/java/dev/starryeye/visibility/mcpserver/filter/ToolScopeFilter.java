@@ -40,7 +40,8 @@ import java.util.stream.Collectors;
  * {@code tools/call}은 그 tool에 필요한 scope도 있어야 한다.
  * 모자라면 {@code 403}과 {@code WWW-Authenticate: Bearer error="insufficient_scope", scope="…"}로 답한다
  * (RFC 6750 §3.1, MCP 2025-11-25 Authorization — Scope Challenge Handling).
- * challenge에는 이 요청에 필요한 scope만 적는다. scope 목록 전체를 알리지 않는다.
+ * challenge에는 이 요청에 필요한 scope만 적는다.
+ * scope 목록 전체를 알리지 않는다.
  *
  * <p>검사 순서는 기본 scope, 보이는 tool인가, tool의 scope 순이다.
  * 숨긴 tool은 scope를 늘려도 쓸 수 없어서 step-up을 시작하지 않고, scope를 보지 않은 채 transport로 넘어간다.
@@ -66,9 +67,9 @@ import java.util.stream.Collectors;
  * <p>{@code tools/call}의 params가 SDK의 {@code CallToolRequest}로 바뀔 수 없는 모양이면(params가 object가 아니거나,
  * {@code name}이 문자열이 아니거나, {@code arguments}·{@code _meta}가 object가 아니면) transport로 넘기지 않고
  * {@code 400}과 JSON-RPC {@code -32602}로 끝낸다.
- * 넘기면 Spring AI 2.0.2 stateless transport가 {@code 500}과 함께
- * 예외 객체를 본문에 써서 stack trace가 나간다. {@code name}을 문자열로만 받으면, SDK가 숫자·boolean 이름을 문자열로
- * 바꾸는 것과 이 filter가 이름을 읽는 방식이 어긋날 일도 없다. 이 거절은 속도 제한에서 세지 않는다.
+ * 넘기면 Spring AI 2.0.2 stateless transport가 {@code 500}과 함께 예외 객체를 본문에 써서 stack trace가 나간다.
+ * {@code name}을 문자열로만 받으면, SDK가 숫자·boolean 이름을 문자열로 바꾸는 것과 이 filter가 이름을 읽는 방식이 어긋날 일도 없다.
+ * 이 거절은 속도 제한에서 세지 않는다.
  *
  * <p><b>본문은 transport가 실제로 실행할 그 text를 읽어야 한다.</b>
  * transport(Spring AI 2.0.2의 {@code WebMvcStatelessServerTransport})는 본문을 {@code request.body(String.class)}로 읽는다.
@@ -94,7 +95,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private final JsonMapper jsonMapper;
 
-	/** {@code 403} challenge에 넣을 PRM 주소다. 요청의 {@code Host}가 아니라 설정에서 만든 값이다. */
+	/**
+	 * {@code 403} challenge에 넣을 PRM 주소다.
+	 * 요청의 {@code Host}가 아니라 설정에서 만든 값이다.
+	 */
 	private final String resourceMetadataUrl;
 
 	/** 메모리에 올려 읽는 본문의 상한(바이트)이다. */
@@ -116,14 +120,15 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		// JWT가 아닌 인증은 scope가 없는 것으로 본다. 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로
-		// 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
+		// JWT가 아닌 인증은 scope가 없는 것으로 본다.
+		// 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
 		JwtAuthenticationToken token =
 				(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken jwt) ? jwt
 						: null;
 		Set<String> granted = (token != null) ? grantedScopes(token) : Set.of();
 
-		// 본문을 버퍼링하기 전에 기본 scope부터 본다. 기본 scope가 없으면 tool 이름을 알 필요도 없다.
+		// 본문을 버퍼링하기 전에 기본 scope부터 본다.
+		// 기본 scope가 없으면 tool 이름을 알 필요도 없다.
 		if (!granted.contains(ToolScopeRegistry.BASE_SCOPE)) {
 			insufficientScope(response, token, null, ToolScopeRegistry.BASE_SCOPE, granted);
 			return;
@@ -168,7 +173,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 				return;
 			}
 
-			// transport로 넘길 tool 호출만 센다. 이름이 없거나 모르는 tool의 호출도 transport가 처리하므로 센다.
+			// transport로 넘길 tool 호출만 센다.
+			// 이름이 없거나 모르는 tool의 호출도 transport가 처리하므로 센다.
 			if (isToolCall(message)) {
 				String subject = Objects.toString(token.getToken().getSubject(), "");
 				Optional<Duration> retryAfter = this.rateLimiter.tryAcquire(subject);
@@ -206,7 +212,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * {@code Content-Type}의 charset을 돌려준다. header가 없으면 UTF-8이다.
+	 * {@code Content-Type}의 charset을 돌려준다.
+	 * header가 없으면 UTF-8이다.
 	 * media type을 읽을 수 없거나(모르는 charset 이름 포함) {@link BodyRejected}로 거절한다.
 	 */
 	private static Charset charset(HttpServletRequest request) {
@@ -235,9 +242,11 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * {@code tools/call}의 params가 SDK의 {@code CallToolRequest}({@code name} 문자열, {@code arguments}·{@code _meta} object)로
-	 * 바뀔 수 있는 모양인지 본다. 바뀔 수 없으면 그 이유를, 바뀔 수 있으면 {@code null}을 돌려준다.
-	 * {@code arguments}·{@code _meta}는 없거나 {@code null}이어도 된다. SDK가 빈 값으로 처리한다.
+	 * {@code tools/call}의 params가 SDK의 {@code CallToolRequest}({@code name} 문자열,
+	 * {@code arguments}·{@code _meta} object)로 바뀔 수 있는 모양인지 본다.
+	 * 바뀔 수 없으면 그 이유를, 바뀔 수 있으면 {@code null}을 돌려준다.
+	 * {@code arguments}·{@code _meta}는 없거나 {@code null}이어도 된다.
+	 * SDK가 빈 값으로 처리한다.
 	 */
 	private static String malformedToolCall(JsonNode params) {
 		if (params == null || !params.isObject()) {
@@ -285,7 +294,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	}
 
 	/**
-	 * 사용자의 tool 호출이 상한을 넘었다. transport로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
+	 * 사용자의 tool 호출이 상한을 넘었다.
+	 * transport로 넘기지 않고 {@code 429}와 {@code Retry-After}로 끝낸다.
 	 * {@code Retry-After}는 다시 시도할 수 있을 때까지 남은 시간을 초 단위로 올림한 값이다.
 	 */
 	private void tooManyToolCalls(HttpServletResponse response, String subject, Duration retryAfter)
@@ -305,7 +315,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 	 */
 	private void rejectBody(HttpServletResponse response, int status, int code, String message) throws IOException {
 		response.setStatus(status);
-		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다. 그래서 charset을 적는다.
+		// getWriter()는 Content-Type에 charset이 없으면 ISO-8859-1로 쓴다.
+		// 그래서 charset을 적는다.
 		response.setContentType("application/json;charset=UTF-8");
 		ObjectNode body = this.jsonMapper.createObjectNode();
 		body.put("jsonrpc", "2.0");
@@ -316,7 +327,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 		response.getWriter().write(this.jsonMapper.writeValueAsString(body));
 	}
 
-	/** {@link #parseAsTransportWill}이 본문을 거절할 때 쓰는 사유다. JSON-RPC 오류의 {@code code}와 {@code message}가 된다. */
+	/**
+	 * {@link #parseAsTransportWill}이 본문을 거절할 때 쓰는 사유다.
+	 * JSON-RPC 오류의 {@code code}와 {@code message}가 된다.
+	 */
 	private static final class BodyRejected extends RuntimeException {
 
 		private final int code;

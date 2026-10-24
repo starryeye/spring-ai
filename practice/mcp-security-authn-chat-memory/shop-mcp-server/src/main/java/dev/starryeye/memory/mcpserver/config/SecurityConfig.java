@@ -30,8 +30,9 @@ import java.util.List;
  * </ul>
  *
  * <p>PRM의 {@code resource}와 {@code resource_metadata}는 요청의 {@code Host}가 아니라 설정한 주소({@code audiences})로 만든다.
- * Spring의 기본값은 요청 URL로 만든다. 그러면 {@code Host}를 바꾼 요청에 다른 서버 주소를 광고하고,
- * reverse proxy 뒤에서는 scheme도 틀린다. token의 {@code aud}로 검증하는 값과 같은 하나를 쓰면 셋이 어긋날 일이 없다.
+ * Spring의 기본값은 요청 URL로 만든다.
+ * 그러면 {@code Host}를 바꾼 요청에 다른 서버 주소를 광고하고, reverse proxy 뒤에서는 scheme도 틀린다.
+ * token의 {@code aud}로 검증하는 값과 같은 하나를 쓰면 셋이 어긋날 일이 없다.
  * 다만 PRM의 {@code resource}는 요청한 PRM 주소의 경로 모양을 따른다({@link #withConfiguredOrigin}).
  */
 @Configuration
@@ -59,10 +60,12 @@ public class SecurityConfig {
 										.authorizationServer(issuer)
 										// 이 서버는 mTLS에 묶인 token을 쓰지 않는다(Spring 기본값은 true).
 										.tlsClientCertificateBoundAccessTokens(false))))
-				// MCP session을 token의 사용자에게 묶는다. 인증과 접근 검사(AuthorizationFilter)를 마친 요청만 이 filter에 닿는다.
+				// MCP session을 token의 사용자에게 묶는다.
+				// 인증과 접근 검사(AuthorizationFilter)를 마친 요청만 이 filter에 닿는다.
 				// 묶음은 transport의 session과 같은 시간(mcp.limits.session-idle-timeout)이 지나면 지운다.
 				.addFilterAfter(new McpSessionBindingFilter(limits.sessionIdleTimeout()), AuthorizationFilter.class)
-				// stateless resource server다. token으로만 인증하므로 CSRF token을 쓰지 않는다.
+				// stateless resource server다.
+				// token으로만 인증하므로 CSRF token을 쓰지 않는다.
 				.csrf(csrf -> csrf.disable())
 				.build();
 	}
@@ -84,7 +87,8 @@ public class SecurityConfig {
 	}
 
 	/**
-	 * 이 서버가 지키는 resource의 식별자다. token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
+	 * 이 서버가 지키는 resource의 식별자다.
+	 * token의 {@code aud}로 검증하는 값({@code audiences})과 같다.
 	 * 이 서버의 resource는 MCP endpoint 하나라서 값도 하나여야 한다.
 	 */
 	private static String resource(OAuth2ResourceServerProperties properties) {

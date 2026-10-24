@@ -17,8 +17,8 @@ import java.util.Map;
 /**
  * 한 번 거절한 scope를 사용자가 명시적으로 다시 요청할 때 쓴다.
  *
- * <p>이 요청은 session의 시도 기록을 지운다. 상태를 바꾸므로 {@code POST}로만 받고,
- * 다른 요청처럼 CSRF token({@code X-XSRF-TOKEN} header)을 검사받는다.
+ * <p>이 요청은 session의 시도 기록을 지운다.
+ * 상태를 바꾸므로 {@code POST}로만 받고, 다른 요청처럼 CSRF token({@code X-XSRF-TOKEN} header)을 검사받는다.
  * {@code GET}이면 다른 사이트가 {@code <img src>} 하나로 사용자 몰래 기록을 지울 수 있다.
  *
  * <p>화면은 {@code fetch}로 보내므로 redirect 대신 다음에 갈 authorization request 주소를 JSON으로 돌려준다.

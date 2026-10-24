@@ -110,7 +110,10 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 
 	private final ToolVisibility visibility;
 
-	/** {@code 403} challenge에 넣을 PRM 주소다. 요청의 {@code Host}가 아니라 설정에서 만든 값이다. */
+	/**
+	 * {@code 403} challenge에 넣을 PRM 주소다.
+	 * 요청의 {@code Host}가 아니라 설정에서 만든 값이다.
+	 */
 	private final String resourceMetadataUrl;
 
 	/** 사용자마다 {@code tools/call} 횟수를 센다. */
@@ -135,8 +138,8 @@ public class ToolScopeFilter extends OncePerRequestFilter {
 			return;
 		}
 
-		// JWT가 아닌 인증은 scope가 없는 것으로 본다. 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로
-		// 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
+		// JWT가 아닌 인증은 scope가 없는 것으로 본다.
+		// 이 filter에 닿을 요청은 이미 Spring Security를 지났으므로 보통은 항상 JwtAuthenticationToken이지만, 다른 인증 방식이 섞여도 열어 두지 않는다.
 		JwtAuthenticationToken token =
 				(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken jwt) ? jwt
 						: null;

@@ -26,7 +26,10 @@ public final class TestClientDocuments {
 
 	public static final String JWKS = "https://localhost:8172/oauth/jwks.json";
 
-	/** 테스트가 내용을 바꿔 가며 올리는 문서의 주소다. {@code CimdTestConfig.TestDocumentHost}가 cache하지 않게 돌려준다. */
+	/**
+	 * 테스트가 내용을 바꿔 가며 올리는 문서의 주소다.
+	 * {@code CimdTestConfig.TestDocumentHost}가 cache하지 않게 돌려준다.
+	 */
 	public static final String MUTABLE = "https://localhost:8172/oauth/mutable-client.json";
 
 	public static final String REDIRECT_URI = "http://localhost:8170/login/oauth2/code/authserver";
@@ -66,7 +69,10 @@ public final class TestClientDocuments {
 				"token_endpoint_auth_method":"none"}""".formatted(CLAUDE, REDIRECT_URI);
 	}
 
-	/** {@code private_key_jwt}를 선언한 문서다. key는 {@link #JWKS}에 있다. */
+	/**
+	 * {@code private_key_jwt}를 선언한 문서다.
+	 * key는 {@link #JWKS}에 있다.
+	 */
 	public static String privateKeyJwtDocument(String clientId, String... redirectUris) {
 		return """
 				{"client_id":"%s","client_name":"Mutable (private_key_jwt)","redirect_uris":%s,\
@@ -95,7 +101,10 @@ public final class TestClientDocuments {
 		return new JWKSet(KEY.toPublicJWK()).toString();
 	}
 
-	/** RFC 7523 §3의 client assertion이다. iss와 sub는 client_id이고, aud는 RFC 7523bis대로 issuer 하나를 넣는다. */
+	/**
+	 * RFC 7523 §3의 client assertion이다.
+	 * iss와 sub는 client_id이고, aud는 RFC 7523bis대로 issuer 하나를 넣는다.
+	 */
 	public static String assertion(RSAKey key, String clientId, String audience) throws JOSEException {
 		Instant now = Instant.now();
 		JWTClaimsSet claims = new JWTClaimsSet.Builder()

@@ -7,10 +7,12 @@ import java.util.Map;
  * discovery 결과다.
  * MCP Server가 선언한 resource 식별자와, 그 resource를 지키는 Authorization Server의 metadata를 담는다.
  *
- * @param resource PRM의 {@code resource}. authorization request와 token request의 {@code resource}로 그대로 쓴다
+ * @param resource PRM의 {@code resource}.
+ *        authorization request와 token request의 {@code resource}로 그대로 쓴다
  * @param issuer PRM이 가리킨 Authorization Server
  * @param authorizationServerMetadata RFC 8414 또는 OpenID Connect Discovery 문서
- * @param scopes 처음 요청할 scope. discovery가 MCP Scope Selection Strategy로 고른다
+ * @param scopes 처음 요청할 scope.
+ *        discovery가 MCP Scope Selection Strategy로 고른다
  */
 public record DiscoveredAuthorization(String resource, String issuer,
 		Map<String, Object> authorizationServerMetadata, List<String> scopes) {

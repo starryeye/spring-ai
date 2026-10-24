@@ -47,11 +47,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code StepUpAuthorizationRequestResolver}가 실제 filter chain 안에서도
  * {@code SecurityContextHolder}의 scope를 합치는지 확인한다.
  *
- * <p>단위 테스트({@code StepUpAuthorizationRequestResolverTest})는 {@code SecurityContextHolder}를
- * 직접 채워 넣고 resolver 하나만 부른다. 그 방법으로는 이 resolver가 진짜
- * {@code OAuth2AuthorizationRequestRedirectFilter}(=login filter들보다 앞, 그러나
- * {@code SecurityContextHolderFilter}보다는 뒤) 자리에서도 인증 정보를 실제로 읽는지 확인할 수
- * 없다. 이 테스트는 login filter 없이, 이미 인증된 session으로 그 자리를 그대로 통과시켜 본다.
+ * <p>단위 테스트({@code StepUpAuthorizationRequestResolverTest})는 {@code SecurityContextHolder}를 직접 채워 넣고 resolver 하나만 부른다.
+ * 그 방법으로는 이 resolver가 진짜 {@code OAuth2AuthorizationRequestRedirectFilter}(=login filter들보다 앞,
+ * 그러나 {@code SecurityContextHolderFilter}보다는 뒤) 자리에서도 인증 정보를 실제로 읽는지 확인할 수 없다.
+ * 이 테스트는 login filter 없이, 이미 인증된 session으로 그 자리를 그대로 통과시켜 본다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

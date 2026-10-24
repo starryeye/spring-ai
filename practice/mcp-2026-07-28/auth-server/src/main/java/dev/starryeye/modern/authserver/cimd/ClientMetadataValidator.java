@@ -24,13 +24,17 @@ import java.util.regex.Pattern;
  * 이 서버는 {@code none}과 {@code private_key_jwt}만 받는다.
  * redirect 주소도 문서를 쓴 쪽이 정하므로, host가 있는 {@code https}이거나 loopback {@code http}만 받는다
  * (MCP Authorization — Communication Security).
- * 모르는 field는 무시한다. ChatGPT 문서의 {@code token_endpoint_auth_methods_supported} 같은 확장 field가 그런 예다.
+ * 모르는 field는 무시한다.
+ * ChatGPT 문서의 {@code token_endpoint_auth_methods_supported} 같은 확장 field가 그런 예다.
  */
 public final class ClientMetadataValidator {
 
 	private static final List<String> FORBIDDEN = List.of("client_secret", "client_secret_expires_at");
 
-	/** 각 자리가 0~255이고 앞에 0이 붙지 않은 IPv4 주소다. 이런 문자열만 {@link InetAddress}에 넘겨 DNS 조회를 막는다. */
+	/**
+	 * 각 자리가 0~255이고 앞에 0이 붙지 않은 IPv4 주소다.
+	 * 이런 문자열만 {@link InetAddress}에 넘겨 DNS 조회를 막는다.
+	 */
 	private static final Pattern IPV4_LITERAL = Pattern
 			.compile("(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)");
 

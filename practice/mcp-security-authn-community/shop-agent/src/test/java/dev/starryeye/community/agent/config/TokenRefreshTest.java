@@ -82,7 +82,8 @@ class TokenRefreshTest {
                 .defaultStatusHandler(new OAuth2ErrorResponseErrorHandler());
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
-        // 운영과 같은 bean 메서드로 refresh client를 만든다. resource parameter를 넣는 것도 그 메서드의 일이다.
+        // 운영과 같은 bean 메서드로 refresh client를 만든다.
+        // resource parameter를 넣는 것도 그 메서드의 일이다.
         DiscoveredClientRegistrationRepository discovered = mock(DiscoveredClientRegistrationRepository.class);
         given(discovered.discovered()).willReturn(DiscoveryFixtures.discovered());
         var refreshTokenClient = new McpSecurityConfig().refreshTokenTokenResponseClient(discovered);

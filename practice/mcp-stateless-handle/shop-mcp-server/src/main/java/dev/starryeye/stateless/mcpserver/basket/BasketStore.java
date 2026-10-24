@@ -12,13 +12,15 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * 장바구니를 서버 메모리에 둔다. key는 {@code <sub>:<handle>}이다.
+ * 장바구니를 서버 메모리에 둔다.
+ * key는 {@code <sub>:<handle>}이다.
  *
  * <p>handle은 client에게 주는 이름일 뿐, 가졌다고 쓸 수 있는 권한이 아니다.
  * {@code sub}는 client가 보낸 값이 아니라 검증한 token에서 온다({@code McpCaller}).
  * 그래서 다른 사용자가 handle을 알아내도 자기 {@code sub}로 찾게 되어 아무것도 얻지 못한다(안내서 11장).
  *
- * <p>메모리 저장소라 서버 한 대에서만 맞다. 여러 대로 늘리면 Redis 같은 공유 저장소로 바꾼다.
+ * <p>메모리 저장소라 서버 한 대에서만 맞다.
+ * 여러 대로 늘리면 Redis 같은 공유 저장소로 바꾼다.
  */
 public class BasketStore {
 
@@ -160,7 +162,10 @@ public class BasketStore {
 		this.baskets.values().removeIf(basket -> !now.isBefore(basket.endedAt().plus(KEEP_AFTER_CLOSE)));
 	}
 
-	/** 128bit 무작위 값을 base64url로 적는다(22자). 추측으로 맞힐 수 없게 {@link SecureRandom}을 쓴다. */
+	/**
+	 * 128bit 무작위 값을 base64url로 적는다(22자).
+	 * 추측으로 맞힐 수 없게 {@link SecureRandom}을 쓴다.
+	 */
 	private String newHandle() {
 		byte[] bytes = new byte[16];
 		this.random.nextBytes(bytes);

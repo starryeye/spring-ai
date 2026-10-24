@@ -19,7 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * LLM을 실제로 부르는 것은 테스트하지 않는다. 연결만 검증한다.
+ * LLM을 실제로 부르는 것은 테스트하지 않는다.
+ * 연결만 검증한다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -54,9 +55,9 @@ class ShopAgentApplicationTests {
 	void 로그인하지_않으면_로그인으로_보낸다() throws Exception {
 		// 상태 코드(3xx)만 보면 formLogin의 기본 /login redirect도 통과한다.
 		// oauth2Login이 실제로 authserver 등록으로 보내는지까지 봐야 한다.
-		// 패턴은 "/oauth2/authorization/**"로 둔다. AntPathMatcher에서
-		// "**/oauth2/authorization/authserver"는 "/oauth2/authorization/authserver"
-		// (앞 segment가 없는 상대 경로)와 매치하지 않는다.
+		// 패턴은 "/oauth2/authorization/**"로 둔다.
+		// AntPathMatcher에서 "**/oauth2/authorization/authserver"는
+		// "/oauth2/authorization/authserver" (앞 segment가 없는 상대 경로)와 매치하지 않는다.
 		mockMvc.perform(get("/"))
 				.andExpect(status().is3xxRedirection())
 				.andExpect(redirectedUrlPattern("/oauth2/authorization/**"));
@@ -87,7 +88,8 @@ class ShopAgentApplicationTests {
 	 * 전체가 {@code @ConditionalOnProperty}에 걸려 로드되지 않는다(bytecode로 확인).
 	 * 그 자동 구성이 만드는 {@code preRegisteredClientCustomizer} bean이 없으면 token을 붙이는 경로 자체가 없다.
 	 * 이 bean이 있어도 등록 개수가 잘못되면 조용히 아무것도 하지 않을 수 있다({@link #OAuth2_클라이언트_등록이_정확히_하나다}).
-	 * 그래서 bean이 "있다"는 것만으로 "정상 동작"을 증명하지는 않는다. 이 테스트는 SYNC/ASYNC 스위치만 잡는다.
+	 * 그래서 bean이 "있다"는 것만으로 "정상 동작"을 증명하지는 않는다.
+	 * 이 테스트는 SYNC/ASYNC 스위치만 잡는다.
 	 */
 	@Test
 	void SYNC_클라이언트_보안_자동설정이_로드된다() {

@@ -43,8 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@code /api/chat}도 CSRF를 검사한다. {@code csrf.spa()}가 준 {@code XSRF-TOKEN} 쿠키 값을
- * {@code X-XSRF-TOKEN} header로 되돌려 보내는 index.html의 흐름을 그대로 밟는다.
+ * {@code /api/chat}도 CSRF를 검사한다.
+ * {@code csrf.spa()}가 준 {@code XSRF-TOKEN} 쿠키 값을 {@code X-XSRF-TOKEN} header로 되돌려 보내는 index.html의 흐름을 그대로 밟는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -107,8 +107,8 @@ class ChatCsrfTest {
 		MvcResult finished = this.mockMvc.perform(asyncDispatch(started))
 				.andExpect(status().isOk())
 				.andReturn();
-		// SSE는 항상 UTF-8이다(WHATWG EventSource). Content-Type엔 charset이 없어 기본 encoding(ISO-8859-1)
-		// 대신 UTF-8로 직접 읽는다.
+		// SSE는 항상 UTF-8이다(WHATWG EventSource).
+		// Content-Type엔 charset이 없어 기본 encoding(ISO-8859-1) 대신 UTF-8로 직접 읽는다.
 		assertThat(finished.getResponse().getContentAsString(StandardCharsets.UTF_8))
 				.contains("event:message\ndata:\"재고는 3개입니다\"\n\n");
 	}
@@ -116,7 +116,8 @@ class ChatCsrfTest {
 	@Test
 	@WithMockUser
 	void CSRF_토큰_없이_step_up_다시_요청을_보내면_403() throws Exception {
-		// 시도 기록을 지우는 요청이다. 다른 사이트가 사용자 몰래 보내지 못해야 한다.
+		// 시도 기록을 지우는 요청이다.
+		// 다른 사이트가 사용자 몰래 보내지 못해야 한다.
 		this.mockMvc.perform(post("/step-up/retry").param("scope", "products:write"))
 				.andExpect(status().isForbidden());
 	}

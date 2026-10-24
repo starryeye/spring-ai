@@ -73,7 +73,8 @@ final class FakeMcpServer implements AutoCloseable {
 		}
 		this.requests.add(new Recorded(httpMethod, rpcMethod, toolName, arguments, authorization));
 		switch (rpcMethod) {
-			// stateless server와 같다. session이 없으니 client도 끝나고 DELETE를 보내지 않는다.
+			// stateless server와 같다.
+			// session이 없으니 client도 끝나고 DELETE를 보내지 않는다.
 			case "initialize" -> respondResult(exchange, id,
 					Map.of("protocolVersion", "2025-11-25", "capabilities",
 							Map.of("tools", Map.of("listChanged", false)), "serverInfo",

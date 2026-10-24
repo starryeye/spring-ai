@@ -65,7 +65,8 @@ public class ModernMcpConfig {
 	}
 
 	/**
-	 * 학습용 역할 표다. {@code user}만 점원이고, 표에 없는 사용자({@code user2} 포함)는 손님이다.
+	 * 학습용 역할 표다.
+	 * {@code user}만 점원이고, 표에 없는 사용자({@code user2} 포함)는 손님이다.
 	 * 실제 서비스라면 이 표는 가게의 사용자 저장소에 있다.
 	 */
 	@Bean

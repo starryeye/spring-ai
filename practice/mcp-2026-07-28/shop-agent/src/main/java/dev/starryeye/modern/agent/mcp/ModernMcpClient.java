@@ -108,7 +108,10 @@ public class ModernMcpClient {
 		return scheduler;
 	}
 
-	/** 제한 시간이 아직 지나지 않아 남아 있는 본문 읽기 예약의 수다. 읽기가 끝나면 지워지는지 테스트가 본다. */
+	/**
+	 * 제한 시간이 아직 지나지 않아 남아 있는 본문 읽기 예약의 수다.
+	 * 읽기가 끝나면 지워지는지 테스트가 본다.
+	 */
 	static int pendingReadDeadlines() {
 		return DEADLINES.getQueue().size();
 	}
@@ -143,7 +146,10 @@ public class ModernMcpClient {
 		this(endpoint, http, json, REQUEST_TIMEOUT);
 	}
 
-	/** 테스트가 기다리는 시간을 줄이려고 둔다. {@code requestTimeout}은 {@link #REQUEST_TIMEOUT}처럼 요청 하나의 전체 시간이다. */
+	/**
+	 * 테스트가 기다리는 시간을 줄이려고 둔다.
+	 * {@code requestTimeout}은 {@link #REQUEST_TIMEOUT}처럼 요청 하나의 전체 시간이다.
+	 */
 	ModernMcpClient(URI endpoint, HttpClient http, McpJsonMapper json, Duration requestTimeout) {
 		this.endpoint = Objects.requireNonNull(endpoint, "endpoint");
 		this.http = Objects.requireNonNull(http, "http");

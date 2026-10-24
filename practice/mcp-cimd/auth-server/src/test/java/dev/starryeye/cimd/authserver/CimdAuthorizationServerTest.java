@@ -130,7 +130,10 @@ class CimdAuthorizationServerTest {
 		return authorizationRequestBuilder(clientId, scope).encode().build().toUri();
 	}
 
-	/** authorization request를 보내고 redirect 주소를 돌려준다. consent가 필요하면 consent 화면 주소다. */
+	/**
+	 * authorization request를 보내고 redirect 주소를 돌려준다.
+	 * consent가 필요하면 consent 화면 주소다.
+	 */
 	String redirect(URI uri) throws Exception {
 		return this.mockMvc.perform(get(uri).session(this.session))
 				.andExpect(status().is3xxRedirection())
@@ -144,14 +147,20 @@ class CimdAuthorizationServerTest {
 				.andReturn().getResponse().getContentAsString();
 	}
 
-	/** consent 화면의 hidden state다. 대기 중인 authorization을 찾으려고 서버가 새로 만든 값이다. */
+	/**
+	 * consent 화면의 hidden state다.
+	 * 대기 중인 authorization을 찾으려고 서버가 새로 만든 값이다.
+	 */
 	static String state(String html) {
 		Matcher matcher = Pattern.compile("name=\"state\" value=\"([^\"]*)\"").matcher(html);
 		assertThat(matcher.find()).isTrue();
 		return matcher.group(1);
 	}
 
-	/** consent 화면이 나오면 approvedScopes를 골라 보낸다. 이미 허락한 scope만 요청했으면 바로 redirect를 받는다. */
+	/**
+	 * consent 화면이 나오면 approvedScopes를 골라 보낸다.
+	 * 이미 허락한 scope만 요청했으면 바로 redirect를 받는다.
+	 */
 	UriComponents 인가(String clientId, String scope, String... approvedScopes) throws Exception {
 		return 인가(authorizationRequest(clientId, scope), clientId, approvedScopes);
 	}
@@ -357,7 +366,8 @@ class CimdAuthorizationServerTest {
 	@Test
 	void redirect_uri를_생략하면_redirect_없이_invalid_request다() throws Exception {
 		// 문서의 redirect가 하나면 Spring은 openid 없는 요청의 redirect_uri 생략을 받고, consent 화면에는 돌아갈 host가 빠진다.
-		// MCP Authorization은 consent 화면에 redirect URI의 host를 보이라고 한다(MUST). 그래서 모든 요청에 요구한다.
+		// MCP Authorization은 consent 화면에 redirect URI의 host를 보이라고 한다(MUST).
+		// 그래서 모든 요청에 요구한다.
 		for (String clientId : List.of(CHATGPT, CLAUDE)) {
 			URI uri = authorizationRequestBuilder(clientId, "products:read")
 					.replaceQueryParam("redirect_uri")
@@ -379,7 +389,8 @@ class CimdAuthorizationServerTest {
 
 	@Test
 	void 로그인하지_않은_browser의_오류도_문서의_redirect_uri로_보내지_않는다() throws Exception {
-		// Spring은 authorization request를 login보다 먼저 검사한다. CIMD client의 redirect_uri는 누구나 문서에 적는 값이라,
+		// Spring은 authorization request를 login보다 먼저 검사한다.
+		// CIMD client의 redirect_uri는 누구나 문서에 적는 값이라,
 		// 그 주소로 오류를 redirect하면 Authorization Server가 open redirector가 된다(RFC 9700 §4.11.2).
 		String body = 오류_화면(get(authorizationRequest(CLAUDE, "openid")).accept(MediaType.TEXT_HTML));
 
@@ -424,7 +435,8 @@ class CimdAuthorizationServerTest {
 
 	@Test
 	void scope_없이_요청하면_invalid_scope다() throws Exception {
-		// RFC 6749 §3.3: scope 없는 요청은 기본값으로 처리하거나 거부한다. 이 서버는 거부한다.
+		// RFC 6749 §3.3: scope 없는 요청은 기본값으로 처리하거나 거부한다.
+		// 이 서버는 거부한다.
 		String body = 오류_화면(authorizationRequestBuilder(CHATGPT, "openid products:read")
 				.replaceQueryParam("scope")
 				.encode().build().toUri());
@@ -460,7 +472,8 @@ class CimdAuthorizationServerTest {
 
 	@Test
 	void authorization_request에_없던_resource를_token_request에서_정하면_invalid_target이다() throws Exception {
-		// resource는 사용자가 consent한 대상이다. authorization request에 없던 대상을 token request에서 새로 정하지 못한다.
+		// resource는 사용자가 consent한 대상이다.
+		// authorization request에 없던 대상을 token request에서 새로 정하지 못한다.
 		URI withoutResource = authorizationRequestBuilder(CHATGPT, "openid products:read")
 				.replaceQueryParam("resource")
 				.encode().build().toUri();
@@ -559,7 +572,8 @@ class CimdAuthorizationServerTest {
 		MvcResult loser = results.stream().filter(result -> result.getResponse().getStatus() == 400).findFirst().orElseThrow();
 		assertThat((String) JsonPath.read(loser.getResponse().getContentAsString(), "$.error")).isEqualTo("invalid_grant");
 
-		// 늦은 쪽은 이미 버린 token을 내민 셈이다. 어느 쪽이 도둑인지 모르므로 이긴 쪽의 새 refresh token도 끊긴다.
+		// 늦은 쪽은 이미 버린 token을 내민 셈이다.
+		// 어느 쪽이 도둑인지 모르므로 이긴 쪽의 새 refresh token도 끊긴다.
 		String winnerRefresh = JsonPath.read(winner.getResponse().getContentAsString(), "$.refresh_token");
 		String afterRace = token(refresh(CLAUDE, winnerRefresh), 400);
 		assertThat((String) JsonPath.read(afterRace, "$.error")).isEqualTo("invalid_grant");
@@ -569,10 +583,12 @@ class CimdAuthorizationServerTest {
 	void 실패한_refresh_요청이_잡은_lock은_요청이_끝나면_풀린다() throws Exception {
 		String chatgptRefresh = JsonPath.read(
 				token(withAssertion(codeExchange(CHATGPT, code(CHATGPT)), TestClientDocuments.KEY), 200), "$.refresh_token");
-		// Claude형 client_id로 ChatGPT형의 refresh token을 내민다. grant를 찾은 뒤 client가 달라 저장하지 않고 끝난다.
+		// Claude형 client_id로 ChatGPT형의 refresh token을 내민다.
+		// grant를 찾은 뒤 client가 달라 저장하지 않고 끝난다.
 		token(refresh(CLAUDE, chatgptRefresh), 400);
 
-		// 다른 thread가 같은 grant를 바로 refresh할 수 있어야 한다. lock이 남아 있으면 기다리다 실패한다.
+		// 다른 thread가 같은 grant를 바로 refresh할 수 있어야 한다.
+		// lock이 남아 있으면 기다리다 실패한다.
 		List<Integer> statuses = new CopyOnWriteArrayList<>();
 		Thread other = new Thread(() -> {
 			try {
@@ -610,7 +626,8 @@ class CimdAuthorizationServerTest {
 		문서를_올린다(TestClientDocuments.privateKeyJwtDocument(MUTABLE, REDIRECT_URI));
 		String issued = token(withAssertion(codeExchange(MUTABLE, code(MUTABLE)), TestClientDocuments.KEY, MUTABLE), 200);
 
-		// 문서 host를 장악한 쪽이 문서를 none으로 바꿨다. private key 없이 grant를 이어 가려 한다.
+		// 문서 host를 장악한 쪽이 문서를 none으로 바꿨다.
+		// private key 없이 grant를 이어 가려 한다.
 		this.documents.publish(MUTABLE, TestClientDocuments.publicDocument(MUTABLE, REDIRECT_URI));
 		String body = token(refresh(MUTABLE, JsonPath.read(issued, "$.refresh_token")), 401);
 
@@ -623,7 +640,8 @@ class CimdAuthorizationServerTest {
 		code(MUTABLE);
 		assertThat(redirect(authorizationRequest(MUTABLE, "openid products:read"))).startsWith(REDIRECT_URI);
 
-		// 문서에 다른 redirect 주소가 늘었다. 사용자가 허락한 것은 이전 주소 목록의 client다.
+		// 문서에 다른 redirect 주소가 늘었다.
+		// 사용자가 허락한 것은 이전 주소 목록의 client다.
 		this.documents.publish(MUTABLE,
 				TestClientDocuments.privateKeyJwtDocument(MUTABLE, REDIRECT_URI, "https://attacker.example/cb"));
 
@@ -645,7 +663,8 @@ class CimdAuthorizationServerTest {
 	void introspect_endpoint에서는_client_id만으로_인증되지_않는다() throws Exception {
 		String accessToken = JsonPath.read(token(codeExchange(CLAUDE, code(CLAUDE)), 200), "$.access_token");
 
-		// token endpoint의 public client refresh 요청과 같은 parameter다. 다른 client 인증은 없다.
+		// token endpoint의 public client refresh 요청과 같은 parameter다.
+		// 다른 client 인증은 없다.
 		MultiValueMap<String, String> parameters = new LinkedMultiValueMap<>();
 		parameters.add("grant_type", "refresh_token");
 		parameters.add("client_id", CLAUDE);
@@ -683,7 +702,8 @@ class CimdAuthorizationServerTest {
 
 	@Test
 	void 다른_client가_받은_token을_introspect하면_active가_false다() throws Exception {
-		// 누구나 private_key_jwt 문서를 올려 인증된 client가 될 수 있다. 남의 token이 살아 있는지, 누구 것인지 묻지 못하게 한다.
+		// 누구나 private_key_jwt 문서를 올려 인증된 client가 될 수 있다.
+		// 남의 token이 살아 있는지, 누구 것인지 묻지 못하게 한다.
 		String claude = token(codeExchange(CLAUDE, code(CLAUDE)), 200);
 
 		for (String token : List.of((String) JsonPath.read(claude, "$.access_token"),
@@ -788,7 +808,8 @@ class CimdAuthorizationServerTest {
 
 	@Test
 	void Authorization_header_없이_인증에_실패하면_WWW_Authenticate가_없다() throws Exception {
-		// form parameter로만 인증을 시도했으면 scheme을 알 수 없다. RFC 6749 §5.2의 요구도 header로 시도한 경우에만 해당한다.
+		// form parameter로만 인증을 시도했으면 scheme을 알 수 없다.
+		// RFC 6749 §5.2의 요구도 header로 시도한 경우에만 해당한다.
 		this.mockMvc.perform(post("/oauth2/token").params(허용되지_않는_인증_방식()))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.error").value("invalid_client"))

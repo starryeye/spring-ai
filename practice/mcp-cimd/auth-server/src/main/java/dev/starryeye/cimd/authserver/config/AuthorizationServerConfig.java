@@ -64,9 +64,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Authorization Server 설정이다. MCP authorization 명세가 요구하는 기능과 CIMD를 켠다.
+ * Authorization Server 설정이다.
+ * MCP authorization 명세가 요구하는 기능과 CIMD를 켠다.
  *
- * <p>미리 등록한 client는 없다. 모든 client는 자기가 올린 문서의 주소를 client_id로 쓴다.
+ * <p>미리 등록한 client는 없다.
+ * 모든 client는 자기가 올린 문서의 주소를 client_id로 쓴다.
  * filter chain을 직접 정의하므로 Boot의 기본 Authorization Server filter chain
  * ({@code @ConditionalOnDefaultWebSecurity})은 빠진다.
  */
@@ -101,10 +103,16 @@ public class AuthorizationServerConfig {
 	static final List<String> TOKEN_ENDPOINT_AUTHENTICATION_METHODS = List.of(
 			ClientAuthenticationMethod.PRIVATE_KEY_JWT.getValue(), ClientAuthenticationMethod.NONE.getValue());
 
-	/** revocation·introspection endpoint는 client 인증이 있어야 쓸 수 있다. public client는 쓰지 못한다. */
+	/**
+	 * revocation·introspection endpoint는 client 인증이 있어야 쓸 수 있다.
+	 * public client는 쓰지 못한다.
+	 */
 	static final List<String> AUTHENTICATED_ENDPOINT_METHODS = List.of(ClientAuthenticationMethod.PRIVATE_KEY_JWT.getValue());
 
-	/** {@code CimdJwtClientAssertionDecoderFactory}가 검증하는 알고리즘이다. 문서의 key는 RSA다. */
+	/**
+	 * {@code CimdJwtClientAssertionDecoderFactory}가 검증하는 알고리즘이다.
+	 * 문서의 key는 RSA다.
+	 */
 	static final List<String> CLIENT_ASSERTION_SIGNING_ALGORITHMS = List.of(JwsAlgorithms.RS256);
 
 	@Bean
@@ -140,7 +148,8 @@ public class AuthorizationServerConfig {
 										}
 									})))
 							.clientAuthentication(clientAuthentication -> clientAuthentication
-									// public client의 refresh 요청을 인증한다. Spring 기본은 code_verifier가 있는 요청만 받는다.
+									// public client의 refresh 요청을 인증한다.
+									// Spring 기본은 code_verifier가 있는 요청만 받는다.
 									.authenticationConverter(new PublicClientRefreshTokenAuthenticationConverter())
 									.authenticationProvider(
 											new PublicClientRefreshTokenAuthenticationProvider(clients, authorizationService))
@@ -157,7 +166,8 @@ public class AuthorizationServerConfig {
 									// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
 									// WWW-Authenticate를 붙인다.
 									.errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
-							// introspection은 token을 발급받은 client에게만 내용을 알려 준다. 나머지는 active: false다.
+							// introspection은 token을 발급받은 client에게만 내용을 알려 준다.
+							// 나머지는 active: false다.
 							.tokenIntrospectionEndpoint(introspection -> introspection
 									.authenticationProviders(providers -> providers.replaceAll(provider ->
 											(provider instanceof OAuth2TokenIntrospectionAuthenticationProvider)
@@ -218,7 +228,8 @@ public class AuthorizationServerConfig {
 	}
 
 	/**
-	 * 문서와 JWKS를 가져온다. 문서 host의 인증서는 {@code trust-bundle}의 truststore로만 믿는다.
+	 * 문서와 JWKS를 가져온다.
+	 * 문서 host의 인증서는 {@code trust-bundle}의 truststore로만 믿는다.
 	 * bundle을 정하지 않으면 JVM 기본 truststore를 쓴다(공인 인증서를 쓰는 실제 배포).
 	 */
 	@Bean

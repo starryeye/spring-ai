@@ -31,7 +31,10 @@ class OwnTokenIntrospectionAuthenticationProviderTest {
 
 	AtomicInteger delegateCalls = new AtomicInteger();
 
-	/** Spring의 introspection provider 대신이다. 불리면 active인 결과를 돌려준다. */
+	/**
+	 * Spring의 introspection provider 대신이다.
+	 * 불리면 active인 결과를 돌려준다.
+	 */
 	AuthenticationProvider springIntrospection = new AuthenticationProvider() {
 		@Override
 		public Authentication authenticate(Authentication authentication) {
@@ -105,7 +108,8 @@ class OwnTokenIntrospectionAuthenticationProviderTest {
 
 	@Test
 	void token_주인의_client를_다시_찾지_못해_Spring이_실패하면_active_false다() {
-		// Spring은 token 주인의 client를 다시 찾고, 없으면 Assert로 실패한다(500). 문서를 가져오지 못한 경우다.
+		// Spring은 token 주인의 client를 다시 찾고, 없으면 Assert로 실패한다(500).
+		// 문서를 가져오지 못한 경우다.
 		grant(OWNER, "rt");
 		OwnTokenIntrospectionAuthenticationProvider failing = new OwnTokenIntrospectionAuthenticationProvider(
 				new AuthenticationProvider() {

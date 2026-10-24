@@ -7,7 +7,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 /**
- * 학습용 사용자 한 명이다. user / password로 login한다.
+ * 학습용 사용자 한 명이다.
+ * user / password로 login한다.
  *
  * <p>여기에 {@code SecurityFilterChain} bean을 더하면 안 된다.
  * {@code McpAuthorizationServerAutoConfiguration}에는 {@code @ConditionalOnDefaultWebSecurity}가 붙어 있어,

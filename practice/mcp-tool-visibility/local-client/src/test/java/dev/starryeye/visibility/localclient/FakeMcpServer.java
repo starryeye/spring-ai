@@ -38,10 +38,16 @@ final class FakeMcpServer implements AutoCloseable {
 
 	final List<Recorded> requests = new CopyOnWriteArrayList<>();
 
-	/** 서버에 있는 tool이다. 이 순서로 목록을 준다. */
+	/**
+	 * 서버에 있는 tool이다.
+	 * 이 순서로 목록을 준다.
+	 */
 	List<String> tools = List.of("getStock", "createBasket", "addItem", "getBasket", "checkout", "updateStock");
 
-	/** 이 사용자에게 숨긴 tool이다. 목록에서 빠지고, 부르면 "모르는 tool" 오류다. */
+	/**
+	 * 이 사용자에게 숨긴 tool이다.
+	 * 목록에서 빠지고, 부르면 "모르는 tool" 오류다.
+	 */
 	Set<String> hidden = new HashSet<>();
 
 	FakeMcpServer() throws IOException {
@@ -81,7 +87,8 @@ final class FakeMcpServer implements AutoCloseable {
 		}
 		this.requests.add(new Recorded(httpMethod, rpcMethod, toolName, arguments, authorization));
 		switch (rpcMethod) {
-			// stateless server와 같다. session이 없으니 client도 끝나고 DELETE를 보내지 않는다.
+			// stateless server와 같다.
+			// session이 없으니 client도 끝나고 DELETE를 보내지 않는다.
 			case "initialize" -> respondResult(exchange, id,
 					Map.of("protocolVersion", "2025-11-25", "capabilities",
 							Map.of("tools", Map.of("listChanged", false)), "serverInfo",

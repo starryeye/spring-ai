@@ -177,7 +177,8 @@ class McpAuthorizationStandardTest {
 				.andExpect(jsonPath("$.resource").value(RESOURCE))
 				.andExpect(jsonPath("$.authorization_servers[0]").value(ISSUER))
 				.andExpect(jsonPath("$.bearer_methods_supported[0]").value("header"))
-				// 이 서버는 mTLS에 묶인 token을 쓰지 않는다. Spring 기본값이 true라 꺼야 한다.
+				// 이 서버는 mTLS에 묶인 token을 쓰지 않는다.
+				// Spring 기본값이 true라 꺼야 한다.
 				.andExpect(jsonPath("$.tls_client_certificate_bound_access_tokens").value(false));
 	}
 
@@ -321,7 +322,8 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 만료된_토큰은_거부한다() throws Exception {
-		// Spring JwtTimestampValidator의 기본 clock skew는 60초다. 그보다 오래 지난 token을 쓴다.
+		// Spring JwtTimestampValidator의 기본 clock skew는 60초다.
+		// 그보다 오래 지난 token을 쓴다.
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().minusSeconds(120), KEY), null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
@@ -389,8 +391,8 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
-				// 오류 본문을 바이트 단위로 고정한다. docs/superpowers/captures/2026-09-12-chat-memory.txt의
-				// "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
+				// 오류 본문을 바이트 단위로 고정한다.
+				// docs/superpowers/captures/2026-09-12-chat-memory.txt의 "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
 				// filter가 본문을 Jackson tree로 직렬화하므로, field 순서나 공백이 바뀌면 이 단정이 실패한다.
 				.andExpect(content().string(
 						"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
@@ -399,17 +401,16 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void MCP_Protocol_Version_헤더가_없으면_명세대로_통과한다() throws Exception {
-		// 명세: header가 없고 버전을 알 다른 방법도 없다면 서버는 2025-03-26으로 가정한다
-		// ("SHOULD assume protocol version 2025-03-26"). 거부할 이유가 아니다.
+		// 명세: header가 없고 버전을 알 다른 방법도 없다면 서버는 2025-03-26으로 가정한다 ("SHOULD assume protocol version 2025-03-26").
+		// 거부할 이유가 아니다.
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), null))
 				.andExpect(status().isOk());
 	}
 
 	@Test
 	void 따옴표가_든_MCP_Protocol_Version_헤더_값도_구조가_깨지지_않는_JSON으로_응답한다() throws Exception {
-		// 오류 메시지를 문자열 연결로 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고
-		// 최상위 member를 멋대로 더할 수 있다. jsonPath 평가가 성공하면 본문이 유효한 JSON이고,
-		// injected field가 없으면 injection이 통하지 않은 것이다.
+		// 오류 메시지를 문자열 연결로 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고 최상위 member를 멋대로 더할 수 있다.
+		// jsonPath 평가가 성공하면 본문이 유효한 JSON이고, injected field가 없으면 injection이 통하지 않은 것이다.
 		String 악성_헤더_값 = "x\"},\"injected\":{\"a\":\"b";
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), 악성_헤더_값))
 				.andExpect(status().isBadRequest())

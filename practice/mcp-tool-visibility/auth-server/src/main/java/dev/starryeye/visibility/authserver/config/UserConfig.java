@@ -7,7 +7,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 
 /**
- * 학습용 사용자 두 명이다. user / password, user2 / password로 login한다.
+ * 학습용 사용자 두 명이다.
+ * user / password, user2 / password로 login한다.
  * user2는 다른 사용자의 장바구니 handle을 써 보는 데 쓴다(안내서 11장).
  *
  * <p>filter chain은 {@link AuthorizationServerConfig}에 있다.

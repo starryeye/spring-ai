@@ -3,14 +3,15 @@ package dev.starryeye.memory.agent.domain;
 import org.springframework.security.core.Authentication;
 
 /**
- * {@code conversationId}를 <b>서버가</b> 만든다. client는 label만 고른다.
+ * {@code conversationId}를 <b>서버가</b> 만든다.
+ * client는 label만 고른다.
  *
- * <p>{@code chat-memory} practice(MCP가 없는 메모리 practice)는 {@code conversationId}를 통째로
- * client에게서 받는다. 사용자가 한 명이라 그래도 되는 것이다.
+ * <p>{@code chat-memory} practice(MCP가 없는 메모리 practice)는 {@code conversationId}를 통째로 client에게서 받는다.
+ * 사용자가 한 명이라 그래도 되는 것이다.
  * 사용자가 둘이 되면, 남의 대화 ID를 넣어 그 대화를 그대로 읽을 수 있는 구멍이 된다.
  *
- * <p>여기서는 서버가 접두사({@code <사용자>:})를 붙이므로, label에 무엇을 넣어도
- * 자기 namespace를 벗어나지 못한다. label 쪽 격리는 {@link #sanitize} 한 줄이 전부다.
+ * <p>여기서는 서버가 접두사({@code <사용자>:})를 붙이므로, label에 무엇을 넣어도 자기 namespace를 벗어나지 못한다.
+ * label 쪽 격리는 {@link #sanitize} 한 줄이 전부다.
  * 구분자를 지우지 않으면 label에 {@code :}를 넣어 접두사를 위조할 수 있다.
  *
  * <p>사용자 이름(token의 {@code sub})에도 구분자가 들어갈 수 있다.
@@ -29,12 +30,18 @@ public final class ConversationId {
     private ConversationId() {
     }
 
-    /** 현재 사용자의 대화 ID다. label이 비어 있으면 {@code default}를 쓴다. */
+    /**
+     * 현재 사용자의 대화 ID다.
+     * label이 비어 있으면 {@code default}를 쓴다.
+     */
     public static String of(Authentication authentication, String label) {
         return prefixOf(authentication) + sanitize(label);
     }
 
-    /** 현재 사용자의 namespace 접두사다. 목록을 거를 때 쓴다. */
+    /**
+     * 현재 사용자의 namespace 접두사다.
+     * 목록을 거를 때 쓴다.
+     */
     public static String prefixOf(Authentication authentication) {
         return escape(authentication.getName()) + SEPARATOR;
     }
@@ -50,8 +57,8 @@ public final class ConversationId {
     }
 
     /**
-     * 구분자와 경로 문자를 지운다. label 쪽 격리는 이것이 전부이므로
-     * {@code ConversationIdTest}가 이 동작을 고정한다.
+     * 구분자와 경로 문자를 지운다.
+     * label 쪽 격리는 이것이 전부이므로 {@code ConversationIdTest}가 이 동작을 고정한다.
      */
     private static String sanitize(String label) {
         if (label == null || label.isBlank()) {

@@ -17,7 +17,8 @@ public class ModernMcpException extends RuntimeException {
 
 	/**
 	 * @param httpStatus 응답의 HTTP status
-	 * @param jsonRpcCode 본문 JSON-RPC 오류의 {@code code}. 본문이 JSON-RPC 오류가 아니면 {@code null}
+	 * @param jsonRpcCode 본문 JSON-RPC 오류의 {@code code}.
+	 *        본문이 JSON-RPC 오류가 아니면 {@code null}
 	 * @param message 본문 오류의 {@code message}나, 본문이 없을 때 이 client가 만든 설명.
 	 * tool 호출에서 나면 이 문장이 모델에게 tool 결과로 간다
 	 */

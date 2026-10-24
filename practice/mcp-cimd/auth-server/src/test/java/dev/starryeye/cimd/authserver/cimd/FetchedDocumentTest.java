@@ -17,7 +17,8 @@ class FetchedDocumentTest {
 
 	@Test
 	void no_cache는_no_store처럼_cache하지_않는다() {
-		// no-cache는 다시 쓰기 전에 문서 host에 확인하라는 뜻이다. 이 서버는 확인 요청을 보내지 않는다.
+		// no-cache는 다시 쓰기 전에 문서 host에 확인하라는 뜻이다.
+		// 이 서버는 확인 요청을 보내지 않는다.
 		assertThat(FetchedDocument.of(new byte[0], "no-cache").noStore()).isTrue();
 		assertThat(FetchedDocument.of(new byte[0], "max-age=300, No-Cache").noStore()).isTrue();
 	}

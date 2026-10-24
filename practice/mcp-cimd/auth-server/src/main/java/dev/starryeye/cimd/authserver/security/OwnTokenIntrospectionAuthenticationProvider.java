@@ -22,8 +22,8 @@ import org.springframework.security.oauth2.server.authorization.authentication.O
  * RFC 7662 §2.2도 token이 있는지 감추려면 {@code active: false}만 돌려주라고 한다.
  *
  * <p>Spring은 token 주인의 client를 다시 찾고, 찾지 못하면 {@code Assert}로 실패해 500이 된다.
- * CIMD 저장소는 문서를 가져오지 못하면 client를 찾지 못한다. 다른 client의 token은 그 조회까지 가지 않고,
- * 자기 token인데 그사이 문서를 가져오지 못한 경우도 {@code active: false}로 끝낸다.
+ * CIMD 저장소는 문서를 가져오지 못하면 client를 찾지 못한다.
+ * 다른 client의 token은 그 조회까지 가지 않고, 자기 token인데 그사이 문서를 가져오지 못한 경우도 {@code active: false}로 끝낸다.
  *
  * <p>MCP Server는 access token(JWT)을 직접 검증하므로 이 endpoint를 쓰지 않는다.
  */

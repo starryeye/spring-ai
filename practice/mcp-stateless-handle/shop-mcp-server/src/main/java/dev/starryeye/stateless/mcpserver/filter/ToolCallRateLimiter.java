@@ -19,10 +19,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * window 안의 호출이 상한에 닿으면 거절하고, 가장 오래된 호출이 window를 벗어날 때까지 기다릴 시간을 알려 준다.
  * 거절한 호출은 세지 않는다.
  *
- * <p>한동안 부르지 않은 사용자의 기록은 지운다. window마다 한 번, 마지막 호출이 window를 벗어난 사용자를 지운다.
+ * <p>한동안 부르지 않은 사용자의 기록은 지운다.
+ * window마다 한 번, 마지막 호출이 window를 벗어난 사용자를 지운다.
  * 그래서 메모리는 최근 window 두 개 안에 tool을 부른 사용자 수에 비례한다.
  *
- * <p>기록은 이 process의 메모리에만 있다. 서버를 여러 대 띄우면 서버마다 따로 센다.
+ * <p>기록은 이 process의 메모리에만 있다.
+ * 서버를 여러 대 띄우면 서버마다 따로 센다.
  * 그런 배포에서는 gateway나 공유 저장소에서 센다.
  */
 public class ToolCallRateLimiter {
@@ -55,7 +57,8 @@ public class ToolCallRateLimiter {
 		sweepIfDue(now);
 		Instant windowStart = now.minus(this.window);
 		Duration[] retryAfter = new Duration[1];
-		// compute는 같은 사용자의 갱신을 하나씩 처리한다. 동시에 들어온 호출이 함께 상한을 넘지 못한다.
+		// compute는 같은 사용자의 갱신을 하나씩 처리한다.
+		// 동시에 들어온 호출이 함께 상한을 넘지 못한다.
 		this.calls.compute(subject, (key, times) -> {
 			Deque<Instant> recent = (times != null) ? times : new ArrayDeque<>();
 			while (!recent.isEmpty() && !recent.peekFirst().isAfter(windowStart)) {
@@ -72,12 +75,18 @@ public class ToolCallRateLimiter {
 		return Optional.ofNullable(retryAfter[0]);
 	}
 
-	/** 기록을 가진 사용자 수다. 정리가 되는지 테스트가 본다. */
+	/**
+	 * 기록을 가진 사용자 수다.
+	 * 정리가 되는지 테스트가 본다.
+	 */
 	int trackedSubjects() {
 		return this.calls.size();
 	}
 
-	/** window마다 한 번, 마지막 호출이 window를 벗어난 사용자의 기록을 지운다. 한 thread만 정리한다. */
+	/**
+	 * window마다 한 번, 마지막 호출이 window를 벗어난 사용자의 기록을 지운다.
+	 * 한 thread만 정리한다.
+	 */
 	private void sweepIfDue(Instant now) {
 		Instant due = this.nextSweep.get();
 		if (now.isBefore(due) || !this.nextSweep.compareAndSet(due, now.plus(this.window))) {

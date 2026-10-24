@@ -51,7 +51,10 @@ public class ProductRepository {
         return Optional.ofNullable(store.get(id));
     }
 
-    /** 재고를 바꾼다. 없는 상품이면 빈 값이다. */
+    /**
+     * 재고를 바꾼다.
+     * 없는 상품이면 빈 값이다.
+     */
     public synchronized Optional<Product> updateStock(String id, int stock) {
         Product updated = store.computeIfPresent(id, (key, product) ->
                 new Product(product.id(), product.name(), product.category(), product.price(), stock));

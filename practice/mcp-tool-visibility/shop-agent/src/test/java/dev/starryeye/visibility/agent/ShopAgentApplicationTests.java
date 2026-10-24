@@ -51,7 +51,10 @@ class ShopAgentApplicationTests {
     /** 가짜 MCP Server가 받은 {@code Authorization} header다. */
     static final List<String> RECEIVED_AUTHORIZATION = new CopyOnWriteArrayList<>();
 
-    /** MCP client가 실제로 보내는 요청을 받아 보는 가짜 MCP Server다. 무엇을 받든 401로 답한다. */
+    /**
+     * MCP client가 실제로 보내는 요청을 받아 보는 가짜 MCP Server다.
+     * 무엇을 받든 401로 답한다.
+     */
     static final HttpServer FAKE_MCP_SERVER = startFakeMcpServer();
 
     static HttpServer startFakeMcpServer() {
@@ -136,10 +139,9 @@ class ShopAgentApplicationTests {
 
     @Test
     void OAuth2_클라이언트_등록이_정확히_하나다() {
-        // 리터럴 "authserver" 가 아니라 McpSecurityConfig.REGISTRATION_ID 를 그대로 써서
-        // 조회한다 — 이 상수는 application.yml 의 registration 키와 일치해야만 의미가
-        // 있는데, 그 일치 여부를 이 테스트가 실제로 검증한다. yml 이나 상수 어느 한쪽만
-        // 바뀌면 이 조회가 null 을 돌려주며 즉시 빨간불이 된다.
+        // 리터럴 "authserver" 가 아니라 McpSecurityConfig.REGISTRATION_ID 를 그대로 써서 조회한다 —
+        // 이 상수는 application.yml 의 registration 키와 일치해야만 의미가 있는데, 그 일치 여부를 이 테스트가 실제로 검증한다.
+        // yml 이나 상수 어느 한쪽만 바뀌면 이 조회가 null 을 돌려주며 즉시 빨간불이 된다.
         var registration = clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID);
 
         assertThat(registration).isNotNull();
@@ -164,8 +166,8 @@ class ShopAgentApplicationTests {
     }
 
     /**
-     * MCP tool 호출은 reactor의 thread에서 돈다. 거기서도 SecurityContext가 보여야
-     * {@code SecurityMcpTransportContextProvider}가 사용자를 읽고 token이 붙는다(6장 "조용히 401").
+     * MCP tool 호출은 reactor의 thread에서 돈다.
+     * 거기서도 SecurityContext가 보여야 {@code SecurityMcpTransportContextProvider}가 사용자를 읽고 token이 붙는다(6장 "조용히 401").
      * 이 전파는 {@code main()}이 아니라 설정({@code spring.reactor.context-propagation: auto})으로 켜므로
      * 테스트 context에서도 켜져 있어야 한다.
      */
@@ -210,7 +212,8 @@ class ShopAgentApplicationTests {
 
         SecurityContextHolder.getContext().setAuthentication(alice);
         try {
-            // 가짜 MCP Server는 401로 답하므로 initialize는 실패한다. 보낸 요청의 header만 본다.
+            // 가짜 MCP Server는 401로 답하므로 initialize는 실패한다.
+            // 보낸 요청의 header만 본다.
             catchThrowable(() -> this.mcpSyncClients.get(0).initialize());
         }
         finally {

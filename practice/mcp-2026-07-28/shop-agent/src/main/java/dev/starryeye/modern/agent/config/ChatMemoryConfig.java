@@ -9,7 +9,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 사용자별 대화 기억이다. tool 호출과 결과까지 남긴다(안내서 11장).
+ * 사용자별 대화 기억이다.
+ * tool 호출과 결과까지 남긴다(안내서 11장).
  *
  * <p>Spring AI의 기본 배치에서는 대화 기억 advisor가 tool loop 바깥에 있어, 사용자 질문과 마지막 답만 남는다.
  * 그러면 다음 turn의 모델은 이전 tool 결과에 있던 장바구니 handle을 보지 못한다.
@@ -25,7 +26,10 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class ChatMemoryConfig {
 
-	/** 최근 메시지 20개만 기억한다. 로컬 모델의 context가 짧기 때문이다. */
+	/**
+	 * 최근 메시지 20개만 기억한다.
+	 * 로컬 모델의 context가 짧기 때문이다.
+	 */
 	public static final int MAX_MESSAGES = 20;
 
 	/** {@link ToolCallingAdvisor#DEFAULT_ORDER}보다 커야 tool loop 안에 들어간다. */

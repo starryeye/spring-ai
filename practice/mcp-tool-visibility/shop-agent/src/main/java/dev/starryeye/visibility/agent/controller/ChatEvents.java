@@ -77,7 +77,8 @@ public final class ChatEvents {
     /**
      * 원인 사슬에서 "목록에 없는 tool" 오류를 찾아 그 tool 이름을 돌려준다.
      * {@code initCause}는 자기 자신만 막으므로 A → B → A 같은 고리가 생길 수 있다.
-     * 한 번 본 예외를 다시 만나면 멈춘다. {@link StepUpRequiredException#find}와 같다.
+     * 한 번 본 예외를 다시 만나면 멈춘다.
+     * {@link StepUpRequiredException#find}와 같다.
      */
     static Optional<String> unavailableTool(Throwable error) {
         Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());

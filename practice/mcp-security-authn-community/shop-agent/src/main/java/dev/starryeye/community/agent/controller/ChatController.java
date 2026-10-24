@@ -18,8 +18,8 @@ public class ChatController {
     }
 
     /**
-     * SSE가 아니라 {@code text/plain}이다. SSE는 Flux 원소마다 frame을 붙이는데,
-     * {@code .content()}는 LLM token 단위로 내보내므로 읽을 수 없는 출력이 된다.
+     * SSE가 아니라 {@code text/plain}이다.
+     * SSE는 Flux 원소마다 frame을 붙이는데, {@code .content()}는 LLM token 단위로 내보내므로 읽을 수 없는 출력이 된다.
      *
      * <p><b>{@code contextWrite}를 지우면 안 된다.</b>
      * {@code AuthenticationMcpTransportContextProvider}는 {@code SecurityContextHolder}와
