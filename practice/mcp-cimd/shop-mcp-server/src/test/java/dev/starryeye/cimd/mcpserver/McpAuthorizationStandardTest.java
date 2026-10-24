@@ -265,7 +265,8 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 만료된_토큰은_거부한다() throws Exception {
-		// Spring JwtTimestampValidator 의 기본 clock skew 는 60초다. 그보다 오래 지난 token 을 쓴다.
+		// Spring JwtTimestampValidator 의 기본 clock skew 는 60초다.
+		// 그보다 오래 지난 token 을 쓴다.
 		this.mockMvc.perform(mcp(토큰(ISSUER, RESOURCE, "user", Instant.now().minusSeconds(120), KEY), null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
@@ -333,8 +334,8 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), "1999-01-01"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.error.message").value(org.hamcrest.Matchers.containsString("1999-01-01")))
-				// 오류 본문을 바이트 단위로 고정한다. docs/superpowers/captures/2026-09-12-official.txt의
-				// "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
+				// 오류 본문을 바이트 단위로 고정한다.
+				// docs/superpowers/captures/2026-09-12-official.txt의 "지원하지 않는 MCP-Protocol-Version" 단계에 기록된 본문과 같고, 안내서는 그 본문을 인용한다.
 				// filter가 본문을 Jackson tree로 직렬화하므로, field 순서나 공백이 바뀌면 이 단정이 실패한다.
 				.andExpect(content().string(
 						"{\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32600,"
@@ -351,9 +352,8 @@ class McpAuthorizationStandardTest {
 
 	@Test
 	void 따옴표가_든_MCP_Protocol_Version_헤더_값도_구조가_깨지지_않는_JSON으로_응답한다() throws Exception {
-		// 문자열 연결로 오류 메시지를 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고
-		// 임의의 최상위 멤버를 주입할 수 있었다. jsonPath 평가 자체가 본문이 유효한
-		// JSON임을 증명하고, injected field 부재가 주입이 통하지 않음을 증명한다.
+		// 문자열 연결로 오류 메시지를 만들면 header 값에 섞인 따옴표가 JSON 구조를 깨고 임의의 최상위 멤버를 주입할 수 있었다.
+		// jsonPath 평가 자체가 본문이 유효한 JSON임을 증명하고, injected field 부재가 주입이 통하지 않음을 증명한다.
 		String 악성_헤더_값 = "x\"},\"injected\":{\"a\":\"b";
 		this.mockMvc.perform(mcpWithProtocolVersion(토큰(ISSUER, RESOURCE), 악성_헤더_값))
 				.andExpect(status().isBadRequest())

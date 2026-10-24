@@ -27,7 +27,8 @@ class StepUpStateTest {
         assertThat(state.attempted(List.of("products:write"))).isTrue();
         assertThat(state.finish()).containsExactly("products:write");
         assertThat(state.isPending()).isFalse();
-        // login이 끝나도 시도 기록은 남는다. 같은 scope로 step-up을 되풀이하지 않기 위해서다.
+        // login이 끝나도 시도 기록은 남는다.
+        // 같은 scope로 step-up을 되풀이하지 않기 위해서다.
         assertThat(state.attempted(List.of("products:write"))).isTrue();
     }
 

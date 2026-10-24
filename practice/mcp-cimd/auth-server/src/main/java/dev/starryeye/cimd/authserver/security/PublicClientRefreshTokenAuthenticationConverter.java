@@ -21,11 +21,13 @@ import java.util.Map;
  * public client의 refresh 요청을 client 인증 요청으로 바꾼다.
  *
  * <p>Spring의 {@code PublicClientAuthenticationConverter}는 {@code code_verifier}가 있는 요청,
- * 곧 authorization code 요청만 public client로 받는다. refresh 요청에는 {@code code_verifier}가 없다.
+ * 곧 authorization code 요청만 public client로 받는다.
+ * refresh 요청에는 {@code code_verifier}가 없다.
  * 그래서 refresh 요청에 다른 client 인증(Basic header, client_assertion, client_secret)이 없고
  * {@code client_id}가 하나뿐이면, 그 client_id의 public client 인증으로 넘긴다.
  * 만든 token에는 refresh 요청이라는 표시를 남겨, provider가 이 요청만 맡게 한다.
- * refresh token도 함께 넘긴다. provider는 그 grant를 받을 때의 인증 방식이 {@code none}이었는지 본다.
+ * refresh token도 함께 넘긴다.
+ * provider는 그 grant를 받을 때의 인증 방식이 {@code none}이었는지 본다.
  *
  * <p>Spring의 client 인증 filter는 token endpoint 말고도 introspection, revocation, PAR, device authorization endpoint에서 돈다.
  * 이 converter가 그 endpoint까지 맡으면 인증 없이 {@code client_id}만으로 public client 행세를 할 수 있다.

@@ -182,7 +182,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void authorization_servers_가_여럿이면_첫_값을_쓴다() {
-		// CIMD client는 credentials가 묶인 issuer가 없어 목록에서 고를 기준이 없다. 첫 값만 쓰고 나머지에는 요청하지 않는다.
+		// CIMD client는 credentials가 묶인 issuer가 없어 목록에서 고를 기준이 없다.
+		// 첫 값만 쓰고 나머지에는 요청하지 않는다.
 		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
 		챌린지("Bearer resource_metadata=\"" + prm + "\"");
 		응답(prm, """
@@ -220,7 +221,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void authorization_endpoint_가_loopback_이_아닌_http_URL_이면_진행하지_않는다() {
-		// MCP Security Best Practices — http 는 loopback 주소에만 허용된다(MUST). 스킴만 보는 검사로는 막을 수 없는 URL 이다.
+		// MCP Security Best Practices — http 는 loopback 주소에만 허용된다(MUST).
+		// 스킴만 보는 검사로는 막을 수 없는 URL 이다.
 		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server",
@@ -280,7 +282,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void CIMD를_알리지_않는_서버면_멈춘다() {
-		// 문서 주소를 client_id로 받지 않는 서버다. 그대로 가면 모르는 client로 거절당한다.
+		// 문서 주소를 client_id로 받지 않는 서버다.
+		// 그대로 가면 모르는 client로 거절당한다.
 		챌린지("Bearer resource_metadata=\"http://localhost:8171/.well-known/oauth-protected-resource/mcp\"");
 		응답("http://localhost:8171/.well-known/oauth-protected-resource/mcp", PROTECTED_RESOURCE_METADATA);
 		응답("http://localhost:9060/.well-known/oauth-authorization-server",
@@ -316,7 +319,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void 응답을_읽지_못하면_원인을_담아_실패한다() {
-		// 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다. 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
+		// 연결 실패·시간 초과·깨진 본문은 RestClientException 으로 온다.
+		// 원인을 남겨야 어디서 실패했는지 찾을 수 있다.
 		String prm = RESOURCE.replace("/mcp", "/.well-known/oauth-protected-resource/mcp");
 		챌린지("Bearer resource_metadata=\"" + prm + "\"");
 		응답(prm, "{");
@@ -328,7 +332,8 @@ class McpAuthorizationDiscoveryTest {
 
 	@Test
 	void 연결만_받고_응답하지_않는_서버는_read_timeout_까지만_기다린다() throws Exception {
-		// backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다. 시간 제한이 없으면 discovery가 끝나지 않는다.
+		// backlog에 연결은 쌓이지만 아무도 응답하지 않는 서버다.
+		// 시간 제한이 없으면 discovery가 끝나지 않는다.
 		try (ServerSocket silent = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
 			McpAuthorizationDiscovery discovery = new McpAuthorizationDiscovery(RestClient.builder()
 					.requestFactory(McpAuthorizationDiscovery.requestFactory(Duration.ofSeconds(1), Duration.ofMillis(300)))

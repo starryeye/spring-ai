@@ -37,15 +37,19 @@ import java.util.concurrent.locks.ReentrantLock;
  * 기록은 버린 token이 만료될 때까지만 두고, 저장할 때 만료된 기록을 치운다.
  *
  * <p>rotation이 한 번에 하나씩만 일어나게 authorization마다 lock을 둔다.
- * Spring의 refresh 처리는 token으로 grant를 찾고, 새 token을 만들고, 저장한다. 그 사이에 lock이 없다.
+ * Spring의 refresh 처리는 token으로 grant를 찾고, 새 token을 만들고, 저장한다.
+ * 그 사이에 lock이 없다.
  * 같은 refresh token이 거의 동시에 두 번 오면 둘 다 지금의 token으로 grant를 찾아 둘 다 새 token을 받는다.
  * 그러면 one-time-use가 깨지고, 도난 탐지는 진 쪽이 다음에 refresh할 때로 밀린다.
  * 그래서 refresh token으로 grant를 찾으면 그 grant의 lock을 잡고 한 번 더 찾는다.
  * 기다리는 사이 다른 요청이 rotation했다면 두 번째 조회에서 없으므로, 버린 token을 다시 쓴 것으로 보고 grant를 끊는다.
- * 기록해 둔 버린 token이 와서 grant를 끊을 때도 같은 lock 안에서 끊는다. 그래야 rotation 중이던 요청의 저장이 끊은 grant를 되살리지 않는다.
- * lock은 그 grant를 저장할 때 푼다. 저장하지 않고 끝난 요청(검증 실패 등)은 token endpoint의
- * {@link RefreshLockReleasingFilter}가 요청 끝에 푼다. lock을 잡은 요청을 thread로 구별하므로, 한 요청이 한 thread에서 돈다고 본다.
- * 이 lock은 이 process 안에서만 통한다. 서버를 여러 대 두면 저장소의 version 비교 같은 방법이 따로 필요하다.
+ * 기록해 둔 버린 token이 와서 grant를 끊을 때도 같은 lock 안에서 끊는다.
+ * 그래야 rotation 중이던 요청의 저장이 끊은 grant를 되살리지 않는다.
+ * lock은 그 grant를 저장할 때 푼다.
+ * 저장하지 않고 끝난 요청(검증 실패 등)은 token endpoint의 {@link RefreshLockReleasingFilter}가 요청 끝에 푼다.
+ * lock을 잡은 요청을 thread로 구별하므로, 한 요청이 한 thread에서 돈다고 본다.
+ * 이 lock은 이 process 안에서만 통한다.
+ * 서버를 여러 대 두면 저장소의 version 비교 같은 방법이 따로 필요하다.
  *
  * <p>access token은 JWT라서 MCP Server가 Authorization Server에 묻지 않고 검증한다.
  * 그래서 grant를 끊어도 이미 나간 access token은 만료될 때까지 쓸 수 있다.
@@ -55,7 +59,8 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 	private static final Logger log = LoggerFactory.getLogger(RefreshTokenReuseDetectingAuthorizationService.class);
 
 	/**
-	 * lock을 기다리는 최대 시간이다. 정상이면 다른 요청이 새 token을 만들어 저장하는 짧은 동안만 기다린다.
+	 * lock을 기다리는 최대 시간이다.
+	 * 정상이면 다른 요청이 새 token을 만들어 저장하는 짧은 동안만 기다린다.
 	 * 풀리지 않은 lock(버그)이 있어도 token request가 끝없이 묶이지 않게 상한을 둔다.
 	 * 넘으면 그 refresh는 실패한다.
 	 */
@@ -68,16 +73,25 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 	/** 버린 refresh token의 hash에서 그 authorization의 id와 버린 token의 만료 시각으로 가는 기록이다. */
 	private final Map<String, Retired> retired = new ConcurrentHashMap<>();
 
-	/** authorization id마다의 lock이다. 잡거나 기다리는 thread가 없으면 지운다. */
+	/**
+	 * authorization id마다의 lock이다.
+	 * 잡거나 기다리는 thread가 없으면 지운다.
+	 */
 	private final Map<String, GrantLock> locks = new ConcurrentHashMap<>();
 
-	/** 지금 thread가 잡은 lock의 authorization id다. 같은 요청 안의 두 번째 조회는 다시 잡지 않는다. */
+	/**
+	 * 지금 thread가 잡은 lock의 authorization id다.
+	 * 같은 요청 안의 두 번째 조회는 다시 잡지 않는다.
+	 */
 	private final ThreadLocal<Set<String>> held = ThreadLocal.withInitial(HashSet::new);
 
 	private record Retired(String authorizationId, Instant expiresAt) {
 	}
 
-	/** {@code users}는 lock을 잡았거나 기다리는 thread 수다. {@link ConcurrentHashMap#compute} 안에서만 읽고 바꾼다. */
+	/**
+	 * {@code users}는 lock을 잡았거나 기다리는 thread 수다.
+	 * {@link ConcurrentHashMap#compute} 안에서만 읽고 바꾼다.
+	 */
 	private static final class GrantLock {
 
 		final ReentrantLock lock = new ReentrantLock();
@@ -142,7 +156,8 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 		}
 		OAuth2Authorization current = this.delegate.findByToken(token, tokenType);
 		if (current == null) {
-			// lock을 기다리는 사이 다른 요청이 이 token을 rotation했다. 버린 token을 다시 쓴 것과 같다.
+			// lock을 기다리는 사이 다른 요청이 이 token을 rotation했다.
+			// 버린 token을 다시 쓴 것과 같다.
 			this.retired.remove(hash(token));
 			revoke(found.getId());
 			unlock(found.getId());
@@ -151,7 +166,8 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 	}
 
 	/**
-	 * 지금 thread가 잡은 lock을 모두 푼다. token endpoint 요청이 끝날 때 {@link RefreshLockReleasingFilter}가 부른다.
+	 * 지금 thread가 잡은 lock을 모두 푼다.
+	 * token endpoint 요청이 끝날 때 {@link RefreshLockReleasingFilter}가 부른다.
 	 * 저장까지 간 요청은 저장할 때 이미 풀었으므로, 여기서는 저장하지 않고 끝난 요청의 lock만 남아 있다.
 	 */
 	public void releaseHeldLocks() {
@@ -207,7 +223,8 @@ public class RefreshTokenReuseDetectingAuthorizationService implements OAuth2Aut
 	}
 
 	/**
-	 * 그 grant의 lock 안에서 끊는다. 지금의 token으로 rotation 중인 요청이 있으면 그 저장이 끝난 뒤에 지운다.
+	 * 그 grant의 lock 안에서 끊는다.
+	 * 지금의 token으로 rotation 중인 요청이 있으면 그 저장이 끝난 뒤에 지운다.
 	 * lock 없이 먼저 지우면, 이어지는 저장이 끊은 grant를 다시 살린다.
 	 * lock을 시간 안에 잡지 못해도 끊는 것은 미루지 않는다.
 	 */

@@ -19,7 +19,8 @@ import java.util.List;
  * <p>이 값이 있어야 MCP Server가 "나에게 발급된 token"만 받을 수 있다.
  * 없으면 같은 Authorization Server를 쓰는 다른 resource의 token도 그대로 통한다(confused deputy).
  *
- * <p>id_token은 건드리지 않는다. id_token의 audience는 client 자신이다.
+ * <p>id_token은 건드리지 않는다.
+ * id_token의 audience는 client 자신이다.
  *
  * <p>access token에는 {@code client_id}도 넣는다(RFC 9068 §2.2).
  * {@code aud}가 resource로 바뀌어도 MCP Server는 어느 client에 발급된 token인지 알 수 있다.
@@ -73,7 +74,10 @@ public class ResourceAudienceTokenCustomizer implements OAuth2TokenCustomizer<Jw
 				? grant.getAdditionalParameters().get(McpResourceProperties.RESOURCE_PARAMETER) : null;
 	}
 
-	/** authorization request에 있던 resource다. refresh_token grant에서도 이 값이 남아 있다. */
+	/**
+	 * authorization request에 있던 resource다.
+	 * refresh_token grant에서도 이 값이 남아 있다.
+	 */
 	private static Object authorizedResource(JwtEncodingContext context) {
 		OAuth2Authorization authorization = context.getAuthorization();
 		if (authorization == null) {

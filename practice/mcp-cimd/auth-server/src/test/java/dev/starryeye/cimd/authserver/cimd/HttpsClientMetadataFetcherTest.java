@@ -39,17 +39,26 @@ class HttpsClientMetadataFetcherTest {
 
 	CountDownLatch trickleWriteFailed = new CountDownLatch(1);
 
-	/** {@code /gate}는 이 latch가 열릴 때까지 응답하지 않는다. 가져오기가 진행 중인 상태를 만든다. */
+	/**
+	 * {@code /gate}는 이 latch가 열릴 때까지 응답하지 않는다.
+	 * 가져오기가 진행 중인 상태를 만든다.
+	 */
 	CountDownLatch gate = new CountDownLatch(1);
 
 	AtomicInteger gateHits = new AtomicInteger();
 
 	ClientIdUrlValidator validator;
 
-	/** 기본 시간 제한으로 가져온다. 정상 응답을 받는 테스트는 느린 환경에서도 흔들리지 않아야 한다. */
+	/**
+	 * 기본 시간 제한으로 가져온다.
+	 * 정상 응답을 받는 테스트는 느린 환경에서도 흔들리지 않아야 한다.
+	 */
 	HttpsClientMetadataFetcher fetcher;
 
-	/** 응답 전체를 0.5초 안에 받아야 한다. 느린 응답을 끊는 테스트만 쓴다. */
+	/**
+	 * 응답 전체를 0.5초 안에 받아야 한다.
+	 * 느린 응답을 끊는 테스트만 쓴다.
+	 */
 	HttpsClientMetadataFetcher shortTimeoutFetcher;
 
 	@BeforeEach

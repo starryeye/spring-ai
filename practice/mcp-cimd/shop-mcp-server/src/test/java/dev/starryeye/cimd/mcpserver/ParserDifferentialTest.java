@@ -21,15 +21,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 검사({@code ToolScopeFilter})와 실행(SDK)이 tool 이름을 다르게 읽을 수 있는 본문을 조회 scope token으로 보낸다
  * (안내서 10장의 parser differential).
  *
- * <p>상태 코드만 보지 않고 결과를 본다. 쓰기 tool({@code updateStock})이 실행되면 재고가 바뀐다.
- * 대조군은 같은 경로로 쓰기 scope token을 보내 재고가 정말 바뀌는 것을 보인다. 그래야 "재고가 그대로다"라는 단정이 의미를 가진다.
+ * <p>상태 코드만 보지 않고 결과를 본다.
+ * 쓰기 tool({@code updateStock})이 실행되면 재고가 바뀐다.
+ * 대조군은 같은 경로로 쓰기 scope token을 보내 재고가 정말 바뀌는 것을 보인다.
+ * 그래야 "재고가 그대로다"라는 단정이 의미를 가진다.
  *
  * <p>지금 조합(Spring AI 2.0.2, MCP SDK 2.1.0)에서 확인한 동작은 이렇다.
  * 중복 key는 filter와 SDK 모두 뒤의 값을 쓴다.
  * 문자열이 아닌 이름(숫자·boolean·배열)은 filter가 transport로 넘기지 않고 {@code 400}(JSON-RPC {@code -32602})으로 끝낸다.
  * filter가 넘기면 SDK는 숫자·boolean을 문자열로 바꿔 "모르는 tool"로 답하고, 배열은 바꾸지 못해 transport가
  * stack trace가 든 {@code 500}을 낸다.
- * 그래서 쓰기 tool이 검사를 피해 실행되는 본문은 없다. SDK나 mapper 설정이 바뀌면 이 테스트가 먼저 알려 준다.
+ * 그래서 쓰기 tool이 검사를 피해 실행되는 본문은 없다.
+ * SDK나 mapper 설정이 바뀌면 이 테스트가 먼저 알려 준다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

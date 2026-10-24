@@ -30,7 +30,8 @@ import java.util.concurrent.TimeoutException;
  * <p>시간 제한은 header와 본문을 합친 응답 전체에 하나만 둔다.
  * header만 빨리 보내고 본문을 조금씩 흘리는 응답도 막기 위해서다.
  * 제한을 넘기면 요청을 취소해 연결을 닫는다.
- * 본문은 크기 상한보다 1 byte 더 읽으면 멈춘다. 상한을 넘었는지만 알면 되기 때문이다.
+ * 본문은 크기 상한보다 1 byte 더 읽으면 멈춘다.
+ * 상한을 넘었는지만 알면 되기 때문이다.
  *
  * <p>문서는 login 전의 authorization request에서도 가져오고, JWKS는 인증 전의 token request마다 가져온다.
  * 그래서 인증 없는 요청이 이 서버를 시켜 바깥으로 요청을 보내게 할 수 있다(CIMD draft §6.5).
@@ -38,7 +39,8 @@ import java.util.concurrent.TimeoutException;
  * 같은 주소를 가져오는 중에 같은 주소가 또 오면 새로 요청하지 않고 진행 중인 결과를 함께 기다린다(single-flight).
  * 결과는 그 가져오기가 끝나면 버리므로, 실패한 결과를 cache하지 않는 규칙(CIMD §4.4)과 부딪치지 않는다.
  * 그리고 동시에 진행하는 가져오기 수에 상한({@code mcp.cimd.max-concurrent-fetches})을 둔다.
- * 자리가 없으면 기다리지 않고 바로 실패한다. 기다리게 하면 그동안 요청 thread가 묶이기 때문이다.
+ * 자리가 없으면 기다리지 않고 바로 실패한다.
+ * 기다리게 하면 그동안 요청 thread가 묶이기 때문이다.
  * 이 상한은 서버 전체에 하나라서, 상한을 채우는 쪽이 있으면 다른 client의 문서도 그동안 가져오지 못한다.
  * client나 원격 주소별 속도 제한은 이 practice에 없다.
  */
@@ -52,7 +54,10 @@ public final class HttpsClientMetadataFetcher implements ClientMetadataHttp {
 
 	private final Semaphore fetchPermits;
 
-	/** 진행 중인 가져오기다. 끝나면 지운다. */
+	/**
+	 * 진행 중인 가져오기다.
+	 * 끝나면 지운다.
+	 */
 	private final Map<URI, CompletableFuture<FetchedDocument>> inFlight = new ConcurrentHashMap<>();
 
 	public HttpsClientMetadataFetcher(ClientIdUrlValidator urlValidator,
@@ -89,8 +94,8 @@ public final class HttpsClientMetadataFetcher implements ClientMetadataHttp {
 	}
 
 	/**
-	 * 같은 주소의 진행 중인 가져오기를 기다린다. 그 가져오기는 host 조회와 응답 시간 제한 안에 끝나므로,
-	 * 그 두 시간을 합친 만큼만 기다린다.
+	 * 같은 주소의 진행 중인 가져오기를 기다린다.
+	 * 그 가져오기는 host 조회와 응답 시간 제한 안에 끝나므로, 그 두 시간을 합친 만큼만 기다린다.
 	 */
 	private FetchedDocument awaitRunning(CompletableFuture<FetchedDocument> running, URI uri) {
 		Duration wait = this.properties.connectTimeout().plus(this.properties.readTimeout()).plusSeconds(1);

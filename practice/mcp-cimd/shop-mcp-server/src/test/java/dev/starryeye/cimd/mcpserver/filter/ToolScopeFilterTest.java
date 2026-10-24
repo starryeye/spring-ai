@@ -35,7 +35,10 @@ class ToolScopeFilterTest {
 
 	static final String METADATA = "http://localhost:8171/.well-known/oauth-protected-resource/mcp";
 
-	/** 본문 상한을 시험하는 filter의 상한이다. 기본 상한(1 MiB)보다 작게 두어 큰 본문을 만들지 않는다. */
+	/**
+	 * 본문 상한을 시험하는 filter의 상한이다.
+	 * 기본 상한(1 MiB)보다 작게 두어 큰 본문을 만들지 않는다.
+	 */
 	static final int SMALL_LIMIT = 128;
 
 	/** 속도 제한의 Retry-After가 실행 속도에 따라 흔들리지 않도록 시간을 멈춘다. */
@@ -44,11 +47,13 @@ class ToolScopeFilterTest {
 	ToolScopeFilter filter = filter(1024 * 1024);
 
 	static ToolScopeFilter filter(int maxBodyBytes) {
-		// 속도 제한은 따로 시험한다. 다른 시험이 걸리지 않도록 넉넉하게 둔다.
+		// 속도 제한은 따로 시험한다.
+		// 다른 시험이 걸리지 않도록 넉넉하게 둔다.
 		return filter(maxBodyBytes, 1000);
 	}
 
-	// 이 test의 token은 sub가 user라 점원이다. 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
+	// 이 test의 token은 sub가 user라 점원이다.
+	// 점원은 모든 scope를 받을 수 있으니 tool이 숨지 않는다.
 	static ToolScopeFilter filter(int maxBodyBytes, int toolCallsPerMinute) {
 		ToolScopeRegistry registry = ToolScopeRegistry.of(ProductTools.class);
 		return new ToolScopeFilter(registry, new ToolVisibility(registry, Map.of("user", ToolVisibility.Role.STAFF)),
@@ -56,7 +61,10 @@ class ToolScopeFilterTest {
 				new ToolCallRateLimiter(toolCallsPerMinute, Duration.ofMinutes(1), FIXED_CLOCK));
 	}
 
-	/** {@code length} 바이트짜리 {@code tools/list} 본문이다. 끝의 공백으로 길이를 맞춘다. */
+	/**
+	 * {@code length} 바이트짜리 {@code tools/list} 본문이다.
+	 * 끝의 공백으로 길이를 맞춘다.
+	 */
 	static String 길이를_맞춘_본문(int length) {
 		String head = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"";
 		return head + " ".repeat(length - head.length() - 1) + "}";
@@ -93,7 +101,10 @@ class ToolScopeFilterTest {
 				+ "\",\"arguments\":{}}}";
 	}
 
-	/** {@code getInputStream}이 불리면 실패한다. 본문을 읽기 전에 걸러야 하는 검사를 증명하는 데 쓴다. */
+	/**
+	 * {@code getInputStream}이 불리면 실패한다.
+	 * 본문을 읽기 전에 걸러야 하는 검사를 증명하는 데 쓴다.
+	 */
 	static final class 본문_읽기_금지 extends HttpServletRequestWrapper {
 
 		본문_읽기_금지(HttpServletRequest request) {
@@ -271,7 +282,8 @@ class ToolScopeFilterTest {
 	 * transport({@code StringHttpMessageConverter})는 잘못된 UTF-8 바이트를 예외 없이 대체 문자로 바꿔 읽는다.
 	 * 이 filter도 같은 방식으로 읽어야, 조회 scope만 있는 token이 이 바이트 하나로 재고 변경을 몰래 통과시키지 못한다.
 	 * 입력 바이트는 고정이고, 대체 문자는 문자열 값 안에 들어가 JSON 구조를 깨지 않는다.
-	 * 그래서 결과는 늘 scope 검사의 {@code 403}이다. {@code 400}이 나오면 decode 규칙이 달라졌다는 뜻이니 실패해야 한다.
+	 * 그래서 결과는 늘 scope 검사의 {@code 403}이다.
+	 * {@code 400}이 나오면 decode 규칙이 달라졌다는 뜻이니 실패해야 한다.
 	 */
 	@Test
 	void 유효하지_않은_UTF8_바이트가_섞인_본문도_scope_검사를_받아_403이고_transport로_넘기지_않는다() throws Exception {

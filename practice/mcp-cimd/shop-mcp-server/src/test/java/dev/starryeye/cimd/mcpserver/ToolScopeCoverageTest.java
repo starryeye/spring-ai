@@ -20,7 +20,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 서버가 실제로 내놓는 tool과 scope 표({@link ToolScopeRegistry})가 같은지 본다.
  *
- * <p>표에 없는 tool은 기본 scope만 요구한다. 그래서 표에서 빠진 쓰기 tool은 조회 token으로도 불린다(fail-open).
+ * <p>표에 없는 tool은 기본 scope만 요구한다.
+ * 그래서 표에서 빠진 쓰기 tool은 조회 token으로도 불린다(fail-open).
  * 표를 만드는 방식이 Spring AI가 tool을 등록하는 방식과 어긋나면 이 테스트가 깨진다.
  */
 @SpringBootTest
@@ -38,7 +39,8 @@ class ToolScopeCoverageTest {
 
 	@Test
 	void 서버가_tools_list에_내놓는_tool과_scope_표의_tool이_같다() throws Exception {
-		// McpScopeTest의 token은 sub가 user라 점원이다. 점원에게는 숨기는 tool이 없어 전체 목록을 받는다.
+		// McpScopeTest의 token은 sub가 user라 점원이다.
+		// 점원에게는 숨기는 tool이 없어 전체 목록을 받는다.
 		String json = this.mockMvc.perform(McpScopeTest.mcp(McpScopeTest.토큰("products:read"), TOOLS_LIST))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
