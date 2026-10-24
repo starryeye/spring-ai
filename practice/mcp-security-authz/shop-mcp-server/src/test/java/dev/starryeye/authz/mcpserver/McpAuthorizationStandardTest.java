@@ -267,6 +267,15 @@ class McpAuthorizationStandardTest {
 	 */
 
 	@Test
+	void typ이_없는_토큰도_받는다() throws Exception {
+		// 이 서버의 Authorization Server는 typ을 넣지 않는다.
+		String token = 토큰(ISSUER, RESOURCE);
+		org.junit.jupiter.api.Assertions.assertNull(com.nimbusds.jwt.SignedJWT.parse(token).getHeader().getType());
+		this.mockMvc.perform(mcp(token, null, HOST))
+				.andExpect(status().isOk());
+	}
+
+	@Test
 	void typ이_at_jwt인_토큰도_받는다() throws Exception {
 		this.mockMvc.perform(mcp(typ이_있는_토큰("at+jwt"), null, HOST))
 				.andExpect(status().isOk())
@@ -296,7 +305,9 @@ class McpAuthorizationStandardTest {
 		this.mockMvc.perform(mcp(typ이_있는_토큰("foo"), null, HOST))
 				.andExpect(status().isUnauthorized())
 				.andExpect(header().string("WWW-Authenticate",
-						org.hamcrest.Matchers.containsString("error=\"invalid_token\"")));
+						org.hamcrest.Matchers.containsString("error=\"invalid_token\"")))
+				// iss·aud·exp가 아니라 typ 검사에서 거절됐다.
+				.andExpect(header().string("WWW-Authenticate", org.hamcrest.Matchers.containsString("typ")));
 	}
 
 	@Test

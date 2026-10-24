@@ -460,6 +460,17 @@ class ModernProtocolTest {
 	 */
 
 	@Test
+	void typ이_없는_token도_받는다() throws Exception {
+		// 이 서버의 Authorization Server는 typ을 넣지 않는다.
+		String token = TestTokens.token("user", resource(), "products:read");
+		assertThat(com.nimbusds.jwt.SignedJWT.parse(token).getHeader().getType()).isNull();
+
+		Response response = client().listTools(token);
+
+		assertThat(response.status()).isEqualTo(200);
+	}
+
+	@Test
 	void typ이_at_jwt인_token도_받는다() {
 		Response response = client().listTools(TestTokens.typedToken("at+jwt", "user", resource(), "products:read"));
 
@@ -494,7 +505,8 @@ class ModernProtocolTest {
 		Response response = client().listTools(TestTokens.typedToken("foo", "user", resource(), "products:read"));
 
 		assertThat(response.status()).isEqualTo(401);
-		assertThat(response.header("WWW-Authenticate")).contains("error=\"invalid_token\"");
+		// iss·aud·exp가 아니라 typ 검사에서 거절됐다.
+		assertThat(response.header("WWW-Authenticate")).contains("error=\"invalid_token\"").contains("typ");
 	}
 
 	@Test
