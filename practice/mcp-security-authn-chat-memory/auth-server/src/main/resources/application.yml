@@ -1,6 +1,6 @@
 server:
-  # 서버가 연결을 받을 네트워크 주소. 127.0.0.1 이면 이 기기 안에서만 접속할 수 있다
-  # (MCP 2025-11-25 Transports: 로컬에서 도는 서버는 localhost(127.0.0.1)에만 bind 하는 것이 좋다, SHOULD).
+  # 서버가 연결을 받을 네트워크 주소.
+  # 127.0.0.1 이면 이 기기 안에서만 접속할 수 있다 (MCP 2025-11-25 Transports: 로컬에서 도는 서버는 localhost(127.0.0.1)에만 bind 하는 것이 좋다, SHOULD).
   # 실제 배포에서는 컨테이너·reverse proxy 뒤라면 0.0.0.0(모든 인터페이스)이나 그 네트워크의 인터페이스
   # 주소를 쓰고, 외부에 무엇을 열지는 proxy·방화벽이 정한다.
   address: 127.0.0.1
@@ -8,8 +8,8 @@ server:
   servlet:
     session:
       cookie:
-        # 쿠키는 호스트만 보고 포트를 구분하지 않는다. 다른 practice 들과
-        # 동시에 띄워도 session이 서로 덮어쓰지 않도록 이름을 분리한다.
+        # 쿠키는 호스트만 보고 포트를 구분하지 않는다.
+        # 다른 practice 들과 동시에 띄워도 session이 서로 덮어쓰지 않도록 이름을 분리한다.
         name: MEMAUTHSESSIONID
 
 spring:
@@ -75,7 +75,8 @@ spring:
 
 mcp:
   authorization:
-    # RFC 8707. 이 Authorization Server가 token을 발급해 줄 수 있는 protected resource 목록이다.
+    # RFC 8707.
+    # 이 Authorization Server가 token을 발급해 줄 수 있는 protected resource 목록이다.
     # 여기 없는 resource로 요청하면 invalid_target으로 거부한다.
     resources:
       - http://localhost:8131/mcp

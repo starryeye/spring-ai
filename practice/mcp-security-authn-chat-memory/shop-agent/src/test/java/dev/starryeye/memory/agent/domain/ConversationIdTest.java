@@ -30,7 +30,10 @@ class ConversationIdTest {
         assertThat(ConversationId.of(user("alice"), "   ")).isEqualTo("alice:default");
     }
 
-    /** 핵심이다. bob이 alice의 namespace를 노려도 자기 namespace 안에 머문다. */
+    /**
+     * 핵심이다.
+     * bob이 alice의 namespace를 노려도 자기 namespace 안에 머문다.
+     */
     @Test
     void label_에_구분자를_넣어도_남의_네임스페이스로_못_간다() {
         String id = ConversationId.of(user("bob"), "alice:default");
@@ -54,8 +57,8 @@ class ConversationIdTest {
     }
 
     /**
-     * 외부 IdP의 {@code sub}는 문자 집합을 보장하지 않는다. {@code alice:x}의 대화 ID가
-     * {@code alice:}로 시작하면 alice의 목록({@code startsWith(prefix)})에 섞인다.
+     * 외부 IdP의 {@code sub}는 문자 집합을 보장하지 않는다.
+     * {@code alice:x}의 대화 ID가 {@code alice:}로 시작하면 alice의 목록({@code startsWith(prefix)})에 섞인다.
      */
     @Test
     void 사용자_이름에_구분자가_있어도_다른_사용자의_접두사에_걸리지_않는다() {

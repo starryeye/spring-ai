@@ -18,7 +18,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 묶음의 만료와 정리를 시계를 움직여 확인한다. 실제 transport와 함께 도는 경우는 {@code McpAuthorizationStandardTest}가 본다. */
+/**
+ * 묶음의 만료와 정리를 시계를 움직여 확인한다.
+ * 실제 transport와 함께 도는 경우는 {@code McpAuthorizationStandardTest}가 본다.
+ */
 class McpSessionBindingFilterTest {
 
 	static final Duration IDLE = Duration.ofHours(1);

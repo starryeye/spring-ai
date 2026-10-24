@@ -33,14 +33,13 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * login(code 교환) 요청에도 resource가 있어야 한다. resource가 빠지면 발급되는
- * token의 aud가 이 MCP Server로 좁혀지지 않는다.
+ * login(code 교환) 요청에도 resource가 있어야 한다.
+ * resource가 빠지면 발급되는 token의 aud가 이 MCP Server로 좁혀지지 않는다.
  * {@link TokenRefreshTest}가 검증하는 refresh 요청과 같은 요구다.
  * 하지만 별도 bean({@code authorizationCodeTokenResponseClient})으로 연결되어 있어 따로 검증해야 한다.
  *
- * <p>{@code McpSecurityConfig.authorizationCodeTokenResponseClient(...)}를 테스트 안에서
- * 다시 조립하지 않고 그대로 부른다. 그래야 이 연결이 다른 practice로 복사되며
- * 깨져도 이 테스트가 잡아낸다.
+ * <p>{@code McpSecurityConfig.authorizationCodeTokenResponseClient(...)}를 테스트 안에서 다시 조립하지 않고 그대로 부른다.
+ * 그래야 이 연결이 다른 practice로 복사되며 깨져도 이 테스트가 잡아낸다.
  */
 class AuthorizationCodeTokenRequestTest {
 
@@ -64,8 +63,8 @@ class AuthorizationCodeTokenRequestTest {
         DiscoveredClientRegistrationRepository registrations = mock(DiscoveredClientRegistrationRepository.class);
         given(registrations.discovered()).willReturn(DiscoveryFixtures.discovered());
 
-        // McpSecurityConfig의 실제 bean 생성 메서드를 부른다. 테스트 안에서 client를
-        // 새로 조립하면 이 연결이 빠지거나 깨져도 통과해 버린다.
+        // McpSecurityConfig의 실제 bean 생성 메서드를 부른다.
+        // 테스트 안에서 client를 새로 조립하면 이 연결이 빠지거나 깨져도 통과해 버린다.
         RestClientAuthorizationCodeTokenResponseClient tokenResponseClient =
                 new McpSecurityConfig().authorizationCodeTokenResponseClient(registrations);
 
@@ -97,7 +96,8 @@ class AuthorizationCodeTokenRequestTest {
                 .clientId("memory-agent")
                 .redirectUri(REDIRECT_URI)
                 .state("state-1")
-                // PKCE로 교환할 때만 code_verifier가 들어간다. 여기서도 실제로 들어가는지 확인한다.
+                // PKCE로 교환할 때만 code_verifier가 들어간다.
+                // 여기서도 실제로 들어가는지 확인한다.
                 .attributes(attributes -> attributes.put(PkceParameterNames.CODE_VERIFIER, "verifier-1"))
                 .build();
         OAuth2AuthorizationResponse authorizationResponse = OAuth2AuthorizationResponse.success("code-1")

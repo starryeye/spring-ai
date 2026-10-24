@@ -51,7 +51,8 @@ public class UserMcpClients implements DisposableBean {
     }
 
     /**
-     * 그 사용자의 MCP client를 빌린다. 처음 부르면 client를 만들고 initialize한다.
+     * 그 사용자의 MCP client를 빌린다.
+     * 처음 부르면 client를 만들고 initialize한다.
      * 다 쓰면 {@link Lease#close()}로 돌려준다.
      */
     public Lease acquire(Authentication user) {
@@ -60,15 +61,21 @@ public class UserMcpClients implements DisposableBean {
             if (client.retain()) {
                 return new Lease(client);
             }
-            // 찾은 뒤 빌리기 전에 close가 이 client를 retire했다. map에서도 빠졌으므로 다시 찾으면 새 client를 연다.
+            // 찾은 뒤 빌리기 전에 close가 이 client를 retire했다.
+            // map에서도 빠졌으므로 다시 찾으면 새 client를 연다.
         }
     }
 
-    /** 그 사용자의 client를 닫는다. 빌려 간 채팅이 있으면 모두 돌려준 뒤에 닫는다. 다음 {@link #acquire}는 새 client를 연다. */
+    /**
+     * 그 사용자의 client를 닫는다.
+     * 빌려 간 채팅이 있으면 모두 돌려준 뒤에 닫는다.
+     * 다음 {@link #acquire}는 새 client를 연다.
+     */
     public void close(String username) {
         CompletableFuture<UserClient> opening = this.clients.remove(username);
         if (opening != null) {
-            // 아직 여는 중이면 다 연 뒤에 retire한다. 열지 못했으면 닫을 것이 없다.
+            // 아직 여는 중이면 다 연 뒤에 retire한다.
+            // 열지 못했으면 닫을 것이 없다.
             opening.thenAccept(UserClient::retire);
         }
     }
@@ -100,7 +107,8 @@ public class UserMcpClients implements DisposableBean {
             created.complete(open(user));
         }
         catch (Throwable ex) {
-            // 실패는 기억하지 않는다. 기다리던 요청도 같은 오류를 받고, 다음 요청이 다시 연다.
+            // 실패는 기억하지 않는다.
+            // 기다리던 요청도 같은 오류를 받고, 다음 요청이 다시 연다.
             this.clients.remove(name, created);
             created.completeExceptionally(ex);
             throw ex;
@@ -137,7 +145,10 @@ public class UserMcpClients implements DisposableBean {
                 SessionRetryingToolCallback.wrap(SyncMcpToolCallbackProvider.builder().mcpClients(client).build()));
     }
 
-    /** 채팅 하나가 빌린 client다. 한 번만 돌려준다. */
+    /**
+     * 채팅 하나가 빌린 client다.
+     * 한 번만 돌려준다.
+     */
     public static final class Lease implements AutoCloseable {
 
         private final UserClient client;
@@ -162,8 +173,8 @@ public class UserMcpClients implements DisposableBean {
     }
 
     /**
-     * client와 빌려 간 수를 담는다. retire한({@code retired}) 뒤에는 더 빌려주지 않고,
-     * 빌려 간 수가 0이 되는 순간 한 번 닫는다.
+     * client와 빌려 간 수를 담는다.
+     * retire한({@code retired}) 뒤에는 더 빌려주지 않고, 빌려 간 수가 0이 되는 순간 한 번 닫는다.
      * 닫기({@code DELETE})는 network 요청이므로 lock 밖에서 한다.
      */
     private static final class UserClient {

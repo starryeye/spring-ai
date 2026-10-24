@@ -62,9 +62,8 @@ class ShopAgentApplicationTests {
     @Test
     void OAuth2_클라이언트_등록이_정확히_하나다() {
         // 리터럴 "authserver"가 아니라 McpSecurityConfig.REGISTRATION_ID를 그대로 써서 조회한다.
-        // 이 상수는 application.yml의 registration key와 같아야만 의미가 있는데,
-        // 이 테스트가 그 일치를 실제로 검증한다. yml이나 상수 어느 한쪽만
-        // 바뀌면 이 조회가 null을 돌려주며 바로 실패한다.
+        // 이 상수는 application.yml의 registration key와 같아야만 의미가 있는데, 이 테스트가 그 일치를 실제로 검증한다.
+        // yml이나 상수 어느 한쪽만 바뀌면 이 조회가 null을 돌려주며 바로 실패한다.
         var registration = clientRegistrationRepository.findByRegistrationId(McpSecurityConfig.REGISTRATION_ID);
 
         assertThat(registration).isNotNull();
@@ -87,7 +86,10 @@ class ShopAgentApplicationTests {
                         .AuthorizedClientServiceOAuth2AuthorizedClientManager.class);
     }
 
-    /** MCP client는 사용자마다 따로 만든다. 자동 구성의 공유 client는 없어야 한다. */
+    /**
+     * MCP client는 사용자마다 따로 만든다.
+     * 자동 구성의 공유 client는 없어야 한다.
+     */
     @Test
     void 공유_MCP_client_없이_사용자별_client_저장소를_쓴다() {
         assertThat(applicationContext.getBeansOfType(io.modelcontextprotocol.client.McpSyncClient.class)).isEmpty();
