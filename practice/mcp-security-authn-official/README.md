@@ -178,7 +178,7 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 | `grep '호출' logs/shop-mcp-server.log` | `사용자=user`가 찍힌다. MCP Server가 보는 사용자는 agent가 아니라 login한 사람이다 |
 | `grep '토큰을 헤더에' logs/shop-agent.log` | `토큰을 헤더에 붙였다 (사용자=user)`가 찍힌다. agent가 MCP 요청마다 그 사용자의 token을 붙인다 |
 | `local-client`에서 `./gradlew -q run` 뒤 login과 consent | terminal에 `[1]`부터 `[5]`까지 찍힌다. `-q`로 실행하면 마지막 줄은 `getStock(p1)`의 결과인 재고 7개다 |
-| `local-client`에서 `./gradlew run --args="--issuer http://localhost:9999"` | discovery에서 `실패: 이 client는 http://localhost:9999에 등록돼 있는데, PRM의 authorization_servers는 [http://localhost:9010]뿐이다`로 멈춘다 |
+| `local-client`에서 `./gradlew run --args="--issuer http://localhost:9999"` | discovery에서 `실패: 이 client가 등록된 issuer가 PRM의 authorization_servers에 없다 (등록된 issuer: http://localhost:9999, authorization_servers: [http://localhost:9010])`로 멈춘다 |
 | `shop-mcp-server`의 `mcp.limits.session-idle-timeout`을 `1m`으로 바꿔 다시 띄우고, 채팅으로 재고를 물은 뒤 2분 넘게 기다렸다가 다시 묻기 | 두 번째 답도 정상으로 온다. `grep '다시 보낸다' logs/shop-agent.log`에 `MCP session이 없어 같은 tool 호출을 다시 보낸다 (tool=…)`가 찍힌다 |
 
 token이 필요한 요청은 캡처 스크립트로 한 단계씩 기록해 본다.
