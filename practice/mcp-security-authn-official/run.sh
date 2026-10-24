@@ -4,8 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
-# Java 21 확보 (시스템 기본은 17). sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수
-# 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
+# Java 21 확보 (시스템 기본은 17).
+# sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
   JAVA21_HOME=$(find "$HOME/.sdkman/candidates/java" -maxdepth 1 -type d -name '21.*' 2>/dev/null | sort -V | tail -1)
   if [ -n "$JAVA21_HOME" ]; then

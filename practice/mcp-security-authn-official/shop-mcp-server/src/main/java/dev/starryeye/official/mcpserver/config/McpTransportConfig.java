@@ -24,8 +24,10 @@ import java.util.List;
  * MCP endpoint에만 적용하는 servlet filter 두 개를 등록한다.
  *
  * <ul>
- *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다. Spring Security보다 먼저 돈다.</li>
- *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다. 인증 뒤에 돈다.</li>
+ *   <li>{@link McpTransportSecurityFilter} — {@code Origin}·{@code Host}를 검증한다.
+ *   Spring Security보다 먼저 돈다.</li>
+ *   <li>{@link McpProtocolVersionFilter} — {@code MCP-Protocol-Version}을 검증한다.
+ *   인증 뒤에 돈다.</li>
  * </ul>
  *
  * <p>Streamable HTTP transport bean과 그 router bean은 직접 만든다.
@@ -117,8 +119,8 @@ public class McpTransportConfig {
 		FilterRegistrationBean<McpProtocolVersionFilter> registration =
 				new FilterRegistrationBean<>(new McpProtocolVersionFilter(jsonMapper));
 		registration.addUrlPatterns(properties.getMcpEndpoint());
-		// 순서는 일부러 정하지 않는다. 기본값(Ordered.LOWEST_PRECEDENCE)이라
-		// Spring Security filter chain(SecurityFilterProperties.DEFAULT_FILTER_ORDER) 뒤에 돈다.
+		// 순서는 일부러 정하지 않는다.
+		// 기본값(Ordered.LOWEST_PRECEDENCE)이라 Spring Security filter chain(SecurityFilterProperties.DEFAULT_FILTER_ORDER) 뒤에 돈다.
 		// 그래서 token이 없는 요청은 버전을 보기 전에 401을 받는다.
 		return registration;
 	}

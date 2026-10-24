@@ -87,9 +87,8 @@ class DiscoveryTest {
 
 	@Test
 	void PRM이_모르는_Authorization_Server를_가리키면_metadata를_요청하지_않는다() throws Exception {
-		// PRM이 가리키는 곳이 실제로 응답할 수 있는 server여도(공격자가 진짜 Authorization Server 흉내를 낼 수도 있으니)
-		// 신뢰하는 issuer가 아니면 그 server에는 요청 자체를 보내지 않아야 한다. 그래야 `if` 검사를 지워도
-		// as.requests만 보는 부실한 assertion으로는 잡지 못하는 실수를 막을 수 있다.
+		// PRM이 가리키는 곳이 실제로 응답할 수 있는 server여도(공격자가 진짜 Authorization Server 흉내를 낼 수도 있으니) 신뢰하는 issuer가 아니면 그 server에는 요청 자체를 보내지 않아야 한다.
+		// 그래야 `if` 검사를 지워도 as.requests만 보는 부실한 assertion으로는 잡지 못하는 실수를 막을 수 있다.
 		try (FakeServer untrusted = new FakeServer()) {
 			challenge();
 			prm(resource(), untrusted.origin());
@@ -186,7 +185,8 @@ class DiscoveryTest {
 
 	@Test
 	void loopback은_localhost_127_0_0_0_8의_IPv4_literal_IPv6_1만이다() {
-		// agent의 McpAuthorizationDiscovery와 같은 규칙이다. octet은 0~255만, 앞에 0을 붙인 표기는 받지 않는다.
+		// agent의 McpAuthorizationDiscovery와 같은 규칙이다.
+		// octet은 0~255만, 앞에 0을 붙인 표기는 받지 않는다.
 		assertThat(List.of("localhost", "LOCALHOST", "127.0.0.1", "127.1.2.3", "127.255.255.255", "::1", "[::1]"))
 				.allMatch(Discovery::isLoopback);
 		assertThat(List.of("127.999.999.999", "127.0.0.256", "127.00.0.1", "128.0.0.1", "127.0.0",

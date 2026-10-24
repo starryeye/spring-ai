@@ -30,7 +30,8 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import java.util.List;
 
 /**
- * Authorization Server 설정이다. MCP authorization 명세가 요구하는 기능을 켠다.
+ * Authorization Server 설정이다.
+ * MCP authorization 명세가 요구하는 기능을 켠다.
  *
  * <p>filter chain을 직접 정의하므로 Boot의 기본 Authorization Server filter chain
  * ({@code @ConditionalOnDefaultWebSecurity})은 빠진다.
@@ -58,7 +59,8 @@ public class AuthorizationServerConfig {
 
 	/**
 	 * 위 세 claim에 넣을 값이다.
-	 * 임의로 고른 목록이 아니다. Spring Authorization Server의 {@code JwtClientAssertionDecoderFactory}가
+	 * 임의로 고른 목록이 아니다.
+	 * Spring Authorization Server의 {@code JwtClientAssertionDecoderFactory}가
 	 * client_secret_jwt·private_key_jwt client 인증에서 실제로 검증기를 만들 수 있는 알고리즘 전부다.
 	 * 대칭 key 방식인 {@code MacAlgorithm}(HS256/HS384/HS512) 3종과
 	 * 비대칭 key 방식인 {@code SignatureAlgorithm}(RS/ES/PS 256/384/512) 9종이다.
@@ -121,15 +123,14 @@ public class AuthorizationServerConfig {
 											// token endpoint가 이 방식을 받는다고 알린다.
 											.tokenEndpointAuthenticationMethods(methods ->
 													methods.add(PUBLIC_CLIENT_AUTHENTICATION_METHOD))))
-							// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는
-							// WWW-Authenticate를 붙인다. Spring의 기본 handler는 이 부분을 TODO로 남겨 두었다.
+							// RFC 6749 §5.2: client가 Authorization header로 인증을 시도했다면 그 scheme에 맞는 WWW-Authenticate를 붙인다.
+							// Spring의 기본 handler는 이 부분을 TODO로 남겨 두었다.
 							.clientAuthentication(clientAuthentication -> clientAuthentication
 									.errorResponseHandler(new ClientAuthenticationChallengeFailureHandler()))
 							// oauth2Login이 id_token을 받으려면 OIDC가 필요하다.
-							// OidcProviderConfigurationEndpointFilter는 token·revocation·introspection
-							// 세 endpoint 모두에 clientAuthenticationMethods()(private_key_jwt·
-							// client_secret_jwt 포함)를 그대로 알린다. 그래서 Authorization Server
-							// Metadata와 마찬가지로 세 claim 모두 조건부 MUST 대상이다.
+							// OidcProviderConfigurationEndpointFilter는 token·revocation·introspection 세 endpoint 모두에
+							// clientAuthenticationMethods()(private_key_jwt·client_secret_jwt 포함)를 그대로 알린다.
+							// 그래서 Authorization Server Metadata와 마찬가지로 세 claim 모두 조건부 MUST 대상이다.
 							.oidc(oidc -> oidc.providerConfigurationEndpoint(configuration -> configuration
 									.providerConfigurationCustomizer(builder -> builder
 											.claim(ISS_PARAMETER_SUPPORTED, true)

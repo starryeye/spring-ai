@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@code /api/chat}도 CSRF를 검사한다. {@code csrf.spa()}가 준 {@code XSRF-TOKEN} 쿠키 값을
- * {@code X-XSRF-TOKEN} header로 되돌려 보내는 index.html의 흐름을 그대로 밟는다.
+ * {@code /api/chat}도 CSRF를 검사한다.
+ * {@code csrf.spa()}가 준 {@code XSRF-TOKEN} 쿠키 값을 {@code X-XSRF-TOKEN} header로 되돌려 보내는 index.html의 흐름을 그대로 밟는다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -60,11 +60,9 @@ class ChatCsrfTest {
 	ChatModel chatModel;
 
 	/**
-	 * 기본 {@code Answers.RETURNS_DEFAULTS} 는 배열 반환 타입을 특별 취급하지 않아
-	 * {@code getToolCallbacks()} 가 스텁 전(=context 기동 시점)에 호출되면 null 을
-	 * 준다 — {@code ToolCallingAutoConfiguration} 이 {@code List.of(pr.getToolCallbacks())}
-	 * 를 기동 중에 즉시 실행하다가 NPE 를 낸다. {@code RETURNS_MOCKS} 는 배열을 빈 배열로
-	 * 기본값을 준다.
+	 * 기본 {@code Answers.RETURNS_DEFAULTS} 는 배열 반환 타입을 특별 취급하지 않아 {@code getToolCallbacks()} 가 스텁 전(=context 기동 시점)에 호출되면
+	 * null 을 준다 — {@code ToolCallingAutoConfiguration} 이 {@code List.of(pr.getToolCallbacks())} 를 기동 중에 즉시 실행하다가 NPE 를 낸다.
+	 * {@code RETURNS_MOCKS} 는 배열을 빈 배열로 기본값을 준다.
 	 */
 	@MockitoBean(answers = org.mockito.Answers.RETURNS_MOCKS)
 	ToolCallbackProvider toolCallbackProvider;
