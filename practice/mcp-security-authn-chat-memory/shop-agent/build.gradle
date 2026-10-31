@@ -29,6 +29,7 @@ dependencies {
 	// MCP 표준 SDK를 전이 의존으로 끌어온다 — io.modelcontextprotocol.sdk의 클래스를 import 하는 데 별도 선언이 필요 없다.
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+	implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-webmvc-test'
 	testImplementation 'org.springframework.security:spring-security-test'

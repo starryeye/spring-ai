@@ -443,6 +443,7 @@ toolCallbackProvider.ifAvailable(configured::defaultTools);   // MCP tool을 Cha
 
 사용자가 "p1 재고 알려줘"라고 물으면, `ChatClient`는 질문과 tool 정의를 LLM(Ollama의 `qwen3:8b`)에게 보낸다.
 LLM이 `getStock`을 `{"productId": "p1"}`로 부르겠다고 답하면, Spring AI가 MCP client로 `tools/call`을 보낸다. 그 결과를 다시 받은 LLM이 답을 만든다.
+LLM을 Claude로 바꾸는 방법은 [official의 Claude로 실행](../mcp-security-authn-official/README.md#claude로-실행)에 있다.
 
 ## 1.13 직접 해 보기
 

@@ -50,7 +50,7 @@ Spring AI 2.0 에이전트가 MCP 를 통해 평범한 REST 서비스를 호출�
 ./run.sh anthropic    # Claude 로 (키 필요)
 ```
 
-키는 `product-agent/secrets.yml` 에 넣거나 환경변수로 준다.
+키는 `product-agent/secrets.yml` 이나 `practice/secrets.yml` 에 넣거나 환경변수로 준다.
 (`cp product-agent/secrets.yml.example product-agent/secrets.yml`)
 
 ## 물어보기

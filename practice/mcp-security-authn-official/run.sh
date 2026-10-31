@@ -4,6 +4,17 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
+# 어느 LLM을 쓸지 고른다.
+# 기본은 ollama이고, Claude를 쓰려면 `LLM=anthropic ./run.sh`로 띄운다.
+LLM="${LLM:-ollama}"
+case "$LLM" in
+  ollama|anthropic) ;;
+  *)
+    echo "[실패] LLM은 ollama나 anthropic입니다: $LLM" >&2
+    exit 1
+    ;;
+esac
+
 # Java 21 확보 (시스템 기본은 17).
 # sdkman 의 `current` 심볼릭 링크는 21 이 아닐 수 있으므로(이 저장소 개발 환경은 17), candidates 디렉터리에서 21.* 후보를 직접 찾는다.
 if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q '"21'; then
@@ -18,18 +29,26 @@ if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q 
 fi
 echo "JAVA_HOME=${JAVA_HOME}"
 
-# ollama 준비
-if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "ollama를 시작합니다..."
-  ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
-  for _ in $(seq 1 30); do
-    curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
-    sleep 1
-  done
-fi
-if ! ollama list 2>/dev/null | grep -q 'qwen3:8b'; then
-  echo "qwen3:8b 모델을 내려받습니다 (시간이 걸립니다)..."
-  ollama pull qwen3:8b
+# LLM 준비
+if [ "$LLM" = "anthropic" ]; then
+  # 예시 값을 그대로 두면 서버는 뜨고 첫 질문에서 인증 오류가 난다.
+  if [ -z "${ANTHROPIC_API_KEY:-}" ] && ! grep -s '^ANTHROPIC_API_KEY:.*sk-ant-' ../secrets.yml | grep -qv '여기에'; then
+    echo "[실패] ANTHROPIC_API_KEY를 export하거나 practice/secrets.yml에 넣으세요. 형식은 practice/secrets.yml.example에 있습니다." >&2
+    exit 1
+  fi
+else
+  if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+    echo "ollama를 시작합니다..."
+    ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
+    for _ in $(seq 1 30); do
+      curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
+      sleep 1
+    done
+  fi
+  if ! ollama list 2>/dev/null | grep -q 'qwen3:8b'; then
+    echo "qwen3:8b 모델을 내려받습니다 (시간이 걸립니다)..."
+    ollama pull qwen3:8b
+  fi
 fi
 
 start() {
@@ -57,14 +76,14 @@ wait_for() {
   return 1
 }
 
-echo "기동 순서: auth-server → shop-mcp-server → shop-agent"
+echo "기동 순서: auth-server → shop-mcp-server → shop-agent (LLM: $LLM)"
 start auth-server 9010
 wait_for auth-server http://localhost:9010/.well-known/openid-configuration
 
 start shop-mcp-server 8111
 wait_for shop-mcp-server http://localhost:8111/mcp
 
-start shop-agent 8110
+SPRING_PROFILES_ACTIVE="$LLM" start shop-agent 8110
 wait_for shop-agent http://localhost:8110/
 
 cat <<'EOF'

@@ -15,10 +15,12 @@ public class ChatClientConfig {
             기억이나 추측으로 답하지 마세요.
             조회 결과가 없으면 없다고 그대로 알려주세요.
             답변은 한국어로 간결하게 합니다.
+            화면은 글자를 그대로 보여 주므로 마크다운 기호 없이 평문으로 답합니다.
             장바구니 작업은 createBasket, addItem, getBasket, checkout 툴로 합니다.
             장바구니가 없으면 createBasket으로 만들고, 앞선 툴 결과에 나온 basketId를 이어서 씁니다.
             장바구니를 찾을 수 없거나, 만료되었거나, 이미 주문했다는 결과가 오면 createBasket으로 새로 만듭니다.
             주문(checkout)은 사용자가 주문이나 결제를 분명히 요청할 때만 합니다.
+            사용자가 재고 변경이나 주문을 분명히 요청하면 되묻지 말고 툴을 바로 부릅니다. 권한이 모자라면 화면이 사용자에게 권한을 묻습니다.
             """;
 
     /**
@@ -31,7 +33,7 @@ public class ChatClientConfig {
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory)
                         .order(ChatMemoryConfig.MEMORY_ADVISOR_ORDER)
-                        .build())
+                        .build(), new ModelHistoryAdvisor())
                 .build();
     }
 }

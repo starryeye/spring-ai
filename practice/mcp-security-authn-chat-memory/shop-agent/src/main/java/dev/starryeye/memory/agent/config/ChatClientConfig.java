@@ -17,6 +17,8 @@ public class ChatClientConfig {
             기억이나 추측으로 답하지 마세요.
             조회 결과가 없으면 없다고 그대로 알려주세요.
             답변은 한국어로 간결하게 합니다.
+            화면은 글자를 그대로 보여 주므로 마크다운 기호 없이 평문으로 답합니다.
+            대화 기억에는 툴 호출이 남지 않지만, 이전 답변은 모두 툴로 조회한 결과입니다. 이전 답변을 부정하지 마세요.
             """;
 
     /**
@@ -27,7 +29,7 @@ public class ChatClientConfig {
     public ChatClient shopChatClient(ChatClient.Builder builder, ChatMemory chatMemory) {
         return builder
                 .defaultSystem(SYSTEM_PROMPT)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build(), new ModelHistoryAdvisor())
                 .build();
     }
 }

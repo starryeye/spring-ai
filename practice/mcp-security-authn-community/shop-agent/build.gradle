@@ -30,6 +30,7 @@ dependencies {
 	implementation 'org.springframework.ai:spring-ai-starter-mcp-client'
 	implementation 'org.springaicommunity:mcp-client-security-spring-boot:0.1.14'
 	implementation 'org.springframework.ai:spring-ai-starter-model-ollama'
+	implementation 'org.springframework.ai:spring-ai-starter-model-anthropic'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	// spring-boot-starter-test는 web 슬라이스에 대해 알지 못하므로 Boot 4.1 module 분리 이후
 	// AutoConfigureMockMvc를 쓰려면 이 module을 명시적으로 추가해야 한다.

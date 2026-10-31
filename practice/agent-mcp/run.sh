@@ -71,8 +71,8 @@ if [ "$PROFILE" = "ollama" ]; then
 else
   # 키는 환경변수 또는 product-agent/secrets.yml 로 줄 수 있다. 여기서는 경고만 한다.
   var="$( [ "$PROFILE" = "openai" ] && echo OPENAI_API_KEY || echo ANTHROPIC_API_KEY )"
-  if [ -z "${!var:-}" ] && ! grep -qs "^$var:" product-agent/secrets.yml; then
-    warn "$var 가 환경변수에도 product-agent/secrets.yml 에도 없다."
+  if [ -z "${!var:-}" ] && ! grep -qs "^$var:" product-agent/secrets.yml ../secrets.yml; then
+    warn "$var 가 환경변수에도 product-agent/secrets.yml 에도 practice/secrets.yml 에도 없다."
     warn "기동은 되지만 첫 요청에서 인증 오류가 난다."
   fi
 fi

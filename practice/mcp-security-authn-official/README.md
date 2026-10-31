@@ -81,6 +81,36 @@ terminal에 discovery부터 MCP 호출까지 다섯 단계가 찍히고, 앱은 
 `stop.sh`는 9010·8111·8110 포트에서 연결을 기다리는 process를 내린다.
 `./stop.sh --ollama`는 ollama도 함께 내린다.
 
+### Claude로 실행
+
+LLM은 기본이 ollama이고, `LLM=anthropic`으로 띄우면 Claude API를 쓴다.
+이때는 ollama가 없어도 되지만 API key가 있어야 하고, 쓴 만큼 요금이 나온다.
+key는 `practice/secrets.yml` 하나에 두고 모든 practice가 같이 쓰므로, 처음 한 번만 넣으면 된다.
+
+```bash
+# practice 폴더에서
+cp secrets.yml.example secrets.yml
+# 편집기로 secrets.yml을 열어 key를 넣는다
+cd mcp-security-authn-official
+LLM=anthropic ./run.sh
+```
+
+`practice/secrets.yml`은 `.gitignore`에 있어서 commit되지 않는다.
+key를 파일에 두고 싶지 않으면 `ANTHROPIC_API_KEY`를 export해도 되고, 둘 다 있으면 환경 변수를 쓴다.
+`run.sh`는 key가 없거나 예시 값 그대로면 서버를 띄우기 전에 멈춘다.
+
+모델은 `shop-agent/src/main/resources/application-anthropic.yml`에 적힌 `claude-haiku-5-5`다.
+이 practice의 질문에는 이 모델로 충분하고, token 단가가 Opus의 40분의 1이다.
+`SPRING_AI_ANTHROPIC_CHAT_MODEL=claude-opus-5-5 LLM=anthropic ./run.sh`처럼 띄우면 모델만 바꿀 수 있다.
+
+key 오류, 잔액 부족, 요청 한도 같은 Claude API 오류는 `LlmErrors`가 안내 문장으로 바꿔 채팅 화면에 보여 준다.
+원인은 `logs/shop-agent.log`에 남는다.
+
+Claude는 답과 함께 thinking block을 준다.
+thinking block은 앞선 대화가 만들어질 때와 똑같아야 다시 보낼 수 있는데, Spring AI는 다시 보낼 때 block 순서를 바꾼다.
+2026-08-31 이후에 만든 계정은 이런 요청에 `400`을 받고, 그 전 계정은 기본으로 그대로 통과한다.
+어느 계정에서도 같이 동작하도록 `ModelHistoryAdvisor`가 모델을 부르기 직전에 thinking block을 뺀다.
+
 ## 코드 지도
 
 module마다 주요 클래스와 그 클래스를 설명하는 안내서 절을 모았다.
@@ -126,6 +156,8 @@ Spring 앱 세 module의 package 안은 역할별 하위 package로 나뉜다.
 | `SecurityMcpTransportContextProvider`, `OAuth2TokenAttachingRequestCustomizer` | MCP 요청마다 그 요청을 일으킨 사용자의 access token을 `Authorization` header에 넣는다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 | `application.yml`의 `spring.reactor.context-propagation: auto` | Spring Boot가 Reactor의 자동 context 전파를 켜, reactor thread에 `SecurityContext`를 옮긴다 | [6장 token 붙이기](../mcp-guide/06-mcp-call-and-validation.md#68-agent가-token을-붙이는-방법) |
 | `ChatClientConfig`, `ChatController` | MCP tool을 `SessionRetryingToolCallback`으로 감싸 `ChatClient`의 기본 tool로 넣고, `/api/chat`의 답을 stream으로 보낸다 | [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기), [6장 official 코드](../mcp-guide/06-mcp-call-and-validation.md#610-official-코드에서-보기) |
+| `ModelHistoryAdvisor` | 모델을 부르기 직전에 thinking block을 뺀다 | [Claude로 실행](#claude로-실행) |
+| `LlmErrors` | Claude API 오류를 사용자가 읽을 안내 문장으로 바꾼다 | [Claude로 실행](#claude로-실행) |
 | `SessionRetryingToolCallback` | MCP Server가 session을 지워 실패한 tool 호출을 같은 입력으로 다시 보낸다. SDK가 사용자 없이 보낸 `initialize`의 `401`에 걸린 호출도 한 번 더 부른다 | [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한) |
 | `application.yml` | discovery의 출발점 `mcp.authorization.resource-url`과 `credentials-issuer`를 둔다. `initialized: false`로 `initialize`를 첫 채팅까지 미룬다 | [3장 official 코드](../mcp-guide/03-discovery.md#37-official-코드에서-보기), [1장 official 코드](../mcp-guide/01-mcp-basics.md#112-official-코드에서-보기) |
 

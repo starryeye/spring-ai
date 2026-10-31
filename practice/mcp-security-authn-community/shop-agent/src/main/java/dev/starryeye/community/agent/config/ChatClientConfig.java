@@ -15,6 +15,7 @@ public class ChatClientConfig {
             기억이나 추측으로 답하지 마세요.
             조회 결과가 없으면 없다고 그대로 알려주세요.
             답변은 한국어로 간결하게 합니다.
+            화면은 글자를 그대로 보여 주므로 마크다운 기호 없이 평문으로 답합니다.
             """;
 
     /**
@@ -27,7 +28,9 @@ public class ChatClientConfig {
     @Bean
     public ChatClient shopChatClient(ChatClient.Builder builder,
                                      ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
-        ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
+        ChatClient.Builder configured = builder
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(new ModelHistoryAdvisor());
         toolCallbackProvider.ifAvailable(configured::defaultTools);
         return configured.build();
     }

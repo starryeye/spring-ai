@@ -28,6 +28,7 @@ import java.util.Set;
  * 모델이 이 사용자의 목록에 없는 tool을 부르면 Spring AI가 오류로 stream을 끝낸다.
  * 그대로 두면 화면에는 오류만 남고, 결과 없는 tool 호출이 대화 기억에 남는다.
  * 그래서 이 경우는 {@code tool-unavailable} event로 끝낸다.
+ * Claude API 오류는 안내 문장을 {@code message} event로 보내고 끝낸다({@link LlmErrors}).
  */
 public final class ChatEvents {
 
@@ -58,7 +59,7 @@ public final class ChatEvents {
 
     /**
      * {@code onInterrupted}는 tool 결과 없이 끊긴 turn을 끝내기 직전에 부른다.
-     * step-up이 필요할 때와, 모델이 이 사용자의 목록에 없는 tool을 불렀을 때다.
+     * step-up이 필요할 때, 모델이 이 사용자의 목록에 없는 tool을 불렀을 때, Claude API 오류로 끝날 때다.
      * agent는 여기서 끊긴 turn을 대화 기억에서 되돌린다.
      */
     public static Flux<ServerSentEvent<String>> of(Flux<String> content, StepUpState state, Runnable onInterrupted) {
@@ -71,6 +72,10 @@ public final class ChatEvents {
                     onInterrupted.run();
                     return Flux.just(event(TOOL_UNAVAILABLE,
                             JSON.writeValueAsString(Map.of("tool", unavailableTool(error).orElseThrow()))));
+                })
+                .onErrorResume(error -> LlmErrors.find(error).isPresent(), error -> {
+                    onInterrupted.run();
+                    return Flux.just(event(MESSAGE, JSON.writeValueAsString(LlmErrors.message(error))));
                 });
     }
 

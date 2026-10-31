@@ -37,6 +37,7 @@ public class ChatController {
                 .user(message)
                 .stream()
                 .content()
+                .onErrorResume(error -> LlmErrors.find(error).isPresent(), error -> Flux.just(LlmErrors.message(error)))
                 .contextWrite(AuthenticationMcpTransportContextProvider.writeToReactorContext());
     }
 }

@@ -43,7 +43,9 @@ public class ChatClientConfig {
     @Bean
     public ChatClient productChatClient(ChatClient.Builder builder,
                                         ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
-        ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
+        ChatClient.Builder configured = builder
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(new ModelHistoryAdvisor());
         toolCallbackProvider.ifAvailable(configured::defaultTools);
         return configured.build();
     }

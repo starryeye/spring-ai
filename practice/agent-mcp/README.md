@@ -26,8 +26,9 @@ Spring AI 2.0의 **agent + MCP** 최소 예제.
 `ollama` 프로파일은 키가 필요 없다. OpenAI/Anthropic 을 쓸 때만 해당한다.
 
 **파일 (권장).** `product-agent/secrets.yml` — `.gitignore` 에 등록되어 커밋되지 않는다.
-`application.yml` 의 `spring.config.import: "optional:file:./secrets.yml"` 가 읽고,
+`application.yml` 의 `spring.config.import` 가 읽고,
 프로파일 yml 의 `${OPENAI_API_KEY}` 가 그 값으로 해석된다.
+MCP practice 와 같이 쓰는 `practice/secrets.yml` 도 함께 읽으며, 같은 키가 두 파일에 있으면 이 파일이 우선한다.
 
 ```bash
 cp product-agent/secrets.yml.example product-agent/secrets.yml
