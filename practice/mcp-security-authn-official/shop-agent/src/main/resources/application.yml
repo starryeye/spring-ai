@@ -12,6 +12,10 @@ server:
         name: OFFICIALAGENTSESSIONID
 
 spring:
+  config:
+    # API key를 commit하지 않도록 practice 폴더의 공용 파일에 둔다.
+    # ollama로 띄울 때는 이 파일이 없어도 된다.
+    import: "optional:file:../../secrets.yml"
   reactor:
     # SecurityContextHolder는 thread-local이고, ChatClient.stream()의 reactor chain은 요청 thread 밖에서 돈다.
     # auto면 Boot가 기동할 때 Hooks.enableAutomaticContextPropagation()을 켠다(기본값 limited).

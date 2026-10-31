@@ -53,6 +53,7 @@ public class ChatController {
                     .toolCallbacks(mcp.tools())
                     .stream()
                     .content()
+                    .onErrorResume(error -> LlmErrors.find(error).isPresent(), error -> Flux.just(LlmErrors.message(error)))
                     .doFinally(signal -> mcp.close());
         }
         catch (RuntimeException ex) {

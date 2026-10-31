@@ -17,6 +17,10 @@ server:
         name: SHOPAGENTSESSIONID
 
 spring:
+  config:
+    # API key를 commit하지 않도록 practice 폴더의 공용 파일에 둔다.
+    # ollama로 띄울 때는 이 파일이 없어도 된다.
+    import: "optional:file:../../secrets.yml"
   application:
     name: shop-agent
   ai:

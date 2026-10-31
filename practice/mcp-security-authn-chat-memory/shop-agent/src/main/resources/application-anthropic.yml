@@ -1,0 +1,10 @@
+# `LLM=anthropic ./run.sh`로 띄우면 이 파일이 application.yml의 값을 덮어쓴다.
+spring:
+  ai:
+    model:
+      chat: anthropic
+    anthropic:
+      # practice/secrets.yml이나 환경 변수에서 읽는다.
+      api-key: ${ANTHROPIC_API_KEY}
+      chat:
+        model: claude-haiku-5-5

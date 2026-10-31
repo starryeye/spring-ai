@@ -4,6 +4,17 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p logs
 
+# 어느 LLM을 쓸지 고른다.
+# 기본은 ollama이고, Claude를 쓰려면 `LLM=anthropic ./run.sh`로 띄운다.
+LLM="${LLM:-ollama}"
+case "$LLM" in
+  ollama|anthropic) ;;
+  *)
+    echo "[실패] LLM은 ollama나 anthropic입니다: $LLM" >&2
+    exit 1
+    ;;
+esac
+
 # agent가 어느 제품처럼 붙을지 고른다.
 # chatgpt면 private_key_jwt, claude면 none(public client)이다.
 CLIENT_TYPE="${1:-chatgpt}"
@@ -29,18 +40,26 @@ if [ -z "${JAVA_HOME:-}" ] || ! "${JAVA_HOME}/bin/java" -version 2>&1 | grep -q 
 fi
 echo "JAVA_HOME=${JAVA_HOME}"
 
-# ollama 준비
-if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
-  echo "ollama를 시작합니다..."
-  ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
-  for _ in $(seq 1 30); do
-    curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
-    sleep 1
-  done
-fi
-if ! ollama list 2>/dev/null | grep -q 'qwen3:8b'; then
-  echo "qwen3:8b 모델을 내려받습니다 (시간이 걸립니다)..."
-  ollama pull qwen3:8b
+# LLM 준비
+if [ "$LLM" = "anthropic" ]; then
+  # 예시 값을 그대로 두면 서버는 뜨고 첫 질문에서 인증 오류가 난다.
+  if [ -z "${ANTHROPIC_API_KEY:-}" ] && ! grep -s '^ANTHROPIC_API_KEY:.*sk-ant-' ../secrets.yml | grep -qv '여기에'; then
+    echo "[실패] ANTHROPIC_API_KEY를 export하거나 practice/secrets.yml에 넣으세요. 형식은 practice/secrets.yml.example에 있습니다." >&2
+    exit 1
+  fi
+else
+  if ! curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; then
+    echo "ollama를 시작합니다..."
+    ( nohup ollama serve > logs/ollama.log 2>&1 < /dev/null & disown 2>/dev/null || true )
+    for _ in $(seq 1 30); do
+      curl -sf http://localhost:11434/api/tags > /dev/null 2>&1 && break
+      sleep 1
+    done
+  fi
+  if ! ollama list 2>/dev/null | grep -q 'qwen3:8b'; then
+    echo "qwen3:8b 모델을 내려받습니다 (시간이 걸립니다)..."
+    ollama pull qwen3:8b
+  fi
 fi
 
 # agent가 client 문서를 올리는 https://localhost:8172의 self-signed 인증서와, private_key_jwt에 쓰는 signature key다.
@@ -107,7 +126,7 @@ wait_for() {
 
 make_certs
 
-echo "기동 순서: auth-server → shop-mcp-server → shop-agent (client type: $CLIENT_TYPE)"
+echo "기동 순서: auth-server → shop-mcp-server → shop-agent (client type: $CLIENT_TYPE, LLM: $LLM)"
 start auth-server 9060
 wait_for auth-server http://localhost:9060/.well-known/openid-configuration
 
@@ -121,7 +140,7 @@ if lsof -ti tcp:8170 -sTCP:LISTEN > /dev/null 2>&1; then
   AGENT_ALREADY_RUNNING=1
   echo "  [안내] shop-agent가 이미 떠 있습니다. client type을 바꾸려면 ./stop.sh 뒤에 다시 실행하세요."
 fi
-start shop-agent 8170 --args="--mcp.authorization.client-type=$CLIENT_TYPE"
+SPRING_PROFILES_ACTIVE="$LLM" start shop-agent 8170 --args="--mcp.authorization.client-type=$CLIENT_TYPE"
 wait_for shop-agent http://localhost:8170/
 wait_for shop-agent https://localhost:8172/oauth/client.json --cacert certs/client-metadata.crt
 

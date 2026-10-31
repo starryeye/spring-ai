@@ -59,6 +59,9 @@ Claude형으로 보려면 세 서버를 내린 뒤 인자를 주고 다시 띄�
 ./stop.sh && ./run.sh claude
 ```
 
+인자 `claude`는 agent가 어떤 client로 붙을지를 고르고, 쓰는 LLM은 바꾸지 않는다.
+LLM은 `LLM=anthropic ./run.sh claude`처럼 따로 고른다([official의 Claude로 실행](../mcp-security-authn-official/README.md#claude로-실행)).
+
 | 주소 | module | 하는 일 |
 |---|---|---|
 | `http://localhost:9070` | `auth-server` | Authorization Server다. 모든 client를 CIMD 문서로 받는다 |

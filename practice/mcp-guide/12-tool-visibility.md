@@ -214,6 +214,11 @@ browser에서 점원이 "권한 허용"을 누르면 consent 화면의 새 체�
 모델은 token에 어떤 scope가 있는지 모르고, 이 문장으로 scope가 아직 없어도 이 tool을 불러도 된다는 것을 안다.
 모델이 scope가 모자랄까 걱정해 이 tool을 피하면 `403`이 오지 않아, 12.1에서 본 것처럼 step-up이 시작되지 않는다.
 
+이 문장을 어떻게 읽는지는 모델마다 다르다.
+Claude Haiku 5.5는 이 문장을 자기가 먼저 물어보라는 뜻으로 읽고, tool을 부르지 않은 채 사용자에게 되묻는 일이 많았다.
+그래서 `ChatClientConfig`의 system prompt에 사용자가 분명히 요청하면 되묻지 말고 tool을 바로 부른다고 적어 둔다.
+권한을 묻는 일은 step-up의 consent 화면이 맡는다.
+
 **검사 순서**
 
 `ToolScopeFilter`는 `tools/call`을 세 단계로 본다.

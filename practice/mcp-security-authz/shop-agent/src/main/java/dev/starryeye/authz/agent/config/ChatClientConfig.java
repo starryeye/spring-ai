@@ -17,6 +17,8 @@ public class ChatClientConfig {
             기억이나 추측으로 답하지 마세요.
             조회 결과가 없으면 없다고 그대로 알려주세요.
             답변은 한국어로 간결하게 합니다.
+            화면은 글자를 그대로 보여 주므로 마크다운 기호 없이 평문으로 답합니다.
+            사용자가 재고 변경을 분명히 요청하면 되묻지 말고 툴을 바로 부릅니다. 권한이 모자라면 화면이 사용자에게 권한을 묻습니다.
             """;
 
     /**
@@ -32,7 +34,9 @@ public class ChatClientConfig {
     @Bean
     public ChatClient shopChatClient(ChatClient.Builder builder,
                                      ObjectProvider<ToolCallbackProvider> toolCallbackProvider) {
-        ChatClient.Builder configured = builder.defaultSystem(SYSTEM_PROMPT);
+        ChatClient.Builder configured = builder
+                .defaultSystem(SYSTEM_PROMPT)
+                .defaultAdvisors(new ModelHistoryAdvisor());
         toolCallbackProvider.ifAvailable(provider -> configured.defaultTools(SessionRetryingToolCallback.wrap(provider)));
         return configured.build();
     }

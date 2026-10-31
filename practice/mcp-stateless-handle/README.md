@@ -110,10 +110,14 @@ step-up으로 끊긴 turn은 기억에서 되돌려, consent 뒤 다시 보낸 �
   그래서 한 turn에서 tool을 10번쯤 넘게 부르면, 그 turn이 통째로 기억에서 빠질 수 있다.
 - 마지막 답은 stream이 끝나야 저장된다.
   browser가 도중에 끊으면 기억에는 tool 호출과 결과만 남고 답은 없다.
-- step-up이 아닌 오류나 tool 실행 중의 연결 끊김으로 turn이 끝나면 되돌리지 않는다.
+- step-up과 Claude API 오류는 되돌리지만, 그 밖의 오류나 tool 실행 중의 연결 끊김으로 turn이 끝나면 되돌리지 않는다.
   그래서 결과 없는 tool 호출이 "새 대화"까지 기억에 남을 수 있다.
-- 모델은 Ollama의 `qwen3:8b`이고, 결과 없는 tool 호출이 섞인 history도 받는다.
-  Claude API는 tool 호출 바로 뒤에 그 결과가 오지 않는 history를 받지 않으므로([Claude API 문서](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)), provider를 바꾸면 이 경우를 따로 다뤄야 한다.
+- Claude API는 tool 호출 바로 뒤에 그 결과가 오지 않는 history를 받지 않는다([Claude API 문서](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)).
+  그래서 `ModelHistoryAdvisor`가 이런 tool 호출을 기억에 둔 채 보내는 메시지에서만 뺀다.
+  다음 질문은 실패하지 않지만, 모델은 그 tool 호출을 보지 못한다.
+- Claude의 thinking block도 보내는 메시지에서 뺀다.
+  대화 기억의 창이 오래된 메시지를 지우면 앞선 대화가 달라져 thinking block을 다시 보낼 수 없기 때문이다.
+  그래서 모델은 이전 turn의 추론 없이 text와 tool 결과만 보고 답한다.
 - 같은 사용자가 browser tab 두 개에서 채팅하면, 두 tab이 대화 하나를 lock 없이 같이 쓴다.
   한 tab의 turn이 step-up으로 되돌려지면, 다른 tab이 그 사이에 쌓은 기억도 함께 되돌려진다.
 
@@ -198,8 +202,9 @@ MCP Server에는 authz에 없는 하위 package 두 개가 더 있다.
 | | `ProductRepository` | `reserve`가 주문 수량만큼 재고를 한꺼번에 줄인다. 하나라도 모자라면 아무것도 줄이지 않는다 | [11장 서버 코드](../mcp-guide/11-stateless-and-handle.md#119-서버-코드에서-보기) |
 | `shop-agent` | `ChatMemoryConfig` | 사용자마다 최근 메시지 20개를 기억하는 `ChatMemory`를 만든다. `ToolCallingAdvisor`의 내부 history를 끄고, 대화 기억 advisor가 tool loop 안쪽에 들 order 값(`MEMORY_ADVISOR_ORDER`)을 정한다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [11장 client 코드](../mcp-guide/11-stateless-and-handle.md#1110-client-코드에서-보기) |
 | | `ChatClientConfig` | 대화 기억 advisor를 `MEMORY_ADVISOR_ORDER`로 기본 advisor에 넣고, system prompt에 장바구니 규칙을 적는다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
+| | `ModelHistoryAdvisor` | 모델을 부르기 직전에 thinking block, 결과 없는 tool 호출, 빈 답을 보내는 메시지에서 뺀다. 대화 기억은 그대로 둔다 | [대화 기억과 끊긴 turn](#대화-기억과-끊긴-turn) |
 | | `ChatController` | login한 사용자의 `sub`를 conversation ID로 쓴다. turn 전의 기억을 복사해 두었다가 step-up으로 끊기면 되돌리고, `/api/chat/reset`으로 기억을 지운다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화), [11장 client 코드](../mcp-guide/11-stateless-and-handle.md#1110-client-코드에서-보기) |
-| | `ChatEvents` | step-up event를 만들기 직전에 `ChatController`가 넘긴 되돌리기를 부른다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
+| | `ChatEvents` | step-up event를 만들기 직전과 Claude API 오류로 끝나기 직전에 `ChatController`가 넘긴 되돌리기를 부른다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | | `index.html` | "새 대화" 버튼을 둔다. turn이 도는 동안에는 보내기 버튼과 함께 막아 둔다 | [11장 web agent](../mcp-guide/11-stateless-and-handle.md#117-web-agent-tool-결과까지-기억하는-대화) |
 | `local-client` | `McpCalls` | 장바구니 시나리오를 부른다. `createBasket`의 `structuredContent`에서 `basketId`를 꺼내 다음 호출의 인자로 넘기고, `isError`인 결과 앞에는 `[오류]`를 찍는다 | [11장 사용자 기기의 앱](../mcp-guide/11-stateless-and-handle.md#118-사용자-기기의-앱-코드가-handle을-들고-다닌다), [11장 client 코드](../mcp-guide/11-stateless-and-handle.md#1110-client-코드에서-보기) |
 

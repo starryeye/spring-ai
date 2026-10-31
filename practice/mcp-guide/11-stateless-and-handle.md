@@ -389,6 +389,17 @@ turn이 step-up으로 끝나면, `ChatEvents`가 consent 카드나 거절 안내
 turn이 진행되는 중에 기억을 지우면, 그 turn은 지운 뒤에도 기억에 계속 쓴다.
 그래서 화면은 turn이 끝날 때까지 이 버튼을 막아 둔다.
 
+**Claude API로 보낼 때**
+
+[Claude로 띄우면](../mcp-security-authn-official/README.md#claude로-실행) history를 보는 규칙이 ollama보다 엄격하다.
+Claude API는 tool 호출 바로 뒤에 그 결과가 없는 history를 받지 않는다.
+thinking block도 앞선 대화가 만들어질 때와 똑같아야 다시 보낼 수 있다.
+그런데 대화 기억은 오래된 메시지를 지우고, 끊긴 turn은 결과 없는 tool 호출을 남길 수 있다.
+
+그래서 `ModelHistoryAdvisor`가 모델을 부르기 직전에 보내는 메시지를 다듬는다.
+thinking block, 결과 없는 tool 호출, 빈 답을 빼고, 대화 기억은 그대로 둔다.
+모델은 이전 turn의 추론 없이 text와 tool 결과만 보고 답한다.
+
 **이 practice의 한계**
 
 SEP-2567은 대화를 줄일 때 handle이 든 tool 결과를 지키는 일을 client가 맡는다고 본다.

@@ -4,6 +4,9 @@ import dev.starryeye.memory.agent.mcp.UserMcpClients;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
+import com.anthropic.core.JsonValue;
+import com.anthropic.core.http.Headers;
+import com.anthropic.errors.UnauthorizedException;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -30,6 +33,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -113,6 +117,17 @@ class ChatControllerTest {
 		return this.mockMvc.perform(asyncDispatch(started))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString();
+	}
+
+	@Test
+	@WithMockUser(username = "alice")
+	void Claude_API_오류는_안내_문장으로_끝낸다() throws Exception {
+		given(this.chatModel.stream(any(Prompt.class))).willReturn(Flux.error(UnauthorizedException.builder()
+				.headers(Headers.builder().build())
+				.body(JsonValue.from(Map.of("error", Map.of("type", "authentication_error"))))
+				.build()));
+
+		assertThat(채팅("재고 있어?")).contains("key가 올바르지 않습니다");
 	}
 
 	@Test

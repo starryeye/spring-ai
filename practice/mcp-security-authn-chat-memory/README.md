@@ -74,6 +74,8 @@ MCP가 없는 [chat-memory practice](../chat-memory/README.md)는 client가 `con
 이 advisor는 사용자의 질문과 LLM의 최종 답만 저장하고, tool 호출 결과 메시지는 저장하지 않는다.
 그래서 tool이 조회한 재고 숫자는 LLM이 옮겨 적은 답 안에만 남는다.
 저장 내용을 보면 `role`은 `user`와 `assistant`뿐이다.
+모델은 이전 답 뒤에 tool 호출이 있었는지 볼 수 없다.
+Claude Haiku 5.5는 이전 답을 조회 없이 지어낸 것이라고 스스로 부정하는 일이 있어서, system prompt에 이전 답변은 툴로 조회한 결과라고 적어 둔다.
 
 ## MCP session을 사용자에 묶기
 
@@ -264,6 +266,7 @@ package는 `auth-server`가 `authserver`, `shop-mcp-server`가 `mcpserver`, `sho
 | | `ConversationController`, `MessageView` | 대화 목록·조회·비우기 API다. 사용자 이름은 서버가 붙인다 | [대화 기억](#대화-기억) |
 | | `ChatMemoryConfig` | `MessageWindowChatMemory`로 대화마다 최근 메시지를 `chat.memory.max-messages`개(기본 20개)까지 둔다 | [대화 기억](#대화-기억) |
 | | `ChatClientConfig` | `MessageChatMemoryAdvisor`를 기본 advisor로 둔다. MCP tool은 기본 tool로 두지 않는다 | [대화 기억](#대화-기억) |
+| | `ModelHistoryAdvisor` | 모델을 부르기 직전에 thinking block과 빈 답을 보내는 메시지에서 뺀다. 대화 기억은 그대로 둔다 | [official의 Claude로 실행](../mcp-security-authn-official/README.md#claude로-실행) |
 | | `ChatController` | 요청마다 `conversationId`를 만들고, 그 사용자 client를 빌려 tool을 LLM에 넘긴다. 답 stream이 끝나면 돌려준다 | [사용자별 MCP client의 필요성](#사용자별-mcp-client의-필요성) |
 | | `UserMcpClients` | 사용자 이름마다 `McpSyncClient`를 하나 만들어 첫 채팅 때 map 밖에서 `initialize`한다. tool은 `SessionRetryingToolCallback`으로 감싸고, logout, HTTP session 종료, 앱 종료 때 닫되 빌려 간 채팅이 있으면 끝난 뒤 닫는다 | [client를 닫는 때](#client를-닫는-때) |
 | | `SessionRetryingToolCallback` | MCP Server가 session을 지워 실패한 tool 호출을 한 번 다시 보낸다. SDK가 뒤에서 보내는 `initialize`에도 주인의 token이 붙어서, official과 달리 사용자 없는 `initialize`의 `401`을 따로 다루지 않는다 | [6장 session 만료와 상한](../mcp-guide/06-mcp-call-and-validation.md#69-session-만료와-상한) |

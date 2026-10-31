@@ -3,11 +3,15 @@ package dev.starryeye.authz.agent.controller;
 import dev.starryeye.authz.agent.security.StepUpRequiredException;
 import dev.starryeye.authz.agent.security.StepUpState;
 
+import com.anthropic.core.JsonValue;
+import com.anthropic.core.http.Headers;
+import com.anthropic.errors.UnauthorizedException;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,6 +57,20 @@ class ChatEventsTest {
         assertThat(events.get(0).data()).contains("\"url\":\"/step-up/retry?scope=products:write\"");
         // 거절 안내의 "다시 요청"도 결국 step_up으로 가므로 여기서도 challenge를 남긴다.
         assertThat(this.state.challenged("products:write")).isTrue();
+    }
+
+    @Test
+    void Claude_API_오류는_안내_문장으로_끝낸다() {
+        Throwable error = new IllegalStateException("Stream processing failed", UnauthorizedException.builder()
+                .headers(Headers.builder().build())
+                .body(JsonValue.from(Map.of("error", Map.of("type", "authentication_error"))))
+                .build());
+
+        List<ServerSentEvent<String>> events = events(Flux.error(error));
+
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).event()).isEqualTo("message");
+        assertThat(events.get(0).data()).contains("key가 올바르지 않습니다");
     }
 
     @Test

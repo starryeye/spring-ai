@@ -24,12 +24,14 @@ public class ChatController {
      * Spring Security의 {@code ThreadLocalAccessor}로 SecurityContext를 그 thread에 옮긴다.
      * {@link SecurityMcpTransportContextProvider}는 거기서 사용자를 읽는다.
      * community practice는 같은 일을 {@code ChatController}의 {@code .contextWrite(...)}로 한다.
+     * Claude API 오류는 안내 문장으로 끝낸다({@link LlmErrors}).
      */
     @PostMapping(value = "/api/chat", produces = MediaType.TEXT_PLAIN_VALUE + ";charset=UTF-8")
     public Flux<String> chat(@RequestBody String message) {
         return chatClient.prompt()
                 .user(message)
                 .stream()
-                .content();
+                .content()
+                .onErrorResume(error -> LlmErrors.find(error).isPresent(), error -> Flux.just(LlmErrors.message(error)));
     }
 }

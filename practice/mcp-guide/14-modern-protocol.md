@@ -14,7 +14,7 @@ client는 요청마다 `_meta`에 버전·capability·client 정보를 넣고, H
 그 practice가 쓰는 MCP Java SDK 2.1과 Spring AI 2.0이 2026-07-28을 모르기 때문이다([9장](09-versions.md#98-official이-따르는-기준)).
 MCP Java SDK 2.2.0-M1에는 2026-07-28 서버가 들어 있어서, 이 practice의 MCP Server는 그 서버 위에 10\~13장의 장치를 그대로 얹는다.
 SDK에는 아직 2026-07-28 client가 없으므로, agent는 MCP를 부르는 부분만 직접 만든 client로 바꾼다.
-Spring AI `ChatClient`와 ollama 모델은 13장과 같다.
+Spring AI `ChatClient`와 모델 설정은 13장과 같다.
 
 요청 형식이 바뀌면 authorization에서도 달라지는 것이 생긴다.
 이 장에서 볼 것은 다음 여섯 가지다.

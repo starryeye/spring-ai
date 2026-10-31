@@ -21,6 +21,7 @@ import java.util.Map;
  * tool 호출이 step-up을 요구하면 답을 멈추고 {@code step-up} event(consent 카드)를 보낸다.
  * 이미 step-up을 거친 scope면 {@code step-up-declined} event(거절 안내)를 보낸다.
  * 사용자가 거절한 권한을 카드로 되풀이해 묻지 않기 위해서다.
+ * Claude API 오류는 안내 문장을 {@code message} event로 보내고 끝낸다({@link LlmErrors}).
  */
 public final class ChatEvents {
 
@@ -38,7 +39,9 @@ public final class ChatEvents {
     public static Flux<ServerSentEvent<String>> of(Flux<String> content, StepUpState state) {
         return content.map(text -> event(MESSAGE, JSON.writeValueAsString(text)))
                 .onErrorResume(error -> StepUpRequiredException.find(error).isPresent(),
-                        error -> Flux.just(stepUp(StepUpRequiredException.find(error).orElseThrow(), state)));
+                        error -> Flux.just(stepUp(StepUpRequiredException.find(error).orElseThrow(), state)))
+                .onErrorResume(error -> LlmErrors.find(error).isPresent(),
+                        error -> Flux.just(event(MESSAGE, JSON.writeValueAsString(LlmErrors.message(error)))));
     }
 
     /**
